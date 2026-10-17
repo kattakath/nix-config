@@ -4,8 +4,9 @@ description: >
   Provision the nixpi Raspberry Pi 4 SD card via the FAT FIRMWARE partition — the
   Cloudflare connector token and Wi-Fi credentials that a fresh flash needs. Use when
   asked to "reflash nixpi", "flash the Pi", "plant the tunnel token", "update the
-  connector token", "rotate the tunnel key", "set up / change nixpi Wi-Fi", or "nixpi
-  can't reach the tunnel after a reflash". Everything is an all-Nix flake app
+  connector token", "rotate the tunnel key", "set up / change nixpi Wi-Fi", "nixpi
+  can't reach the tunnel after a reflash", "test a new SD card", "is this card fake", or
+  "the card got corrupt again". Everything is an all-Nix flake app
   (`nix run .#nixpi-*`) on the macOS host; pairs with
   the in-tree firmware-secrets capsule, hosts/nixpi.nix, and
   docs/nixpi-sd-flashing-runbook.md.
@@ -58,18 +59,28 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
 
 ## Scenarios
 
-1. **Fresh reflash** → `nix run .#nixpi-flash -- --disk /dev/diskN --release`, then insert +
+1. **A card new to nixpi** → f3-test the WHOLE card first (runbook §3c). A verified flash
+   covers only the image's ~4.9 GB; a fake-capacity card passes it, then corrupts once writes
+   land past its real edge (2026-10-17: "32 GB" card, 15.2 GiB real).
+2. **Fresh reflash** → `nix run .#nixpi-flash -- --disk /dev/diskN --release`, then insert +
    boot. (`--release` downloads the CI-prebuilt image; drop it to `nix build` locally instead —
    only works where an aarch64-linux builder exists. The image is secret-free, so the public
-   release artifact is safe.)
-2. **Update the tunnel token** (rotation): `CLOUDFLARE_API_TOKEN=… nix run .#cf-tunnel-apply`
+   release artifact is safe.) **On the live capped card, redo the cap before boot** (runbook
+   §4c) — a reflash restores the image's partition table, and first boot would grow root back
+   into the card's bad region.
+3. **Update the tunnel token** (rotation): `CLOUDFLARE_API_TOKEN=… nix run .#cf-tunnel-apply`
    prints a new token → pipe it to `nix run .#nixpi-vault-token` → commit the vault →
    `nix run .#nixpi-provision -- --token` on a mounted card (or reflash), reboot.
-3. **Update Wi-Fi** → `nix run .#nixpi-provision -- --wifi` on a mounted card, reboot.
+4. **Update Wi-Fi** → `nix run .#nixpi-provision -- --wifi` on a mounted card, reboot.
 
 ## Gotchas
 
 - **Re-plant every flash** — `dd` wipes the FAT partition. `nixpi-flash` does it for you.
+- **`READ-BACK MISMATCH` at `char 8390660` is a false alarm** (macOS auto-mounts `FIRMWARE`
+  after `dd` and writes into it; fix deferred). It aborts before the plant, so verify the write
+  yourself and run `nixpi-provision` — runbook §4b says how. Any other offset is real.
+- **Never cap with `sdImage.expandOnBoot = false`** — the same `mkIf` gates
+  `nix-store --load-db`, leaving the store unregistered. Cap with a fence partition (§4c).
 - **Wi-Fi needs `country=`** — the Pi 4 radio is rfkill-blocked without a regulatory domain.
 - **Band-split SSID** — if the Mac is joined to `<name>-5G` but the keychain stores the
   base `<name>` PSK, Wi-Fi auto-detect (used by `nixpi-flash`/`nixpi-provision` with no
@@ -84,4 +95,5 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
 
 ## Full runbook
 
-`docs/nixpi-sd-flashing-runbook.md` (§4b = the plant step; §1 = the verified-write golden rule).
+`docs/nixpi-sd-flashing-runbook.md` (§1 = the verified-write golden rule; §3c = the f3 card
+test; §4b = the plant step; §4c = reflashing the capped card).
