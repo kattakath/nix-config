@@ -122,10 +122,8 @@ file's `paths:` frontmatter is the source of truth.
   its unmerged parent as a DRAFT, or folds into the parent's PR — it never waits for the merge.
 - [`landing-changes.md`](../../.claude/rules/landing-changes.md) — how a change LANDS. Never poll
   CI inside a turn: one background watch, reporting only RED or "merged, needs activate". And
-  the direct-push lane: a change whose every path is `docs/**`, a root `*.md` or `.claude/**`
-  (no `.nix`) may go straight to `main` after a local gate that mirrors the three required
-  checks (`nix flake check`, a gitleaks scan of the unpushed commits, and
-  `claude-config-lint.yml`'s steps when `.claude/` changed). Evidence:
+  the direct-push lane: a docs/`.claude`-only change may go straight to `main` after a local
+  gate — which paths qualify and the gate are in its § 2. Evidence:
   [`pr-wait-research.md`](../pr-wait-research.md).
 - [`launchd-naming.md`](../../.claude/rules/launchd-naming.md) — every launchd unit this repo
   authors must expose a `nix-<kebab>` `arg0` basename (never a bare `sh`/`python3`); documents

@@ -51,10 +51,9 @@ jobs:
   leg:
     name: leg
     runs-on: ${{ inputs.runs-on }}
-    # 45, not 30: headroom bought BEFORE ADR-002's collapse lands ~25 absorbed
-    # satellite checks on this leg. The failure being avoided is a deadlock, not
-    # a slow build — if the budget is breached first, the PR that raises the
-    # timeout cannot itself go green.
+    # 45, not 30: headroom so the budget is never breached first. The failure
+    # being avoided is a deadlock, not a slow build — if the budget is breached,
+    # the PR that raises the timeout cannot itself go green.
     timeout-minutes: 45 # lint + eval only; no toplevel builds
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -179,8 +178,9 @@ jobs:
       # evaluates with `--option allow-import-from-derivation false`, so it needs no
       # darwin builder. Comparing drvPaths under `--eval-system aarch64-linux` added
       # nothing — `--eval-system` only sets what pure eval already hides, so they
-      # could not have differed. A real LINUX evaluator is UNMEASURED until the
-      # first CI run of this leg; a red eval there is a finding, not flakiness.
+      # could not have differed. A real LINUX evaluator confirmed it: run
+      # 39127414938's aarch64-linux leg evaluated macos green. A red eval here
+      # is a finding, not flakiness.
       - name: Evaluate host config(s) (no build)
         env:
           SYSTEM: ${{ inputs.system }}

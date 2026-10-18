@@ -35,7 +35,7 @@ ceiling of its own, so the budget table is not a thing you can forget.
 | File | What it holds |
 |---|---|
 | [The fleet](#the-fleet) | The four targets in one list, below. **Start here.** |
-| [`map/entry-points.md`](map/entry-points.md) | The root files: `flake.nix` · `flake.lock` · `treefmt.nix` · `sgconfig.yml` + `ast-grep/` · `deploy.nodes` (deploy-rs magic rollback) · devShell · `secrets/secrets.nix` |
+| [`map/entry-points.md`](map/entry-points.md) | The root files: `flake.nix` · `flake.lock` · `treefmt.nix` · `sgconfig.yml` + `ast-grep/` · `deploy.nodes` (deploy-rs magic rollback) · devShell · `scripts/drv-snapshot.sh` · `secrets/secrets.nix` |
 | [`map/hosts.md`](map/hosts.md) | `hosts/` per-host entry profiles, including the two identity-free `generic-*` ones the templates build on — **plus building `aarch64-linux` on the Mac and deploying `nixpi`**: the native Linux builder and its two traps, and what magic rollback actually buys. **Read before any `nixpi` deploy.** |
 | [`map/modules-home.md`](map/modules-home.md) | `modules/home/` — the Home Manager profile on every host — **and the Home-Manager modules that are NOT in it.** The largest of these files. |
 | [`map/modules-darwin.md`](map/modules-darwin.md) | `modules/darwin/` — macOS system scope. |
