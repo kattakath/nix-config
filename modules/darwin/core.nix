@@ -305,6 +305,20 @@ in
     # standing Caps-Lock (or any other) remap.
   };
 
+  # ---- System Settings nix-darwin does not model (nix-plist-manager) --------
+  # ONE OWNER PER KEY: a setting lives here only when `system.defaults` above
+  # cannot express it; never set the same key in both, or two activation
+  # scripts write it and the later one silently wins.
+  #
+  # Menu bar: always shown, full screen included. The one UI choice writes
+  # three keys — `_HIHideMenuBar` = false, `AppleMenuBarVisibleInFullscreen` =
+  # true, `com.apple.controlcenter AutoHideMenuBarOption` = 3 — matching this
+  # Mac's hand-set state as read 2026-10-18. nix-darwin types only the first.
+  home-manager.users.${loginName}.programs.nix-plist-manager = {
+    enable = true;
+    options.applications.systemSettings.menuBar.autoHideAndShowTheMenuBar = "Never";
+  };
+
   # Application firewall ON, with stealth mode — reinforces this client Mac's
   # "NO incoming traffic" posture (hosts/macos.nix): drop unsolicited inbound
   # connections and stay silent to port scans / ICMP probes. (nix-darwin retired
