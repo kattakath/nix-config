@@ -187,6 +187,15 @@
     # `home-manager` or `systems`, so a `follows` for any of those is a hard Nix
     # warning on every eval rather than a silent no-op.
 
+    # System Settings as typed options, named after the UI label, for the keys
+    # nix-darwin's `system.defaults` does not model — e.g. the menu bar's
+    # auto-hide choice spans THREE keys across two domains, of which nix-darwin
+    # types one (`_HIHideMenuBar`; `AppleMenuBarVisibleInFullscreen` PR #700 was
+    # closed unmerged). Consumed as its home-manager module only — see
+    # modules/darwin/core.nix for the one-owner-per-key rule.
+    nix-plist-manager.url = "github:sushydev/nix-plist-manager";
+    nix-plist-manager.inputs.nixpkgs.follows = "nixpkgs";
+
     # (firmware-secrets was an input here until ADR-002 wave 4 ABSORBED it as a
     # capsule — modules/features/firmware-secrets/. Same module, same
     # `local.firmwareProvisioning` option surface, one fewer lock node and one
