@@ -60,6 +60,8 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 | 6 | Dependent chains: one PR, or branch N+1 off N | ~7 min per serial link | S | trunk-based precedent; the 10-02 chained session |
 
 - **Quick wins (≤1 h, reversible):** #1, #2, and diagnosing the 14 unarmed PRs below.
+  **Diagnosis DONE (`pr-wait/auto-merge-arming`):** not a defect, no code change — see
+  § Not waiting.
 - **Merge-queue history check:** none of #1–#6 re-runs the gate on a second ref, so none
   repeats the reason in [`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md) §3.
 
@@ -79,8 +81,75 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 
 - **27 multi-run PRs** (37.5% of summed wall-clock): the agent was still pushing fixes.
 - **Draft-parked time** (33.7%): deliberate parking.
-- **14 PRs never armed for auto-merge** explain most of the green→merged lag. **Cause
-  undiagnosed** — and lever #1 depends on arming working.
+- **14 PRs "never armed for auto-merge"** — **DIAGNOSED (branch `pr-wait/auto-merge-arming`):
+  not a defect, and not a separate loss.** Every one was armed in effect; the lag is the
+  draft-parked time in the bullet above, counted a second time. **No workflow change.**
+
+### The 14 "unarmed" PRs — diagnosis
+
+**Verdict:** arming works. Of **258** operator PRs since 2026-09-23 (merged or closed), 244
+carry an arm event, 13 were merged directly by the arm step, and 1 was hand-merged. Zero
+failed to arm. Lever #1 is unblocked.
+
+**Why no arm event exists.** `gh pr merge --auto` does not arm a PR that is already
+mergeable. gh's `pkg/cmd/pr/merge/merge.go` sets `autoMerge` only when
+`!isImmediatelyMergeable(pr.MergeStateStatus)`, and `isImmediatelyMergeable` is true for
+`CLEAN`, `HAS_HOOKS` and `UNSTABLE` (read at gh 2.101.0). So on a green PR the arm step
+**merges on the spot**, and the timeline gets a `merged` event, never `auto_squash_enabled`.
+gh's `infof` prints nothing off a TTY, so the runner log is **silent** either way. That is
+why this looked like a failure.
+
+**The shared shape (13 of 14):** opened as a draft → arm job `skipped` (correct) →
+`required-checks` green **while still a draft** → `ready_for_review` → arm job `success` →
+merged by `ismailkattakath-ci[bot]` **10–14 s later**. #697 is the one exception: it was
+hand-merged 7 s after the ready transition, 1 s after the arm job started. It was the
+deliberate human-merge sample in
+[`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md)'s closing-keyword table.
+
+| PR | green (UTC) | ready | green→merged min | ready→merged | merged by |
+|---|---|---|---|---|---|
+| #579 | 09-23 01:16 | 09-23 01:29 | 13.3 | 13 s | `ismailkattakath-ci` |
+| #580 | 09-23 01:17 | 09-23 01:29 | 13.1 | 13 s | `ismailkattakath-ci` |
+| #581 | 09-23 01:28 | 09-23 01:31 | 2.4 | 11 s | `ismailkattakath-ci` |
+| #583 | 09-23 01:32 | 09-23 01:32 | 0.1 | 11 s | `ismailkattakath-ci` |
+| #596 | 09-23 07:16 | 09-23 07:33 | 16.8 | 11 s | `ismailkattakath-ci` |
+| #624 | 09-23 15:39 | 09-23 16:03 | 23.6 | 12 s | `ismailkattakath-ci` |
+| #625 | 09-23 20:21 | 09-24 05:16 | **535.7** | 10 s | `ismailkattakath-ci` |
+| #670 | 09-30 20:26 | 09-30 21:10 | 44.1 | 14 s | `ismailkattakath-ci` |
+| #673 | 09-30 22:02 | 09-30 22:10 | 8.2 | 12 s | `ismailkattakath-ci` |
+| #675 | 09-30 21:51 | 09-30 21:52 | 1.9 | 11 s | `ismailkattakath-ci` |
+| #676 | 09-30 20:49 | 09-30 21:53 | 64.9 | 11 s | `ismailkattakath-ci` |
+| #697 | 10-01 03:01 | 10-01 03:49 | 48.0 | 7 s | `ismailkattakath` (hand) |
+| #699 | 10-01 04:05 | 10-01 04:42 | 37.2 | 11 s | `ismailkattakath-ci` |
+| #855 | 10-17 22:16 | 10-17 22:23 | 7.2 | 10 s | `ismailkattakath-ci` |
+
+**Sum: 816 min green→merged, of which 814 min is green→ready** — the PR sat green as a
+draft. Ready→merged totals ~2.6 min. So the minutes belong to draft parking, not to arming.
+If the agent marked a green draft ready sooner, that lag would vanish; that is lever #1's
+territory (notify on green), not a workflow defect.
+
+**The other 5 PRs without an arm event are Dependabot's**, armed by `arm-dependabot.yml`'s
+sweep, not by `auto-merge.yml`:
+
+| PR | Cause |
+|---|---|
+| #633 | Predates `arm-dependabot.yml` (landed #701, 2026-10-01); it is that file's motivating case |
+| #708 | The first `workflow_dispatch` sweep hit a green PR → direct merge (same gh path) |
+| #820, #822 | A scheduled sweep hit a green PR → direct merge |
+| #736 | Hand-merged between sweeps (05:34 and 12:31) |
+
+**Data on #683:** #855 (2026-10-17) is the first `ready_for_review` sample since #750 turned
+`cancel-in-progress` off. It got **exactly one** non-skipped arm run, which merged it. One
+sample; the issue is not re-characterised here.
+
+**Instrument** (scratchpad, not retained): one GraphQL `pullRequests(states:[MERGED,CLOSED])`
+query over `timelineItems` (`AUTO_MERGE_ENABLED_EVENT`, `AUTO_SQUASH_ENABLED_EVENT`,
+`AUTO_MERGE_DISABLED_EVENT`, `CONVERT_TO_DRAFT_EVENT`, `READY_FOR_REVIEW_EVENT`,
+`MERGED_EVENT`) with `gh api graphql --paginate` (804 PRs, 267 since 09-23). Then
+`gh api --paginate …/workflows/auto-merge.yml/runs` (342 runs), per-run `/jobs`, and the
+head SHA's `required-checks` check run. A **workflow-run** conclusion of `success` does not
+mean the arm job ran: since #713 the `arm decision` job succeeds on every run. Read the
+**job** conclusion.
 
 ## Derived vs assumed
 
@@ -108,3 +177,7 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 - `docs/map/ci.md` has drifted from the workflow (`legs` runner, nix-fast-build).
 - `nix-ci.yml`'s header credits Determinate's parallel eval beyond its documented scope
   (flake check/show, eval --json, search — not `nix build <attrs>`).
+- `arm-dependabot.yml`'s cron comment says "Every 6 h bounds the arming latency". **Measured
+  false:** 55 scheduled runs against 68 nominal `17 */6` slots (2026-10-01→10-18, so **13
+  dropped**). Gap between runs: p50 7.1 h, p90 9.7 h, **max 13.5 h**. #822 sat green for
+  5.3 h waiting for a sweep. Out of the auto-merge lane; not fixed.
