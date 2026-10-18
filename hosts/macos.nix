@@ -888,9 +888,9 @@ in
       # WHY A CASK AND NOT NIXPKGS, and the contrast worth knowing: upstream
       # ships ONE unsuffixed universal .dmg for macOS but only -x86_64/-i686
       # tarballs for Linux, so stable Tor Browser has Apple Silicon support on
-      # macOS and NONE on Linux. That asymmetry is why the Linux guests need an
+      # macOS and NONE on Linux. That asymmetry is why the `nixos` guest needs an
       # overlay onto the current aarch64 ALPHA (modules/_lib/tor-browser-alpha.nix,
-      # used by `nixos` and nixvm's desktop) while this host needs only a cask.
+      # used by `nixos`) while this host needs only a cask.
       #
       # grepped the pinned nixpkgs for a Darwin route — none exists:
       # pkgs/by-name/to/tor-browser/package.nix:107 declares `sources` with

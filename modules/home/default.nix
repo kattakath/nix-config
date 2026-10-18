@@ -95,11 +95,10 @@ let
 
   # Fonts are rendered by the machine with the SCREEN, never by an SSH target:
   # tmux/starship glyphs on nixpi are drawn by the client's terminal. So fonts go
-  # where something can display them — any Mac, or nixvm with its GUI switched on
-  # (`local.desktopVm`, imported only there, hence the `or false`). Measured
+  # where something can display them — any Mac, and no Linux host. Measured
   # 2026-10-17: the three below were ~269 MiB of nixpi's SD-card closure, with
   # fontconfig indexing 164 faces and no display service on the host to use one.
-  wantsFonts = pkgs.stdenv.hostPlatform.isDarwin || (osConfig.local.desktopVm.enable or false);
+  wantsFonts = pkgs.stdenv.hostPlatform.isDarwin;
 
   # The REDACTED org's checkout root — ONE source for the three things keyed on it:
   # the git work identity (`programs.git.includes`), the folder-wide agent context
@@ -636,22 +635,16 @@ in
     # asserts that an unset `enable` contributes nothing at all, which is the
     # state the two NixOS hosts are in.
     mediaCliModule
-    # THESE TWO ARE THE LIVE MCP LANE. The gateway (`mcp.nix`) was deleted in #734;
-    # these launchers are how the servers that had no plugin owner survived it. Each
-    # puts a binary on PATH that a plugin's `.mcp.json` in github:kattakath/skills names
-    # as its `command`, because that file can set `env` only to literals or passthroughs
-    # and cannot run a Keychain read. See each module's header.
-    # LAYER 3 of nixvm's display: XFCE's Xft.dpi, which overrides the X server's
-    # own -dpi for every GTK app (measured 96 in the booted guest). Internally
-    # gated on `osConfig.networking.hostName == "nixvm"` — mandatory, not tidy:
-    # home-manager's xfconf module asserts lib.platforms.linux, so a non-empty
-    # `settings` on macos is a build FAILURE. See the file's header.
     # Keeps the Tor Browser profile out of Time Machine (the cask lives in
     # hosts/macos.nix). Internally gated on hostName == "macos" — tmutil exists
     # on no Linux host. PRE-EMPTIVE: there is no TM destination configured today;
     # see the file's header for what it does and does NOT cover.
     ./tor-browser-backup-exclusion.nix
-    ./xfce-xsettings.nix
+    # THESE TWO ARE THE LIVE MCP LANE. The gateway (`mcp.nix`) was deleted in #734;
+    # these launchers are how the servers that had no plugin owner survived it. Each
+    # puts a binary on PATH that a plugin's `.mcp.json` in github:kattakath/skills names
+    # as its `command`, because that file can set `env` only to literals or passthroughs
+    # and cannot run a Keychain read. See each module's header.
     ./gmail-mcp.nix # four Gmail accounts, one launcher each
     ./plugin-mcp.nix # wordpress + apify (Keychain) and postgres (loopback pgvector URI)
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
@@ -1567,14 +1560,17 @@ in
     recursive = true;
   };
 
-  # Make Home-Manager-installed font packages discoverable by applications —
-  # LINUX ONLY. On macOS this is NOT what makes fonts visible: pinned
-  # home-manager targets/darwin/fonts.nix already rsyncs every package's
+  # HM fontconfig is OFF on every host. Linux hosts get no HM fonts at all
+  # (`wantsFonts` is darwin-only), and an explicit `false` is needed there:
+  # home-manager's default follows NixOS' `fonts.fontconfig.enable` (true) when
+  # `useUserPackages` is on. On macOS this is NOT what makes fonts visible:
+  # pinned home-manager targets/darwin/fonts.nix already rsyncs every package's
   # share/fonts into ~/Library/Fonts/HomeManager unconditionally. And it is not
   # a no-op there either: fontconfig.nix:315-350 is not platform-gated, so it
   # was adding two dummy packages and running `fc-cache -f` on every darwin
-  # profile build for nothing.
-  fonts.fontconfig.enable = pkgs.stdenv.hostPlatform.isLinux && wantsFonts;
+  # profile build for nothing. A future Linux desktop that wants HM fonts turns
+  # BOTH this and `wantsFonts` on for its host.
+  fonts.fontconfig.enable = false;
 
   # PERSONAL, cross-host packages only — tools wanted on EVERY machine, not
   # project toolchains (those live in each repo's own devShell). claude-code is
