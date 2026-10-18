@@ -189,6 +189,10 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - [`docs/auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md) — how every fleet
   flake merges itself once CI is green (App token, ruleset). **No merge queue** since
   2026-09-22; §3 records why, and what to re-check before re-adopting.
+- [`docs/pr-wait-research.md`](../pr-wait-research.md) — **RESEARCH ONLY, nothing
+  implemented**: where PR-wait time actually goes (CI 92% of clock; in-session waits
+  6–8 min/day), the `deploy-schema` eval edge that fetches the Pi kernel on every darwin leg,
+  and a ranked, deferred lever backlog with the rejected alternatives.
 - [`docs/flakehub-input-freshness.md`](../flakehub-input-freshness.md) — the weekly automated
   `flake.lock` bump flow.
 - [`docs/nix-media-cli-extraction-grant.md`](../nix-media-cli-extraction-grant.md) + its
