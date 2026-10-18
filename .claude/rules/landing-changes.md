@@ -79,4 +79,7 @@ skips the scan.
 and merge stay human". Here `auto-merge.yml` already lands agent PRs with 0 approvals, and
 this lane can change only what checks read, never what a host runs.
 
-If any path or any gate step fails, open a normal PR (`pr-title.md`).
+If any path or any gate step fails, open a normal PR (`pr-title.md`). **A worktree-isolated
+session cannot run the whole gate.** Its Bash guard refuses `nix develop -c gitleaks git …` and
+`bash .claude/hooks/tests/*.sh` as unprovable git (measured 2026-10-18), so it takes the PR
+lane. Never word around the guard to reach a direct push.
