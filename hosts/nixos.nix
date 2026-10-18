@@ -70,10 +70,6 @@ in
       system.stateVersion = "26.11";
       time.timeZone = "America/Toronto";
 
-      # Allow unfree packages (e.g. `claude-code` in the shared HM profile) — the
-      # same line nixpi and nixvm carry.
-      nixpkgs.config.allowUnfree = true;
-
       # ---- Reachability from the Mac -----------------------------------------
       # modules/nixos/core.nix binds sshd to LOOPBACK ONLY and opens no port,
       # which would leave this guest unreachable over UTM's shared network.

@@ -43,9 +43,6 @@
 
   networking.hostName = "nixvm";
 
-  # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
-  nixpkgs.config.allowUnfree = true;
-
   # DHCP on all interfaces (QEMU user-mode networking hands out a 10.0.2.x lease).
   networking.useDHCP = true;
 

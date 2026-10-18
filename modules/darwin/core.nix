@@ -165,6 +165,12 @@ in
   # the mkDarwin helper in modules/parts/compose.nix), NOT hardcoded here — so this shared module
   # serves any aarch64-darwin host this flake declares.
 
+  # The ONE darwin definition (every darwin host imports this module, the
+  # template's generic-darwin included). Most real configs need it the moment
+  # they add a cask, a font or `claude-code`; a consumer wanting a strictly free
+  # closure overrides it with `lib.mkForce false` in their own module.
+  nixpkgs.config.allowUnfree = true;
+
   # NOTE: no `nix.settings.experimental-features` here. This host runs Determinate
   # Nix (determinateNix.enable in flake.nix → nix.enable = false), which enables
   # flakes + nix-command by default and OWNS /etc/nix/nix.conf — the `nix.*`

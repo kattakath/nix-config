@@ -112,8 +112,6 @@ in
     (pkgs.callPackage ../packages/fal.nix { })
   ];
 
-  nixpkgs.config.allowUnfree = true;
-
   # System-wide, into /Library/Fonts/Nix Fonts (nix-darwin's fonts.packages,
   # verified 2026-09-30 by building the derivation and checking: pkgs.noto-fonts
   # itself ships NotoSansMalayalam.ttf + NotoSerifMalayalam.ttf directly, no
