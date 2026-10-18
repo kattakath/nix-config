@@ -42,9 +42,4 @@
     name = loginName;
     home = "/Users/${loginName}";
   };
-
-  # Most real configs need this the moment they add a cask or a font; enabling it
-  # here saves every consumer the same first-run failure. Flip it off in your own
-  # module if you want a strictly free closure.
-  nixpkgs.config.allowUnfree = true;
 }
