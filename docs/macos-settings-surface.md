@@ -48,6 +48,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 | `networking.applicationFirewall.enable` + `.enableStealthMode` | `true` | App firewall + stealth mode — reinforces the "no incoming traffic" posture |
 | `environment.systemPackages` | `coreutils`, `curl` | system-wide packages |
 | `system.stateVersion` / `system.primaryUser` | `5` / `loginName` | migration tracking + who user-defaults apply to |
+| `programs.nix-plist-manager` (home-manager, from `core.nix`) | `menuBar.autoHideAndShowTheMenuBar = "Never"` | Menu bar always shown. The one UI choice writes three keys, and nix-darwin types only `_HIHideMenuBar`. **One owner per key:** never set a key here AND in `system.defaults` |
 
 ### Custom services this repo built (launchd)
 
@@ -370,6 +371,7 @@ already an activation no-op: its target still exists and already holds
 | **nix-homebrew** (zhaofengli) | manage Brew *itself* + taps declaratively | reproducible brew (used ✓) |
 | **mac-app-util** (hraban) | Spotlight/Dock trampolines for Nix-installed `.app`s | if you install GUI apps via Nix instead of casks |
 | **agenix** | in-repo encrypted secrets | used ✓ |
+| **nix-plist-manager** (SushyDev) | ~550 System Settings as typed options named after the UI label; HM + darwin modules | reach for it BEFORE `CustomUserPreferences` when nix-darwin has no typed option (used ✓, HM module only) |
 
 > **Org move (act on this eventually):** nix-darwin migrated from `LnL7/nix-darwin`
 > to **`nix-darwin/nix-darwin`** (announced 2025-03-21, issue #1394). Our `flake.nix`
