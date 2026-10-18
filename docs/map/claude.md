@@ -99,7 +99,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 
 | Workflow | What it does |
 |---|---|
-| `nix-hygiene-pass` | the multi-agent form of `/hygiene`: six read-only auditors (checklist A–E + a recent-change lens over a git range), two refuting skeptics per finding (a dead skeptic counts AGAINST), ONE sequential fixer so edits never collide in `CLAUDE.md`, then a completeness critic. A crashed auditor is logged as UNAUDITED, never folded into "clean". First run: #885 (39 confirmed of 44) |
+| `nix-hygiene-pass` | the multi-agent form of `/hygiene`: six read-only auditors (checklist A–E + a recent-change lens over a git range), two refuting skeptics per finding (a dead skeptic counts AGAINST), ONE sequential fixer, then a completeness critic. Findings are untrusted data: the fixer may touch only a positive allowlist of roots and NEVER an agent-facing path (`CLAUDE.md`, `claude/`, `.claude/`, policy/MCP modules, `infra/`) — those return as `forHuman` for the main session to apply. A crashed auditor is logged as UNAUDITED, never folded into "clean". First run: #885 (39 confirmed of 44) |
 
 `/superhook-review` is **not** in this table and that is not an omission: the `superhook`
 plugin ships it. The in-repo `.claude/commands/superhook-review.md` was byte-identical to the
