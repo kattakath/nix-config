@@ -422,9 +422,10 @@
 
   # ── Audiobookshelf (LAN only) ───────────────────────────────────────────────
   # Upstream module, left at its defaults on purpose: it binds 127.0.0.1:8000 and
-  # keeps its database in /var/lib/audiobookshelf — on the SD card's root
-  # partition, which sits inside the card's REAL capacity (the counterfeit region
-  # is the unused p3). Only the BOOKS live on the USB volume.
+  # keeps its DATABASE (CONFIG_PATH) in /var/lib/audiobookshelf — on the SD card's
+  # root partition, which sits inside the card's REAL capacity (the counterfeit
+  # region is the unused p3). The books and the bulky, regenerable METADATA
+  # (covers, logs, cache, backups) live on the USB volume — see `environment` below.
   #
   # No new firewall port: Caddy's `http://nixpi.local` vhost below proxies to the
   # loopback listener over :80, which is already open. Phones away from home would
@@ -451,6 +452,16 @@
           "/mnt/storage/audiobookshelf/metadata/authors"
           "/mnt/storage/audiobookshelf/metadata/logs"
         ];
+    # The module has no option for these (its ExecStart passes only --host/--port).
+    # METADATA_PATH re-roots items/, authors/, logs/, cache/ and streams/ (index.js;
+    # every manager joins its dir onto global.MetadataPath). BACKUP_PATH is needed
+    # TOO: first-run setup PERSISTS backupPath in the database, so METADATA_PATH
+    # alone leaves backups where they were; the env var overrides the stored value
+    # and locks the UI field (ServerSettings.js, `backupPathEnvSet`).
+    environment = {
+      METADATA_PATH = "/mnt/storage/audiobookshelf/metadata";
+      BACKUP_PATH = "/mnt/storage/audiobookshelf/metadata/backups";
+    };
   };
   # Group membership so books can be copied in over SSH (`rsync … nixpi.local:/mnt/storage/audiobooks/`).
   users.users.${loginName}.extraGroups = [ "audiobookshelf" ];
