@@ -181,6 +181,12 @@
 
   raspberry-pi-nix = {
     board = "bcm2711";
+    # The rpi libcamera FORK (0.3.1) no longer compiles against the pinned GCC
+    # (`uint8_t was not declared`), and being a fork it is in no binary cache.
+    # Anything reaching libcamera — Audiobookshelf's ffmpeg-full → openal →
+    # pipewire — then failed warm-nixpi-cache (2026-10-18, run 39111882830).
+    # This host is a headless server with no camera, so stock libcamera is fine.
+    libcamera-overlay.enable = false;
   };
 
   # SSH over the Cloudflare Tunnel — loginless, token-based connector. Both the
