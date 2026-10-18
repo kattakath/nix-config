@@ -1587,7 +1587,7 @@ in
           # Living text is every tracked .nix/.md/.js/.sh/.yml EXCEPT the as-of
           # records: ADRs, studies, plans and the retired mcp-* docs, where a
           # pointer into code that has since moved is the expected state, and
-          # .claude/agent-memory. Bare `:N` continuations and the second half of
+          # .claude/agent-memory. A `./` or `../` prefix is part of the path. Bare `:N` continuations and the second half of
           # an `:N-M` range are not parsed; the first number of a range is.
           #
           # The scanner runs on two fixtures BEFORE the tree — one citation that
@@ -1628,7 +1628,7 @@ in
                         || { [ "''${p#*/}" = "$p" ] && grep -qxF -- "$p" "$uniq_base"; }; then
                         echo "$f:$ln: $tok"
                       fi
-                    done < <(grep -noP '(?<![A-Za-z0-9_./-])[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:nix|js|sh|ya?ml|md|py|json|toml):[0-9]+' "$f" || true)
+                    done < <(grep -noP '(?<![A-Za-z0-9_./-])(?:\.\.?/)*[A-Za-z0-9_][A-Za-z0-9_./-]*\.(?:nix|js|sh|ya?ml|md|py|json|toml):[0-9]+' "$f" || true)
                   done < <(grep -E '\.(nix|md|js|sh|ya?ml)$' "$files" \
                     | grep -vE '^(docs/[^/]*-adr\.md|docs/[^/]*study[^/]*\.md|docs/[^/]*-plan\.md|docs/mcp-[^/]*\.md|\.claude/agent-memory/.*)$')
                   echo "$seen" >&2
@@ -1639,10 +1639,14 @@ in
                 echo x > "$fx/y/z.nix"
                 printf '# see y/z.nix:3\n' > "$fx/a/bad.nix"
                 printf '# see nix-darwin/y/z.nix:3\n' > "$fx/a/ok.nix"
+                # A `./`-relative citation must be flagged too — the regex once
+                # could not start a match at `.`, so the `p#./` strip never ran.
+                printf '# see ./z.nix:3\n' > "$fx/y/rel.nix"
+                want=$(printf '%s\n' "a/bad.nix:1: y/z.nix:3" "y/rel.nix:1: ./z.nix:3")
                 got=$(scan "$fx" 2>/dev/null)
-                if [ "$got" != "a/bad.nix:1: y/z.nix:3" ]; then
+                if [ "$got" != "$want" ]; then
                   echo "line-refs-cite-constructs: the scanner failed its own fixture." >&2
-                  echo "  want exactly: a/bad.nix:1: y/z.nix:3" >&2
+                  echo "  want exactly: $want" >&2
                   echo "  got:          ''${got:-<nothing>}" >&2
                   exit 1
                 fi
