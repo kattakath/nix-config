@@ -48,7 +48,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 | `networking.applicationFirewall.enable` + `.enableStealthMode` | `true` | App firewall + stealth mode — reinforces the "no incoming traffic" posture |
 | `environment.systemPackages` | `coreutils`, `curl` | system-wide packages |
 | `system.stateVersion` / `system.primaryUser` | `5` / `loginName` | migration tracking + who user-defaults apply to |
-| `programs.nix-plist-manager` (home-manager, from `core.nix`) | `menuBar.autoHideAndShowTheMenuBar = "Never"` | Menu bar always shown. The one UI choice writes three keys, and nix-darwin types only `_HIHideMenuBar`. **One owner per key:** never set a key here AND in `system.defaults` |
+| `programs.nix-plist-manager` (home-manager, from `core.nix`) | `menuBar.autoHideAndShowTheMenuBar = "In Full Screen Only"` | Menu bar shown on the desktop, hidden in full screen. The one UI choice writes three keys, and nix-darwin types only `_HIHideMenuBar`. **One owner per key:** never set a key here AND in `system.defaults` |
 
 ### Custom services this repo built (launchd)
 
