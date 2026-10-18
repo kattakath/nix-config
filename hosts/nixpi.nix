@@ -452,16 +452,24 @@
           "/mnt/storage/audiobookshelf/metadata/authors"
           "/mnt/storage/audiobookshelf/metadata/logs"
         ];
-    # The module has no option for these (its ExecStart passes only --host/--port).
-    # METADATA_PATH re-roots items/, authors/, logs/, cache/ and streams/ (index.js;
-    # every manager joins its dir onto global.MetadataPath). BACKUP_PATH is needed
-    # TOO: first-run setup PERSISTS backupPath in the database, so METADATA_PATH
-    # alone leaves backups where they were; the env var overrides the stored value
-    # and locks the UI field (ServerSettings.js, `backupPathEnvSet`).
-    environment = {
-      METADATA_PATH = "/mnt/storage/audiobookshelf/metadata";
-      BACKUP_PATH = "/mnt/storage/audiobookshelf/metadata/backups";
-    };
+    # The metadata root re-roots items/, authors/, logs/, cache/ and streams/ (index.js;
+    # every manager joins its dir onto global.MetadataPath). It MUST be the
+    # `--metadata` FLAG: nixpkgs' bin/audiobookshelf launcher sets
+    # `METADATA_PATH="$metadata"` itself (default `$(pwd)/metadata`), clobbering any
+    # unit Environment= — measured 2026-10-18, the env var reached the unit and the
+    # startup log still said /var/lib. The module has no extra-args option (its
+    # ExecStart passes only --host/--port), hence mkForce, rebuilt from its own cfg.
+    serviceConfig.ExecStart =
+      let
+        cfg = config.services.audiobookshelf;
+      in
+      lib.mkForce "${cfg.package}/bin/audiobookshelf --host ${cfg.host} --port ${toString cfg.port} --metadata /mnt/storage/audiobookshelf/metadata";
+    # BACKUP_PATH stays an env var — the launcher passes it through untouched. It is
+    # needed on top of --metadata: first-run setup PERSISTS backupPath in the
+    # database, so a new metadata root alone leaves backups where they were; the env
+    # var overrides the stored value and locks the UI field (ServerSettings.js,
+    # `backupPathEnvSet`).
+    environment.BACKUP_PATH = "/mnt/storage/audiobookshelf/metadata/backups";
   };
   # Group membership so books can be copied in over SSH (`rsync … nixpi.local:/mnt/storage/audiobooks/`).
   users.users.${loginName}.extraGroups = [ "audiobookshelf" ];
