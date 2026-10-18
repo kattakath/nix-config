@@ -91,11 +91,14 @@ in
         # secret is public before CI's".
         #
         # Custom hook because the pinned git-hooks.nix ships no gitleaks hook
-        # (its hooks.nix has `ripsecrets` and `detect-private-keys` only).
-        # gitleaks rather than ripsecrets: the required `Scan for secrets` check
-        # (.github/workflows/gitleaks.yml) IS gitleaks, from the same nixpkgs pin,
-        # so local and CI give ONE verdict; a different scanner would allow
-        # local-green/CI-red.
+        # (its hooks.nix has `ripsecrets`, `detect-private-keys` and `trufflehog`).
+        # gitleaks rather than either scanner: the required `Scan for secrets`
+        # check (.github/workflows/gitleaks.yml) IS gitleaks, from the same
+        # nixpkgs pin, so local and CI give ONE verdict; a different scanner would
+        # allow local-green/CI-red. trufflehog loses twice more: its hook scans
+        # git history `--since-commit HEAD`, not the working tree, and
+        # `--only-verified` checks credentials over the network, which a
+        # sandboxed check derivation cannot reach.
         #
         # `dir`, never `--staged`: the check derivation (git-hooks.nix's `run`)
         # commits the tree BEFORE `pre-commit run --all-files`, so a staged-mode
@@ -104,7 +107,6 @@ in
         # direct-push gate's history scan over the unpushed range uses.
         pre-commit.settings.hooks.gitleaks = {
           enable = true;
-          name = "gitleaks";
           package = pkgs.gitleaks;
           entry = "${lib.getExe pkgs.gitleaks} dir --redact --no-banner --exit-code 1 .";
           pass_filenames = false;
@@ -137,7 +139,8 @@ in
         # ---- Multi-architecture dev shell --------------------------------------
         # `nix develop` on any target. Used as the default Devcontainer profile.
         # statix/deadnix/jq are exposed as standalone binaries (NOT via
-        # pre-commit's enabledPackages, which only yields the treefmt wrapper) so
+        # pre-commit's enabledPackages, which yields only the treefmt wrapper plus
+        # gitleaks — the binary the direct-push history scan relies on) so
         # the .vscode lint tasks can call them directly.
         #
         # This is generated for the two FLEET arches here; the x86_64-linux

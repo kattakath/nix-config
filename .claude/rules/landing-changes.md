@@ -2,7 +2,8 @@
 
 Unscoped on purpose, like `pr-title.md`: it governs the END of every session, whatever the
 session touched. Evidence for every lever here:
-[`docs/pr-wait-research.md`](../../docs/pr-wait-research.md) (levers #1, #5, #6).
+[`docs/pr-wait-research.md`](../../docs/pr-wait-research.md) (levers #1, #5, #6). A change that
+depends on an unmerged one never waits for it to merge: `pr-title.md` § One PR per change.
 
 ## 1. Never poll CI inside a turn
 
@@ -25,9 +26,9 @@ GitHub lands it the moment the required checks go green. Nothing in your turn sp
   the background watch: wait until `gh run list --workflow auto-merge.yml --limit 1 --json
   conclusion` is not `null`.
 
-Why: in-turn polling cost **6.4–8.4 min of keyboard per calendar day** in October. Only
-**1.5%** of 32,201 Bash calls ran in the background. The alternative, a shorter poll
-interval, still blocks the keyboard for the whole run (p50 6.78 min).
+Why: the general rule and its census are the global `claude/CLAUDE.md` § CI waits
+(evidence: `docs/pr-wait-research.md` lever #1). The bullets stay here too, because a session
+with no installed global context (devcontainer, Codespaces) never loads that file.
 
 ## 2. Docs / `.claude`-only changes may go straight to `main`
 
@@ -64,7 +65,7 @@ below fails that test:
 |---|---|
 | `required-checks` | `nix flake check`. It covers `pre-commit` (gitleaks over the tree, plus treefmt), `claude-md-budget`, `line-refs-cite-constructs`, `docs-indexed` and `docs-links-resolve` |
 | `Scan for secrets` | `nix develop -c gitleaks git --log-opts="origin/main..HEAD" --redact --no-banner` scans every unpushed COMMIT. The push publishes each one, so a secret that one commit added and a later one removed still leaks |
-| `Lint .claude config` (only when `.claude/` changed) | both `run:` steps of `.github/workflows/claude-config-lint.yml`, VERBATIM from that file: three `cclint` lines plus every `.claude/hooks/tests/*.sh` |
+| `Lint .claude config` (when `.claude/` or any `CLAUDE.md` changed — cclint's `context` lints CLAUDE.md, and CI runs it on every PR) | both `run:` steps of `.github/workflows/claude-config-lint.yml`, VERBATIM from that file: three `cclint` lines plus every `.claude/hooks/tests/*.sh` |
 
 Then push: `git push origin HEAD:main`. It must be a fast-forward. Never force: force is
 denied, see `claude-guardrails.nix`. The post-push CI on `main` is the backstop, and a RED
@@ -79,9 +80,3 @@ and merge stay human". Here `auto-merge.yml` already lands agent PRs with 0 appr
 this lane can change only what checks read, never what a host runs.
 
 If any path or any gate step fails, open a normal PR (`pr-title.md`).
-
-## 3. Never queue behind your own PR
-
-Covered in `pr-title.md` § One PR per change. When change N+1 depends on unmerged change N,
-either fold both into one PR or branch N+1 off N. Never wait for N to merge before you start
-N+1.

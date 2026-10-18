@@ -11,7 +11,7 @@ so the bare command does exercise those. (`determinate-daemon-nixpi` was named
 `determinate-daemon` until 2026-10-18 — the same NAME as the macos contract, which is how it
 was miscounted as a twin here.)
 
-Build the three locally when you touch what they cover — Determinate's native Linux
+Build them locally when you touch what they cover — Determinate's native Linux
 builder runs them fine, verified with `--rebuild` so they genuinely executed:
 
 ```bash
@@ -51,12 +51,13 @@ the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cach
   `author_association == 'OWNER'` was rejected: the repo is **org-owned**, and 96/96 sampled
   operator PRs read `MEMBER`, so an OWNER test never matches. Agent sessions open PRs AS the
   operator, so in practice **every agent PR** gets advisory darwin — only bots stay required.
-- **Linux evaluating macos should be sound**, on two facts: pure flake eval has no
+- **Linux evaluating macos is sound**, on two facts: pure flake eval has no
   `builtins.currentSystem`, and `darwinConfigurations.macos` evaluates with
   `--option allow-import-from-derivation false` (measured 2026-10-18), so no darwin builder is
   needed. A drvPath comparison under `--eval-system aarch64-linux` is NOT evidence — that flag
   only sets what pure eval already hides, so it could not have differed. A real linux evaluator
-  is **unmeasured until the first CI run**; a red macos eval there is a finding.
+  confirmed it: run 39127414938's `build (aarch64-linux)` leg evaluated macos green
+  (2026-10-18). A red macos eval there is a finding, not flakiness.
 - **Name = source, or the PR filter lies.** `system-only` subtracts check NAMES, so it is only
   correct while a name shared across systems comes from ONE source block. A per-host contract
   carries its host in its name: the two Determinate contracts were both `determinate-daemon`
@@ -87,14 +88,15 @@ through. `required-checks` fails on **`'skipped'`** everywhere else: a skipped j
 failure nor cancelled, so without that it could report green over a leg that never ran.
 
 **`checks.<system>.actionlint` runs actionlint inside a PROJECT** (an empty `.git` marker
-above a copied `.github/workflows`). From a bare store copy it found no project and silently
-skipped caller→callee validation of `uses: ./.github/workflows/*-impl.yml` — measured: an
-undefined input exited 0 there and failed `[workflow-call]` with the marker.
+above a copy of the whole `.github` tree). From a bare store copy it found no project and
+silently skipped caller→callee validation of `uses: ./.github/workflows/*-impl.yml` and of the
+composite `uses: ./.github/actions/nix-setup` — measured: an undefined input exited 0 there and
+failed `[workflow-call]` / `[action]` with the marker.
 
 **No workflow in this repo targets a self-hosted runner** — every leg is GitHub-hosted (fork
 PRs need no runner fallback), and day-to-day local aarch64-linux builds use Determinate's
-native Linux builder on the Mac. Branch protection requires the aggregate `required-checks`
-job.
+native Linux builder on the Mac. The ruleset's required checks:
+[`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md).
 
 Do **not** read that as "the Mac has no runners": `macos` hosts **six** runner lanes — two
 bare-metal ephemeral runners on the **`dontsell-ai`** org
@@ -109,13 +111,8 @@ publishes each push to `main` as a rolling release to FlakeHub via
 token; per FlakeHub's trusted-platform model, flakes publish only from CI, never ad-hoc from a
 laptop. Merge mechanics: [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md).
 
-**Not every change goes through a PR.** `protect-main` gives the Repository Admin role
-`bypass_mode: always`, so the operator's sessions may push a change whose every path is
-`docs/**`, a root `*.md` or `.claude/**` (no `.nix`) straight to `main`. They first run a local
-copy of the three required checks: `nix flake check` (which includes the `pre-commit` gitleaks
-scan), `gitleaks git` over the unpushed commits, and, when `.claude/` changed, the
-`claude-config-lint.yml` steps. CI on the push to `main` is then the backstop. The path
-allowlist and the gate live in ONE place:
+**Not every change goes through a PR.** A docs/`.claude`-only change may push straight to
+`main` after a local gate; which paths qualify, and the gate, live in ONE place:
 [`landing-changes.md`](../../.claude/rules/landing-changes.md) § 2. § 1 of the same file says
 how to wait on a PR's CI: in the BACKGROUND, never by polling inside a turn.
 
