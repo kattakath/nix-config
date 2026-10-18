@@ -153,8 +153,9 @@
     # `enable` + `edgeCacheSubstituters`, modules/nixos.nix in the pinned input)
     # and writes /etc/determinate/config.json only when edgeCacheSubstituters is
     # set, so this plain environment.etc entry is the documented knob
-    # (https://docs.determinate.systems/determinate-nix/determinate-nixd/) and
-    # cannot collide with it.
+    # (https://docs.determinate.systems/determinate-nix/determinate-nixd/). It
+    # COLLIDES with the module's own write if edgeCacheSubstituters is ever set —
+    # merge the two then.
     environment.etc."determinate/config.json".text = builtins.toJSON {
       garbageCollector.strategy = "disabled";
     };

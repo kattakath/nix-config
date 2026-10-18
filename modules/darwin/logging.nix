@@ -68,9 +68,10 @@
 # KeepAlive `ollama` daemon and the StartInterval `ollama-metal-guard`.
 #
 # A THIRD class falls out of that derivation rather than being classified: the
-# four open-* login openers (modules/darwin/core.nix, mkNixAgent) declare neither
-# StandardOutPath nor StandardErrorPath, so `paths` below is empty for them and
-# they reach neither set. Nothing excludes them — there is nothing to exclude.
+# login opener (`open-maccy`, modules/home/macos-user-agents.nix — the only one
+# left) declares neither StandardOutPath nor StandardErrorPath, so `paths` below
+# is empty for it and it reaches neither set. Nothing excludes it — there is
+# nothing to exclude.
 #
 # PATHS ARE DERIVED, NOT TYPED. Two traps a hand-written list walks straight into:
 #   (a) claude-desktop-mcp-sync declares StandardErrorPath and NO StandardOutPath,
@@ -331,7 +332,7 @@ in
         map (entry loginName "staff") userReExec ++ map (entry "root" "wheel") daemonReExec;
     };
 
-    # Hourly, matching the Trash sweeps in modules/darwin/core.nix. This tick is
+    # Hourly, matching the Trash sweeps in modules/home/macos-user-agents.nix. This tick is
     # itself a re-exec job, so its own log lands in the newsyslog set above with
     # no special-casing — the classification sees it like any other agent, which
     # is also why declaring it into `hmAgents` (read at the top of this file) is

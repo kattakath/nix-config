@@ -109,8 +109,10 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 
 - [ ] One path for one fact (e.g. the `~/Downloads` path shape shared conceptually host/guest).
 - [ ] No host-specific lists in shared modules without `mkIf` / hostName / `isMacosHost`.
-- [ ] Launchd BTM basenames: `nix-<activity>` via `mkNixAgent` (`modules/darwin/core.nix`) or
-      `modules/home/launchd-launcher.nix` for HM agents (never bare `sh`/`open`).
+- [ ] Launchd BTM basenames: `nix-<activity>` via `modules/home/launchd-launcher.nix` for HM
+      agents, or a hand-written `writeShellScriptBin "nix-<activity>"` arg0 for nix-darwin units
+      (the `tart-vms` capsule's runners) — never bare `sh`/`open`. (`mkNixAgent` is gone; see
+      `.claude/rules/launchd-naming.md`.)
 - [ ] Secrets: never plaintext in `.nix`; agenix vault vs Keychain rules unchanged.
 
 ### D. Comments & docs
@@ -220,9 +222,9 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
    used to be the third item here; it was deleted 2026-10-02.)
 2. **Guest file-rotation on the shared `~/Downloads`** — host-only (`mv` across
    filesystems = `cp` + `rm`, so a guest rotation destroys host files).
-4. **Putting `.utm` / IPSW / disk images in the flake.**
-5. **Hand-editing `flake.lock`.**
-6. **HM launchd bypassing `launchd-launcher.nix` / without a `nix-*` basename** — BTM phantoms return.
+3. **Putting `.utm` / IPSW / disk images in the flake.**
+4. **Hand-editing `flake.lock`.**
+5. **HM launchd bypassing `launchd-launcher.nix` / without a `nix-*` basename** — BTM phantoms return.
 
 ## Compose with existing automation
 

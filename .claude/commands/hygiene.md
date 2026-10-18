@@ -15,7 +15,7 @@ Parse `$ARGUMENTS` loosely:
 |---|---|
 | `audit` | Findings only — no edits |
 | `fix` | Audit then apply safe fixes (default if omitted) |
-| anything else | Scope: host name (`macos`, `nixpi`, `nixvm`), path (`packages/`, `docs/`, `.claude/`), or area (`docs`, `claude`) |
+| anything else | Scope: host name (`macos`, `nixpi`, `nixvm`, `nixos`), path (`packages/`, `docs/`, `.claude/`), or area (`docs`, `claude`) |
 
 Examples:
 
@@ -35,7 +35,7 @@ Examples:
    - `git add -A`
    - `nix fmt` (then stage again)
    - `nix flake check` — or scoped `nix eval` of affected host toplevels if full check is too heavy; state what you ran
-6. End with the skill’s **Hygiene report** block (Mode, Scope, Findings, Gates, Verdict).
+5. End with the skill’s **Hygiene report** block (Mode, Scope, Findings, Gates, Verdict).
 
 ## Do not
 

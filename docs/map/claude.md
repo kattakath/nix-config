@@ -100,7 +100,17 @@ plugin ships it. The in-repo `.claude/commands/superhook-review.md` was byte-ide
 plugin's copy and was deleted 2026-09-30 when superhook moved to plugin-hook delivery — two
 copies of one command is a duplicate, not a fallback.
 
-### `.claude/rules/` — always applied
+### `.claude/agents/`
+
+ONE project agent, `terranix-infra-reviewer`: reviews and PLANS changes under `infra/` (the
+terranix stacks), never applies. Use it before any `cf-*` / `gcp-*` apply — CLAUDE.md § Using
+Subagents routes to it.
+
+### `.claude/rules/`
+
+Only `pr-title` is unscoped (loaded in every session). The others load by path: `git-purity`,
+`launchd-naming` and `upstream-first` for `**/*.nix`, `store-copied-trees` for `sites/**` — each
+file's `paths:` frontmatter is the source of truth.
 
 - [`git-purity.md`](../../.claude/rules/git-purity.md) — stage `.nix` files before eval.
 - [`pr-title.md`](../../.claude/rules/pr-title.md) — a PR title is the comma-separated list of the
@@ -149,9 +159,10 @@ and, above it on `macos`, root-owned managed scope in
   `--builders ssh://<pi>`; the `--target-host` form is deliberately allowed, since it builds
   here and only activates there). Rule 1b — which blocked `deploy` and public-`#macos`
   activation while a private layer existed — was RETIRED 2026-09-15 with that layer.
-- **`.claude/hooks/tests/*.sh`** — the case suites for BOTH hooks: three guard-rule suites
+- **`.claude/hooks/tests/*.sh`** — the case suites for BOTH hooks: four guard-rule suites
   (`rule1-terranix-apply-vs-destroy.sh`, `rule1c-secret-egress.sh`,
-  `rule1d-no-build-on-nixpi.sh`) plus `stop-gate-fail-closed.sh`, **gated by
+  `rule1d-no-build-on-nixpi.sh`, `rule2-cloudflare-docs.sh` — every live guard rule now has one)
+  plus `stop-gate-fail-closed.sh`, **gated by
   `claude-config-lint.yml`** as the REQUIRED `Lint .claude config` status check — it BLOCKS a
   merge, it does not merely run. Each asserts BOTH
   halves — the shapes that must block and the shapes that must stay approved — and that the

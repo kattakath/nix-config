@@ -304,7 +304,7 @@ placeholders only.** It NEVER writes `~/.aws/config`. That file is the human's, 
 
 ## `modules/_lib/` — shared DATA, not modules
 
-One file, and the layer exists for its shape rather than its size:
+Four files, and the layer exists for their shape rather than their count:
 
 - **`modules/_lib/nix-ld-libraries.nix`** — `pkgs: with pkgs; [ … ]`. **Not a module** — a function
   returning the nix-ld runtime library list that dynamically-linked NON-Nix binaries (VS Code
@@ -312,6 +312,17 @@ One file, and the layer exists for its shape rather than its size:
   different layers:** `modules/nixos/core.nix` (`programs.nix-ld.libraries`) and
   `packages/devcontainer-image.nix` (`NIX_LD_LIBRARY_PATH`/`LD_LIBRARY_PATH` baked into the
   distroless image). Widen HERE and both follow.
+- **`modules/_lib/secret-read-paths.nix`** — the secret paths no agent may read, as DATA: one
+  copy, two renderers that need incompatible spellings — Claude's `permissions.deny` globs
+  (`modules/home/claude-guardrails.nix`, `modules/home/default.nix`) and desktop-commander's
+  Seatbelt `subpath`s (`modules/home/plugin-mcp.nix`). The root-owned managed copy in
+  `modules/darwin/claude-managed-settings.nix` stays hand-written on purpose (its comment says why).
+- **`modules/_lib/tor-browser-alpha.nix`** — an overlay pointing `tor-browser` at the aarch64
+  ALPHA build, because the pinned nixpkgs' stable one THROWS at eval on aarch64-linux. Imported
+  by `modules/nixos/desktop-vm.nix` (nixvm) and `hosts/nixos.nix`, so one bump moves both.
+- **`modules/_lib/is-macos-host.nix`** — `osConfig -> bool`, the ONE `isMacosHost` predicate
+  (#856) for the home modules that gate macos-only behaviour: `default.nix`,
+  `macos-user-agents.nix`, `spotlight-actions.nix`, `tor-browser-backup-exclusion.nix`.
 
 **Why `modules/_lib/` and not `modules/nixos/` — and not a top-level `lib/` either.** It sat in
 `modules/shared/` until 2026-10-02 — wrong twice over, since it is neither home-manager nor a
