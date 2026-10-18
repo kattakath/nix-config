@@ -66,11 +66,17 @@ done
 #     fix and is strictly out of this harness's hands; until then, excluding them
 #     is what keeps the harness from crying wolf on every commit — #768's whole
 #     lesson, which was a clean run reporting REJECTED for weeks.
+#   line-refs-cite-constructs — `scan ${self}`, so the same whole-tree shape.
+#   claude-md-budget / hosts-documented — narrower, but they read doc and host
+#     TEXT as inputs, so any comment or doc edit moves them. MEASURED 2026-10-17:
+#     these three were the only non-host rows that moved in four comment-and-docs
+#     PRs (#864-#866, #868), each of which then reported REJECTED with all four
+#     host toplevels identical.
 #   apps.macos — an activation app built from `self`.
 #
 # Excluded here means "compared by NAME only": their presence and absence still
 # registers, only their hash is ignored.
-EXCLUDE_RE='^(formatting|ast-grep|userscripts|page-lab|pre-commit|docs-indexed|docs-links-resolve)$'
+EXCLUDE_RE='^(formatting|ast-grep|userscripts|page-lab|pre-commit|docs-indexed|docs-links-resolve|line-refs-cite-constructs|claude-md-budget|hosts-documented)$'
 EXCLUDE_PKG_RE='^macos$'
 
 emit() { # emit <label> <expr>  — prints "label<TAB>drvpath" or "label<TAB>ERROR"
