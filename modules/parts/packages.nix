@@ -278,13 +278,21 @@ in
         # later rebuild needs this form.
         macos = {
           type = "app";
-          program = "${pkgs.writeShellScript "activate-macos" ''
-            rebuild=${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild
-            if [ "$(id -u)" -eq 0 ]; then
-              exec "$rebuild" switch --flake "${self}#macos" "$@"
-            fi
-            exec /usr/bin/sudo -H "$rebuild" switch --flake "${self}#macos" "$@"
-          ''}";
+          # writeShellApplication for ShellCheck. The new `set -euo pipefail` is
+          # safe: `rebuild` is assigned before use, `$(id -u)` sits in an `if`
+          # test (exempt from -e), `"$@"` is exempt from -u, and both paths exec.
+          program = lib.getExe (
+            pkgs.writeShellApplication {
+              name = "activate-macos";
+              text = ''
+                rebuild=${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild
+                if [ "$(id -u)" -eq 0 ]; then
+                  exec "$rebuild" switch --flake "${self}#macos" "$@"
+                fi
+                exec /usr/bin/sudo -H "$rebuild" switch --flake "${self}#macos" "$@"
+              '';
+            }
+          );
           meta.description = "First activation of the macos nix-darwin host from the flake (self-elevates via sudo/Touch ID; after Determinate Nix)";
         };
 

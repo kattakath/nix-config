@@ -87,10 +87,14 @@ let
   mkAgentProgram =
     name: exe:
     let
-      wrapper = pkgs.writeShellScriptBin "nix-${name}" ''
-        set -euo pipefail
-        exec ${exe}
-      '';
+      # writeShellApplication: ShellCheck, and the same `set -euo pipefail` this
+      # always set by hand.
+      wrapper = pkgs.writeShellApplication {
+        name = "nix-${name}";
+        text = ''
+          exec ${exe}
+        '';
+      };
     in
     [ "${wrapper}/bin/nix-${name}" ];
 

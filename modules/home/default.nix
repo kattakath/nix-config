@@ -2958,14 +2958,21 @@ in
     config = {
       # ProgramArguments entries must be strings (not raw derivations).
       ProgramArguments = [
-        "${pkgs.writeShellScript "ssh-keychain-load" ''
-          set -eu
-          /usr/bin/ssh-add --apple-load-keychain 2>/dev/null || true
-          key="${operatorPrivateKey}"
-          if [ -f "$key" ] && ! /usr/bin/ssh-add -l >/dev/null 2>&1; then
-            /usr/bin/ssh-add --apple-use-keychain "$key" 2>/dev/null || true
-          fi
-        ''}"
+        # writeShellApplication (ShellCheck); its `set -euo pipefail` adds only
+        # pipefail to the `set -eu` this always had. Every ssh-add is `|| true` or
+        # an `if` test, so a missing key or an empty agent cannot trip errexit.
+        (lib.getExe (
+          pkgs.writeShellApplication {
+            name = "ssh-keychain-load";
+            text = ''
+              /usr/bin/ssh-add --apple-load-keychain 2>/dev/null || true
+              key="${operatorPrivateKey}"
+              if [ -f "$key" ] && ! /usr/bin/ssh-add -l >/dev/null 2>&1; then
+                /usr/bin/ssh-add --apple-use-keychain "$key" 2>/dev/null || true
+              fi
+            '';
+          }
+        ))
       ];
       RunAtLoad = true;
       StandardOutPath = "${config.home.homeDirectory}/Library/Logs/ssh-keychain-load.log";
