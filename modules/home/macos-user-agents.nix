@@ -179,13 +179,10 @@ in
   #
   # Host scope: all three are **macos only**, gated on `osConfig` because
   # `networking.hostName` is a nix-darwin value and this is a home-manager
-  # module. (The historical reason the gate exists: the former macvm guest
-  # symlinked its ~/Downloads to the host's over Tart VirtioFS, and a
-  # guest-side rotation would have been destructive — mv(1) degrades to cp+rm
-  # across filesystems, copying host bytes into the guest and unlinking them on
-  # the host. The guest is gone (2026-09-05, docs/macvm-readd-runbook.md); keep
-  # the gate anyway so a re-added guest can never inherit the sweeps by
-  # accident.)
+  # module. The gate keeps the sweeps off any other darwin host — a Tart guest
+  # whose ~/Downloads is a VirtioFS symlink into the host's would be destroyed
+  # by a guest-side rotation: mv(1) degrades to cp+rm across filesystems,
+  # copying host bytes into the guest and unlinking them on the host.
   launchd.agents = lib.mkIf isMacosHost {
     # Label pinned to the live `org.nixos.open-maccy` so existing BTM toggle
     # state survives the lane change — home-manager would otherwise name this
