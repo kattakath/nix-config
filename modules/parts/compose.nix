@@ -23,6 +23,7 @@ let
     home-manager
     nix-vscode-extensions
     nix-homebrew
+    nix-plist-manager
     determinate
     agenix
     mcp-servers-nix
@@ -527,6 +528,11 @@ let
         tart-gitlab-runner
         hostModule
         home-manager.darwinModules.home-manager
+        # `programs.nix-plist-manager` (System Settings as typed options) for the
+        # macOS user only — `sharedModules` here, not mkHomeManagerModule, which
+        # the NixOS hosts share. Base list for the same reason as the tart
+        # surfaces above. Inert until a module enables it (modules/darwin/core.nix).
+        { home-manager.sharedModules = [ nix-plist-manager.homeManagerModules.default ]; }
         (mkHomeManagerModule {
           idArgs = identity;
           inherit extraHomeModules;
