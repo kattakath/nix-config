@@ -15,7 +15,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 
 | Host | Type | System | Machine | Role |
 |------|------|--------|---------|------|
-| `macos` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
+| `macos` | [nix-darwin](https://github.com/nix-darwin/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
 | `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy |
 | `nixvm` | NixOS | `aarch64-linux` | Disposable QEMU dev VM on the Mac | **Headless** since 2026-10-06 (SSH on `127.0.0.1:2222`) via `nix run .#nixvm` — not installed; its root disk persists in `$XDG_STATE_HOME/nixvm` |
 | `nixos` | NixOS | `aarch64-linux` | Long-lived UTM guest on the Mac (QEMU + virgl) | GNOME desktop, driven by `nixos-vm` (`create` boots a seed image, `switch` installs the desktop) |
