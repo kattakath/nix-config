@@ -31,6 +31,7 @@
   config,
   lib,
   pkgs,
+  loginName,
   hostedSites,
   cloudflaredConnectorModule,
   firmwareSecretsModule,
@@ -413,6 +414,29 @@
     ];
   };
 
+  # ── Audiobookshelf (LAN only) ───────────────────────────────────────────────
+  # Upstream module, left at its defaults on purpose: it binds 127.0.0.1:8000 and
+  # keeps its database in /var/lib/audiobookshelf — on the SD card's root
+  # partition, which sits inside the card's REAL capacity (the counterfeit region
+  # is the unused p3). Only the BOOKS live on the USB volume.
+  #
+  # No new firewall port: Caddy's `http://nixpi.local` vhost below proxies to the
+  # loopback listener over :80, which is already open. Phones away from home would
+  # need a tunnel route behind Access (infra/), a separate change.
+  services.audiobookshelf.enable = true;
+
+  # The library directory is created by the service itself, AFTER the mount, not
+  # by tmpfiles: /mnt/storage is `nofail`, so local-fs.target does not wait for it
+  # and a tmpfiles rule would race it and land on the SD card under the mount
+  # point. RequiresMountsFor also keeps the server down while the volume is
+  # missing, rather than letting an upload fill the SD card instead.
+  systemd.services.audiobookshelf = {
+    unitConfig.RequiresMountsFor = "/mnt/storage";
+    serviceConfig.ExecStartPre = "+${pkgs.coreutils}/bin/install -d -m 2775 -o audiobookshelf -g audiobookshelf /mnt/storage/audiobooks";
+  };
+  # Group membership so books can be copied in over SSH (`rsync … nixpi.local:/mnt/storage/audiobooks/`).
+  users.users.${loginName}.extraGroups = [ "audiobookshelf" ];
+
   # Static landing page, served by upstream Caddy sitting BEHIND the Cloudflare
   # tunnel (tunnel → Caddy on :80). Future services add more `virtualHosts` here
   # rather than a new tunnel per-service; no public IP / port-forward is needed.
@@ -425,25 +449,33 @@
     # terminates at Cloudflare's edge, and an http→https redirect would loop back
     # through the tunnel forever. www is a 301 edge redirect (infra/cloudflare/nixpi-tunnel.nix),
     # not a vhost. Adding a site = one entry in modules/parts/identity.nix's hostedSites.
-    virtualHosts = lib.listToAttrs (
-      map (site: {
-        name = "http://${site.domain}";
-        value.extraConfig = ''
-          root * ${site.root}
-          file_server
+    virtualHosts =
+      lib.listToAttrs (
+        map (site: {
+          name = "http://${site.domain}";
+          value.extraConfig = ''
+            root * ${site.root}
+            file_server
 
-          # Cache policy. Caddy set no Cache-Control, so Cloudflare applied its default
-          # 4h Browser Cache TTL to css/js — which let a stale stylesheet orphan freshly
-          # deployed markup (the mobile-nav regression). Cloudflare honours these origin
-          # headers instead: by default everything revalidates (cheap ETag 304s) so a
-          # deploy is picked up immediately; content-stable media caches for a day.
-          # (Content-hash fingerprinting for long-immutable css/js caching is a later step.)
-          @static path *.woff2 *.svg *.png *.ico *.webmanifest *.jpg *.webp
-          @mutable not path *.woff2 *.svg *.png *.ico *.webmanifest *.jpg *.webp
-          header @mutable Cache-Control "no-cache"
-          header @static Cache-Control "public, max-age=86400"
+            # Cache policy. Caddy set no Cache-Control, so Cloudflare applied its default
+            # 4h Browser Cache TTL to css/js — which let a stale stylesheet orphan freshly
+            # deployed markup (the mobile-nav regression). Cloudflare honours these origin
+            # headers instead: by default everything revalidates (cheap ETag 304s) so a
+            # deploy is picked up immediately; content-stable media caches for a day.
+            # (Content-hash fingerprinting for long-immutable css/js caching is a later step.)
+            @static path *.woff2 *.svg *.png *.ico *.webmanifest *.jpg *.webp
+            @mutable not path *.woff2 *.svg *.png *.ico *.webmanifest *.jpg *.webp
+            header @mutable Cache-Control "no-cache"
+            header @static Cache-Control "public, max-age=86400"
+          '';
+        }) hostedSites
+      )
+      // {
+        # LAN-only: the tunnel's ingress never forwards a `nixpi.local` Host header.
+        # Caddy's reverse_proxy upgrades Audiobookshelf's websocket on its own.
+        "http://nixpi.local".extraConfig = ''
+          reverse_proxy ${config.services.audiobookshelf.host}:${toString config.services.audiobookshelf.port}
         '';
-      }) hostedSites
-    );
+      };
   };
 }
