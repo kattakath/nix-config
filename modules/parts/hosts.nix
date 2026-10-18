@@ -43,9 +43,10 @@ in
       # OPERATOR-ONLY, and deliberately NOT in hosts/macos.nix: this records
       # where this Mac's working tree happens to sit, which is machine trivia
       # rather than fleet policy. mkDarwin loads hosts/<hostname>.nix out of
-      # THIS repo, and templates/default scaffolds downstream Macs with the
-      # same `hostname = "macos"` — so anything put there would follow a clone
-      # home and plant a DANGLING /etc/nix-darwin/flake.nix (activation still
+      # THIS repo for any consumer that names that host (templates/default
+      # warns against `hostname = "macos"` for exactly this) — so anything put
+      # there would follow a clone home and plant a DANGLING
+      # /etc/nix-darwin/flake.nix (activation still
       # succeeds; `darwin-rebuild` then silently ignores it, because `-e` is
       # false on a broken link). `extraModules` here is evaluated only for our
       # own flake.darwinConfigurations, so consumers never see it.
@@ -112,9 +113,9 @@ in
       inherit hostedSites operatorSshKey;
     };
 
-    # Unprovisioned aarch64-linux dev VM, materialised ONLY as the graphical
-    # `build-vm` variant behind `nix run .#nixvm` (an XFCE desktop in a
-    # native QEMU window — there is no installed disk to partition). Since
+    # Unprovisioned aarch64-linux dev VM, materialised ONLY as the `build-vm`
+    # variant behind `nix run .#nixvm` — HEADLESS since 2026-10-06 (SSH on
+    # 127.0.0.1:2222; the GUI desktop guest is `nixos` below). Since
     # Determinate's native Linux builder is now enabled on the macos host, the
     # aarch64-linux guest closure builds locally with NO provisioning — there
     # is no installed nixvm, no builder VM, no runner.

@@ -88,8 +88,9 @@ let
   # until 2026-10-07. That file carries the per-layer price table.
   secretReadPaths = import ../_lib/secret-read-paths.nix;
 
-  # Real client Mac vs Tart sandbox (hosts/*/networking.hostName). Used to keep
-  # heavy darwin-only agents (RAG stack, MCP public tunnel extras) off any sandbox host.
+  # The operator's Mac vs every other profile — the Linux hosts, a Tart darwin
+  # guest, the template consumer. Keeps macos-only agents (RAG stack, OTel
+  # collector, Claude Desktop servers) off all of them.
   isMacosHost = import ../_lib/is-macos-host.nix osConfig;
 
   # Fonts are rendered by the machine with the SCREEN, never by an SSH target:

@@ -57,14 +57,9 @@
   ...
 }:
 let
-  # HOST SCOPE: `macos` only. `tmutil` exists on no Linux host, and the path is
-  # macOS-shaped, so this must not reach nixpi or nixvm. Same `osConfig`
-  # hostName gate as modules/home/{default,macos-user-agents,spotlight-actions}.nix
-  # (CLAUDE.md § Configuration: per-host divergence is a gate, not a fork).
-  # A Tart darwin GUEST is also excluded — its hostName is not `macos`.
-  # `osConfig ? { }` with the `or ""` fallback matches those siblings — this
-  # module must still evaluate where there is no darwin/NixOS parent (the
-  # standalone-HM path in checks), and an unknown host simply gets nothing.
+  # HOST SCOPE: `macos` only — `tmutil` exists on no Linux host and the path is
+  # macOS-shaped. The shared gate (../_lib/is-macos-host.nix) also excludes a Tart
+  # darwin guest, and yields false where there is no OS parent at all.
   isMacosHost = import ../_lib/is-macos-host.nix osConfig;
 
   # Built from config.home.homeDirectory, never a /Users/<name> literal in a Nix

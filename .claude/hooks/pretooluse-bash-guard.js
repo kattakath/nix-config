@@ -796,7 +796,7 @@ function main() {
     emit(
       "block",
       "Direct `wrangler` invocation — a Cloudflare API call (Workers/Pages/D1/KV/R2/Queues).",
-      "Use mcp__cloudflare__execute (or __search) for Cloudflare API operations instead of raw wrangler.",
+      "Use mcp__claude_ai_cloudflare__execute (or __search) for Cloudflare API operations instead of raw wrangler.",
     );
   }
   {
@@ -808,17 +808,17 @@ function main() {
       if (host.toLowerCase() === "api.cloudflare.com") {
         const reason = `Direct HTTP request to ${host} — a Cloudflare API endpoint.`;
         if (RULE1_API_HOST_BLOCKING) {
-          emit("block", reason, "Use mcp__cloudflare__execute (or __search) instead of a raw request to api.cloudflare.com.");
+          emit("block", reason, "Use mcp__claude_ai_cloudflare__execute (or __search) instead of a raw request to api.cloudflare.com.");
         }
         // Non-blocking by default (see 2026-08-19 POLICY CHANGE in file header).
-        nudges.push(`${reason} (mcp__cloudflare__execute lacks Rulesets/Page-Rules write scope — raw call allowed.)`);
+        nudges.push(`${reason} (mcp__claude_ai_cloudflare__execute lacks Rulesets/Page-Rules write scope — raw call allowed.)`);
       }
       // ---- Rule 2: Cloudflare docs lookups ----
       if (isCloudflareDocsHost(host)) {
         emit(
           "block",
           `Direct HTTP request to ${host} — a Cloudflare docs lookup.`,
-          "Use mcp__cloudflare-docs__search_cloudflare_documentation instead of fetching developers.cloudflare.com directly.",
+          "Use mcp__claude_ai_cloudflare__docs instead of fetching developers.cloudflare.com directly.",
         );
       }
     }
