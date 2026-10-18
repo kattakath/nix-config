@@ -74,6 +74,9 @@ Not measured: the CI minutes saved. Measure it with the p50 rule under § How to
 worked. Mechanics: [`map/ci.md`](map/ci.md).
 
 - **Quick wins (≤1 h, reversible):** #1, #2, and diagnosing the 14 unarmed PRs below.
+  **Diagnosis DONE (`pr-wait/auto-merge-arming`):** 12 of 14 are no defect; 2 (#673, #675)
+  are pre-#750 instances of #683. No code change — the 6 post-#750 ready transitions all
+  armed cleanly. See § Not waiting.
 - **Merge-queue history check:** none of #1–#6 re-runs the gate on a second ref, so none
   repeats the reason in [`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md) §3.
 
@@ -93,8 +96,102 @@ worked. Mechanics: [`map/ci.md`](map/ci.md).
 
 - **27 multi-run PRs** (37.5% of summed wall-clock): the agent was still pushing fixes.
 - **Draft-parked time** (33.7%): deliberate parking.
-- **14 PRs never armed for auto-merge** explain most of the green→merged lag. **Cause
-  undiagnosed** — and lever #1 depends on arming working.
+- **14 PRs "never armed for auto-merge"** — **DIAGNOSED (branch `pr-wait/auto-merge-arming`).**
+  12 are no defect: their lag is the draft-parked time in the bullet above, counted a second
+  time. **2 (#673, #675) are real #683 failures**, both before #750; ~9.7 min of their lag
+  is unarmed-while-ready time, not parking. **No workflow change** (see below).
+
+### The 14 "unarmed" PRs — diagnosis
+
+**Verdict:** of **258** operator PRs since 2026-09-23 (merged or closed), 244 carry an arm
+event, 13 were merged directly by the arm step, and 1 was hand-merged. **2 of the 13 direct
+merges were preceded by a #683 skip**: arming FAILED on their first ready transition, both
+on 2026-09-30, before #750. Since #750, **6 of 6** ready transitions armed cleanly (below).
+Lever #1 rests on those 6 samples; #683 is still open, so it is **not** declared unblocked.
+
+**Why no arm event exists.** `gh pr merge --auto` does not arm a PR that is already
+mergeable. gh's `pkg/cmd/pr/merge/merge.go` sets `autoMerge` only when
+`!isImmediatelyMergeable(pr.MergeStateStatus)`, and `isImmediatelyMergeable` is true for
+`CLEAN`, `HAS_HOOKS` and `UNSTABLE` (read at gh 2.101.0). So on a green PR the arm step
+**merges on the spot**, and the timeline gets a `merged` event, never `auto_squash_enabled`.
+gh's `infof` prints nothing off a TTY, so the runner log is **silent** either way. That is
+why this looked like a failure.
+
+**The shared shape (11 of 14):** opened as a draft → arm job `skipped` (correct) →
+`required-checks` green **while still a draft** → `ready_for_review` → arm job `success` →
+merged by `ismailkattakath-ci[bot]` **10–14 s later**. Three PRs break it:
+
+- **#673 and #675 — #683 failures.** Each was marked ready BEFORE it went green, and that
+  first ready transition's arm job was **SKIPPED** (#675: run 36781198435, 21:43:05Z; #673:
+  run 36782457480, 21:55:12Z). `auto-merge.yml` was then the #560 version
+  (`if: draft == false`, `cancel-in-progress: true`). Each then sat green, non-draft and
+  unarmed until the operator ran convert_to_draft → ready_for_review; that second arm run
+  (36782209797, 36784008462) found it green and merged it directly. #683's own table lists
+  both. Neither PR has any `auto_squash_enabled` event.
+- **#583 — marked ready 6 s BEFORE green**, not green while draft: ready 01:32:09Z,
+  `required-checks` green 01:32:15Z. The arm job ran 01:32:14–01:32:22Z, so its gh call saw
+  a green PR and merged it directly at 01:32:20Z. Same direct-merge outcome, different order.
+- **#697 — hand-merged** 7 s after the ready transition, 1 s after the arm job started. It
+  was the deliberate human-merge sample in
+  [`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md)'s closing-keyword table.
+
+| PR | green (UTC) | ready (UTC) | green→merged min | ready→merged | merged by | class |
+|---|---|---|---|---|---|---|
+| #579 | 09-23 01:16 | 09-23 01:29 | 13.3 | 13 s | `ismailkattakath-ci` | direct merge |
+| #580 | 09-23 01:17 | 09-23 01:29 | 13.1 | 13 s | `ismailkattakath-ci` | direct merge |
+| #581 | 09-23 01:28 | 09-23 01:31 | 2.4 | 11 s | `ismailkattakath-ci` | direct merge |
+| #583 | 09-23 01:32:15 | 09-23 01:32:09 (before green) | 0.1 | 11 s | `ismailkattakath-ci` | direct merge |
+| #596 | 09-23 07:16 | 09-23 07:33 | 16.8 | 11 s | `ismailkattakath-ci` | direct merge |
+| #624 | 09-23 15:39 | 09-23 16:03 | 23.6 | 12 s | `ismailkattakath-ci` | direct merge |
+| #625 | 09-23 20:21 | 09-24 05:16 | **535.7** | 10 s | `ismailkattakath-ci` | direct merge |
+| #670 | 09-30 20:26 | 09-30 21:10 | 44.1 | 14 s | `ismailkattakath-ci` | direct merge |
+| #673 | 09-30 22:02:29 | **21:55:09 (arm SKIPPED)**, 22:10:28 | 8.2 | 12 s | `ismailkattakath-ci` | **#683**, then direct merge |
+| #675 | 09-30 21:51:05 | **21:43:01 (arm SKIPPED)**, 21:52:46 | 1.9 | 11 s | `ismailkattakath-ci` | **#683**, then direct merge |
+| #676 | 09-30 20:49 | 09-30 21:53 | 64.9 | 11 s | `ismailkattakath-ci` | direct merge |
+| #697 | 10-01 03:01 | 10-01 03:49 | 48.0 | 7 s | `ismailkattakath` (hand) | hand merge |
+| #699 | 10-01 04:05 | 10-01 04:42 | 37.2 | 11 s | `ismailkattakath-ci` | direct merge |
+| #855 | 10-17 22:16 | 10-17 22:23 | 7.2 | 10 s | `ismailkattakath-ci` | direct merge |
+
+**Sum: 816 min green→merged, of which 814 min is green→(last) ready.** About **804 min** of
+that is draft parking. The other **~9.7 min** is #683 defect time: #675 sat green and
+unarmed 1.7 min (21:51:05→21:52:46), #673 for 8.0 min (22:02:29→22:10:28). Ready→merged
+totals ~2.6 min. Faster ready-marking (lever #1, notify on green) removes the parking share;
+only a working ready-transition arm removes the defect share.
+
+**The other 5 PRs without an arm event are Dependabot's**, armed by `arm-dependabot.yml`'s
+sweep, not by `auto-merge.yml`:
+
+| PR | Cause |
+|---|---|
+| #633 | Predates `arm-dependabot.yml` (landed #701, 2026-10-01); it is that file's motivating case |
+| #708 | The first `workflow_dispatch` sweep hit a green PR → direct merge (same gh path) |
+| #820, #822 | A scheduled sweep hit a green PR → direct merge |
+| #736 | Hand-merged between sweeps (05:34 and 12:31) |
+
+**Data on #683 — 6 of 6 post-#750 ready transitions pass its acceptance criterion.** #750
+(`cancel-in-progress: false`) merged 2026-10-02T08:12:27Z. Every later `ready_for_review`
+(GraphQL `READY_FOR_REVIEW_EVENT` scan) got **exactly one** non-skipped arm job:
+
+| PR | ready_for_review (UTC) | arm run → job | Note |
+|---|---|---|---|
+| #757 | 10-02 11:28:48 | 37001227049 → `success` | after a convert_to_draft |
+| #803 | 10-02 22:26:45 | 37072525500 → `success` | after a convert_to_draft |
+| #811 | 10-07 05:18:00 | 37575624452 → `success` | the `skipped` run 37575622405 1 s earlier is the force-push at 05:17:57 (draft payload) — by timing |
+| #850 | 10-17 20:01:09 | 39064930949 → `success` | |
+| #855 | 10-17 22:23:39 | 39074888669 → `success` | |
+| #880 | 10-18 10:08:37 | 39118087800 → `success` | after a convert_to_draft |
+
+Six samples, zero skips; the 2 failures above both predate #750. That is evidence for #750
+having fixed it, not proof — the issue stays open and is not re-characterised here.
+
+**Instrument** (scratchpad, not retained): one GraphQL `pullRequests(states:[MERGED,CLOSED])`
+query over `timelineItems` (`AUTO_MERGE_ENABLED_EVENT`, `AUTO_SQUASH_ENABLED_EVENT`,
+`AUTO_MERGE_DISABLED_EVENT`, `CONVERT_TO_DRAFT_EVENT`, `READY_FOR_REVIEW_EVENT`,
+`MERGED_EVENT`) with `gh api graphql --paginate` (804 PRs, 267 since 09-23). Then
+`gh api --paginate …/workflows/auto-merge.yml/runs` (342 runs), per-run `/jobs`, and the
+head SHA's `required-checks` check run. A **workflow-run** conclusion of `success` does not
+mean the arm job ran: since #713 the `arm decision` job succeeds on every run. Read the
+**job** conclusion.
 
 ## Derived vs assumed
 
@@ -128,3 +225,7 @@ worked. Mechanics: [`map/ci.md`](map/ci.md).
 - `CONTRIBUTING.md` still described a 2-leg matrix building with nix-fast-build and every
   leg evaluating every host. **Fixed:** it now points at `docs/map/ci.md` and states the
   per-author required/advisory split.
+- `arm-dependabot.yml`'s cron comment says "Every 6 h bounds the arming latency". **Measured
+  false:** 55 scheduled runs against 68 nominal `17 */6` slots (2026-10-01→10-18, so **13
+  dropped**). Gap between runs: p50 7.1 h, p90 9.7 h, **max 13.5 h**. #822 sat green for
+  5.3 h waiting for a sweep. Out of the auto-merge lane; not fixed.
