@@ -2,6 +2,7 @@
 # Platform-specific hardware lives in hosts/<hostname>.nix.
 # User environment lives in modules/home/default.nix (via Home Manager).
 {
+  config,
   pkgs,
   lib,
   loginName,
@@ -185,6 +186,54 @@
     # half. Upstream option: services.fstrim (nixos/modules/services/misc/fstrim.nix),
     # default interval weekly.
     services.fstrim.enable = true;
+
+    # THE SYSTEMD INITRD'S `linux` TERMINFO ENTRY IS UNREACHABLE WHEN BUILT ON
+    # THE MAC, so drop it. Without this, EVERY build of a systemd-initrd host
+    # (nixvm's toplevel AND build-vm, nixos's toplevel AND seed image) dies in
+    # `initrd-linux-*` with:
+    #   Error: failed to get symlink metadata for ".../ncurses-*/share/terminfo/l/linux"
+    #
+    # HERE, not in hosts/: the cause is the BUILD host's store, not any target
+    # VM, so it belongs where every NixOS target built on this Mac is composed.
+    #
+    # Three facts compose into that, and none of them is a nixpkgs bug:
+    #   1. The Mac's "Nix Store" APFS volume is CASE-INSENSITIVE, so ncurses'
+    #      `terminfo/L/` and `terminfo/l/` are one directory (same inode).
+    #   2. Nix's `use-case-hack` resolves the collision by RENAMING one on disk —
+    #      the lowercase tree becomes `l~nix~case~hack~1/`. Nix un-hacks at the NAR
+    #      layer, so `nix store verify` passes and the damage is invisible to it.
+    #   3. nixpkgs' nixos/modules/config/terminfo.nix adds four
+    #      `boot.initrd.systemd.contents` entries UNCONDITIONALLY and offers no
+    #      switch for them. makeInitrdNG resolves the literal path `terminfo/l/linux`
+    #      — outside the NAR layer — and finds nothing. The hacked names leak into
+    #      Determinate's native Linux builder too, so building there does not help.
+    #
+    # ONLY `l/linux` collides: measured on this store, `v/vt100`, `v/vt102` and
+    # `v/vt220` all resolve (there is no uppercase `V/` tree upstream), so they are
+    # left alone rather than disabled for symmetry.
+    #
+    # `enable = false` is the real option surface — the `contents` submodule carries
+    # a per-entry `enable` (confirmed by evaluating nixvm:
+    # `...contents."/etc/terminfo/l/linux"` has attrs dlopen/enable/source/target/text).
+    # Deliberately NOT `lib.mkForce { }` on the whole attrset (other modules
+    # contribute ~28 entries, including /init and /lib), and deliberately NOT
+    # re-pointed at `l~nix~case~hack~1/linux` — that path is an artefact of THIS
+    # filesystem and would not exist on a case-sensitive store.
+    #
+    # GUARDED on systemd stage-1 because only that initrd reads `contents`: nixpi
+    # forces the SCRIPTED initrd (hosts/nixpi.nix), so there the guard is false and
+    # its value stays upstream's `true` — a no-op either way, but an honest one.
+    #
+    # COST: the initrd console loses the `linux` terminfo entry. That matters only
+    # to a full-screen program on the early-boot console; nothing here runs one.
+    # It also reaches every downstream `lib.mkNixos` consumer, whose store may well
+    # be case-sensitive — same cost, nothing else.
+    # SCOPE: this patches this instance, not the bug class. Every aarch64-linux
+    # build on the Mac that resolves a mixed-case store path by literal name is
+    # still exposed. The durable fixes are a case-sensitive store volume (reformat)
+    # or substituting the closure from CI — neither taken, operator's call 2026-10-06.
+    boot.initrd.systemd.contents."/etc/terminfo/l/linux".enable =
+      lib.mkIf config.boot.initrd.systemd.enable false;
 
     environment.systemPackages = with pkgs; [
       git

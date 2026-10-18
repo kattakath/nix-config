@@ -6,7 +6,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   operator's static ed25519 key, the sole network login credential on every host), keys-only
   sshd (no password, no root login, no keyboard-interactive), a firewall that opens **no TCP
   port at all** (UDP 5353 only, for mDNS), avahi `<host>.local` publishing, native
-  `programs.nix-ld`, zram swap, automatic GC.
+  `programs.nix-ld`, zram swap, automatic GC, and the systemd-initrd `terminfo/l/linux` drop
+  that a build on the Mac's case-INSENSITIVE store needs (guarded on
+  `boot.initrd.systemd.enable`, so a no-op on `nixpi`'s scripted initrd).
   **sshd binds loopback only BY DEFAULT** — `listenAddresses = 127.0.0.1 + ::1` with
   `openFirewall = false` (clearing `allowedTCPPorts` alone is NOT enough; sshd's own module
   re-opens the port). On that default a host's sshd is reachable *only* from on-host, which in
