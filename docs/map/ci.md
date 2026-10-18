@@ -84,3 +84,16 @@ publishes each push to `main` as a rolling release to FlakeHub via
 token; per FlakeHub's trusted-platform model, flakes publish only from CI, never ad-hoc from a
 laptop. Merge mechanics: [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md).
 
+Three more, each self-documenting in its header:
+
+- `warm-nixpi-cache.yml` — **keeps the Pi from ever building**: builds nixpi's toplevel on a
+  real `ubuntu-24.04-arm` runner and pushes the closure to Cachix on every nixpi-closure change,
+  so the Mac and the Pi substitute. Why it matters: [`hosts.md`](hosts.md).
+- `update-flake-lock.yml` — the scheduled counterpart to `/update-input`: a weekly
+  `nix flake update` PR, opened with a GitHub App token so `nix-ci` actually runs on it, and
+  self-arming for auto-merge.
+- `arm-dependabot.yml` — a scheduled job that arms auto-merge on open `dependabot[bot]` PRs,
+  which had no unattended landing path. Scheduled rather than event-driven because a
+  Dependabot-triggered run gets no Actions secrets, so it cannot mint the App token; its header
+  records the three rejected one-line alternatives.
+

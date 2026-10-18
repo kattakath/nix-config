@@ -4,6 +4,7 @@
 #   nixos-vm create [--image FILE.raw] [--flake PATH]  one-time: seed disk → boot → first switch
 #   nixos-vm switch [--flake PATH]                     nixos-rebuild switch over ssh (the update path)
 #   nixos-vm start | stop | status                     thin `utmctl` wrappers, by UUID
+#   nixos-vm restart                                   COLD restart (stop, wait, start)
 #   nixos-vm ssh [ARGS…]                               ssh nixos.local
 #   nixos-vm destroy --yes                             utmctl delete + remove the bundle
 #
@@ -19,7 +20,8 @@
 # WHY SEED + SWITCH: the image is a small SEED system (boots, sshd, operator
 # key), and the desktop arrives by the first `nixos-rebuild switch`. The full
 # ~6.7 GiB closure cannot be staged into a disk image on this Mac's Determinate
-# Linux builder, whose /build is the builder VM's RAM tmpfs (~3.9 GiB).
+# Linux builder, whose /build is the builder VM's RAM tmpfs (hosts/nixos.nix
+# § WHY A SEED has the measurements).
 #
 # WHERE THE FLAKE COMES FROM: `--flake PATH`, else $NIXOS_VM_FLAKE, else the
 # checkout /etc/nix-darwin/flake.nix links to. That link IS
@@ -50,6 +52,11 @@
 #      reason the QEMU backend was chosen in the 2026-10-17 GUI-VM R&D) and its
 #      README now redirects to nixos-lima. Retire this when a maintained tool
 #      emits QEMU-backend UTM bundles from a NixOS config.
+#   ✅ UTM's own AppleScript `make` (UTM v5.0.8 Scripting/UTM.sdef) can create a
+#      QEMU VM → not using it, because a VM's `id` is read-only there (so the
+#      fixed vmUuid is impossible) and it has no sound/clipboard/USB/RNG fields
+#      (read from the sdef, not tested). Cost: the hand-written plist is tied to
+#      UTM's ConfigurationVersion 4. Retire this when `make` grows those fields.
 #
 # The shared folder is NOT in config.plist — UTM keeps it in its own registry as
 # a security-scoped bookmark — so `create` sets it via UTM's AppleScript
@@ -172,12 +179,10 @@ writeShellApplication {
     nixos-rebuild-ng
   ];
   meta = {
-    description = "Create and drive the long-lived nixos UTM guest: nixos-vm create|switch|start|stop|status|ssh|destroy --yes";
+    description = "Create and drive the long-lived nixos UTM guest: nixos-vm create|switch|start|stop|status|restart|ssh|destroy --yes";
     platforms = lib.platforms.darwin;
   };
   text = ''
-    set -euo pipefail
-
     uuid=${lib.escapeShellArg vmUuid}
     host=nixos.local
     utmctl=/Applications/UTM.app/Contents/MacOS/utmctl
@@ -189,6 +194,17 @@ writeShellApplication {
 
     need_utm() {
       [ -x "$utmctl" ] || die "UTM is not installed at /Applications/UTM.app (it is a cask in hosts/macos.nix — activate first)."
+    }
+
+    # Poll until utmctl reports `stopped` (states per UTM v5.0.8
+    # utmctl/UTMCtl.swift `asString`); die after SECONDS.
+    wait_stopped() {
+      local i
+      for i in $(seq 1 "$1"); do
+        [ "$("$utmctl" status "$uuid")" = "stopped" ] && return 0
+        sleep 1
+      done
+      die "$uuid did not reach 'stopped' within $1s — 'nixos-vm stop' again, or quit it from UTM."
     }
 
     # printf, not a heredoc: Nix strips the indented string's common indent, which
@@ -367,16 +383,10 @@ writeShellApplication {
       need_utm
       if "$utmctl" status "$uuid" >/dev/null 2>&1; then
         # --kill, not the default power-off: the disk is about to be deleted,
-        # and `delete` refuses a VM that is still stopping. States per UTM
-        # v5.0.8 utmctl/UTMCtl.swift `asString`.
+        # and `delete` refuses a VM that is still stopping.
         if [ "$("$utmctl" status "$uuid")" != "stopped" ]; then
           "$utmctl" stop --kill "$uuid"
-          local i
-          for i in $(seq 1 30); do
-            [ "$("$utmctl" status "$uuid")" = "stopped" ] && break
-            [ "$i" -lt 30 ] || die "$uuid did not reach 'stopped' within 30s."
-            sleep 1
-          done
+          wait_stopped 30
         fi
         "$utmctl" delete "$uuid"
         echo "nixos-vm: deleted $uuid from UTM"
@@ -414,11 +424,7 @@ writeShellApplication {
       restart)
         need_utm
         "$utmctl" stop "$uuid"
-        for _ in $(seq 1 30); do
-          [ "$("$utmctl" status "$uuid")" = "stopped" ] && break
-          sleep 2
-        done
-        [ "$("$utmctl" status "$uuid")" = "stopped" ] || die "did not stop within 60s — 'nixos-vm stop' again, or quit it from UTM."
+        wait_stopped 60
         exec "$utmctl" start "$uuid"
         ;;
       ssh) exec /usr/bin/ssh "$host" "$@" ;;

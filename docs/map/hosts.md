@@ -252,6 +252,12 @@ they bite any future second account:
   (the `programs.firefox` wrapper EPERMs on the builder), the GNOME 50 `spice-vdagent` client
   that nothing starts, `lanRecovery` on `eth0`, and the no-password prompt class.
 
+- **`generic-darwin.nix` / `generic-linux.nix`** — identity-FREE profiles that are no fleet
+  host: they exist so a consumer of `lib.mkDarwin`/`lib.mkNixos` can decline the operator's
+  own host, which once handed strangers his account, SSH key and runners (each header records
+  the measurement). `templates/default` builds on `generic-darwin`; `checks.<system>.template-consumer`
+  builds both, so a regression fails the gate rather than a stranger's build.
+
 ## Building `aarch64-linux` on the Mac, and deploying `nixpi`
 
 The long form of CLAUDE.md § Important Notes. Those bullets keep the imperatives; the
@@ -286,8 +292,9 @@ booted the mixed case, so treat it as untested rather than safe.
 
 The axis that IS shared is **host RAM**, and nothing bounds it: `max-jobs` is `12` here
 (Determinate raises it to nproc; this repo sets it nowhere), so one `nix build` may start
-twelve guests at 8 GiB each. Less dire than that arithmetic — Virtualization backs guest
-memory lazily, and 66% of 36 GiB was still free with three such VMs live — but the ceiling is
+twelve guests at 16 GiB each (`hosts/macos.nix` raised `memoryBytes` from the 8 GiB default
+for the `nixos` seed image). Less dire than that arithmetic — Virtualization backs guest
+memory lazily, and 66% of 36 GiB was still free with three VMs live (measured at the old 8 GiB) — but the ceiling is
 untested, and a wide parallel build alongside two 8 GiB Tart guests is the case to watch.
 
 The VM **is** settable from Nix: the pinned `determinate` module grew
