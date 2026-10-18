@@ -285,7 +285,7 @@ from this nix-config, not bare `sh`/`python3` or third-party helpers.
 |---|---|
 | nix-darwin `script = ''…''` (wraps `/bin/sh -c wait4path`) | `ProgramArguments = [ "${writeShellScriptBin "nix-…"}/bin/nix-…" ]` |
 | stock home-manager launchd (default `/bin/sh -c wait4path`) | `modules/home/launchd-launcher.nix` (sets upstream's own `waitForNixStore = false` + `launcher.name`/`launcher.shell` — named `nix-*` launcher, no wait4path; the vendored `hm-launchd` fork it replaced was retired 2026-09-14) |
-| bare `/usr/bin/open -a App` | `mkNixAgent` in `modules/darwin/core.nix` |
+| bare `/usr/bin/open -a App` | a `launchd.agents` entry in `modules/home/macos-user-agents.nix`, whose launcher supplies the `nix-*` arg0 (`open-maccy` is the live example; the old `mkNixAgent` helper is gone) |
 
 "Unidentified developer" is expected for unsigned `/nix/store` wrappers (Developer ID
 would be needed for a custom icon/signing); the **name** is what we control.
@@ -357,7 +357,7 @@ from this Mac on 2026-09-16 (`hosts/macos.nix` records why — its privileged he
 bound the machine-wide socket to a username that was deleted the next day), and
 Colima replaced it. The agent kept running `open -a Docker` against a deleted
 bundle and was the **only** failing `open-*` agent — `exit = 1` at every login,
-and unlogged, because `mkNixAgent` sets no `StandardOutPath`. The rewriter was
+and unlogged, because the `mkNixAgent` helper of the time (since removed) set no `StandardOutPath`. The rewriter was
 already an activation no-op: its target still exists and already holds
 `"AutoStart": false`, so it early-returned on every run. Do not re-add either.
 

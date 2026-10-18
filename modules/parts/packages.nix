@@ -61,7 +61,7 @@ in
       # A bare XDG path in `virtualisation.diskImage` would break with no diagnostic.
       #
       # WHY it is NOT in `packages`, unlike every other writeShellApplication here: its text
-      # embeds the VM, so `nix flake check` would BUILD the whole aarch64-linux XFCE closure
+      # embeds the VM, so `nix flake check` would BUILD the whole aarch64-linux guest closure
       # on the darwin leg, which has no Linux builder. Cost: shellcheck runs on first
       # `nix run` instead of in CI.
       nixvmRunner = pkgs.writeShellApplication {
@@ -244,8 +244,8 @@ in
       );
 
       apps = lib.optionalAttrs isDarwin {
-        # `nix run .#nixvm` — build the graphical build-vm variant and boot it in a
-        # native macOS QEMU window: an UNPROVISIONED XFCE dev VM (no installed disk,
+        # `nix run .#nixvm` — build the build-vm variant and boot it in a native
+        # macOS QEMU window: an UNPROVISIONED, HEADLESS dev VM (no installed disk,
         # no partitioning) whose Nix STORE is rebuilt per boot but whose ROOT — so
         # /home, so browser logins — PERSISTS in the XDG state dir `nixvmRunner` pins
         # above. Disposable, not ephemeral: `rm` that qcow2 to reset. The runner is a
@@ -256,7 +256,7 @@ in
         nixvm = {
           type = "app";
           program = "${nixvmRunner}/bin/nixvm-run";
-          meta.description = "Boot the disposable nixvm XFCE dev VM in a QEMU window — store rebuilt per boot, root disk PERSISTS at $XDG_STATE_HOME/nixvm (guest builds on the native Linux builder)";
+          meta.description = "Boot the disposable, headless nixvm dev VM in a QEMU window (SSH on 127.0.0.1:2222) — store rebuilt per boot, root disk PERSISTS at $XDG_STATE_HOME/nixvm (guest builds on the native Linux builder)";
         };
 
         # `nix run github:kattakath/nix-config#macos` — one-line first
@@ -330,7 +330,7 @@ in
         nixos-vm = {
           type = "app";
           program = "${config.packages.nixos-vm}/bin/nixos-vm";
-          meta.description = "Create and drive the long-lived nixos UTM guest: nixos-vm create|switch|start|stop|status|ssh|destroy --yes";
+          meta.description = config.packages.nixos-vm.meta.description;
         };
 
         # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS
