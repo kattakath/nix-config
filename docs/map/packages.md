@@ -127,10 +127,6 @@ Core package set:
   (iCloud sqlite; the `shortcuts` CLI has no `import`), and a Shortcuts shell script launched
   from Spotlight needs a hand-granted Full Disk Access on `Spotlight.app`. Neither is
   declarable, so the Applications lane is the only one a flake can own.
-- `macvm-tart.nix` — removed 2026-09-05 with the `macvm` guest; the generic Tart machinery
-  it wrapped lives on in the in-tree `modules/features/tart-vms/` capsule (absorbed from
-  `nix-tart-vms` by ADR-002 wave 5),
-  and the re-add path is [`macvm-readd-runbook.md`](../macvm-readd-runbook.md).
 
 The no-Nix stage-1 `bootstrap.sh` (the `curl … | bash` entrypoint) lives at the **repo root** —
 it is shellchecked as the `bootstrap-lint` derivation (`checks.<system>.bootstrap-lint`), so

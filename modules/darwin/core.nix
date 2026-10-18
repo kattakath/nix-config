@@ -272,8 +272,7 @@ in
       # it daily. The location key would
       # cover BOTH ⇧⌘4 screenshots and ⇧⌘5 screen *recordings* — verified
       # empirically; the .mov honors com.apple.screencapture location despite
-      # Apple documenting no separate key for recordings. (The macvm guest's
-      # shared-inbox override left with that host, 2026-09-05.)
+      # Apple documenting no separate key for recordings.
       screencapture = {
         type = "png";
         disable-shadow = true;

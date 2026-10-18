@@ -114,9 +114,6 @@ in
           nixpi-flash = nixpiKit.flash;
           nixpi-vault-token = nixpiKit.vault-token;
 
-          # (macvm-tart-* and the macvm-only `vpn` operator were removed with the
-          # macvm host, 2026-09-05 — docs/macvm-readd-runbook.md.)
-
           # Health check for the local Claude Code routing-telemetry OTel
           # Collector (local.claudeOtel, modules/home/claude-otel.nix).
           claude-otel-doctor = pkgs.callPackage ../../packages/claude-otel-doctor.nix { };
@@ -290,10 +287,6 @@ in
           ''}";
           meta.description = "First activation of the macos nix-darwin host from the flake (self-elevates via sudo/Touch ID; after Determinate Nix)";
         };
-
-        # (The #macvm activation app, the macvm-tart-* Tart lifecycle apps,
-        # and the macvm-only #vpn operator were removed with the macvm host,
-        # 2026-09-05 — docs/macvm-readd-runbook.md.)
 
         # Claude Code routing-telemetry collector health check.
         claude-otel-doctor = {

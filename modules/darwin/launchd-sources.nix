@@ -78,8 +78,7 @@
 #
 # The last `launchd.user.agents` text left in the tree is in
 # modules/features/tart-vms/darwin.nix (`local.tart.vms.*`), and it reaches no
-# host: that module lost its only consumer when `macvm` was removed 2026-09-05,
-# and modules/parts/compose.nix inherits only the two runner lanes from the
+# host: modules/parts/compose.nix inherits only the two runner lanes from the
 # capsule — so `local.tart.vms` is not even a declared option on `macos`. It is
 # the subject of docs/macvm-readd-runbook.md and moves with that re-add.
 #

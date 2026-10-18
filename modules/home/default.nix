@@ -1549,7 +1549,6 @@ in
   # indexes; see packages/spotlight-launchers.nix. First launch prompts a
   # one-time Automation permission ("wants to control System Events") —
   # approve it in System Settings > Privacy & Security > Automation.
-  # (The "Mac VM" launcher left with the macvm host, 2026-09-05.)
   home.file."Applications/Android Emulator.app" = lib.mkIf isMacosHost {
     source = spotlightLaunchers.androidEmulatorApp;
     recursive = true;
@@ -1693,9 +1692,6 @@ in
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
     ]
-    # (The macvm-only `vpn` operator and macvm-tart-start left with the macvm
-    # host, 2026-09-05 — docs/macvm-readd-runbook.md. macos remains GUI-only
-    # for WireGuard on purpose; see hosts/macos.nix.)
     ++ lib.optionals isMacosHost [
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
       nixosVm # `nixos-vm create|start|stop|status|ssh|destroy --yes` — the long-lived nixos UTM guest (packages/nixos-vm.nix); on PATH so the "NixOS VM" Spotlight launcher can run `nixos-vm start`
