@@ -65,7 +65,7 @@ nix flake check --all-systems --no-build     # Evaluate every output on BOTH sys
 nix flake check                              # Builds them — THE SUITE. The --no-build line RUNS no check; run BOTH lines
 nix flake show                               # List exported darwin/nixosConfigurations + packages
 nix fmt                                      # Format + lint-fix all .nix via treefmt (nixfmt + statix + deadnix)
-nix develop                                  # Dev shell (nixd LSP, treefmt, home-manager); installs pre-commit hooks
+nix develop                                  # Dev shell (nixd, treefmt, home-manager); NO git hooks — `checks.<system>.pre-commit` runs them
 nix build .#checks.<system>.formatting       # CI formatting/lint gate
 nix build .#checks.<system>.ast-grep         # Structural-lint gate (BLOCKS, no autofix; ast-grep/rules/)
 ast-grep scan --no-ignore hidden .           # Same scan by hand (devShell); without --no-ignore hidden, .claude/ is SKIPPED
@@ -132,8 +132,8 @@ and ast-grep structural-lint gates). Run it before declaring any change done —
 evaluates on one system can still break the other.
 
 - Two-system coverage is mandatory for LOCAL verification: `aarch64-darwin` and `aarch64-linux`.
-- CI (`nix-ci.yml`) enforces it BY AUTHOR: `required-checks` needs darwin on push:main and
-  non-operator PRs; on **operator** PRs darwin is ADVISORY (runs, never gates). Details:
+- CI (`nix-ci.yml`) enforces it BY AUTHOR: `required-checks` needs darwin everywhere except
+  **operator** PRs, where it is ADVISORY (runs, never gates). Details:
   [`docs/map/ci.md`](docs/map/ci.md).
 - **Never report a config as passing on a system only CI evaluated.** If `nix` is unavailable
   locally, validate syntax with `nix-instantiate --parse` and say the rest is CI-deferred. The

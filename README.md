@@ -108,7 +108,7 @@ Everything below assumes [Nix with flakes enabled](https://nixos.org/download).
 # Flakes only see tracked files, so stage first:
 git add -A && nix flake check
 
-# Enter the dev shell (nixd LSP, treefmt, home-manager; installs the pre-commit hook).
+# Enter the dev shell (nixd LSP, treefmt, home-manager; installs NO git hooks — `nix flake check` runs them).
 nix develop
 
 # Format + lint-fix all .nix files via treefmt (nixfmt + statix + deadnix).
@@ -197,7 +197,7 @@ Platform branching lives in `modules/` behind `lib.mkIf`, so host profiles stay 
 
 ## How CI works
 
-CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)) across both target systems — `aarch64-darwin` and `aarch64-linux` — on **native**, one-per-system GitHub-hosted runners (`macos-latest`, `ubuntu-24.04-arm`; no QEMU). Each leg does two things: it *builds* the flake's lint/format `checks` (`treefmt` + `pre-commit` — the same derivations `nix fmt` and the commit hook run locally) with [`nix-fast-build`](https://github.com/Mic92/nix-fast-build), and it *evaluates* each host config's toplevel `drvPath` (a full module-system eval that catches config/type errors in seconds) **without building it** — the expensive toplevel builds (notably the Pi SD image) are a release-time concern. Built check results are pushed to the [Cachix](https://www.cachix.org/) (`kattakath`) cache consumed read-only by every host. Branch protection requires the aggregate `required-checks` job.
+CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)): one native GitHub-hosted leg per target system (`ubuntu-24.04-arm`, `macos-latest`; no QEMU). Each leg builds the flake's `checks` and *evaluates* host toplevels **without building them**; the linux leg evaluates every host, `macos` included, and the darwin leg is advisory on the operator's own PRs. Branch protection requires `required-checks`, `Scan for secrets` and `Lint .claude config`. Details: [`docs/map/ci.md`](docs/map/ci.md).
 
 - [`build-devcontainer`](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch (arm64 + amd64) devcontainer image to GHCR as a manifest list.
 - [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixpi` SD image to a rolling pre-release.

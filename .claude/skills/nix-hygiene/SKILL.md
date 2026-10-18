@@ -76,11 +76,17 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 | `modules/home/` | cross-host HM + shared options | both |
 | `modules/darwin/` | macOS system | `darwinConfigurations` |
 | `modules/nixos/` | NixOS system | `nixosConfigurations` |
+| `modules/features/` | the capsules; only `flake-module.nix` is imported from outside | all |
 | `packages/` | flake apps/packages | `packages` / `apps` |
 | `docs/` | runbooks | — |
-| `.claude/` | agent skills/commands/hooks | — |
+| `.claude/` | agent skills/commands/rules/hooks/agents | — |
 | `infra/` | terranix | `apps` (cf-*, gcp-*; the `mcp-public-*` apps were deleted 2026-10-02) |
 | `secrets/` | agenix recipients + ciphertext | — |
+
+This table only adds the **output** column. The full path list (`modules/_lib/`, `claude/`,
+`sites/`, `templates/`, `ast-grep/`, `scripts/`, …) is ONE source of truth:
+[`CLAUDE.md`](../../../CLAUDE.md) § Navigating the Codebase, routed by
+[`docs/repo-map.md`](../../../docs/repo-map.md). A path missing from both is itself a finding.
 
 **Platform branching:** `lib.mkIf` in `modules/`, not copy-paste across hosts.
 **Host gates:** `networking.hostName` / `osConfig` for per-host divergence.
@@ -92,7 +98,9 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 - [ ] `git status` — no surprise WIP; stage only intentional hygiene.
 - [ ] Touched/scope files still match the CLAUDE.md + `docs/map/` story (no orphan
       modules, no path whose one-liner and map section disagree).
-- [ ] Flake apps in `modules/parts/packages.nix` have matching `packages/*` and runbook mentions if user-facing.
+- [ ] Flake apps (`modules/parts/packages.nix` + `modules/parts/terranix.nix`) and `nix run`-able
+      capsule packages have matching sources and runbook mentions if user-facing; the
+      authoritative list is `nix flake show --json --all-systems`.
 - [ ] Reverse: runbooks mention only apps/paths that still exist.
 
 ### B. LEAN / abandoned
@@ -177,8 +185,13 @@ git add -A
 nix fmt
 git add -A   # fmt may rewrite
 git status --porcelain '*.nix'   # clean of ?? 
-nix flake check                  # or scoped nix eval of affected toplevels
+nix flake check --all-systems --no-build   # evaluates BOTH systems; a bare check on the Mac omits aarch64-linux
+nix flake check                  # THE suite (builds); or scoped nix eval of affected toplevels
 ```
+
+If the scope touches what the linux-only checks cover, also run the `nix build --no-link
+.#checks.aarch64-linux.{…}` line from [`docs/map/ci.md`](../../../docs/map/ci.md) — it owns
+the list.
 
 If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-deferred.
 

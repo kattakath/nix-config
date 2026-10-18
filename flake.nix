@@ -63,7 +63,8 @@
     # old handle cannot break the discovery of EVERY module in this flake.
     import-tree.url = "github:denful/import-tree";
 
-    # Git pre-commit hooks, installed automatically on `nix develop`.
+    # pre-commit hooks, run by `checks.<system>.pre-commit` and never installed
+    # into .git — see the devshell.nix shellHook.
     git-hooks.url = "github:cachix/git-hooks.nix";
     git-hooks.inputs.nixpkgs.follows = "nixpkgs";
     # git-hooks' flake-compat feeds only its legacy non-flake shim (default.nix /
