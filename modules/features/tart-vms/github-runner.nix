@@ -362,10 +362,19 @@ in
             # the arg0 launchd execs a script of that name, so naming this one
             # the same would be two store paths with one basename (the trap
             # modules/home/metube.nix records).
-            "${pkgs.writeShellScriptBin "tart-runner-${name}-run" ''
-              ${envExports (mkEnv name r)}
-              exec ${lib.getExe' engine.controller "tart-runner-controller"}
-            ''}/bin/tart-runner-${name}-run"
+            #
+            # writeShellApplication for ShellCheck. Its implied `set -euo pipefail`
+            # is new here and harmless: the body is `export K=<escaped literal>`
+            # lines then one `exec`, with no variable read and no pipe.
+            "${
+              pkgs.writeShellApplication {
+                name = "tart-runner-${name}-run";
+                text = ''
+                  ${envExports (mkEnv name r)}
+                  exec ${lib.getExe' engine.controller "tart-runner-controller"}
+                '';
+              }
+            }/bin/tart-runner-${name}-run"
           ];
           RunAtLoad = true;
           KeepAlive = true;
@@ -387,10 +396,15 @@ in
     # pre-warming a bump, and for diagnosing one by hand.
     environment.systemPackages = lib.mapAttrsToList (
       name: r:
-      pkgs.writeShellScriptBin "tart-runner-setup-${name}" ''
-        ${envExports (mkEnv name r)}
-        exec ${lib.getExe' engine.setup "tart-runner-setup"} "$@"
-      ''
+      # writeShellApplication for ShellCheck; `set -euo pipefail` is safe for the
+      # same reason as the `-run` script above (`"$@"` is exempt from -u).
+      pkgs.writeShellApplication {
+        name = "tart-runner-setup-${name}";
+        text = ''
+          ${envExports (mkEnv name r)}
+          exec ${lib.getExe' engine.setup "tart-runner-setup"} "$@"
+        '';
+      }
     ) enabled;
   };
 }

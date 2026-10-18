@@ -6,7 +6,7 @@
 # `tart set` (cpu/memory) and then `tart run` with the declared shares.
 #
 # ARG0 RULE (deliberate, load-bearing): every launchd unit this module emits
-# points ProgramArguments[0] at a `writeShellScriptBin "nix-tart-vm-<name>"`
+# points ProgramArguments[0] at a `writeShellApplication "nix-tart-vm-<name>"`
 # wrapper — NEVER at the bare `tart` binary (and never at `sh -c`).
 # Two reasons:
 #   1. BTM legibility — macOS's Background Task Manager (System Settings →
@@ -108,16 +108,20 @@ let
   # One nix-<kebab> wrapper per VM — see the ARG0 RULE header comment.
   mkRunner =
     name: vm:
-    pkgs.writeShellScriptBin "nix-tart-vm-${name}" ''
-      set -euo pipefail
-      "${lib.getExe cfg.package}" set ${lib.escapeShellArg name} \
-        --cpu ${toString vm.cpu} --memory ${toString vm.memory}
-      exec "${lib.getExe cfg.package}" run \
-        ${lib.optionalString vm.headless "--no-graphics"} \
-        ${lib.concatMapStringsSep " " (d: "--dir=${lib.escapeShellArg d}") vm.dirs} \
-        ${lib.escapeShellArgs vm.extraRunArgs} \
-        ${lib.escapeShellArg name}
-    '';
+    # writeShellApplication: ShellCheck, and the same `set -euo pipefail` this
+    # always set by hand.
+    pkgs.writeShellApplication {
+      name = "nix-tart-vm-${name}";
+      text = ''
+        "${lib.getExe cfg.package}" set ${lib.escapeShellArg name} \
+          --cpu ${toString vm.cpu} --memory ${toString vm.memory}
+        exec "${lib.getExe cfg.package}" run \
+          ${lib.optionalString vm.headless "--no-graphics"} \
+          ${lib.concatMapStringsSep " " (d: "--dir=${lib.escapeShellArg d}") vm.dirs} \
+          ${lib.escapeShellArgs vm.extraRunArgs} \
+          ${lib.escapeShellArg name}
+      '';
+    };
 
   autoStartVms = lib.filterAttrs (_: vm: vm.autoStart) cfg.vms;
 in
