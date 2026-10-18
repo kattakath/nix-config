@@ -5,8 +5,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 **Three checks exist ONLY on `aarch64-linux`**, so the documented local gate — a bare
 `nix flake check`, which is darwin-native on the Mac — never builds them:
 `cloudflared-connector-module`, `firmware-secrets-module`, `nixpi-firmware-names`
-(measured 2026-09-22: 18 linux checks, 41 darwin, 3 linux-only). Every other linux check
-has a darwin twin with identical logic, so the bare command does exercise those.
+(re-measured 2026-10-18: 27 linux checks, 52 darwin, 3 linux-only, 28 darwin-only, 24
+shared). Every other linux check has a darwin twin with identical logic, so the bare command
+does exercise those.
 
 Build the three locally when you touch what they cover — Determinate's native Linux
 builder runs them fine, verified with `--rebuild` so they genuinely executed:
@@ -24,47 +25,60 @@ wolf is worse than no gate; same class as the caddy `cp --no-preserve=mode` EPER
 
 `.github/workflows/nix-ci.yml` — native multi-system Nix CI on GitHub Actions, ALL on
 GitHub-**HOSTED** runners (`ubuntu-24.04-arm` for aarch64-linux, `macos-latest` for
-aarch64-darwin; both free & unlimited on public repos). The leg COUNT is no longer a fixed 2:
-a `legs` job derives the build matrix from the fleet's own host systems (below), so the
-workflow's jobs are `flake-checker` (advisory), `legs`, one `build` leg per host system, and
-the aggregate `required-checks`. Each build leg *builds*
-the lint/format/structural `checks` — `formatting`, `pre-commit`,
-`claude-md-budget`, `ast-grep`, `deploy-schema`, `capsule-registry` — with `nix-fast-build` (it globs `.#checks.<system>`, so a NEW check needs no workflow edit;
-pushed to the `kattakath` Cachix cache) and
-*evaluates* (no build) its host config toplevel(s). Building host toplevels is deferred to
-release time (`build-installers`, also hosted).
+aarch64-darwin; both free & unlimited on public repos). Jobs: `flake-checker` (advisory),
+`legs` (a parallel VERIFIER), one caller job per leg — `build-linux`, `build-darwin`,
+`build-darwin-advisory` — each running the reusable **`nix-ci-impl.yml`**, and the aggregate
+`required-checks`. A leg *builds* `.#checks.<system>` with plain `nix build` (enumerated from
+the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cachix cache —
+`nix-fast-build` was dropped 2026-09-22, its own closure was half the darwin leg) and
+*evaluates* (no build) host toplevels. Building host toplevels is deferred to release time
+(`build-installers`, also hosted). Check-run names are `build (<system>) / leg`.
 
-**BOTH halves of the coverage invariant are DERIVED, not listed** (2026-09-21) — the legs as
-well as the hosts each leg evaluates. One `legs` job (on `macos-latest`, because this evaluator
-must reach both systems' configurations) emits
-`{include:[{name,runs-on,eval-attrs}]}`, which `build` consumes via
-`strategy.matrix: ${{ fromJSON(needs.legs.outputs.matrix) }}`. Legs therefore come FROM hosts:
-a leg owning **zero** hosts is structurally impossible, and the reachable failure is the
-inverse — a HOST no leg claims hard-fails `legs` with *add its runner to this lookup*. Today
-that reproduces the old hard-coded lists exactly (aarch64-linux → `nixpi`+`nixvm`, plus `nixos` since #850;
-aarch64-darwin → `macos`), but a host added to `modules/parts/hosts.nix` now either lands on an
-existing leg or stops CI until someone names its runner; previously it was silently untested
-until someone remembered this file. It runs as ONE job, not a step inside each leg, because the
-check needs the whole host→system list that no single leg can see. The ONE hard-coded fact left
-is the system → `runs-on` lookup, which GitHub owns and the flake cannot answer.
+**Who waits on what** (2026-10-18, [`pr-wait-research.md`](../pr-wait-research.md) levers
+#3 + #4):
 
-**`nix flake show --json --all-systems` IS the source.** An earlier claim here that it could
-not serve was re-measured and is false, so the off-the-shelf tool was adopted and both
-hand-written `--apply` expressions walking `config.nixpkgs.hostPlatform.system` are retired.
-Its flake-schemas `inventory` carries `forSystems` per host child, classified by the
-CONFIGURATION's own system — measured on aarch64-darwin: `nixosConfigurations.nixpi →
-["aarch64-linux"]`, `darwinConfigurations.macos → ["aarch64-darwin"]`. Two degradations are
-real, and each is now a GUARD rather than a reason to reject: without `--all-systems`,
-foreign-system children come back `{"filtered": true}` (measured), so classification would
-silently follow the RUNNER's arch; and upstream Nix emits the flat legacy shape with no
-`inventory` key, which parses to ZERO rows (probed). Both fail the job loudly, so a revert to
-`cachix/install-nix-action` cannot quietly ship a fleet with no legs. The empty-attrs test
-inside a leg survives as the belt to that derivation's braces (the `legs` empty-leg guard in `nix-ci.yml`) and is a
-hard failure, never the old `if: matrix.eval-attrs != ''` skip, which made a vacuous leg go
-green while testing nothing. `required-checks` accordingly `needs: [legs, build]` and fails on
-**`'skipped'`** as well — a failed `legs` does not fail `build`, it SKIPS it, and skipped is
-neither failure nor cancelled, so without that the aggregate gate would report green over zero
-legs.
+| Leg | Required? | Checks | Hosts evaluated |
+|---|---|---|---|
+| `build (aarch64-linux)` | always | all linux | **every** host, macos included |
+| `build (aarch64-darwin)` | push:main, dispatch, **non-operator** PRs | PR: darwin-ONLY (28/52); push: all | PR: none; push: macos |
+| `build (aarch64-darwin, advisory)` | never — nothing `needs` it | all | macos |
+
+- **Operator PRs** (author id `8927166`) skip the required darwin job and run the advisory
+  twin; `required-checks` accepts `skipped` for darwin **only** under that predicate.
+  `author_association == 'OWNER'` was rejected: the repo is **org-owned**, and 96/96 sampled
+  operator PRs read `MEMBER`, so an OWNER test never matches. Agent sessions open PRs AS the
+  operator, so in practice **every agent PR** gets advisory darwin — only bots stay required.
+- **Linux evaluating macos is sound**: pure flake eval has no `builtins.currentSystem`, and
+  `darwinConfigurations.macos.system.drvPath` is the IDENTICAL `.drv` natively and under
+  `--eval-system aarch64-linux --option allow-import-from-derivation false` (measured).
+- **Residual risk, accepted:** a same-named check that breaks only on darwin can merge from a
+  PR; push:main builds every darwin check, so it goes red right after merge.
+
+**The coverage invariant is SET EQUALITY, verified by `legs`** (since 2026-10-18; derived
+2026-09-21 → 10-18). `legs` used to EMIT the build matrix, so every leg `needs:`-queued behind
+it — ~45 s in front of darwin in 40/40 runs. Now the legs are written out in `nix-ci.yml` (the
+system → `runs-on` lookup is the one fact GitHub owns and the flake cannot answer) and `legs`
+checks them **in parallel**, both ways: a host whose system no leg claims HARD-FAILS (*add a
+leg job for it*), and so does a leg owning no host. The leg side is read out of `nix-ci.yml`
+itself with `yq-go` from the pinned nixpkgs — never restated in bash, which would be the
+second copy the job exists to catch. `required-checks` still `needs` it, so it still blocks.
+
+**`nix flake show --json --all-systems` IS the source** for the host side. Its flake-schemas
+`inventory` carries `forSystems` per host child, classified by the CONFIGURATION's own system
+— measured: `nixosConfigurations.nixpi → ["aarch64-linux"]`, `darwinConfigurations.macos →
+["aarch64-darwin"]`. Two degradations are real, and each is a GUARD rather than a reason to
+reject: without `--all-systems`, foreign-system children come back `{"filtered": true}`
+(measured), so classification would silently follow the RUNNER's arch; and upstream Nix emits
+the flat legacy shape with no `inventory` key, which parses to ZERO rows (probed). Both fail
+the job loudly. Inside a leg, an empty host list is a hard failure, and the darwin PR leg's
+host skip is an explicit, logged `eval-categories: none` — never an empty list falling
+through. `required-checks` fails on **`'skipped'`** everywhere else: a skipped job is neither
+failure nor cancelled, so without that it could report green over a leg that never ran.
+
+**`checks.<system>.actionlint` runs actionlint inside a PROJECT** (an empty `.git` marker
+above a copied `.github/workflows`). From a bare store copy it found no project and silently
+skipped caller→callee validation of `uses: ./.github/workflows/*-impl.yml` — measured: an
+undefined input exited 0 there and failed `[workflow-call]` with the marker.
 
 **No workflow in this repo targets a self-hosted runner** — every leg is GitHub-hosted (fork
 PRs need no runner fallback), and day-to-day local aarch64-linux builds use Determinate's

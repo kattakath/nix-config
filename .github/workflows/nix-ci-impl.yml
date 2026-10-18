@@ -1,0 +1,225 @@
+name: nix-ci-impl
+
+# REUSABLE workflow: ONE nix-ci build leg — build a system's `.#checks`, push them to
+# Cachix, evaluate host toplevels. Called ONLY by nix-ci.yml, once per leg job;
+# `on: workflow_call` means it never appears as its own run in the Actions list.
+# Same shape and naming as build-installers-impl.yml / build-devcontainer-impl.yml.
+#
+# WHY A REUSABLE WORKFLOW (2026-10-18, docs/pr-wait-research.md lever #4). The darwin
+# leg must exist as TWO jobs: a REQUIRED one that `required-checks` needs, skipped on
+# operator PRs, and an ADVISORY one nothing needs. `needs:` is static, and a job that
+# needs a matrix job waits for EVERY leg — so a single matrix `build` job cannot be
+# advisory on one leg without `required-checks` still sitting behind it. Rejected:
+#   * `continue-on-error` on the matrix leg — stops darwin FAILING the gate, but the
+#     gate still WAITS for it, and the wait is the whole saving.
+#   * YAML anchors over a copied `steps:` list — actionlint 1.7.12 accepts them
+#     (probed), but whether GitHub's runner does was not verified here; a reusable
+#     workflow is the documented primitive.
+#   * duplicating ~150 lines of steps into each job — two copies drift.
+#
+# Inputs are MODES, not lists: which checks and which hosts come from the flake at
+# run time, never from this file (the same reason `legs` exists).
+
+on:
+  workflow_call:
+    inputs:
+      system:
+        description: Flake system this leg builds `.#checks.<system>` for.
+        type: string
+        required: true
+      runs-on:
+        description: Arch-native GitHub-hosted runner for that system.
+        type: string
+        required: true
+      checks:
+        description: >-
+          `all` — every `.#checks.<system>` attr. `system-only` — only the names no
+          OTHER fleet system also exposes (the darwin PR leg; see nix-ci.yml).
+        type: string
+        required: true
+      eval-categories:
+        description: >-
+          Space-separated flake output categories whose EVERY host toplevel this leg
+          evaluates (`nixosConfigurations`, `darwinConfigurations`), or `none`.
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  leg:
+    name: leg
+    runs-on: ${{ inputs.runs-on }}
+    # 45, not 30: headroom bought BEFORE ADR-002's collapse lands ~25 absorbed
+    # satellite checks on this leg. The failure being avoided is a deadlock, not
+    # a slow build — if the budget is breached first, the PR that raises the
+    # timeout cannot itself go green.
+    timeout-minutes: 45 # lint + eval only; no toplevel builds
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # DETERMINATE Nix (2026-09-21; was cachix/install-nix-action, upstream Nix).
+      # Every fleet host runs Determinate Nix now, so CI evaluating on upstream Nix
+      # tested a Nix nothing runs. It also brings lazy trees, and parallel
+      # evaluation — but Determinate documents parallel eval for `nix flake check`,
+      # `nix flake show`, `nix eval --json` and `nix search`, NOT for
+      # `nix build <attrs>`, so do not credit it with this leg's build step. Free:
+      # the action is MIT and needs no FlakeHub login; only FlakeHub Cache (a
+      # separate action, deliberately absent) is paid. Flakes are on by default, so
+      # no `experimental-features` line. Pinned by commit, like every action here.
+      - uses: DeterminateSystems/determinate-nix-action@d0c908e6cbe9f89f36ed8205a3ab6f092636916a # v3.23.1
+        with:
+          extra-conf: |
+            extra-substituters = https://kattakath.cachix.org
+            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
+
+      - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
+        with:
+          name: kattakath
+          authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+      # Flakes evaluate the git tree, not the working dir — stage everything
+      # BEFORE any nix invocation (see .claude/rules/git-purity.md).
+      - name: Stage tree (git purity)
+        run: git add -A
+
+      # Build this leg's checks and push them to Cachix.
+      #
+      # PLAIN `nix build`, NOT nix-fast-build (dropped 2026-09-22). The motto cuts
+      # both ways — a tool is a violation of it when it is BIGGER THAN THE PROBLEM,
+      # not only when it is hand-rolled. `nix run github:Mic92/nix-fast-build/<rev>`
+      # fetched 97 paths / 306.8 MiB (1.4 GiB unpacked) on EVERY darwin run to
+      # orchestrate 39 checks whose entire build cost on that leg is ~76 s: measured
+      # 117 s of a 231 s darwin leg (run 35698919468), i.e. HALF the leg, because it
+      # bundles its own `nix` and with it apple-sdk/cctools/ld64. Determinate Nix is
+      # already installed by the step above, so `nix build` costs no closure at all.
+      #
+      # GIVEN UP, deliberately: COLLAPSIBLE per-check log groups (`--print-build-logs`
+      # still prefixes every line with its derivation), the step-summary report, and
+      # `--skip-cached` — a cached check is now SUBSTITUTED rather than skipped.
+      # These outputs are `touch $out`-sized, so that trade is bytes, not seconds.
+      # KEPT: the gate itself. Every selected check still builds, and a failure still
+      # fails the leg.
+      - name: Build checks + push to Cachix
+        env:
+          CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          SYSTEM: ${{ inputs.system }}
+          CHECKS: ${{ inputs.checks }}
+        run: |
+          set -euo pipefail
+
+          # ENUMERATED from the flake, never listed here: a check added to
+          # modules/parts/checks.nix must not be able to go silently unbuilt.
+          # `builtins.attrNames` forces each system's checks ATTRSET only, not the
+          # derivations inside it, so this is cheap even for the other systems.
+          by_system=$(nix eval --json .#checks --apply 'builtins.mapAttrs (_: builtins.attrNames)')
+          case "$CHECKS" in
+            all)
+              names=$(printf '%s' "$by_system" | jq -r --arg s "$SYSTEM" '(.[$s] // []) | join(" ")')
+              ;;
+            system-only)
+              # A name another system ALSO exposes is built there by the leg that
+              # required-checks always waits on (aarch64-linux). Same name is not
+              # the same derivation — that residual risk is the documented trade
+              # (nix-ci.yml, build-darwin), and push:main builds them all.
+              names=$(printf '%s' "$by_system" | jq -r --arg s "$SYSTEM" \
+                '(.[$s] // []) - [to_entries[] | select(.key != $s) | .value[]] | join(" ")')
+              ;;
+            *)
+              echo "::error::unknown checks mode '${CHECKS}' (want all | system-only)."
+              exit 1
+              ;;
+          esac
+          if [ -z "$names" ]; then
+            echo "::error::leg '${SYSTEM}' (checks=${CHECKS}) selects no checks — this gate would build NOTHING while reporting green."
+            exit 1
+          fi
+          attrs=""
+          for n in $names; do attrs="$attrs .#checks.${SYSTEM}.$n"; done
+          echo "building $(printf '%s' "$names" | wc -w | tr -d ' ') check(s) for ${SYSTEM} (checks=${CHECKS})"
+
+          # --no-link: a `result` symlink here would be an untracked file in a tree
+          # the NEXT step re-evaluates as a flake.
+          # Word splitting on $attrs is DELIBERATE: one installable per check.
+          # shellcheck disable=SC2086
+          paths=$(nix build --no-link --print-out-paths --print-build-logs $attrs)
+
+          # Pushed EXPLICITLY, not by a post-build hook: a hook is a daemon-side
+          # setting, and whether a client-set one survives Determinate's daemon on
+          # a hosted runner is not something this gate should be quietly betting on.
+          # `cachix push` on the paths just built is observable in the log.
+          if [ -z "${CACHIX_AUTH_TOKEN:-}" ]; then
+            echo "no CACHIX_AUTH_TOKEN (fork or Dependabot run) — built, not pushed."
+            exit 0
+          fi
+          if ! command -v cachix > /dev/null 2>&1; then
+            echo "::error::cachix is not on PATH. cachix-action above installed it, so this is a PATH regression, not a missing token — the push would otherwise be skipped SILENTLY."
+            exit 1
+          fi
+          printf '%s\n' "$paths" | cachix push kattakath
+
+      # EVALUATE (not build) every host toplevel in the given categories. Resolving
+      # each .drvPath forces a full module-system eval, so a broken config (bad
+      # option, type error, missing module) fails CI in seconds — without paying for
+      # the build. Building is deferred to release / on-machine activation.
+      #
+      # Hosts are ENUMERATED by attrName per category, never listed and never
+      # filtered by system: the linux leg evaluates EVERY host, darwin included.
+      # That is sound because flake evaluation is pure — `builtins.currentSystem`
+      # does not exist in pure eval, so the evaluator's own arch cannot reach the
+      # result — and measured: `darwinConfigurations.macos.system.drvPath` is the
+      # IDENTICAL .drv evaluated natively and with `--eval-system aarch64-linux
+      # --option allow-import-from-derivation false` (2026-10-18), so it needs no
+      # darwin builder (no IFD) either.
+      - name: Evaluate host config(s) (no build)
+        env:
+          SYSTEM: ${{ inputs.system }}
+          EVAL_CATEGORIES: ${{ inputs.eval-categories }}
+        run: |
+          set -euo pipefail
+
+          if [ "$EVAL_CATEGORIES" = none ]; then
+            # An explicit, LOGGED skip — never an empty list falling through. The
+            # caller only passes `none` where another required leg evaluates the
+            # same hosts (nix-ci.yml, build-darwin on pull_request).
+            echo "leg ${SYSTEM}: host eval skipped by design (eval-categories=none) — the aarch64-linux leg evaluates every host."
+            exit 0
+          fi
+
+          attrs=""
+          for cat in $EVAL_CATEGORIES; do
+            case "$cat" in
+              nixosConfigurations) suffix=".config.system.build.toplevel.drvPath" ;;
+              darwinConfigurations) suffix=".system.drvPath" ;;
+              *)
+                echo "::error::unknown eval category '$cat' — add its toplevel attr suffix here."
+                exit 1
+                ;;
+            esac
+            hosts=$(nix eval --raw ".#$cat" --apply 'cs: builtins.concatStringsSep " " (builtins.attrNames cs)')
+            for h in $hosts; do attrs="$attrs .#$cat.$h$suffix"; done
+          done
+
+          # A leg that evaluates nothing is a vacuous gate, green while testing zero
+          # hosts — a hard failure, never a silent skip.
+          if [ -z "$attrs" ]; then
+            echo "::error::leg '${SYSTEM}' found no hosts in '${EVAL_CATEGORIES}' — it would evaluate nothing."
+            exit 1
+          fi
+          # shellcheck disable=SC2086  # UNQUOTED ON PURPOSE: word-splitting is what makes
+          # `printf '%s\n' … | wc -l` count the attrs. Quoted, it would always count 1.
+          echo "evaluating $(printf '%s\n' $attrs | wc -l | tr -d ' ') host attr(s) on ${SYSTEM}"
+
+          for a in $attrs; do
+            echo "::group::eval $a"
+            # NEVER `nix eval … && echo`: POSIX exempts every non-final command
+            # of an AND-OR list from errexit, so a failing eval left the loop —
+            # and this whole REQUIRED gate — green (measured: run 34006823201
+            # printed a `does not provide attribute` error and still passed).
+            # Keep the eval a command of its own so `set -e` can see it fail.
+            nix eval --raw "$a"
+            echo
+            echo "::endgroup::"
+          done
+          echo "✓ host config(s) evaluate."

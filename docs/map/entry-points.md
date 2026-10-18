@@ -234,12 +234,15 @@ Only **one** of deploy-rs' two `deployChecks` is wired into `checks.<system>`:
   `generic_settings`/`node_settings`/`profile_settings`. A typo'd `magicRollBack` therefore
   **validates clean** (measured: exit 0) and the Pi deploys with magic rollback silently **off**.
   Renaming/typo'ing a setting stays a **human** review item; this gate cannot catch it. It is fed
-  a copy of `self.deploy` whose `profiles.*.path` is demoted to a **context-free** string
-  (`builtins.unsafeDiscardStringContext`): `builtins.toJSON` renders a derivation as its outPath
-  *with string context*, and `writeText` turns that into a real `inputDrv` — measured, the naive
-  form makes `nix flake check` build nixpi's cold `linux-rpi` kernel to run a JSON-schema
-  assertion. The bytes (and therefore the verdict) are identical; only the phantom build edge is
-  gone.
+  a copy of `self.deploy` whose `profiles.*.path` is **replaced by a context-free PLACEHOLDER**
+  store path (`deploySchemaSubject` in `modules/parts/deploy.nix`, since 2026-10-18). Fed raw,
+  `builtins.toJSON` renders the derivation *with string context* and `writeText` turns it into a
+  real `inputDrv` — the check would BUILD nixpi's cold `linux-rpi` kernel. The earlier fix
+  (`unsafeDiscardStringContext` on the real path) dropped that build edge but kept the **eval**
+  edge: measured on aarch64-darwin, the check's eval instantiated **13,871** derivations incl.
+  `linux-rpi`; with the placeholder, **1,827** and none. The verdict cannot move: `interface.json`
+  types `path` as a bare `string`, so the schema never checked the path was real.
+  `deploy.nodes.nixpi` itself still carries the REAL toplevel (same `.drv`, measured).
 - **`deploy-activate` ❌ excluded** — it interpolates `toString profile.path`, so it
   build-depends on the full aarch64-linux toplevel. It only asserts an upstream invariant
   (`activate.nixos` adds its own activator scripts), which is not worth a Pi closure build per

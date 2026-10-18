@@ -10,27 +10,50 @@ let
   inherit (inputs) nixpkgs deploy-rs;
   inherit (config.fleet) loginName domainName;
 
-  # `self.deploy` with every `profiles.*.path` demoted from a derivation to a
-  # PLAIN (context-free) store-path string. Handing deploy-schema `self.deploy`
-  # raw looks obviously right and is a trap: it does
+  # `self.deploy` with every `profiles.*.path` REPLACED by a context-free
+  # PLACEHOLDER store path. The real toplevel is never forced here.
+  #
+  # Handing deploy-schema `self.deploy` raw is a trap: it does
   # `writeText (builtins.toJSON deploy)`, `toJSON` renders a derivation as its
   # outPath *carrying string context*, and writeText turns that context into a
-  # real inputDrv. Measured, not guessed — the naive check's deploy.json.drv
-  # references `activatable-nixos-system-nixpi…drv`, whose closure contains
-  # `linux-rpi-6.6.51.drv`. That would make `nix flake check`, `/eval` and
-  # nix-ci.yml build the Pi's COLD KERNEL to run a JSON-schema assertion.
-  # unsafeDiscardStringContext keeps the byte-identical string, so the schema
-  # still validates a real `"path": "/nix/store/…"` and the check's verdict is
-  # unchanged — only the phantom build edge is gone.
+  # real inputDrv — the check would BUILD the Pi's cold `linux-rpi` kernel.
+  #
+  # `unsafeDiscardStringContext "${profile.path}"` (the previous fix) dropped
+  # that BUILD edge but kept the EVAL edge: producing the string still
+  # instantiates the whole nixpi closure. Measured on aarch64-darwin with
+  # `nix eval --debug .#checks.aarch64-darwin.deploy-schema.drvPath`, eval-cache
+  # off: 13,871 derivations instantiated, `linux-rpi-6.6.51` and
+  # `raspberrypi-firmware` among them — on a darwin CI leg that cold-fetches
+  # their sources (docs/pr-wait-research.md, lever #2).
+  #
+  # Why a placeholder loses nothing: interface.json types `profiles.*.path` as
+  # `"type": "string"` and nothing more — the schema never checked that the path
+  # exists or is a toplevel. What the gate DOES check is untouched, because every
+  # other key is still the real value: types on known keys (`magicRollback`,
+  # timeouts), required keys (`hostname`, `path`), and node/profile name
+  # patterns. The placeholder is still shaped like a real store path (32 chars of
+  # Nix's base32 alphabet + a name), so a future upstream schema that tightened
+  # `path` to a store-path pattern would still validate it.
+  #
+  # Rejected: keeping the real path and only discarding context (above — the
+  # eval edge is the cost); deriving the placeholder's NAME from the real
+  # toplevel (`.name` is cheap to read but still evaluates nixpi's module
+  # system, which is most of the eval cost).
+  #
+  # `profile // { path = … }` overrides without forcing the original thunk, so
+  # the `deploy-rs.lib.<nixpi system>.activate.nixos …` application below is
+  # never evaluated by this check. `flake.deploy.nodes.nixpi` itself still
+  # carries the REAL toplevel — only the schema's copy is substituted.
   # (`config.flake.deploy` rather than `self.deploy`: the same value, reached
   # without a round trip through `processedFlake`.)
+  placeholderStorePath = "/nix/store/00000000000000000000000000000000-deploy-schema-placeholder";
   deploySchemaSubject = config.flake.deploy // {
     nodes = nixpkgs.lib.mapAttrs (
       _: node:
       node
       // {
         profiles = nixpkgs.lib.mapAttrs (
-          _: profile: profile // { path = builtins.unsafeDiscardStringContext "${profile.path}"; }
+          _: profile: profile // { path = placeholderStorePath; }
         ) node.profiles;
       }
     ) config.flake.deploy.nodes;

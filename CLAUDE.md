@@ -131,10 +131,10 @@ Prefer the `/eval` and `/update-input` commands over retyping the stage→check�
 and ast-grep structural-lint gates). Run it before declaring any change done — a config that
 evaluates on one system can still break the other.
 
-- Two-system coverage is mandatory: `aarch64-darwin` and `aarch64-linux`.
-- CI (`.github/workflows/nix-ci.yml`) splits it across GitHub-hosted legs DERIVED from the
-  fleet's host systems (today 2), and requires the
-  aggregate `required-checks` job. Details: [`docs/map/ci.md`](docs/map/ci.md).
+- Two-system coverage is mandatory for LOCAL verification: `aarch64-darwin` and `aarch64-linux`.
+- CI (`nix-ci.yml`) enforces it BY AUTHOR: `required-checks` needs darwin on push:main and
+  non-operator PRs; on **operator** PRs darwin is ADVISORY (runs, never gates). Details:
+  [`docs/map/ci.md`](docs/map/ci.md).
 - **Never report a config as passing on a system only CI evaluated.** If `nix` is unavailable
   locally, validate syntax with `nix-instantiate --parse` and say the rest is CI-deferred. The
   SessionStart hook reports which mode you're in.
@@ -170,7 +170,7 @@ the `docs/map/` file [`docs/repo-map.md`](docs/repo-map.md) routes each path to.
 | `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |
 | `claude/` | The **global** (all-projects) agent context this repo installs on `macos` (`CLAUDE.md` + one rule — plugins cannot carry either) — not to be confused with **this** file, which is project-scoped. |
 | `.claude/` | Project agent config — see the lists below. |
-| `.github/workflows/` | `nix-ci.yml` (hosted legs DERIVED from the fleet's own host systems), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`, `arm-dependabot.yml`. |
+| `.github/workflows/` | `nix-ci.yml` + `nix-ci-impl.yml` (hosted legs VERIFIED against the fleet's host systems), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`, `arm-dependabot.yml`. |
 | `docs/` | Runbooks + design docs — indexed at the bottom of this file. |
 
 **Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in

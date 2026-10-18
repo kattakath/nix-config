@@ -1,7 +1,7 @@
 # PR-wait research — findings and a deferred lever backlog (2026-10-18)
 
-**Status: RESEARCH ONLY — nothing here is implemented.** The operator asked for it documented
-to act on later. Every lever below is a candidate, ranked on evidence; none is decided.
+**Status: levers being implemented (operator go-ahead 2026-10-18).** Written as research to
+act on later; per-lever status sits under the backlog table. Unmarked levers are undecided.
 
 Scope: `kattakath/nix-config` only. Method: a prompt-engineered brief, four parallel read-only
 agents (history census, CI critical path, industry research, session-transcript waits), then an
@@ -59,6 +59,17 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 | 5 | Direct push for docs/`.claude`-only changes (~21% of PRs) | ~7.5 min for those | S | trunkbaseddevelopment.com "committing straight to the trunk"; Fowler "Ship". **Risk:** no local gitleaks hook exists, so a secret is public before the scan |
 | 6 | Dependent chains: one PR, or branch N+1 off N | ~7 min per serial link | S | trunk-based precedent; the 10-02 chained session |
 
+### Status — #2, #3, #4 (branch `pr-wait/ci-critical-path`)
+
+| # | Status | What landed, and its evidence |
+|---|---|---|
+| 2 | **IMPLEMENTED** | `deploySchemaSubject` feeds a context-free placeholder path. Darwin eval of the check: **13,871 → 1,827** derivations instantiated, `linux-rpi`/`raspberrypi-firmware` **5 → 0**. `deploy.nodes.nixpi` keeps the real toplevel (same `.drv`); a bad `magicRollback` type still fails the check |
+| 3 | **IMPLEMENTED** | `legs` is a parallel verifier (no `needs:` edge); the linux leg evaluates every host incl. macos (identical `.drv` under `--eval-system aarch64-linux`, IFD off); the darwin PR leg builds only its **28 of 52** darwin-only checks, push:main builds all |
+| 4 | **IMPLEMENTED** | Darwin is ADVISORY on PRs whose author id is the operator's: the required darwin job skips, an advisory twin runs the full leg, `required-checks` does not need it. `author_association == 'OWNER'` never matches (org-owned repo, operator reads `MEMBER`) |
+
+Not measured: the CI minutes saved. Measure it with the p50 rule under § How to tell a lever
+worked. Mechanics: [`map/ci.md`](map/ci.md).
+
 - **Quick wins (≤1 h, reversible):** #1, #2, and diagnosing the 14 unarmed PRs below.
 - **Merge-queue history check:** none of #1–#6 re-runs the gate on a second ref, so none
   repeats the reason in [`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md) §3.
@@ -101,10 +112,13 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 - The measurement scripts lived in a session scratchpad and are **gone**; re-measuring means
   rebuilding them (`gh api --paginate` over pulls, actions runs and jobs).
 
-## Incidental doc rot found (not fixed)
+## Incidental doc rot found — FIXED on `pr-wait/ci-critical-path`
 
-- `nix-ci.yml`'s `legs` comment says it is not on the critical path — its `needs:` edge puts
-  ~45 s in front of darwin in 40/40 runs.
-- `docs/map/ci.md` has drifted from the workflow (`legs` runner, nix-fast-build).
-- `nix-ci.yml`'s header credits Determinate's parallel eval beyond its documented scope
-  (flake check/show, eval --json, search — not `nix build <attrs>`).
+- `nix-ci.yml`'s `legs` comment said it was not on the critical path — its `needs:` edge put
+  ~45 s in front of darwin in 40/40 runs. **Fixed:** the edge is gone (lever #3), and the
+  comment now records the measurement.
+- `docs/map/ci.md` had drifted from the workflow (`legs` runner, nix-fast-build). **Fixed:**
+  the section was rewritten against the new jobs, and the check counts were re-measured.
+- `nix-ci.yml`'s header credited Determinate's parallel eval beyond its documented scope
+  (flake check/show, eval --json, search — not `nix build <attrs>`). **Fixed** in the leg's
+  install-step comment, now in `nix-ci-impl.yml`.

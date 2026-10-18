@@ -2371,7 +2371,17 @@ in
                 ];
               }
               ''
-                cd ${../../.github/workflows}
+                # A PROJECT, not a bare store copy of workflows/: actionlint resolves a
+                # local `uses: ./.github/workflows/<x>.yml` against the project root it
+                # finds by walking up to a `.git`. From the store copy alone it found
+                # none and SKIPPED caller->callee validation silently — measured
+                # 2026-10-18: an undefined input passed to nix-ci-impl.yml exited 0 from
+                # the bare copy, and failed `[workflow-call]` once an empty `.git`
+                # marker sat above `.github/workflows`. (Store names cannot start with
+                # `.`, hence the copy rather than pointing at a store path.)
+                mkdir -p proj/.git proj/.github
+                cp -r ${../../.github/workflows} proj/.github/workflows
+                cd proj/.github/workflows
                 # actionlint resolves `shellcheck` from PATH; nativeBuildInputs puts it there.
                 if ! actionlint -shellcheck=shellcheck ./*.yml; then
                   echo "" >&2
