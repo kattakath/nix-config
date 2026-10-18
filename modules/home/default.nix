@@ -37,7 +37,7 @@
   # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
   # SOURCE PATH of the tart-vms capsule's packages/gitlab-tart.nix — the five
   # gitlab-tart slot shims below. A path, not a derivation, deliberately: they
-  # are `callPackage`d with THIS host's pkgs (hosts/macos.nix's
+  # are `callPackage`d with THIS host's pkgs (modules/darwin/core.nix's
   # `nixpkgs.config.allowUnfree = true`), not with the flake's perSystem pkgs.
   # Was the `nix-tart-vms` flake input until ADR-002 wave 5 absorbed it into
   # modules/features/tart-vms/; threaded in by modules/parts/compose.nix.

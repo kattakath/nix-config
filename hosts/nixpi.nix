@@ -141,9 +141,6 @@
   # config that reintroduces systemd-initrd will not reboot on this hardware.
   boot.initrd.systemd.enable = lib.mkForce false;
 
-  # Allow unfree packages (e.g. `claude-code` in the shared HM profile).
-  nixpkgs.config.allowUnfree = true;
-
   networking.useDHCP = true;
 
   # NO IPv6 TEMPORARY ADDRESSES. Privacy extensions (RFC 4941) hide a CLIENT from
