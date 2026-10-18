@@ -1,4 +1,4 @@
-# False success signals — six measured instances of two shapes
+# False success signals — measured instances of two shapes
 
 A check that cannot fail is not a check. This file records the specific way that happened here
 **six times in one session**, because each instance looked different and the shape only became
@@ -187,3 +187,18 @@ in `build-installers.yml` instead.
 That is the honest limit worth recording: **some invariants span two files, and a per-file linter
 cannot hold them.** When that is the case, say so where the reader is, rather than assuming the gate
 has it covered.
+
+## Later instances of shape A (2026-10-18, the Audiobookshelf rollout)
+
+| # | What was trusted | Why it was not evidence |
+|---|---|---|
+| 7 | The unit's `Environment=METADATA_PATH=…` (rendered unit file, then `systemctl show -p Environment` on the live host) as proof the server used that path | nixpkgs' `bin/audiobookshelf` launcher **sets `METADATA_PATH` itself** from its own `--metadata` flag (default `$(pwd)/metadata`), clobbering the inherited value. Both reads were accurate about the UNIT; neither looked at the PROCESS. The app's own startup line (`Options: … METADATA_PATH=/var/lib/…`) disagreed, and was right |
+| 8 | `rsync … \| tail -1; echo rc=$?` → `rc=0` as proof a book was copied | `/usr/bin/rsync` on macOS is Apple's openrsync, which rejected `--mkpath`; `$?` was `tail`'s. **Nothing was copied.** A SHA-256 compare on both ends caught it. Instance 4's shape, recurring with a different tool |
+
+Instance 7 is the newer lesson: **a nixpkgs wrapper sits between systemd and the program**, so
+configuring the unit is one hop short of configuring the process.
+
+| Instead of | Read |
+|---|---|
+| the unit's `Environment=` | the program's OWN report of the value (its startup log), or `/proc/<MainPID>/environ` read as root — `sudo cat`, since a `sudo tr … < file` redirection runs as the caller and is refused |
+| a copy's exit code | a checksum of the destination against the source |
