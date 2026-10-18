@@ -44,13 +44,9 @@ darwin host today, and `programs.claude-code` is itself darwin-only
 (`modules/home/claude-brain.nix`), so `nixpi`/`nixvm` run no Claude Code
 for this system to instrument.
 
-The gate still earns its keep as a second darwin host's off-switch. **History:**
-when the `macvm` Tart guest existed it sat on the excluded side of exactly this
-gate — base Claude Code + the MCP gateway (which existed then), but no telemetry collector and no
-`env` block, a deliberate scope limit rather than an oversight. That guest was
-REMOVED 2026-09-05 ([`macvm-readd-runbook.md`](macvm-readd-runbook.md)); keeping
-the gate means a re-added `macvm` lands on the excluded side again with no edit
-here.
+The gate still earns its keep as a second darwin host's off-switch: any other
+darwin host (a Tart guest, say) gets base Claude Code but no telemetry collector
+and no `env` block — a deliberate scope limit, with no edit here.
 
 ## Setup
 
