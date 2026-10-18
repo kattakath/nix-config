@@ -128,7 +128,7 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   If the fresh Mac already carries an MDM or hand-placed file at that path, activation does not
   clobber it — it ABORTS with exit 2 and names both paths; rename the foreign file by appending
   `.before-nix-darwin`, or set `local.claudeManagedSettings.enable = false`.
-- **Tart VM disks are NOT restored by a rebuild.** They live under `~/.tart/`; neither this repo nor the key kit restores them (the `macvm` guest itself was removed 2026-09-05 — re-add path: [`macvm-readd-runbook.md`](macvm-readd-runbook.md)).
+- **Tart VM disks are NOT restored by a rebuild.** They live under `~/.tart/`; neither this repo nor the key kit restores them.
 - **Google Takeout video shows the generic MP4 icon — re-encode with
   `fix-google-video`.** Google's Storage Saver tier transcodes to
   **VP9-in-MP4** server-side, and macOS ships no VP9 decoder, so QuickLook can

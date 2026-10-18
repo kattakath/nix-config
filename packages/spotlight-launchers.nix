@@ -469,7 +469,6 @@ in
     launchCommand = "android-emu";
     iconSvg = androidIconSvg;
   };
-  # (The "Mac VM" launcher left with the macvm host, 2026-09-05.)
 
   # THREE fleet operations, each a Spotlight-findable bundle. Every name starts
   # "Nix " so one `nix` query lists the set, and every one wears the same gold

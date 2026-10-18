@@ -103,12 +103,12 @@
 
 #
 # ---- ./darwin.nix HAS NO CONSUMER TODAY, and is kept on purpose -------------
-# `local.tart.vms.<name>` (the generic guest lifecycle module) lost its only consumer
-# when `macvm` was removed on 2026-09-05. docs/macvm-readd-runbook.md is the
-# standing plan to bring that host back and names this module as step 1, so
-# archiving the satellite without keeping it would delete the runbook's
-# subject. It is registered below and covered by `tart-vms-darwin-module`;
-# nothing imports it, which is stated rather than implied (ADR-002 §7).
+# `local.tart.vms.<name>` (the generic guest lifecycle module) is in no host
+# composition. docs/macvm-readd-runbook.md names it as step 1 of re-adding a
+# Tart guest host, and .claude/rules/launchd-naming.md cites it as the last
+# hand-rolled launchd wrapper. It is registered below and covered by
+# `tart-vms-darwin-module`; nothing imports it, which is stated rather than
+# implied (ADR-002 §7).
 #
 # UPSTREAM FIRST → ✅ `flake-parts.flakeModules.modules` exists and is already
 # adopted by modules/parts/capsules.nix → using its shape. Grepped the pinned
