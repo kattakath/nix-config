@@ -133,7 +133,7 @@ Single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Dr
 every entrypoint follows.
 
 Scope is deliberately **tools that rewrite files**. Non-rewriting structural lint is a separate
-layer (`sgconfig.yml` below) because the pre-commit hook *is* the `nix fmt` wrapper: a checker
+layer (`sgconfig.yml` below) because the treefmt pre-commit hook *is* the `nix fmt` wrapper: a checker
 in a formatter slot would block every commit with a diagnostic nothing can auto-fix.
 
 ### `sgconfig.yml` + `ast-grep/`
@@ -234,12 +234,18 @@ Only **one** of deploy-rs' two `deployChecks` is wired into `checks.<system>`:
   `generic_settings`/`node_settings`/`profile_settings`. A typo'd `magicRollBack` therefore
   **validates clean** (measured: exit 0) and the Pi deploys with magic rollback silently **off**.
   Renaming/typo'ing a setting stays a **human** review item; this gate cannot catch it. It is fed
-  a copy of `self.deploy` whose `profiles.*.path` is demoted to a **context-free** string
-  (`builtins.unsafeDiscardStringContext`): `builtins.toJSON` renders a derivation as its outPath
-  *with string context*, and `writeText` turns that into a real `inputDrv` — measured, the naive
-  form makes `nix flake check` build nixpi's cold `linux-rpi` kernel to run a JSON-schema
-  assertion. The bytes (and therefore the verdict) are identical; only the phantom build edge is
-  gone.
+  a copy of `self.deploy` whose `profiles.*.path` is **replaced by a context-free PLACEHOLDER**
+  store path (`deploySchemaSubject` in `modules/parts/deploy.nix`, since 2026-10-18). Fed raw,
+  `builtins.toJSON` renders the derivation *with string context* and `writeText` turns it into a
+  real `inputDrv` — the check would BUILD nixpi's cold `linux-rpi` kernel. The earlier fix
+  (`unsafeDiscardStringContext` on the real path) dropped that build edge but kept the **eval**
+  edge: measured on aarch64-darwin, the check's eval instantiated **13,871** derivations incl.
+  `linux-rpi`; with the placeholder, **1,827** and none. What the gate gives up is `path`'s
+  **type**: `interface.json` types it as a bare `string` (it never checked the path was real),
+  and the schema now only ever sees the placeholder string. `path`'s **presence** is still
+  checked — the placeholder is substituted only where a profile already has a `path`, so a
+  missing one fails as the schema's own required-key error.
+  `deploy.nodes.nixpi` itself still carries the REAL toplevel (same `.drv`, measured).
 - **`deploy-activate` ❌ excluded** — it interpolates `toString profile.path`, so it
   build-depends on the full aarch64-linux toplevel. It only asserts an upstream invariant
   (`activate.nixos` adds its own activator scripts), which is not worth a Pi closure build per

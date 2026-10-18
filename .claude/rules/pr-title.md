@@ -38,6 +38,27 @@ green (see [`docs/auto-merge-and-merge-queue.md`](../../docs/auto-merge-and-merg
 so independent PRs are the cheap, reviewable shape — batching only widens the blast
 radius of one red check.
 
+Two refinements, both from [`docs/pr-wait-research.md`](../../docs/pr-wait-research.md):
+
+- **Docs / `.claude`-only changes need no PR at all.** They may go straight to `main` after
+  the local gate. The path allowlist and the gate live in
+  [`landing-changes.md`](landing-changes.md) § 2, not here.
+- **A DEPENDENT change never waits for its parent to merge** (lever #6, ~7 min per serial
+  link). When N+1 needs unmerged N:
+  - **One logical change?** Fold N+1 into N's PR. That is not batching; it is one change.
+  - **Two changes?** Branch N+1 off N's branch and open it as a DRAFT:
+    `gh pr create --draft --base <N-branch>`. **The draft is mandatory.** `auto-merge.yml`
+    arms every non-draft operator PR whatever its base, and `protect-main` guards only the
+    default branch. So an armed N+1 could land in N's branch with no required checks.
+  - When N squash-merges, GitHub deletes its branch (`delete_branch_on_merge: true`, read
+    2026-10-18) and retargets N+1 to `main`. N+1 still carries N's pre-squash commits, so
+    run `git rebase --onto origin/main <N-head> && git push --force-with-lease`, where
+    `<N-head>` is N's last pre-squash commit (your local N branch still points at it). The lease
+    form is allowed; `claude-guardrails.nix` denies only bare `--force`/`-f`. Then run
+    `gh pr ready`, which arms it.
+  - "Off `main`" above means off `main` **or off the unmerged PR it depends on**. Never off
+    an unrelated open PR — that is the batching this section rejects.
+
 **Park work-in-flight as a DRAFT — it needs no manual step.** With no merge queue,
 auto-merge lands a PR the moment its checks go green; there is no second run to sit behind,
 so a branch you are still pushing to can merge out from under you mid-stream (#567 lost five
@@ -73,15 +94,13 @@ Both of the old claims are refuted at job level, not inferred:
 | a push drops the arming | **14/14** `synchronize` runs on non-draft operator PRs armed; #737 was force-pushed 3x while armed and `enabledAt` never moved |
 | `ready_for_review` does not restore it | **3 of the 4** armed-PR conversions re-armed on the ready transition (#559, #737, #757); only #723 did not, by the cancellation above. Of 5 `ready_for_review` runs with a recorded payload, 4 armed and 1 was cancelled — **zero skips** |
 
-**#683 is still open, so glance — do not re-arm.** No draft→ready transition has happened
-since the cancellation was turned off, so its acceptance criterion (exactly one non-skipped
-arm run per transition) has no post-fix sample.
+**#683 is still open, so glance — do not re-arm.** Since #750 turned the cancellation off,
+**6 of 6** draft→ready transitions met its acceptance criterion (exactly one non-skipped arm
+run per transition; census in [`pr-wait-research.md`](../../docs/pr-wait-research.md) § The
+14 "unarmed" PRs). A green PR shows a `merged` event and **no** `auto_squash_enabled`: `gh pr
+merge --auto` merges an already-green PR on the spot instead of arming it — not a skip.
 
-**The one check worth keeping**, true independently of all the above: read
-`gh pr view <n> --json autoMergeRequest` **only AFTER the arm run concludes.** Measured
-2026-10-02 on #747 — read seconds after `gh pr create` it is `null` because the query RACES
-the `auto-merge` workflow, and a not-yet-run arm is indistinguishable from a skipped one.
-That false negative was reported to the operator as a possible skip moments before the PR
-armed and merged on its own. Wait for the run (`gh run list --workflow auto-merge.yml
---limit 1 --json conclusion` must not say `null`), or poll the field rather than reading it
-once.
+**The one check worth keeping** — read `autoMergeRequest` only after the arm run concludes
+(#747) — now lives in [`landing-changes.md`](landing-changes.md) § 1, which also says HOW to
+wait: in the BACKGROUND, never by polling inside a turn. "Glance" above means one look from
+that background watch, not a foreground loop.
