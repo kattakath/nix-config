@@ -34,6 +34,16 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
     — **zero enrolled devices, so a `device_posture` require evaluates false forever and takes
     the tier OFFLINE.** That trap applies to ANY future Access policy on this account, which is
     why the file is kept rather than deleted.
+- [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md) — **LIVE, unlike the three above.**
+  Claude Desktop loads no plugins, so its only MCP lane is `local.claudeDesktop.extraServers`
+  (three servers, pinned by `checks.aarch64-darwin.claude-desktop-config-shape`). Read the
+  CURRENT STATE header first: the module stays ENABLED because a disabled one writes nothing
+  and leaves stale entries on disk (#732); the body is the design record of the merge and the
+  watch agent.
+- [`docs/private-home-modules.md`](../private-home-modules.md) — the two composition seams,
+  `lib.mkDarwin { extraHomeModules }` and `lib.mkNixos { hostedSites }`: still real, unused
+  since the private nix-personal flake was retired 2026-09-15. Also nixpi's `hostedSites`
+  runbook.
 - [`docs/rdkb-gateway-contract.md`](../rdkb-gateway-contract.md) — the **HTTP contract**
   of the household's Rogers CGM4981 gateway (RDK-B firmware): auth, the server-side
   lockout counter, session lifetime, CSRF, the JSON log endpoint and why entity depth

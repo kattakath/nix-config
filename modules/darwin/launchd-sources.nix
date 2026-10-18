@@ -61,7 +61,7 @@
 # worth recording: the obstacle was assumed to be that the `tart-vms` capsule has
 # no home-manager lane, so a migration would have to add one. It does not have to.
 # A nix-darwin module can declare straight into
-# `home-manager.users.<primaryUser>.launchd.agents` — ./logging.nix:337 already
+# `home-manager.users.<primaryUser>.launchd.agents` — logging.nix's `file-rotation-logs` tick already
 # did exactly that for its own user tick — and for these two that is the only
 # correct shape, because their plists derive from nix-darwin options
 # (`local.tart.runnerStateDir` defaults off `config.system.primaryUserHome`,

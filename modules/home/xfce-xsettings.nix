@@ -54,9 +54,10 @@
   ...
 }:
 let
-  # `nixvm` is the XFCE build-vm (hosts/nixvm.nix). It is the ONLY host in this
-  # fleet with an X session, so this is the only host where an xsettings value
-  # means anything.
+  # `nixvm` is the only host that CAN run an X session (XFCE, dormant behind
+  # `local.desktopVm.enable` since 2026-10-06), so it is the only host where an
+  # xsettings value means anything. `nixos` is a GNOME Wayland desktop and
+  # takes its settings from dconf instead (hosts/nixos.nix).
   isNixvmHost = (osConfig.networking.hostName or "") == "nixvm";
   # AND the desktop must actually be on. `local.desktopVm.enable` is set only
   # inside nixvm's `virtualisation.vmVariant`, and XFCE is what turns

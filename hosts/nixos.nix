@@ -19,9 +19,10 @@
 #
 # WHY A SEED (measured 2026-10-17): the full closure is 6.7 GiB, and
 # systemd-repart stages it AND writes the raw image in $NIX_BUILD_TOP, which on
-# this Mac's Determinate Linux builder is the VM's RAM tmpfs (8 GiB VM, ~3.9
-# GiB tmpfs) — "No space left on device". Rejected: raising the builder's
-# memoryBytes to ~28-32 GiB on a 36 GB Mac; staging into $out instead (that is
+# this Mac's Determinate Linux builder is the VM's RAM tmpfs (half the VM's
+# RAM) — "No space left on device". Even the seed needed the builder raised
+# from 8 to 16 GiB (`memoryBytes` in hosts/macos.nix). Rejected: raising it to
+# the ~28-32 GiB the full closure needs on a 36 GB Mac; staging into $out (that is
 # virtiofs onto the case-INSENSITIVE Mac store, where the terminfo collision
 # below returns); a CI-built 7 GiB release artifact for a once-used bootstrap.
 # A seed also changes almost never, so the image is not rebuilt on every
@@ -134,6 +135,9 @@ in
       # nixpkgs' sd-image module uses (its register-nix-paths service) — which
       # is how nixpi, also never installed by an installer, takes
       # `nixos-rebuild` updates.
+      # ✅ grepped nixpkgs nixos/modules for register-nix-paths — only inline
+      # copies (sd-image, qemu-vm, vm-base, lxc/docker/iso/netboot), none
+      # importable for a repart image → custom.
       systemd.services.register-nix-paths = {
         description = "Register Nix store paths from the disk image";
         unitConfig = {
@@ -167,8 +171,8 @@ in
     (lib.mkIf cfg.seed {
       # The shared Home Manager profile is 820 MiB of the seed's 1.9 GiB
       # closure (measured), and the seed needs none of it: the first switch
-      # brings it. Staging must fit the builder's ~3.9 GiB RAM tmpfs twice over
-      # (copied tree + the raw image being written).
+      # brings it. Staging must fit the builder's RAM tmpfs twice over (copied
+      # tree + the raw image being written).
       home-manager.users = lib.mkForce { };
     })
 
@@ -212,6 +216,8 @@ in
       # + Wayland: spice-vdagent misses mutter's DisplayConfig). In GNOME 50 the
       # shell is `org.gnome.Shell@user.service`, and
       # gnome-session-initialized.target is reached after it.
+      # ✅ services.spice-vdagentd starts only the system daemon, and the package
+      # ships an XDG autostart entry but no systemd user unit → custom.
       systemd.user.services.spice-vdagent = {
         description = "SPICE session agent (clipboard, dynamic resolution)";
         wantedBy = [ "gnome-session-initialized.target" ];
@@ -299,8 +305,8 @@ in
       };
       # Tor Browser on aarch64 exists only on the ALPHA channel; the overlay and
       # every reason for it live once, in modules/_lib/tor-browser-alpha.nix.
-      # PLAN A of the browser decision (2026-10-17): Firefox + this alpha, kept
-      # only if the alpha proves usable here — otherwise Brave alone.
+      # Browser decision (2026-10-17): Firefox + this alpha — tested in the
+      # guest and KEPT. Brave alone was the fallback had the alpha failed.
       nixpkgs.overlays = [ (import ../modules/_lib/tor-browser-alpha.nix) ];
 
       # GNOME Web would be a second browser nobody chose; GNOME Tour is the
@@ -369,9 +375,8 @@ in
           "x-systemd.automount"
         ];
       };
-      # mount(8) finds `mount.fuse.bindfs` through system.fsPackages — the
-      # pinned nixpkgs' filesystems module puts that list on the system path.
-      system.fsPackages = [ pkgs.bindfs ];
+      # No system.fsPackages entry: the pinned nixpkgs adds pkgs.bindfs itself
+      # for any "fuse.bindfs" fsType (nixpkgs nixos/modules/tasks/filesystems/bindfs.nix).
       # ~/Shared in the guest too, so Files shows it in the home folder exactly
       # where the Mac keeps it.
       systemd.tmpfiles.rules = [

@@ -114,7 +114,7 @@ Core package set:
   image is a 256px PNG rasterised into the store, because Ghostty's `background-image` takes
   **PNG or JPEG only** and will not read the `.svg`. All of it is per-window on the command
   line, so `local.terminalTheme`'s `#300A24` ground is untouched everywhere else.
-  All three wear ONE shared `.icns`, the operator's gold chevron
+  All four wear ONE shared `.icns`, the operator's gold chevron
   (`packages/fleet-mark.svg`, a verbatim copy of `~/Pictures/icon.svg`); the non-square
   434.94 x 448 canvas is rewritten to a centred 560 x 560 viewBox **in Nix**, behind an
   `assert`, so the committed file stays refreshable with a plain `cp`.
@@ -219,6 +219,11 @@ Smaller, single-purpose CLIs:
   login Keychain at run time — wired only via `home.packages`, no matching flake app. The
   lookup is by Keychain **service** `resend.com:api`, not by the env name, so set it with
   `pbpaste | secret set --env RESEND_API_KEY resend.com:api`.
+- **Documented with their consumer, not here:** `gmail-mcp.nix`, `keychain-mcp.nix`,
+  `mcpfinder-mcp.nix` (the Keychain-reading MCP launchers — [`modules-home.md`](modules-home.md)
+  § `gmail-mcp.nix` + `plugin-mcp.nix`), `next-right-thing/` (the übersicht widget's generator —
+  [`modules-home.md`](modules-home.md) § `next-right-thing.nix`), and `rogers-gw.nix` (the
+  inspection-only gateway CLI — [`modules-darwin.md`](modules-darwin.md)).
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
 

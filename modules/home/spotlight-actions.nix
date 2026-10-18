@@ -2,8 +2,8 @@
 # Applications lane indexes them. Two kinds, both from
 # packages/spotlight-launchers.nix:
 #
-#   commandApps — `Nix Activate`, `Nix Flake Check`, `Nix Open Repo`. Type "nix"
-#                 in Spotlight and the three list together.
+#   commandApps — `Nix Activate`, `Nix Flake Check`, `Nix Open Repo`, `NixOS VM`.
+#                 Type "nix" in Spotlight and the four list together.
 #   aliasApps   — `Terminal`, which opens Ghostty. It exists only so Ghostty
 #                 answers to a name it does not carry; the key that does the
 #                 work (CFBundleAlternateNames) belongs in Ghostty's own
