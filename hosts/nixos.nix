@@ -224,7 +224,7 @@ in
 
       # THE ACCOUNT HAS NO PASSWORD (modules/nixos/core.nix: keys-only), so
       # nothing here may demand one — the class of dead-end prompt nixvm's
-      # desktop hit (modules/nixos/desktop-vm.nix documents it). GNOME turns
+      # deleted XFCE desktop hit (see the hosts/nixvm.nix header). GNOME turns
       # these on by default:
       #   gnome-keyring -> an autologin session never unlocks it, so apps that
       #                    use the Secret Service ask for a password that does

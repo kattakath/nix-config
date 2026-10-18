@@ -181,11 +181,12 @@ they bite any future second account:
   install; materialised only as the `nix run .#nixvm` build-vm, whose guest builds
   locally on the native Linux builder or substitutes from Cachix.
 
-  **HEADLESS since 2026-10-06.** `local.desktopVm.enable = false`, so XFCE, firefox,
-  tor-browser, pipewire/rtkit, spice-vdagent and the GUI-only QEMU args (clipboard, audio,
-  `xres`/`yres`) are all gated behind that ONE flag — flip it to `true` and the whole stack
-  returns. The reason is on the Mac: the `tor-browser` cask now carries stable Tor there, which
-  was most of what the desktop existed for, and going headless retired a fragile alpha pin.
+  **HEADLESS — no GUI and no switch for one.** It went headless 2026-10-06 (the `tor-browser`
+  cask now carries stable Tor on the Mac, which was most of what the desktop existed for), and
+  the dormant XFCE stack (`local.desktopVm`, `modules/nixos/desktop-vm.nix`, the HM Xft/DPI
+  module, the clipboard/audio QEMU args, the polkit rule) was DELETED 2026-10-17 — git history
+  keeps it. The GUI job is `nixos`'s (below). Only `-device virtio-gpu-pci` stays: without it
+  the Cocoa window is blank and the break-glass console invisible.
   Access is SSH on `127.0.0.1:2222` (host `forwardPorts` + an sshd bind and firewall port, all
   inside `vmVariant`), with `services.getty.autologinUser` on the console as break-glass —
   the account has no password, so an un-autologged getty would be an unanswerable prompt.

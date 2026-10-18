@@ -199,23 +199,6 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   same cache through `determinateNix.customSettings` because Determinate owns its `nix.conf`.
   **It lived in `modules/shared/` until 2026-10-02** while its own line 3 said
   *"NixOS-ONLY module"* — ADR-009 §9b; moved here so the directory and the header agree.
-- **`modules/nixos/desktop-vm.nix`** — opt-in **`local.desktopVm.enable`** (default false; the
-  `services.*` spelling this line carried until 2026-10-06 never existed — `local.*` is a
-  fleet-private namespace, and the module's own header says why): a lightweight X11
-  **XFCE** desktop with passwordless autologin (the `loginName` specialArg) plus QEMU/SPICE
-  guest integration (`qemuGuest`, `spice-vdagentd`) for the `nixvm` sandbox.
-  **NOTHING ENABLES IT SINCE 2026-10-06**: `hosts/nixvm.nix` sets it `false`, so `nixvm` boots
-  HEADLESS and every binding here is inert. That host also gates its GUI-only QEMU args on the
-  same flag, so one line restores the whole stack. Do not delete this module as unreferenced —
-  it is the other half of that switch. Its `systemPackages` are deliberately two browsers plus a terminal: **plain
-  `chromium`, not `ungoogled-chromium`** — ungoogled patches out the Chrome Web Store and
-  swaps the Google search engine for a "No Search" stub (both measured in
-  `modules/home/chromium.nix`), and nixpkgs enables Widevine only for plain chromium, so
-  all three cut against a guest whose point is signing into Google. `opera` is not an option
-  at all: nixpkgs removed it 2025-05-19, so the name *throws* at eval on every system. Both
-  browsers substitute from `cache.nixos.org` for aarch64-linux, so neither is ever built on
-  the 1-CPU native Linux builder — but chromium adds ~856 MiB of incremental closure that the
-  erofs store image re-materialises on **every** boot.
 - **`modules/nixos/uplink-watchdog.nix`** — `local.uplinkWatchdog` (default off; `nixpi` turns
   it on), a systemd timer + oneshot for the failure where the ROUTER keeps its LAN alive but
   loses its uplink: `end0` keeps carrier so dhcpcd keeps a default route, `wlan0` stays

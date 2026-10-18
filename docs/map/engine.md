@@ -319,7 +319,7 @@ Four files, and the layer exists for their shape rather than their count:
   `modules/darwin/claude-managed-settings.nix` stays hand-written on purpose (its comment says why).
 - **`modules/_lib/tor-browser-alpha.nix`** — an overlay pointing `tor-browser` at the aarch64
   ALPHA build, because the pinned nixpkgs' stable one THROWS at eval on aarch64-linux. Imported
-  by `modules/nixos/desktop-vm.nix` (nixvm) and `hosts/nixos.nix`, so one bump moves both.
+  by `hosts/nixos.nix` only (nixvm's desktop, its other consumer, was deleted 2026-10-17).
 - **`modules/_lib/is-macos-host.nix`** — `osConfig -> bool`, the ONE `isMacosHost` predicate
   (#856) for the home modules that gate macos-only behaviour: `default.nix`,
   `macos-user-agents.nix`, `spotlight-actions.nix`, `tor-browser-backup-exclusion.nix`.
