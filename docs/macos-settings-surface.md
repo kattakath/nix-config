@@ -373,11 +373,10 @@ already an activation no-op: its target still exists and already holds
 | **agenix** | in-repo encrypted secrets | used ✓ |
 | **nix-plist-manager** (SushyDev) | ~550 System Settings as typed options named after the UI label; HM + darwin modules | reach for it BEFORE `CustomUserPreferences` when nix-darwin has no typed option (used ✓, HM module only) |
 
-> **Org move (act on this eventually):** nix-darwin migrated from `LnL7/nix-darwin`
-> to **`nix-darwin/nix-darwin`** (announced 2025-03-21, issue #1394). Our `flake.nix`
-> input still points at `github:LnL7/nix-darwin` — it resolves today via GitHub's
-> redirect but is deprecated. Repoint it to `github:nix-darwin/nix-darwin` on the
-> next input bump. No hard EOL for the old URL is published.
+> **Org move (done):** nix-darwin migrated from `LnL7/nix-darwin` to
+> **`nix-darwin/nix-darwin`** (announced 2025-03-21, issue #1394), and `flake.nix`'s
+> input already points at `github:nix-darwin/nix-darwin`. `LnL7/` citations left in
+> this file name the slug a rev was verified under, not the live input.
 
 ---
 
