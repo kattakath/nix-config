@@ -1,6 +1,6 @@
 # tor-browser on aarch64-linux, from the ALPHA channel — an overlay, as DATA.
-# Consumed by modules/nixos/desktop-vm.nix (nixvm, inside its `mkIf`) and by
-# hosts/nixos.nix. One copy, so a bump moves both.
+# Consumed by hosts/nixos.nix (the UTM GNOME desktop) — kept as shared DATA in
+# modules/_lib/ so a second Linux desktop reuses it rather than copying it.
 #
 # WHY an overlay at all: the pinned nixpkgs' tor-browser THROWS at eval on
 # aarch64-linux — `src = sources.${stdenv.hostPlatform.system} or (throw

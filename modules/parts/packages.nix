@@ -244,7 +244,7 @@ in
         # `nix run .#nixvm` — build the build-vm variant and boot it in a native
         # macOS QEMU window: an UNPROVISIONED, HEADLESS dev VM (no installed disk,
         # no partitioning) whose Nix STORE is rebuilt per boot but whose ROOT — so
-        # /home, so browser logins — PERSISTS in the XDG state dir `nixvmRunner` pins
+        # /home, so SSH keys and shell state — PERSISTS in the XDG state dir `nixvmRunner` pins
         # above. Disposable, not ephemeral: `rm` that qcow2 to reset. The runner is a
         # darwin derivation (host.pkgs = aarch64-darwin); the aarch64-linux guest
         # closure builds on Determinate's native Linux builder (enabled on the macos
