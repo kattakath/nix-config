@@ -56,14 +56,26 @@ log(`${confirmed.length} confirmed, ${dropped.length} dropped`)
 // has write + git. So the fixer gets only in-repo relative paths, no `evidence` (the field most
 // likely to quote attacker text, and not needed to apply a fix), capped single-line strings,
 // inside an explicit data fence.
-// Sentinels are stripped from every value, so data can never close its own fence.
-const clean = s => String(s).replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/FINDINGS-DATA|CRITIC-DATA/g, '').slice(0, 600)
-// Conservative charset (no whitespace, $, %, backslash, ~), no empty/dot segments, and never a
-// path that EXECUTES on the operator's machine: git internals, hooks, settings, workflows,
-// other worktrees. A finding that needs one of those is for a human, not this fixer.
-const EXEC_BEARING = /^(\.git(\/|$)|\.claude\/(hooks|workflows|worktrees)(\/|$)|\.claude\/settings[^/]*$|\.envrc$|\.github\/)/
-const inRepo = p => typeof p === 'string' && p.length < 200 && /^[A-Za-z0-9._/-]+$/.test(p) &&
-  !p.startsWith('/') && p.split('/').every(s => s !== '' && s !== '.' && s !== '..') && !EXEC_BEARING.test(p)
+// No `<`/`>` survives, so no value can open or close a fence; the sentinel strip loops to a
+// fixed point, so a nested `FINDINGS-FINDINGS-DATADATA` cannot reassemble one.
+const clean = s => {
+  let out = String(s).replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ').replace(/[<>]/g, '')
+  for (let prev; prev !== out;) { prev = out; out = out.replace(/FINDINGS-DATA|CRITIC-DATA/gi, '') }
+  return out.slice(0, 600)
+}
+// POSITIVE allowlist of fixable roots; anything else is for a human. Matched LOWERCASED with a
+// per-SEGMENT deny, because macOS's filesystem is case-insensitive (`.GIT/` IS `.git/`).
+const FIXABLE_ROOT = /^(docs\/|modules\/|packages\/|hosts\/|infra\/|templates\/|sites\/|claude\/|\.claude\/(skills|rules|commands|agents)\/|[a-z0-9._-]+\.md$)/
+// Keyed on EFFECT too: the agent permission policy (guardrails, managed settings, plugin
+// enablement) and MCP config change what every later session may do, wherever they live.
+const DENY_SEGMENT = s => s === '.git' || s === '.github' || s === '.envrc' || s === 'hooks' ||
+  s === 'workflows' || s === 'worktrees' || s.startsWith('settings') || s === '.mcp.json' ||
+  /^claude-(guardrails|managed-settings|plugins)/.test(s)
+const inRepo = p => {
+  if (typeof p !== 'string' || p.length >= 200 || !/^[A-Za-z0-9._/-]+$/.test(p)) return false
+  const lc = p.toLowerCase(); const segs = lc.split('/')
+  return segs.every(s => s !== '' && s !== '.' && s !== '..' && !DENY_SEGMENT(s)) && FIXABLE_ROOT.test(lc)
+}
 const fixable = confirmed.filter(f => inRepo(f.path))
 const offRepo = confirmed.filter(f => !inRepo(f.path)).map(f => clean(f.id))
 if (offRepo.length) log(`NOT handed to the fixer (path rejected — outside the repo or execution-bearing; fix by hand): ${offRepo.join(', ')}`)
