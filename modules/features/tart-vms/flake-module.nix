@@ -36,7 +36,7 @@
 #    weaken the whole flake), so this capsule imports its OWN nixpkgs with the
 #    predicate — the narrowing is worth one extra evaluation. It is scoped to the
 #    capsule's `packages`/`checks`; the darwin modules keep building against the
-#    HOST's pkgs, where hosts/macos.nix's `allowUnfree = true` already applies
+#    HOST's pkgs, where the host's `allowUnfree = true` already applies
 #    and nothing about the fleet build moves.
 #
 # 3. `darwinStubs` STAYS. ADR-002 §2 names it as the OPTION layer of the capsule
