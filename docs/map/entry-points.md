@@ -12,9 +12,9 @@ one file per concern, discovered by `import-tree`. Nothing below moved *semantic
 acceptance test for that wave was an **empty `nix flake show --json` diff** plus byte-identical
 host toplevels.
 
-Pins `nixpkgs` + `nix-darwin` + `home-manager` + `treefmt-nix` + `git-hooks` + **`flake-parts`**
-+ **`import-tree`** + `raspberry-pi-nix` + `nix-vscode-extensions` + `nix-homebrew` + `agenix` +
-Claude Code skill inputs (`agent-skills-vercel`, `agent-skills-anthropic-official`, both `flake = false`).
+The pinned inputs are not listed here: a hand-kept list had drifted to **12 of 28** by
+2026-10-18. `nix flake metadata --json | jq '.locks.nodes.root.inputs | keys'` is the list, and
+`flake.nix` carries each one's why.
 **`flake-parts` is a DIRECT input** with `nixpkgs-lib.follows = "nixpkgs"` — it cannot be
 `follows = ""`, because flake-parts does `inherit (nixpkgs-lib) lib` (`lib.nix:12`), so rebinding
 that name to THIS flake makes it the `lib` of a thing with no `lib`. It was already forced and
