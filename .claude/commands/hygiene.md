@@ -25,6 +25,12 @@ Examples:
 
 ## Required sequence
 
+**Ultracode, or the operator asked for a workflow?** Run the saved
+[`nix-hygiene-pass`](../workflows/nix-hygiene-pass.js) workflow instead of steps 1–4 (args:
+`{scope, recent}`). It fans the checklist out to six auditors, has two skeptics refute each
+finding, and keeps ONE fixer so parallel edits never collide in `CLAUDE.md`. Then do step 5
+from its result — and treat any dimension it logs as UNAUDITED as not covered.
+
 1. **Read** `.claude/skills/nix-hygiene/SKILL.md` and follow it (checklist A→H).
 2. **Read** root `CLAUDE.md` conventions if changing module layout or secrets — plus
    `docs/repo-map.md` → `docs/map/` (the eleven-file fleet map) or
