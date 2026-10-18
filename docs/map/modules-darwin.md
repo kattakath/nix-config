@@ -6,7 +6,10 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
-  post-activation Dock refresh that makes them reachable. `screencapture.location` is unset
+  post-activation Dock refresh that makes them reachable. It also sets the System Settings
+  nix-darwin does not type through `programs.nix-plist-manager` (its home-manager module,
+  added on darwin via `modules/parts/compose.nix`) — one owner per plist key, never the same
+  key here and in `system.defaults`. `screencapture.location` is unset
   everywhere, which is
   what makes `~/Desktop` the capture inbox the sweeps rotate.
   **It declares no launchd AGENT any more.** The Maccy opener and the two `mkTrashSweep`
