@@ -282,3 +282,17 @@ I OWN THE REPO — MINE IS THE BIGGEST STAKE.
   rules elsewhere in this file (force-push, `reset --hard`, deleting things) still stand —
   this is about skipping *process* (PR/CI gatekeeping) on his own repos, not about skipping
   *confirmation* for actions that are hard to undo regardless of who owns the repo.
+
+## CI waits — never poll inside a turn (every repo)
+
+- **Never busy-poll CI in the foreground.** No `sleep` loop, no foreground
+  `gh pr checks --watch` / `gh run watch`, no re-running `gh pr view` to see if it moved. A
+  foreground poll blocks his keyboard for the whole run, and the run ends no sooner.
+- **Need the outcome?** Start ONE watch in the background (`run_in_background` or Monitor),
+  then keep working or end the turn. Where the repo arms auto-merge, the armed merge IS the wait.
+- **Report only two outcomes:** **RED** (the check name and its run URL), or **merged, needs
+  a follow-up** (activate, deploy). A merge that needs nothing earns one line, not a report.
+- **Evidence:** nix-config's `docs/pr-wait-research.md`, October 2026. In-turn polling cost
+  **6.4–8.4 min of keyboard per day**, and only **1.5%** of 32,201 Bash calls ran in the
+  background. That census covers one repo. It is global anyway, because the cost comes from
+  the harness (a foreground call blocks the session), not from anything in the repo.
