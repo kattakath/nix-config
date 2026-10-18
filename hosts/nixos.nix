@@ -275,6 +275,14 @@ in
             "org/gnome/mutter".dynamic-workspaces = false;
             # dconf needs the GVariant type spelled out: num-workspaces is `i`.
             "org/gnome/desktop/wm/preferences".num-workspaces = lib.gvariant.mkInt32 1;
+            # The dock, in this order (operator's pick). Desktop-file IDs as the
+            # guest's share/applications names them.
+            "org/gnome/shell".favorite-apps = [
+              "firefox.desktop"
+              "tor-browser.desktop"
+              "org.gnome.Console.desktop"
+              "org.gnome.Settings.desktop"
+            ];
           };
         }
       ];
@@ -306,9 +314,16 @@ in
         pkgs.gnome-tour
       ];
 
-      # OpenPGP GUI only — no key is ever imported here; PGP work stays on the
-      # Mac (pgp-ops) and text crosses over the shared clipboard.
+      # gpg + its agent only — no key is ever imported here; PGP work stays on
+      # the Mac (pgp-ops) and text crosses over the shared clipboard.
       # pinentry-gnome3 is the graphical-desktop default.
+      #
+      # NO GUI. `gpa` was here and SEGFAULTS on launch (measured 2026-10-17:
+      # SIGSEGV in gpa_context_class_init -> g_signal_new, inside GLib's type
+      # check, before any window) — the same "crashes on launch" hosts/macos.nix
+      # records for it on aarch64-darwin. Seahorse needs gnome-keyring (off
+      # here, no-password account) and Kleopatra drags in KDE, so none replaces
+      # it until a GUI is actually wanted in this VM.
       programs.gnupg.agent.enable = true;
 
       # Security keys arrive by UTM USB passthrough (UTM prompts on plug-in).
@@ -321,7 +336,6 @@ in
       environment.systemPackages = with pkgs; [
         firefox
         tor-browser
-        gpa
         yubikey-manager
         # No wireguard-tools: WireGuard needs nothing installed here.
         # NetworkManager 1.58 speaks it natively (no VPN plugin in the closure)
