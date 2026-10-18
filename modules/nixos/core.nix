@@ -10,6 +10,11 @@
 }:
 {
   config = {
+    # The ONE NixOS definition — this module is in mkNixos's base list, so every
+    # NixOS host (and its vmVariant / seed extendModules) inherits it. Needed for
+    # e.g. `claude-code` in the shared Home Manager profile (useGlobalPkgs).
+    nixpkgs.config.allowUnfree = true;
+
     nix.settings = {
       experimental-features = [
         "nix-command"

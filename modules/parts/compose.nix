@@ -203,7 +203,7 @@ let
           # A SOURCE PATH, not a module and not a derivation — modules/home/default.nix
           # `callPackage`s it with the HOST's pkgs so the five gitlab-tart slot
           # shims are built against `nixpkgs.config.allowUnfree` from
-          # hosts/macos.nix, exactly as they were when this came from the
+          # modules/darwin/core.nix, exactly as they were when this came from the
           # nix-tart-vms input. It was the `nix-tart-vms` flake input until
           # ADR-002 wave 5; keeping it in extraSpecialArgs rather than per-call
           # is the two-composition-call-sites lesson, unchanged. Why a capsule
