@@ -310,13 +310,14 @@ in
   # cannot express it; never set the same key in both, or two activation
   # scripts write it and the later one silently wins.
   #
-  # Menu bar: always shown, full screen included. The one UI choice writes
-  # three keys — `_HIHideMenuBar` = false, `AppleMenuBarVisibleInFullscreen` =
-  # true, `com.apple.controlcenter AutoHideMenuBarOption` = 3 — matching this
-  # Mac's hand-set state as read 2026-10-18. nix-darwin types only the first.
+  # Menu bar: always shown on the desktop, auto-hidden in full screen. The one
+  # UI choice writes three keys — `_HIHideMenuBar` = false,
+  # `AppleMenuBarVisibleInFullscreen` = false, `com.apple.controlcenter
+  # AutoHideMenuBarOption` = 2. nix-darwin types only the first. ("Never" also
+  # shows it in full screen, which the operator does not want.)
   home-manager.users.${loginName}.programs.nix-plist-manager = {
     enable = true;
-    options.applications.systemSettings.menuBar.autoHideAndShowTheMenuBar = "Never";
+    options.applications.systemSettings.menuBar.autoHideAndShowTheMenuBar = "In Full Screen Only";
   };
 
   # Application firewall ON, with stealth mode — reinforces this client Mac's
