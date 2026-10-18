@@ -224,7 +224,7 @@ disks and IPSWs must never enter the Nix store; the module manages runtime
 shape only.
 
 Every launchd agent the module emits execs through a
-`writeShellScriptBin "nix-tart-vm-<name>"` wrapper — never bare `tart`, never
+`writeShellApplication "nix-tart-vm-<name>"` wrapper — never bare `tart`, never
 `sh -c`. macOS's Background Task Manager lists agents by executable basename,
 so the `nix-` prefix keeps Nix-managed persistence auditable at a glance; and
 macOS TCC attributes protected-folder access (e.g. a shared `~/Downloads`) to

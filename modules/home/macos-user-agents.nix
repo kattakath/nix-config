@@ -197,10 +197,14 @@ in
       config = {
         Label = "org.nixos.open-maccy";
         ProgramArguments = [
-          "${pkgs.writeShellScriptBin "open-maccy-run" ''
-            set -eu
-            exec /usr/bin/open -g -j -a Maccy
-          ''}/bin/open-maccy-run"
+          "${
+            pkgs.writeShellApplication {
+              name = "open-maccy-run";
+              text = ''
+                exec /usr/bin/open -g -j -a Maccy
+              '';
+            }
+          }/bin/open-maccy-run"
         ];
         RunAtLoad = true;
       };
