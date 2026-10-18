@@ -17,7 +17,8 @@ A single Nix flake that manages complete, reproducible system configurations acr
 |------|------|--------|---------|------|
 | `macos` | [nix-darwin](https://github.com/LnL7/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
 | `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy |
-| `nixvm` | NixOS | `aarch64-linux` | Disposable QEMU dev VM on the Mac | XFCE desktop via `nix run .#nixvm` — not installed; its root disk persists in `$XDG_STATE_HOME/nixvm` |
+| `nixvm` | NixOS | `aarch64-linux` | Disposable QEMU dev VM on the Mac | **Headless** since 2026-10-06 (SSH on `127.0.0.1:2222`) via `nix run .#nixvm` — not installed; its root disk persists in `$XDG_STATE_HOME/nixvm` |
+| `nixos` | NixOS | `aarch64-linux` | Long-lived UTM guest on the Mac (QEMU + virgl) | GNOME desktop, driven by `nixos-vm` (`create` boots a seed image, `switch` installs the desktop) |
 | `devcontainer` | OCI image | `aarch64-linux` + `x86_64-linux` | Dev container (multi-arch manifest, published to GHCR) | — |
 
 User environments are layered on with [Home-Manager](https://github.com/nix-community/home-manager), and the devcontainer image is prebuilt and published to GHCR so it starts with a warm Nix store. This is an **aarch64-only** fleet — there is no x86_64 *host* anywhere. The devcontainer image is the one exception: it is published multi-arch (arm64 + amd64) so it also runs on x86_64 GitHub Codespaces.
@@ -120,11 +121,14 @@ nix flake show
 ### Activate a host
 
 ```bash
-sudo darwin-rebuild switch --flake .#macos   # macOS (Apple Silicon) — client only
-nixos-rebuild  switch --flake .#nixpi   # Raspberry Pi 4 — the live server
-deploy --targets .#nixpi                # Same Pi, remotely, with deploy-rs magic rollback:
-                                        # an activation that leaves the Pi unreachable reverts
-                                        # itself instead of needing an SD-card reflash.
+activate                                     # macOS (Apple Silicon) — self-elevating darwin-rebuild switch
+nix run github:kattakath/nix-config#macos    # macOS FIRST activation only, before `activate` exists
+nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
+                                             # Raspberry Pi 4 — builds HERE (substituting from Cachix),
+                                             # activates THERE; the Pi never builds.
+nix develop -c deploy --targets .#nixpi      # Same Pi, with deploy-rs magic rollback: an activation
+                                             # that leaves the Pi unreachable reverts itself instead
+                                             # of needing an SD-card reflash.
 ```
 
 Both `.#macos` and `.#nixpi` here are also the **real** hosts — the private composition flake
@@ -133,8 +137,9 @@ that used to supply personal Home Manager modules and the Pi's real sites was re
 
 ### Bring up the dev VM
 
-`nixvm` is not installed anywhere — it exists only as a disposable graphical VM (XFCE in a
-native QEMU window on macOS), with no disk layout to partition:
+`nixvm` is not installed anywhere — it exists only as a disposable **headless** VM (since
+2026-10-06; SSH on `127.0.0.1:2222`, a QEMU console window as break-glass), with no disk layout
+to partition:
 
 ```bash
 nix run .#nixvm
@@ -169,8 +174,8 @@ bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off t
 flake.nix       Entry point: inputs/pins and ONE `flake-parts.lib.mkFlake` call — every output itself lives in modules/parts/
 flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 52 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
-hosts/          Per-host entry profiles: macos.nix, nixpi.nix, nixvm.nix — plus identity-free generic-darwin.nix / generic-linux.nix, which `checks.<system>.template-consumer` builds on
-modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each, each owning its own module + packages + checks), and the reusable modules split by platform (darwin/ nixos/ shared/)
+hosts/          Per-host entry profiles: macos.nix, nixpi.nix, nixvm.nix, nixos.nix — plus identity-free generic-darwin.nix / generic-linux.nix, which `checks.<system>.template-consumer` builds on
+modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each, each owning its own module + packages + checks), and the reusable modules split by platform (darwin/ nixos/ home/), plus _lib/ (shared data)
 packages/       Nix-built artifacts with no capsule owner (devcontainer image, SD-card provisioning apps, single-purpose CLIs). A capsule's own packages live under modules/features/<name>/packages/
 templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake
 infra/          terranix (Nix → Terraform JSON): five stacks for the Cloudflare edge + the GCP foundation, applied only through the flake's own cf-*/gcp-* apps

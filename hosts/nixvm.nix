@@ -1,6 +1,8 @@
-# Unprovisioned aarch64-linux DEV VM — materialised ONLY as the graphical
-# `build-vm` variant behind `nix run .#nixvm` (an XFCE desktop in a native
-# QEMU/Cocoa window on macOS). There is no installed nixvm and no disk layout to
+# Unprovisioned aarch64-linux DEV VM — materialised ONLY as the `build-vm`
+# variant behind `nix run .#nixvm`, HEADLESS since 2026-10-06 (SSH on
+# 127.0.0.1:2222, console in a QEMU window; the XFCE stack is one flag away —
+# `local.desktopVm.enable`, below). The fleet's GUI Linux desktop is the `nixos`
+# host under UTM (hosts/nixos.nix). There is no installed nixvm and no disk layout to
 # provision, no builder VM and no self-hosted runner — CI is GitHub-hosted and
 # local aarch64-linux builds use Determinate's native Linux builder (enabled on
 # the macos host, see flake.nix). Distinct from `nixpi`, which targets real
@@ -132,9 +134,11 @@
       # HEADLESS SINCE 2026-10-06, OPERATOR'S DECISION. stable Tor Browser now
       # lives on the Mac as the `tor-browser` cask 15.0.24 (hosts/macos.nix,
       # commit 9476905), which removed this desktop's main justification — the
-      # guest existed largely to run Tor, and did so only via a fragile
-      # 16.0a13 ALPHA overlay that dist.torproject.org would eventually 404.
-      # Going headless retires that pin, which is a real win rather than a loss.
+      # guest existed largely to run Tor, and did so only via the fragile
+      # aarch64 ALPHA overlay (dist.torproject.org keeps only the current
+      # alpha). That overlay now lives in modules/_lib/tor-browser-alpha.nix and
+      # is still LIVE — the `nixos` host uses it — so going headless removed
+      # nixvm's dependence on it, not the pin itself.
       #
       # NOTHING WAS DELETED. `local.desktopVm.enable = true` restores XFCE,
       # lightdm, firefox, the terminal, the alpha tor-browser overlay, gpa +
