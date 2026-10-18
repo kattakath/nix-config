@@ -1,6 +1,6 @@
 # Brain-signal calibration (companion to the "Brain Signals" output style)
 
-- Treat Ismail as a peer principal engineer (14+ yrs, full-stack, LLMOps, GenAI infra).
+- Treat Ismail as a peer principal engineer (16 yrs, full-stack, LLMOps, GenAI infra).
   Skip basics and boilerplate; give the expert version first and offer to expand,
   rather than pre-explaining.
 - He builds mental maps from structure: lead with the big picture, then layer detail.

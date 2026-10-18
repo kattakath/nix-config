@@ -9,5 +9,5 @@ Update a flake input safely. `$ARGUMENTS` is the input name (e.g. `nixpkgs`, `ho
 1. Run `nix flake update $ARGUMENTS` (or `nix flake update` if no argument) to regenerate `flake.lock`.
 2. Show `git diff flake.lock` so the revision change is reviewable.
 3. `git add flake.lock` — the lock must be staged before evaluation (git purity).
-4. Run `nix flake check` to confirm the bump still evaluates on `aarch64-darwin` and `aarch64-linux`.
+4. Run `nix flake check --all-systems --no-build` (evaluates `aarch64-darwin` AND `aarch64-linux`), then `nix flake check` (builds the checks). A bare `nix flake check` on the Mac silently SKIPS aarch64-linux, so it alone does not confirm the Linux hosts.
 5. If any system breaks, report the failure and recommend reverting `flake.lock` rather than activating. Do NOT run `home-manager switch`.

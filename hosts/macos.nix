@@ -53,7 +53,7 @@ in
   # The native Linux builder's /build is the VM's RAM tmpfs (measured: `/` and
   # /tmp are tmpfs, no block device; tmpfs gets half the RAM). The default
   # 8 GiB VM leaves ~3.9 GiB, and building the `nixos` guest's seed disk image
-  # (hosts/nixos.nix) stages a 1.5 GiB closure, the ext4 filesystem and the raw
+  # (hosts/nixos.nix) stages its closure, the ext4 filesystem and the raw
   # image there at once — "No space left on device" at every size tried.
   # 16 GiB is the upstream knob for exactly this (the engine's comment in
   # modules/parts/compose.nix names memoryBytes as the OOM lever). Apple
@@ -890,9 +890,9 @@ in
       # WHY A CASK AND NOT NIXPKGS, and the contrast worth knowing: upstream
       # ships ONE unsuffixed universal .dmg for macOS but only -x86_64/-i686
       # tarballs for Linux, so stable Tor Browser has Apple Silicon support on
-      # macOS and NONE on Linux. That asymmetry is why `nixvm` needs an
-      # overlay onto the 16.0a13 ALPHA (modules/nixos/desktop-vm.nix, which
-      # carries the full derivation) while this host needs only a cask.
+      # macOS and NONE on Linux. That asymmetry is why the Linux guests need an
+      # overlay onto the current aarch64 ALPHA (modules/_lib/tor-browser-alpha.nix,
+      # used by `nixos` and nixvm's desktop) while this host needs only a cask.
       #
       # grepped the pinned nixpkgs for a Darwin route — none exists:
       # pkgs/by-name/to/tor-browser/package.nix:107 declares `sources` with
