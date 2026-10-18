@@ -95,7 +95,7 @@ revert `com.apple.Terminal`.
 | **VS Code editor theme** | `workbench.colorTheme` is an *editor* theme; `colorCustomizations` overlays it cleanly. Different concern. |
 | **`statusBarItem.*`** | Remote-window chrome. Shares nothing with the ANSI ring. |
 | **VS Code font fallback chain** | `'Ubuntu Mono', monospace` is a VS Code-only concern the provider has no opinion about. Only the face name and size are derived. |
-| **`nixpi` / devcontainer / `nixvm`** | `nixpi` is headless — no emulator to theme. The devcontainer references tokens, not literals, so it inherits transitively. `nixvm`'s `xfce4-terminal` exists only under `nix run .#nixvm`. |
+| **`nixpi` / devcontainer / `nixvm`** | `nixpi` is headless — no emulator to theme. The devcontainer references tokens, not literals, so it inherits transitively. `nixvm` is headless too — reached over SSH from the Mac's themed terminal. |
 | **`\033[1;3Xm` escapes** in `bootstrap.sh` | Palette followers by construction. |
 
 ## Why not stylix, and why not base16.nix
