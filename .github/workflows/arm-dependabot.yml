@@ -27,7 +27,7 @@
 #
 # SO: a scheduled run, which is not a Dependabot event, keeps Actions secrets and can
 # mint the App token exactly as `update-flake-lock.yml`'s `app-token` step does. Same shape as that
-# file's own arming step (`:128-134`), and for the same stated reason: arming from a
+# file's own arming step (its "Arm auto-merge on the bump PR" step), and for the same stated reason: arming from a
 # scheduled job a fork can never reach, rather than loosening a guard whose job is to
 # keep fork PRs away from the App-token step.
 name: arm-dependabot
@@ -36,8 +36,11 @@ on:
   schedule:
     # Off the hour, like the other scheduled workflows here: GitHub warns the
     # schedule event "can be delayed during periods of high loads", and on-the-hour
-    # crons are the peak. Every 6 h bounds the arming latency, which is what the
-    # acceptance criterion asks for ("under 6 h unattended").
+    # crons are the peak. `17 */6` is a NOMINAL 6 h cadence only: GitHub delays and
+    # drops scheduled runs — 55 runs against 68 slots, 2026-10-01→10-18 (13 dropped),
+    # gap p50 7.1 h, max 13.5 h. So the worst-case arming latency is ~13.5 h, and
+    # the "under 6 h unattended" criterion is NOT met by construction
+    # (docs/pr-wait-research.md § Incidental doc rot found).
     - cron: "17 */6 * * *"
   workflow_dispatch:
 

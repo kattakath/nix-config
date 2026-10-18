@@ -21,7 +21,8 @@ adversarial verifier that re-derived the top claims with differently shaped inst
 - **Root cause found:** `checks.<sys>.deploy-schema` (`modules/parts/deploy.nix`,
   `deploySchemaSubject`) interpolates the real nixpi toplevel and then
   `unsafeDiscardStringContext`s it. That drops the BUILD edge but keeps the EVAL edge, so eval
-  instantiates 12,071 derivations including `linux-rpi` and `raspberrypi-firmware`, and the
+  instantiates 13,871 derivations (eval cache off; an earlier research-pass read, cache state
+  unrecorded, gave 12,071) including `linux-rpi` and `raspberrypi-firmware`, and the
   darwin leg cold-fetches their sources: **≤67 s per run** (upper bound, n=5 logs). The other
   51 darwin checks reference neither (traced with `-vvv`).
 
@@ -65,7 +66,7 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 |---|---|---|
 | 1 | **IMPLEMENTED** | [`.claude/rules/landing-changes.md`](../.claude/rules/landing-changes.md) § 1 (this repo), plus `claude/CLAUDE.md` § CI waits (every repo, because the cost comes from the harness, not the repo). `pr-title.md`'s `autoMergeRequest` race note moved there, so it has ONE home |
 | 2 | **IMPLEMENTED** | `deploySchemaSubject` feeds a context-free placeholder path. Darwin eval of the check: **13,871 → 1,827** derivations instantiated, `linux-rpi`/`raspberrypi-firmware` **5 → 0**. `deploy.nodes.nixpi` keeps the real toplevel (same `.drv`); a bad `magicRollback` type still fails the check |
-| 3 | **IMPLEMENTED** | `legs` is a parallel verifier (no `needs:` edge); the linux leg evaluates every host incl. macos (pure eval + IFD off, measured on the Mac; a real linux evaluator is unmeasured until the first CI run); the darwin PR leg builds only its **29 of 52** darwin-only checks (after renaming the two `determinate-daemon` host contracts apart), push:main builds all |
+| 3 | **IMPLEMENTED** | `legs` is a parallel verifier (no `needs:` edge); the linux leg evaluates every host incl. macos (pure eval + IFD off, measured on the Mac, then green on a real linux evaluator: run 39127414938, `build (aarch64-linux)`); the darwin PR leg builds only its **29 of 52** darwin-only checks (after renaming the two `determinate-daemon` host contracts apart), push:main builds all |
 | 4 | **IMPLEMENTED** | Darwin is ADVISORY on PRs whose author id is the operator's: the required darwin job skips, an advisory twin runs the full leg, `required-checks` does not need it. `author_association == 'OWNER'` never matches (org-owned repo, operator reads `MEMBER`) |
 | 5 | **IMPLEMENTED** | `landing-changes.md` § 2: the path allowlist plus a local gate that mirrors the three required checks. **The stated risk is closed:** `checks.<sys>.pre-commit` now runs gitleaks over the tree (`modules/parts/devshell.nix`, measured RED on a planted canary token), and the gate adds `gitleaks git` over the unpushed range. It is **not** a commit hook; the devShell installs none, by design. **The adoption test above passed** (2026-10-18, warm store, eval cache OFF): `--all-systems --no-build` 6 s, `nix flake check` 9 s with 7 checks rebuilt, the range scan 3 s. That is far under the 6.78 min PR p50, though a cold store is unmeasured |
 | 6 | **IMPLEMENTED** | `pr-title.md` § One PR per change: fold N+1 into N, or branch it off N as a **DRAFT** (`auto-merge.yml` arms any non-draft PR whatever its base) |
@@ -74,7 +75,7 @@ Not measured: the CI minutes saved. Measure it with the p50 rule under § How to
 worked. Mechanics: [`map/ci.md`](map/ci.md).
 
 - **Quick wins (≤1 h, reversible):** #1, #2, and diagnosing the 14 unarmed PRs below.
-  **Diagnosis DONE (`pr-wait/auto-merge-arming`):** 12 of 14 are no defect; 2 (#673, #675)
+  **Diagnosis DONE (#884):** 12 of 14 are no defect; 2 (#673, #675)
   are pre-#750 instances of #683. No code change — the 6 post-#750 ready transitions all
   armed cleanly. See § Not waiting.
 - **Merge-queue history check:** none of #1–#6 re-runs the gate on a second ref, so none
@@ -96,7 +97,7 @@ worked. Mechanics: [`map/ci.md`](map/ci.md).
 
 - **27 multi-run PRs** (37.5% of summed wall-clock): the agent was still pushing fixes.
 - **Draft-parked time** (33.7%): deliberate parking.
-- **14 PRs "never armed for auto-merge"** — **DIAGNOSED (branch `pr-wait/auto-merge-arming`).**
+- **14 PRs "never armed for auto-merge"** — **DIAGNOSED (#884).**
   12 are no defect: their lag is the draft-parked time in the bullet above, counted a second
   time. **2 (#673, #675) are real #683 failures**, both before #750; ~9.7 min of their lag
   is unarmed-while-ready time, not parking. **No workflow change** (see below).
@@ -117,9 +118,9 @@ mergeable. gh's `pkg/cmd/pr/merge/merge.go` sets `autoMerge` only when
 gh's `infof` prints nothing off a TTY, so the runner log is **silent** either way. That is
 why this looked like a failure.
 
-**The shared shape (11 of 14):** opened as a draft → arm job `skipped` (correct) →
+**The shared shape (10 of 14):** opened as a draft → arm job `skipped` (correct) →
 `required-checks` green **while still a draft** → `ready_for_review` → arm job `success` →
-merged by `ismailkattakath-ci[bot]` **10–14 s later**. Three PRs break it:
+merged by `ismailkattakath-ci[bot]` **10–14 s later**. Four PRs break it:
 
 - **#673 and #675 — #683 failures.** Each was marked ready BEFORE it went green, and that
   first ready transition's arm job was **SKIPPED** (#675: run 36781198435, 21:43:05Z; #673:
@@ -212,7 +213,7 @@ mean the arm job ran: since #713 the `arm decision` job succeeds on every run. R
 - The measurement scripts lived in a session scratchpad and are **gone**; re-measuring means
   rebuilding them (`gh api --paginate` over pulls, actions runs and jobs).
 
-## Incidental doc rot found — FIXED on `pr-wait/ci-critical-path`
+## Incidental doc rot found
 
 - `nix-ci.yml`'s `legs` comment said it was not on the critical path — its `needs:` edge put
   ~45 s in front of darwin in 40/40 runs. **Fixed:** the edge is gone (lever #3), and the
@@ -224,8 +225,10 @@ mean the arm job ran: since #713 the `arm decision` job succeeds on every run. R
   install-step comment, now in `nix-ci-impl.yml`.
 - `CONTRIBUTING.md` still described a 2-leg matrix building with nix-fast-build and every
   leg evaluating every host. **Fixed:** it now points at `docs/map/ci.md` and states the
-  per-author required/advisory split.
+  per-author required/advisory split. **Fixed** later: `README.md`'s copy of the same
+  paragraph (nix-fast-build, `required-checks` as the only required check).
 - `arm-dependabot.yml`'s cron comment says "Every 6 h bounds the arming latency". **Measured
   false:** 55 scheduled runs against 68 nominal `17 */6` slots (2026-10-01→10-18, so **13
   dropped**). Gap between runs: p50 7.1 h, p90 9.7 h, **max 13.5 h**. #822 sat green for
-  5.3 h waiting for a sweep. Out of the auto-merge lane; not fixed.
+  5.3 h waiting for a sweep. **Comment fixed** (it now states the measured ~13.5 h worst
+  case); the cron value is unchanged — the cadence is the operator's call.
