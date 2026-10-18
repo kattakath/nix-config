@@ -172,7 +172,7 @@ in
           # same reasoning modules/features/tart-vms/flake-module.nix records
           # applies — a predicate listing one name means a SECOND unfree package
           # arriving later fails here instead of being waved through. The host
-          # itself already sets `allowUnfree = true` (hosts/macos.nix), so this
+          # itself already sets `allowUnfree = true` (modules/darwin/core.nix), so this
           # only matters for the standalone `nix build .#grok` output, which is
           # what CI and the cache consume.
           grok =

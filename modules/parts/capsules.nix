@@ -95,7 +95,7 @@
   #   modules/home/default.nix installs the five gitlab-tart slot shims with
   #   `pkgs.callPackage <gitlab-tart.nix> { }` — using the HOST's pkgs (the
   #   darwinSystem's own nixpkgs instance, `nixpkgs.config.allowUnfree = true`
-  #   from hosts/macos.nix), NOT this flake's perSystem pkgs. Handing it the
+  #   from modules/darwin/core.nix), NOT this flake's perSystem pkgs. Handing it the
   #   perSystem derivation instead would be a different pkgs instance and a
   #   different drv, and drv identity is ADR-002's whole acceptance test.
   #
