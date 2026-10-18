@@ -7,16 +7,16 @@
 #   * Terminal.app — type on EVERY profile, and the four colours the OS actually
 #     exposes on `Pro`, which this block also forces as default/startup. UNGATED:
 #     every darwin host. Type size is ergonomics (the operator's eyes), not a
-#     visual tell, so the sandbox VM gets it too. Values come from
+#     visual tell, so every darwin host gets it. Values come from
 #     `local.terminalTheme` (modules/home/terminal-theme.nix) — this module owns
 #     the DELIVERY, never the palette. This repo used to VENDOR a whole Terminal
 #     profile here ("Ubuntu", plus a generator script) and import it on first
 #     activation; #319 dropped that, and what replaces it is Apple's own scripting
 #     interface rather than an NSKeyedArchiver blob.
 #   * The wallpaper — behind `local.desktopAesthetics.enable` (default true), so a host
-#     can OPT OUT and keep the stock macOS desktop (the former macvm guest did
-#     exactly that, keeping the sandbox visually distinct from the real `macos`
-#     machine at a glance, before you read the hostname.
+#     can OPT OUT and keep the stock macOS desktop — a visual tell that tells a
+#     sandbox guest from the real `macos` machine at a glance, before you read
+#     the hostname.
 #
 # Imported by modules/home/default.nix; ./wallpaper is resolved relative to THIS file,
 # i.e. modules/home/, exactly as when it lived in home.nix.

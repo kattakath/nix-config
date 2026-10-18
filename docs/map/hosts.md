@@ -139,8 +139,6 @@ they bite any future second account:
   `gpg-agent` REFUSE TO START while `gpgconf --check-options` still passes (#832 → #834), so prove
   a change by starting the agent on it. `~/.gnupg/gpg.conf` (`encrypt-to` self) stays hand-placed —
   [`new-mac-runbook.md`](../new-mac-runbook.md) § Hand-placed files.
-- `macvm.nix` — removed 2026-09-05 with the rest of the `macvm` Tart guest; re-add path:
-  [`macvm-readd-runbook.md`](../macvm-readd-runbook.md).
 - **`nixpi.nix`** — Pi 4, LIVE: boot fixes + cloudflared + upstream `services.caddy`. Its
   `sdImage` is prebuilt in CI and published to the `installer-latest` release, since it bakes
   no secrets.

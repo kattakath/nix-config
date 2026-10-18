@@ -67,9 +67,6 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   Why UTM and not Tart/`nixvm`: [`map/hosts.md`](map/hosts.md) § `nixos.nix`.
 - A matching **Devcontainer** image.
 
-(The `macvm` Tart guest was removed 2026-09-05 — re-add path + what survives in the
-in-tree `tart-vms` capsule: [`macvm-readd-runbook.md`](macvm-readd-runbook.md).)
-
 Single source of truth; platform divergence lives in `modules/`, never in ad-hoc shell.
 
 ## `modules/` — reusable modules split by platform
