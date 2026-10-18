@@ -1,7 +1,7 @@
 # PR-wait research — findings and a deferred lever backlog (2026-10-18)
 
-**Status: levers being implemented (operator go-ahead 2026-10-18).** Written as research to
-act on later; per-lever status sits under the backlog table. Unmarked levers are undecided.
+**Status: the operator authorised every lever on 2026-10-18; all six are IMPLEMENTED.** Per-lever
+status sits under the backlog table. The research text below is kept as measured.
 
 Scope: `kattakath/nix-config` only. Method: a prompt-engineered brief, four parallel read-only
 agents (history census, CI critical path, industry research, session-transcript waits), then an
@@ -59,13 +59,16 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 | 5 | Direct push for docs/`.claude`-only changes (~21% of PRs) | ~7.5 min for those | S | trunkbaseddevelopment.com "committing straight to the trunk"; Fowler "Ship". **Risk:** no local gitleaks hook exists, so a secret is public before the scan |
 | 6 | Dependent chains: one PR, or branch N+1 off N | ~7 min per serial link | S | trunk-based precedent; the 10-02 chained session |
 
-### Status — #2, #3, #4 (branch `pr-wait/ci-critical-path`)
+### Implementation status
 
 | # | Status | What landed, and its evidence |
 |---|---|---|
+| 1 | **IMPLEMENTED** | [`.claude/rules/landing-changes.md`](../.claude/rules/landing-changes.md) § 1 (this repo), plus `claude/CLAUDE.md` § CI waits (every repo, because the cost comes from the harness, not the repo). `pr-title.md`'s `autoMergeRequest` race note moved there, so it has ONE home |
 | 2 | **IMPLEMENTED** | `deploySchemaSubject` feeds a context-free placeholder path. Darwin eval of the check: **13,871 → 1,827** derivations instantiated, `linux-rpi`/`raspberrypi-firmware` **5 → 0**. `deploy.nodes.nixpi` keeps the real toplevel (same `.drv`); a bad `magicRollback` type still fails the check |
 | 3 | **IMPLEMENTED** | `legs` is a parallel verifier (no `needs:` edge); the linux leg evaluates every host incl. macos (pure eval + IFD off, measured on the Mac; a real linux evaluator is unmeasured until the first CI run); the darwin PR leg builds only its **29 of 52** darwin-only checks (after renaming the two `determinate-daemon` host contracts apart), push:main builds all |
 | 4 | **IMPLEMENTED** | Darwin is ADVISORY on PRs whose author id is the operator's: the required darwin job skips, an advisory twin runs the full leg, `required-checks` does not need it. `author_association == 'OWNER'` never matches (org-owned repo, operator reads `MEMBER`) |
+| 5 | **IMPLEMENTED** | `landing-changes.md` § 2: the path allowlist plus a local gate that mirrors the three required checks. **The stated risk is closed:** `checks.<sys>.pre-commit` now runs gitleaks over the tree (`modules/parts/devshell.nix`, measured RED on a planted canary token), and the gate adds `gitleaks git` over the unpushed range. It is **not** a commit hook; the devShell installs none, by design. **The adoption test above passed** (2026-10-18, warm store, eval cache OFF): `--all-systems --no-build` 6 s, `nix flake check` 9 s with 7 checks rebuilt, the range scan 3 s. That is far under the 6.78 min PR p50, though a cold store is unmeasured |
+| 6 | **IMPLEMENTED** | `pr-title.md` § One PR per change: fold N+1 into N, or branch it off N as a **DRAFT** (`auto-merge.yml` arms any non-draft PR whatever its base) |
 
 Not measured: the CI minutes saved. Measure it with the p50 rule under § How to tell a lever
 worked. Mechanics: [`map/ci.md`](map/ci.md).

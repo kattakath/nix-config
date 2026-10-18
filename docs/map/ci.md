@@ -30,7 +30,8 @@ GitHub-**HOSTED** runners (`ubuntu-24.04-arm` for aarch64-linux, `macos-latest` 
 aarch64-darwin; both free & unlimited on public repos). Jobs: `flake-checker` (advisory),
 `legs` (a parallel VERIFIER), one caller job per leg — `build-linux`, `build-darwin`,
 `build-darwin-advisory` — each running the reusable **`nix-ci-impl.yml`**, and the aggregate
-`required-checks`. A leg *builds* `.#checks.<system>` with plain `nix build` (enumerated from
+`required-checks`. A leg *builds* `.#checks.<system>` (among them `pre-commit` = treefmt **and** a gitleaks scan of the working tree,
+`modules/parts/devshell.nix`) with plain `nix build` (enumerated from
 the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cachix cache —
 `nix-fast-build` was dropped 2026-09-22, its own closure was half the darwin leg) and
 *evaluates* (no build) host toplevels. Building host toplevels is deferred to release time
@@ -107,6 +108,16 @@ publishes each push to `main` as a rolling release to FlakeHub via
 `DeterminateSystems/flakehub-push`, authenticated by OIDC/`id-token: write` with **no** stored
 token; per FlakeHub's trusted-platform model, flakes publish only from CI, never ad-hoc from a
 laptop. Merge mechanics: [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md).
+
+**Not every change goes through a PR.** `protect-main` gives the Repository Admin role
+`bypass_mode: always`, so the operator's sessions may push a change whose every path is
+`docs/**`, a root `*.md` or `.claude/**` (no `.nix`) straight to `main`. They first run a local
+copy of the three required checks: `nix flake check` (which includes the `pre-commit` gitleaks
+scan), `gitleaks git` over the unpushed commits, and, when `.claude/` changed, the
+`claude-config-lint.yml` steps. CI on the push to `main` is then the backstop. The path
+allowlist and the gate live in ONE place:
+[`landing-changes.md`](../../.claude/rules/landing-changes.md) § 2. § 1 of the same file says
+how to wait on a PR's CI: in the BACKGROUND, never by polling inside a turn.
 
 Three more, each self-documenting in its header:
 

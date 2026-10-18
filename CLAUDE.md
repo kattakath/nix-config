@@ -163,7 +163,7 @@ the `docs/map/` file [`docs/repo-map.md`](docs/repo-map.md) routes each path to.
 | `modules/darwin/` | macOS system: `core.nix`, `user-folders.nix`, `homebrew.nix` (framework only), `nix-homebrew.nix`, `xcode-license.nix`, `launchd-sources.nix` (the four launchd sources, listed ONCE), `launchd-reconcile.nix` (option-free — re-bootstraps a `launchd.daemons` unit that left the domain, at switch AND boot; nix-darwin's activation is diff-gated and never does), `logging.nix` (EVERY launchd log, agents AND daemons: `system.newsyslog` rename+create for the ones that re-exec, `logrotate --copytruncate` on an hourly tick for the long-lived ones — launchd's fd is **O_APPEND**, so truncating reclaims where renaming cannot), `github-runner.nix` (`local.macosGithubRunner` — LIVE, see § Configuration), `clat-guard.nix` (`local.clatGuard` — undoes macOS's spurious CLAT46 on dual-stack Wi-Fi), `ollama-daemon.nix` (`local.ollamaDaemon` — ONE machine-wide `ollama serve`, so every account shares one process and one 31 GB model store), `claude-managed-settings.nix` (`local.claudeManagedSettings` — the root-owned Claude Code MANAGED settings file; `enable = false` DELETES it). |
 | `modules/nixos/` | `core.nix` (user + keys-only sshd, **loopback-bound BY DEFAULT**, `openFirewall = false`, a firewall that opens **no** TCP port globally, avahi, nix-ld, zram, GC), `uplink-watchdog.nix` (hotspot failover when the Rogers uplink dies — NOT a connector watchdog), `nix-cache.nix` (the substituters — NixOS-only; the Mac uses `determinateNix.customSettings`), `lan-recovery.nix` (`local.lanRecovery` — the SECOND ingress: wildcard sshd bind + its port per-interface on `end0`/`wlan0` only; `nixvm` stays loopback-only), `service-heartbeat.nix` (`local.serviceHeartbeat` — nixpi's dead man's switch: no ping means not SERVING). `nixpi`'s posture is GATED **both ways** — `checks.<system>.nixpi-security-posture` fails on a firewall WIDENING *and* on the LAN path's REMOVAL (built on BOTH systems; the edits are made on the Mac). It cannot test reachability — every leg was green through the 2026-10-01 total outage. |
 | `modules/_lib/` | Shared DATA, not modules, never auto-imported: `nix-ld-libraries.nix` (`modules/nixos/` + `packages/`), `secret-read-paths.nix` (the deny-list + Seatbelt paths), `tor-browser-alpha.nix`, `is-macos-host.nix`. |
-| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers` (the Android focus-or-launch bundle, a `Terminal` **alias** bundle that opens Ghostty (so ⌘Space → "terminal" offers it next to Apple's), **plus four `commandApps`** — `Nix Activate`, `Nix Flake Check`, `Nix Open Repo`, `NixOS VM`, each a Spotlight-findable `.app` opening a Ghostty window, all wearing `packages/fleet-mark.svg`; planted by `modules/home/spotlight-actions.nix`), plus single-purpose CLIs. `claude-state-gc` reports (and with `--prune` removes) the Claude Code runtime state no rebuild touches — orphaned plugin cache versions and interrupted-update clones; DRY RUN by default, never prunes transcripts. `launchd-doctor` reports what `nix flake check` structurally cannot: drift **both ways** — declared-but-not-loaded, and loaded-but-in-no-generation, which nix-darwin’s single-transition removal loop orphans permanently — plus non-zero exits, log growth, disabled-DB and log orphans. `grok.nix`/`antigravity-cli.nix` are SRI-pinned prebuilt vendor binaries, SHARED via `environment.systemPackages`, not per-user — bump them by SIGNATURE + vendor checksum, not by trust (each header says how). `acpx.nix` rides the same shared lane but is the opposite shape: FOSS, built from source via `fetchPnpmDeps`, and it pins `nodejs_22` itself because the fleet default is 20.x (ADR-007). Root `bootstrap.sh` is the no-Nix stage 1; the media/photo CLIs live in the `media-cli` capsule. |
+| `packages/` | Flake apps/packages: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers` (the Android focus-or-launch bundle, a `Terminal` **alias** bundle that opens Ghostty (so ⌘Space → "terminal" offers it next to Apple's), **plus four `commandApps`** — `Nix Activate`, `Nix Flake Check`, `Nix Open Repo`, `NixOS VM`, each a Spotlight-findable `.app` opening a Ghostty window, all wearing `packages/fleet-mark.svg`; planted by `modules/home/spotlight-actions.nix`), plus single-purpose CLIs. `claude-state-gc` reports (and with `--prune` removes) the Claude Code runtime state no rebuild touches — orphaned plugin cache versions, interrupted-update clones; DRY RUN by default, never prunes transcripts. `launchd-doctor` reports what `nix flake check` structurally cannot: drift **both ways** — declared-but-not-loaded, and loaded-but-in-no-generation, which nix-darwin’s single-transition removal loop orphans permanently — plus non-zero exits, log growth, disabled-DB and log orphans. `grok.nix`/`antigravity-cli.nix` are SRI-pinned prebuilt vendor binaries, SHARED via `environment.systemPackages`, not per-user — bump them by SIGNATURE + vendor checksum, not by trust (each header says how). `acpx.nix` rides the same shared lane but is the opposite shape: FOSS, built from source via `fetchPnpmDeps`, and it pins `nodejs_22` itself because the fleet default is 20.x (ADR-007). Root `bootstrap.sh` is the no-Nix stage 1; the media/photo CLIs live in the `media-cli` capsule. |
 | `infra/` | terranix (Nix → Terraform JSON). Five stacks: `cloudflare/{nixpi-tunnel,zones,access-org}.nix` (+ `kattakath-dns.nix`, records as data), `gcp/{foundation,budget}.nix`. Applied only via the `cf-*`/`gcp-*` apps; state in GCS for four, `gcp-foundation` local (§ Important Notes). |
 | `secrets/` | agenix recipients + the operator pubkey + **four** ciphertexts — one operator-only, three host-decrypted on `macos`. Details in § Security. |
 | `sites/` | TWO trees, ONE Caddy-served: `snoringirl` (`config.fleet.hostedSites[].root`, a **directory** literal, so every byte lands in the LIVE closure — [`store-copied-trees`](.claude/rules/store-copied-trees.md)). `ismail-landing` is NOT served: `next-right-thing.nix`'s fonts. |
@@ -182,22 +182,23 @@ copy self-updates). Why:
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`,
 `/pretooluse-review`, `/remember-nix`, `/gmail-account`, `/routing-review`, `/mcp-scout`,
-`/fleet-doctor`, `/userscript`. (`/devtools` and `/pick` ship from the `page-lab` plugin, and
-`/superhook-review` from the `superhook` plugin — its in-repo copy was byte-identical and was
-deleted 2026-09-30.)
+`/fleet-doctor`, `/userscript`. (`/devtools`, `/pick`: `page-lab` plugin; `/superhook-review`:
+`superhook` plugin.)
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
 `gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`, `userscript-author`.
 
-**Rules** (`.claude/rules/`; only `pr-title` is unscoped, the rest load by `paths:`):
+**Rules** (`.claude/rules/`; `pr-title` + `landing-changes` are unscoped, the rest load by `paths:`):
 [`git-purity`](.claude/rules/git-purity.md) (stage `.nix` before eval),
 [`pr-title`](.claude/rules/pr-title.md) (title = comma-separated touched components; one PR per
-change, off `main`),
+change, off `main` or its unmerged parent PR),
+[`landing-changes`](.claude/rules/landing-changes.md) (watch CI in the BACKGROUND, never
+in-turn; docs/`.claude`-only changes may push to `main` after the local gate),
 [`launchd-naming`](.claude/rules/launchd-naming.md) (every launchd unit exposes a `nix-<kebab>`
 `arg0` — never a bare `sh`/`python3`),
 [`upstream-first`](.claude/rules/upstream-first.md) (grep the **pinned** input's option surface
-before writing custom Nix, and cite the result — plus, for a CLI or wrapper, check whether a
-community TOOL already owns it, which an option grep structurally cannot see). Scoped to `sites/**`:
+before writing custom Nix, and cite the result — plus, for a CLI or wrapper, whether a
+community TOOL already owns it, which an option grep cannot see). Scoped to `sites/**`:
 [`store-copied-trees`](.claude/rules/store-copied-trees.md) (a directory path literal copies
 the whole tree into the store — check for stray `.DS_Store`/etc. before committing).
 
@@ -206,8 +207,8 @@ the whole tree into the store — check for stray `.DS_Store`/etc. before commit
 `superhook`'s wrappers and `claude-code-nix`'s `autostage-nix`/`nix-home-path-lint` all arrive
 as PLUGIN hooks, finding these scripts BY CONVENTION. **Do not re-add any of them here, or each
 fires TWICE.** `.claude/hooks/tests/*.sh` covers BOTH hooks and is **a REQUIRED status check**
-(`Lint .claude config`, `claude-config-lint.yml`) — it BLOCKS a merge, it does not merely run,
-because a throw fails OPEN. Mechanism:
+(`Lint .claude config`, `claude-config-lint.yml`) — it BLOCKS a merge, because a throw
+fails OPEN. Mechanism:
 [`docs/map/claude.md`](docs/map/claude.md) § `.claude/hooks/`; message decoder:
 [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 All of the above is **project-scoped** — it guards sessions in THIS repo only. Policy that is
