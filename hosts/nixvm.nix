@@ -26,24 +26,17 @@
 # args, the polkit rule) sat dormant from 2026-10-06 and was DELETED 2026-10-17;
 # git history keeps it (`git log --diff-filter=D -- modules/nixos/desktop-vm.nix`).
 # The GUI job moved to the `nixos` host (UTM + GNOME, hosts/nixos.nix).
-# ARGS SHRANK ON 2026-10-06 and `nix fmt` did it, not a human: removing
-# `pkgs.wireguard-tools` left `pkgs` unused, and `lib` had already become unused
-# when the vmVariant turned into a module FUNCTION with its own `{ lib, ... }`.
-# treefmt runs `deadnix --edit` (treefmt.nix's `deadnix.enable`), which prunes unused
-# bindings automatically — so do not re-add either arg by hand expecting to use
-# it at this level; take it in the inner function instead.
+# Args hold only what THIS level uses — `nix fmt` runs `deadnix --edit`, which prunes the
+# rest — so take `pkgs`/`lib` in the inner vmVariant function, not here.
 {
   darwinPkgs,
   loginName,
   ...
 }:
 {
-  # NOTE: `virtualisation.vmVariant.virtualisation.host.pkgs` used to be set here
-  # as a dotted one-liner. It MOVED into the single vmVariant definition below
-  # (2026-10-06) because that definition became a module FUNCTION, and Nix cannot
-  # have `a.b = x;` and `a = f;` in the same literal attrset — it is an
-  # "attribute already defined" error at parse time, not a module-merge conflict.
-  # ONE `virtualisation.vmVariant` definition in this file, always.
+  # ONE `virtualisation.vmVariant` definition in this file, always: it is a module
+  # FUNCTION, so a dotted `virtualisation.vmVariant.x = …;` beside it is an
+  # "attribute already defined" error at parse time, not a module merge.
 
   networking.hostName = "nixvm";
 
