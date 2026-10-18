@@ -7,7 +7,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
   post-activation Dock refresh that makes them reachable. `screencapture.location` is unset
-  everywhere (the shared-inbox override left with the `macvm` guest, 2026-09-05), which is
+  everywhere, which is
   what makes `~/Desktop` the capture inbox the sweeps rotate.
   **It declares no launchd AGENT any more.** The Maccy opener and the two `mkTrashSweep`
   rotations left for the home-manager lane on 2026-10-02 — see
