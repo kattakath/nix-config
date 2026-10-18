@@ -29,7 +29,9 @@ Examples:
 [`nix-hygiene-pass`](../workflows/nix-hygiene-pass.js) workflow instead of steps 1–4 (args:
 `{scope, recent}`). It fans the checklist out to six auditors, has two skeptics refute each
 finding, and keeps ONE fixer so parallel edits never collide in `CLAUDE.md`. Then do step 5
-from its result — and treat any dimension it logs as UNAUDITED as not covered.
+from its result — and treat any dimension it logs as UNAUDITED as not covered. Its fixer is
+barred from every **agent-facing** path (`CLAUDE.md`, `claude/`, `.claude/`, policy modules,
+`infra/`): those come back as `forHuman`, and YOU apply them here, under the operator's review.
 
 1. **Read** `.claude/skills/nix-hygiene/SKILL.md` and follow it (checklist A→H).
 2. **Read** root `CLAUDE.md` conventions if changing module layout or secrets — plus
