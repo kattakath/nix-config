@@ -179,6 +179,12 @@ they bite any future second account:
       is answered with *"ignoring the client-specified setting … you are not a trusted user"*
       (same reason `--builders`/`--max-jobs 0` are ignored). Wait it out, or add the operator to
       `determinateNix.customSettings.trusted-users`.
+    - **Your own `nix build --dry-run` counts as that evaluation.** Measured 2026-10-18 (#877):
+      a dry-run of the nixpi toplevel run to *prove* "fetch, not build" before the warm-up
+      finished poisoned the cache, and the deploy 13 min later still EPERMed on
+      `Caddyfile-formatted` while Cachix answered 200 for the same narinfo. To check a
+      not-yet-warmed closure, `curl -w '%{http_code}'` the narinfos instead — that goes
+      around the daemon's cache.
 - **`nixvm.nix`** — a SLIM, unprovisioned aarch64-linux dev VM: no disko, no runner, no
   install; materialised only as the `nix run .#nixvm` build-vm, whose guest builds
   locally on the native Linux builder or substitutes from Cachix.
@@ -327,6 +333,21 @@ builder can't set permissions" and that would send you looking for a fix that do
 **Do not work around it by building on the Pi.** `warm-nixpi-cache.yml` builds the closure on a
 real ARM Linux runner and pushes it to Cachix, so the Mac substitutes and never runs that `cp`
 at all. Heavy multi-core builds (the Pi SD image) go to GitHub CI / Cachix for the same reason.
+
+### Two operator lanes the Access gate and Rule 1d leave open
+
+- **Deploy over the LAN when the Access login is in the way.** `deploy.nodes.nixpi.hostname`
+  is the tunnel name, whose ssh needs a browser Cloudflare Access login. From the same LAN,
+  `nix develop -c deploy --targets .#nixpi --hostname nixpi.local` keeps magic rollback and
+  needs no login (the `local.lanRecovery` ingress). Used for the 2026-10-18 Audiobookshelf
+  deploy.
+- **Run an ad-hoc tool on the Pi without building there.** Rule 1d blocks every
+  `ssh <pi> nix build`/`nix shell` shape — even a substitute-only one. Realise the
+  `aarch64-linux` package on the Mac and push the closure instead:
+  `nix build --print-out-paths nixpkgs#legacyPackages.aarch64-linux.<pkg>`, then
+  `nix copy --to ssh://<user>@nixpi.local <path>`, then call `<path>/bin/<tool>` on the Pi
+  (in a `systemd-run` unit if it outlives the ssh session). Used for the 2026-10-18 f3 test of
+  the `/mnt/storage` USB sticks.
 
 ### What magic rollback actually buys
 
