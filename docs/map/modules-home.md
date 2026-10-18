@@ -480,10 +480,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
     the NSKeyedArchiver blobs a `.terminal` profile carries). Writes **unversioned user
     state**: `home-manager rollback` does not revert `com.apple.Terminal`.
   - The **custom wallpaper** stays behind `local.desktopAesthetics.enable` (default true;
-    the former `macvm` guest set it false as a visual tell).
+    a sandbox guest can set it false as a visual tell).
 - **`wireguard-configs.nix`** — operator-managed WG confs synced to `~/.config/wireguard`, no
-  autostart; import-only for the `WireGuard.app` GUI (the `vpn` CLI left with the `macvm`
-  guest, 2026-09-05 — [`macvm-readd-runbook.md`](../macvm-readd-runbook.md)).
+  autostart; import-only for the `WireGuard.app` GUI.
 - **`containers.nix`** — `local.containers`, darwin-only: the **per-user** container runtime,
   Colima declared through home-manager's own `services.colima` (upstream-first — the pinned
   nix-darwin has no `virtualisation.*` namespace at all, so a system-level answer does not

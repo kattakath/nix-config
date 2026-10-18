@@ -222,9 +222,6 @@ Only if repos touched in this run actually compose macos (i.e. their
 activate
 ```
 
-(The macvm guest and its tar-sync activation flow were removed 2026-09-05 —
-docs/macvm-readd-runbook.md.)
-
 **Read the `branch@rev` line it prints — do not let it scroll past.** The
 `/etc/nix-darwin/flake.nix` link is a fixed path to the **main checkout**, so
 `activate` builds whatever branch *that* tree currently holds — never a

@@ -11,7 +11,7 @@ the durable re-add path (it survives refactors where a `git revert` would not).
 |---|---|
 | ALL generic Tart machinery — lifecycle CLI (`tart-vm`), plug-and-play `bootstrap`, packer golden-image `bake`, `tart-guest-agent` packaging, a `local.tart.vms.<name>` darwin module | **`modules/features/tart-vms/`, in THIS repo.** It was `github:kattakath/nix-tart-vms` until ADR-002 wave 5 absorbed it as a capsule; the origin repo is archived. `local.tart.vms.*` (`modules/features/tart-vms/darwin.nix`) is the one module in the fleet with **no consumer today**, kept precisely so this runbook still has a step 1. |
 | A baked, operator-neutral **golden image** (`tahoe-golden`) | `~/.tart/vms/` on the macos host (imperative artifact — check `tart list` before assuming) |
-| The removed thin layer, verbatim | git history — the removal commit is tagged in the PR that cites this runbook; `git show <removal>^:hosts/macvm.nix` etc. |
+| The removed thin layer, verbatim | git history — the removal commit is `dea51c7` (#459); `git show dea51c7^:hosts/macvm.nix` etc. |
 
 ## Re-add procedure
 
@@ -42,8 +42,9 @@ the durable re-add path (it survives refactors where a `git revert` would not).
    directly; the veneer only adds fleet defaults (identity, Downloads share,
    legacy `MACVM_*` env names).
 
-4. **Home/host trimmings back** (each was tagged with a "left with the macvm
-   host, 2026-09-05" comment at its removal site): the `vpn` operator +
+4. **Home/host trimmings back** (the "left with the macvm host" comments that
+   marked each removal site were deleted; `git show dea51c7` shows every
+   site): the `vpn` operator +
    its `home.packages` gate, `macvmTartStart` + the Spotlight "Mac VM"
    launcher, the ssh `Host macvm` block, the macvm screencapture shared-inbox
    override in `modules/darwin/core.nix`, `.claude/{commands/vpn.md,`
@@ -56,8 +57,8 @@ the durable re-add path (it survives refactors where a `git revert` would not).
    to edit. Both halves live in THIS flake now, and step 2 already covers them:
    the host attribute goes in `flake.darwinConfigurations`
    (`modules/parts/hosts.nix`), and the `#macvm` activation app goes back beside
-   `apps.macos` in `modules/parts/packages.nix` — its removal comment still marks
-   the exact site.
+   `apps.macos` in `modules/parts/packages.nix` (`git show dea51c7 --
+   flake.nix` shows the app as it was, before outputs moved to `modules/parts/`).
 
 6. **VM itself**: `tart clone tahoe-golden macvm` (if the golden image
    survived) — else `nix run .#macvm-tart-bake` — then
@@ -69,7 +70,8 @@ the durable re-add path (it survives refactors where a `git revert` would not).
 - The guest's `~/Downloads` must be the VirtioFS **symlink** into the host's;
   never rotate it guest-side (`mv` across filesystems = `cp`+`rm` — would copy
   host bytes into the guest and unlink them on the host). The macos-only gate
-  on the sweeps in `core.nix` was kept for exactly this reason.
+  on the sweeps (now in `modules/home/macos-user-agents.nix`) exists for exactly
+  this reason.
 - `masApps` fails activation on a host with no App Store login — keep the
   guest's `masApps = { }`.
 - Guest captures on the guest's own Desktop are stranded — that's why the

@@ -38,7 +38,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 | `trackpad` | `Clicking` (tap-to-click) |
 | `screensaver` | `askForPassword`, `askForPasswordDelay=0` |
 | `loginwindow` | `GuestEnabled=false` |
-| `screencapture` | `location` unset everywhere, so captures take macOS's own `~/Desktop` default (rotated daily); the shared-inbox override left with the former `macvm` guest ([`macvm-readd-runbook.md`](macvm-readd-runbook.md)). The key also governs ⇧⌘5 screen **recordings**. `type="png"`, `disable-shadow` everywhere |
+| `screencapture` | `location` unset everywhere, so captures take macOS's own `~/Desktop` default (rotated daily). The key also governs ⇧⌘5 screen **recordings**. `type="png"`, `disable-shadow` everywhere |
 
 ### Beyond `system.defaults`
 
@@ -325,7 +325,7 @@ depend on.
 | RAG (`ollama-local`, `postgres-pgvector`) — the MCP gateway shared this gate until it was deleted 2026-10-02 | **macos only** |
 | `metube` / `yt-dlp-web-ui` (loopback download servers) | **macos only** |
 | `file-rotation-logs` / `file-rotation-logs-system` (launchd log rotation) | **macos only** |
-| `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (the gate protected the former `macvm` guest's VirtioFS-shared `~/Downloads` and is kept — see [`macvm-readd-runbook.md`](macvm-readd-runbook.md)) |
+| `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (a Tart guest whose `~/Downloads` is VirtioFS-shared with the host's would lose host files to a guest-side rotation — `mv` across filesystems is `cp`+`rm`) |
 
 Gate with `networking.hostName` (set in `hosts/*.nix`) — or, from a home-manager module,
 with `osConfig.networking.hostName`, which is where all three of the agents below now live.
