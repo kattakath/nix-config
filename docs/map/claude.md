@@ -108,7 +108,7 @@ Subagents routes to it.
 
 ### `.claude/rules/`
 
-Only `pr-title` is unscoped (loaded in every session). The others load by path: `git-purity`,
+`pr-title` and `landing-changes` are unscoped (loaded in every session). The others load by path: `git-purity`,
 `launchd-naming` and `upstream-first` for `**/*.nix`, `store-copied-trees` for `sites/**` — each
 file's `paths:` frontmatter is the source of truth.
 
@@ -118,7 +118,15 @@ file's `paths:` frontmatter is the source of truth.
   or a top-level dot-folder with its dot stripped). Also states the default shape: **one PR per
   change, branched off `main`** — a single ~10 min CI gate per PR keeps them independent (the
   old "one open PR per working session" consolidation policy was retired 2026-08-30; the merge
-  queue that later justified it was itself removed 2026-09-22).
+  queue that later justified it was itself removed 2026-09-22). A DEPENDENT change branches off
+  its unmerged parent as a DRAFT, or folds into the parent's PR — it never waits for the merge.
+- [`landing-changes.md`](../../.claude/rules/landing-changes.md) — how a change LANDS. Never poll
+  CI inside a turn: one background watch, reporting only RED or "merged, needs activate". And
+  the direct-push lane: a change whose every path is `docs/**`, a root `*.md` or `.claude/**`
+  (no `.nix`) may go straight to `main` after a local gate that mirrors the three required
+  checks (`nix flake check`, a gitleaks scan of the unpushed commits, and
+  `claude-config-lint.yml`'s steps when `.claude/` changed). Evidence:
+  [`pr-wait-research.md`](../pr-wait-research.md).
 - [`launchd-naming.md`](../../.claude/rules/launchd-naming.md) — every launchd unit this repo
   authors must expose a `nix-<kebab>` `arg0` basename (never a bare `sh`/`python3`); documents
   the known upstream `/bin/sh` exceptions (`org.nixos.activate-system`,
