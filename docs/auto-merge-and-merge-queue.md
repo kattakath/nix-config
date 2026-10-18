@@ -39,11 +39,16 @@ requests auto-merge only when `!isImmediatelyMergeable(pr.MergeStateStatus)`, an
 when a draft goes green and is then marked ready, the arm step squash-merges it directly.
 The timeline shows `merged`, **never** `auto_squash_enabled`, and `autoMergeRequest` stays
 `null`. The step log shows nothing either, because gh's `infof` is silent off a TTY.
-**This is not a failed arm.** Measured 2026-10-18: 13 of the 258 operator PRs merged or closed since 2026-09-23 took this path, each
-merged by `ismailkattakath-ci[bot]` 10–14 s after `ready_for_review`. The full table is in
-[`pr-wait-research.md`](pr-wait-research.md) § Not waiting. To audit arming, count arm
-events **plus** merges by the bot within seconds of an arm job's `success`. Read the **job**
-conclusion, not the run's: the `arm decision` job succeeds on every run.
+**That merge is not itself a failed arm — but check the transition before it.** Measured
+2026-10-18: 13 of the 258 operator PRs merged or closed since 2026-09-23 took this path, each
+merged by `ismailkattakath-ci[bot]` 10–14 s after a `ready_for_review`. **Two of the 13 (#675,
+#673) are #683 instances**: their FIRST `ready_for_review` (before they were green) got an arm
+job **SKIPPED**, so they sat green, non-draft and unarmed until the operator toggled
+draft → ready a second time; only that second transition took the direct-merge path. The full
+table is in [`pr-wait-research.md`](pr-wait-research.md) § Not waiting. To audit arming, count
+arm events **plus** merges by the bot within seconds of an arm job's `success`, and for each
+direct merge, check that **no earlier** `ready_for_review` on the PR produced a skipped arm job.
+Read the **job** conclusion, not the run's: the `arm decision` job succeeds on every run.
 
 It authenticates with an **installation token from the CI bot GitHub App**, never
 `GITHUB_TOKEN`. Auto-merge attributes the merge to whoever armed it, and events
@@ -146,9 +151,13 @@ mitigation, but the distinction is load-bearing: a transition that must re-arm c
 Measured across **every** draft conversion in #451-#789 — six of them, of which **four
 converted an already-armed PR**: on all four, `auto_merge_disabled` lands in the same second
 as `convert_to_draft`. (The other two, #675 and #673, were never armed before the
-conversion, so there was nothing to disable. Neither was ever "armed" afterwards either:
-both were already green, so the ready-transition arm step merged them directly, within
-12 s — see §1, "arm means merge now".) Three of the four re-armed within ~12 s of the ready transition (#559,
+conversion, so there was nothing to disable. That is the #683 defect, not a benign case:
+each had ALREADY been marked ready once — #675 at 21:43:01Z, #673 at 21:55:09Z, both before
+`required-checks` went green — and both of those ready transitions got an arm job
+**SKIPPED** (runs 36781198435, 36782457480; `auto-merge.yml` then still had
+`if: draft == false` and `cancel-in-progress: true`). The operator's convert → ready toggle
+was the workaround. Only that second, operator-forced transition found them green, so its
+arm step merged them directly within 12 s — see §1, "arm means merge now".) Three of the four re-armed within ~12 s of the ready transition (#559,
 #737, #757). The fourth, #723, did not — its
 ready-transition arm run was **cancelled** by `cancel-in-progress`, since turned off
 (#750, `auto-merge.yml`'s `concurrency` block carries the argument). That is the live tail
@@ -409,7 +418,7 @@ not evidence of this defect returning.
 | PR armed, checks green, never merges | Unresolved review thread (`required_review_thread_resolution`) | Resolve the thread |
 | PR armed but never merges, no checks running | Real merge conflict — GitHub disarms it | Resolve and push; `synchronize` re-arms automatically |
 | Drafted, marked ready, green, still unarmed | The draft conversion disarmed it (§3) and the ready transition's arm run did not land — the open tail of #683 | Confirm with `gh pr view <n> --json autoMergeRequest` **after** the arm run concludes; `gh pr ready` again, or arm by hand. Add the payload to #683 |
-| Merged, yet no `auto_squash_enabled` event and `autoMergeRequest: null` | **Not a fault.** The PR was green when the arm step ran, so gh merged it directly (§1) | Nothing. Confirm `merged_by` is `ismailkattakath-ci[bot]` and the merge falls inside the arm job's run |
+| Merged, yet no `auto_squash_enabled` event and `autoMergeRequest: null` | Usually **not a fault**: the PR was green when the arm step ran, so gh merged it directly (§1). It **IS** the #683 fault if an EARLIER `ready_for_review` on the same PR got a skipped arm job (#673, #675) | Confirm `merged_by` is `ismailkattakath-ci[bot]` and the merge falls inside the arm job's run. Then list every `ready_for_review` on the PR and read each arm run's **job** conclusion; a skip on a non-draft transition goes to #683 |
 | Merged, but nothing published to FlakeHub | Something armed the PR with `GITHUB_TOKEN` | Restore the App token in `auto-merge.yml` |
 | Someone else's PR auto-merged | The author guard was widened | The guard is a literal login; keep it that way |
 | PR merges against a `main` that moved under it | Expected — `strict_required_status_checks_policy` is off by choice (§3) | The `push: main` leg catches it; fix forward |
