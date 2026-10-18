@@ -95,6 +95,12 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 | `/userscript` | measure → replay → **publish** a Violentmonkey userscript, via the `page-lab` plugin's method skill + the project skill `userscript-author` (delivery only since 2026-09-14 — nothing is declared or gated in Nix); **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
 | `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/cross-repo pins/GC/host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-title.md` |
 
+### `.claude/workflows/`
+
+| Workflow | What it does |
+|---|---|
+| `nix-hygiene-pass` | the multi-agent form of `/hygiene`: six read-only auditors (checklist A–E + a recent-change lens over a git range), two refuting skeptics per finding (a dead skeptic counts AGAINST), ONE sequential fixer so edits never collide in `CLAUDE.md`, then a completeness critic. A crashed auditor is logged as UNAUDITED, never folded into "clean". First run: #885 (39 confirmed of 44) |
+
 `/superhook-review` is **not** in this table and that is not an omission: the `superhook`
 plugin ships it. The in-repo `.claude/commands/superhook-review.md` was byte-identical to the
 plugin's copy and was deleted 2026-09-30 when superhook moved to plugin-hook delivery — two
