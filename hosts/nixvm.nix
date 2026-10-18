@@ -1,9 +1,7 @@
-# Unprovisioned aarch64-linux DEV VM — materialised ONLY as the `build-vm`
-# variant behind `nix run .#nixvm`, HEADLESS since 2026-10-06 (SSH on
-# 127.0.0.1:2222, console in a QEMU window; the XFCE stack is one flag away —
-# `local.desktopVm.enable`, below). The fleet's GUI Linux desktop is the `nixos`
-# host under UTM (hosts/nixos.nix). There is no installed nixvm and no disk layout to
-# provision, no builder VM and no self-hosted runner — CI is GitHub-hosted and
+# Unprovisioned aarch64-linux HEADLESS DEV VM — materialised ONLY as the
+# `build-vm` variant behind `nix run .#nixvm` (a console in a native QEMU/Cocoa
+# window on macOS; SSH on 127.0.0.1:2222). There is no installed nixvm, no disk
+# layout to provision, no builder VM and no self-hosted runner — CI is GitHub-hosted and
 # local aarch64-linux builds use Determinate's native Linux builder (enabled on
 # the macos host, see flake.nix). Distinct from `nixpi`, which targets real
 # Raspberry Pi 4 hardware via raspberry-pi-nix.
@@ -22,10 +20,16 @@
 # The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in flake.nix);
 # the aarch64-linux guest closure builds on the native Linux builder or is
 # substituted from Cachix.
+#
+# NO GUI, AND NO SWITCH TO TURN ONE ON. The XFCE stack (`local.desktopVm`,
+# modules/nixos/desktop-vm.nix, the HM Xft/DPI module, the clipboard/audio QEMU
+# args, the polkit rule) sat dormant from 2026-10-06 and was DELETED 2026-10-17;
+# git history keeps it (`git log --diff-filter=D -- modules/nixos/desktop-vm.nix`).
+# The GUI job moved to the `nixos` host (UTM + GNOME, hosts/nixos.nix).
 # ARGS SHRANK ON 2026-10-06 and `nix fmt` did it, not a human: removing
 # `pkgs.wireguard-tools` left `pkgs` unused, and `lib` had already become unused
-# when the vmVariant turned into a module FUNCTION with its own `{ config, lib,
-# ... }`. treefmt runs `deadnix --edit` (treefmt.nix's `deadnix.enable`), which prunes unused
+# when the vmVariant turned into a module FUNCTION with its own `{ lib, ... }`.
+# treefmt runs `deadnix --edit` (treefmt.nix's `deadnix.enable`), which prunes unused
 # bindings automatically — so do not re-add either arg by hand expecting to use
 # it at this level; take it in the inner function instead.
 {
@@ -34,8 +38,6 @@
   ...
 }:
 {
-  imports = [ ../modules/nixos/desktop-vm.nix ];
-
   # NOTE: `virtualisation.vmVariant.virtualisation.host.pkgs` used to be set here
   # as a dotted one-liner. It MOVED into the single vmVariant definition below
   # (2026-10-06) because that definition became a module FUNCTION, and Nix cannot
@@ -78,46 +80,20 @@
     fsType = "ext4";
   };
 
-  # ---- Graphical `build-vm` variant -----------------------------------------
+  # ---- Headless `build-vm` variant ------------------------------------------
   # Everything under virtualisation.vmVariant applies ONLY when building the VM
   # runner (`nix run .#nixvm` / `nixos-rebuild build-vm`), never to the base
   # toplevel. host.pkgs (the QEMU that RUNS the script) is set to aarch64-darwin in
   # flake.nix so the runner is macOS-native.
-  # A FUNCTION MODULE, not a bare attrset, and that is deliberate: it is the only
-  # way to read the vmVariant's OWN `config` so the host-side QEMU args can be
-  # gated on the same flag the guest reads. `virtualisation.vmVariant`'s type
-  # comes from `extendModules` (nixpkgs virtualisation/build-vm.nix:13,38), so a
-  # definition may be a module function. Referencing
-  # `config.virtualisation.vmVariant.…` from the OUTER config instead would be a
-  # self-reference into the option being defined — infinite recursion.
+  # A module FUNCTION, for `lib` (the outer args no longer take it — see the ARGS
+  # note above). `virtualisation.vmVariant`'s type comes from `extendModules`
+  # (nixpkgs virtualisation/build-vm.nix), so a definition may be a function.
   virtualisation.vmVariant =
-    { config, lib, ... }:
-    let
-      # ---- THE ONE LINE. Flip this to re-enable the whole GUI stack. --------
-      # HEADLESS SINCE 2026-10-06, OPERATOR'S DECISION. stable Tor Browser now
-      # lives on the Mac as the `tor-browser` cask 15.0.24 (hosts/macos.nix,
-      # commit 9476905), which removed this desktop's main justification — the
-      # guest existed largely to run Tor, and did so only via the fragile
-      # aarch64 ALPHA overlay (dist.torproject.org keeps only the current
-      # alpha). That overlay now lives in modules/_lib/tor-browser-alpha.nix and
-      # is still LIVE — the `nixos` host uses it — so going headless removed
-      # nixvm's dependence on it, not the pin itself.
-      #
-      # NOTHING WAS DELETED. `local.desktopVm.enable = true` restores XFCE,
-      # lightdm, firefox, the terminal, the alpha tor-browser overlay, gpa +
-      # gpg-agent, pipewire/rtkit, spice-vdagent, the keyring/screensaver/
-      # blanking disables and the HM Xft/DPI setting (all inside
-      # modules/nixos/desktop-vm.nix's `mkIf`), AND the host-side GUI qemu args
-      # and `resolution` below, which are gated on this same value.
-      desktop = config.local.desktopVm.enable;
-    in
+    { lib, ... }:
     {
-      local.desktopVm.enable = false;
-
-      # ---- BREAK-GLASS CONSOLE. Do not remove with the desktop. -------------
-      # Headless, SSH on 127.0.0.1:2222 is the only route in — and this account
-      # has NO PASSWORD, so a getty login prompt is unanswerable (the same root
-      # condition as the screensaver lockout documented in desktop-vm.nix). If
+      # ---- BREAK-GLASS CONSOLE ----------------------------------------------
+      # SSH on 127.0.0.1:2222 is the only other route in — and this account
+      # has NO PASSWORD, so a getty login prompt is unanswerable. If
       # sshd ever fails to start there would be no recovery short of killing
       # QEMU, which is a power-pull for a durable qcow2.
       # `services.getty.autologinUser` (nixos/modules/services/ttys/getty.nix:62,
@@ -145,73 +121,6 @@
         # a qcow2 is lazily allocated (measured 5.7 MiB of real host disk at 8192,
         # 6.9 MiB at 24576).
         diskSize = 24576;
-        # ---- RESOLUTION: 1920x1440. THE MODE LIST IS A FIXED TABLE -----------
-        # A GREEN BUILD IS NOT ACCEPTANCE HERE. Only `xrandr` inside a booted
-        # guest is; this block has been wrong twice on a green build.
-        #
-        # WHY AN ARBITRARY NUMBER CANNOT WORK, which is the counter-intuitive part:
-        # QEMU's EDID generator carries a HARDCODED 23-ENTRY `modes[]` TABLE
-        # (hw/display/edid-generate.c:14-45). `xres`/`yres` do NOT add to it —
-        # they only build the single "preferred timing" DTD, from a formula whose
-        # own source comment says it will "pull some realistic looking timings out
-        # of thin air" (:68-82).
-        #
-        # AND THAT FORMULA IS ITSELF OUT OF RANGE. Proof from this VM's own log,
-        # one boot, both lines present:
-        #   (II) Not using mode "1920x1200" (hsync out of range)
-        #   (II) Output Virtual-1 using initial mode 1920x1200 +0+0
-        # The configured mode survived only because it is ALSO a table entry,
-        # where Xorg computes proper VESA timings itself. The DTD was discarded.
-        #
-        # HENCE THE ASYMMETRY: 2880x1800 FAILED and the LARGER 3840x2160 PASSES,
-        # purely because one is in the table and the other is not. It was never
-        # about size. Pick from the table or do not pick.
-        #
-        # THE SYNC CEILING IS NOT QEMU'S AND NOT mkForce-ABLE. Pinned nixpkgs
-        # qemu-vm.nix:1510-1512 injects `HorizSync 30-140` / `VertRefresh 50-160`
-        # through `services.xserver.monitorSection` at mkVMOverride — PRIORITY 10,
-        # higher than mkForce's 50 — so a naive mkForce to widen it loses silently.
-        #
-        # DECLINED 2026-10-06, OPERATOR'S CALL, recorded so it is not rediscovered:
-        # `services.xserver.deviceSection` IS normal-priority at this pin, so
-        #   Option "ModeValidation" "NoMaxPClkCheck,AllowNonEdidModes"
-        # would disable the gate and unlock arbitrary modes — including 3024x1964,
-        # the operator's exact panel, a 1512x982-point window at ~2.1x this area.
-        # He declined it today as untested, not as wrong. Take it up knowingly.
-        #
-        # THE ARITHMETIC. On this Retina panel the Cocoa UI halves the framebuffer
-        # for the window (ui/cocoa.m:503) and doubles back for the framebuffer
-        # (:564-565), so WINDOW POINTS = GUEST PIXELS / 2 and one guest pixel is
-        # one Mac device pixel. His panel is 3024x1964 native = 1512x982 points.
-        # 1920x1440 -> 960x720 points: the largest-area table entry that fits.
-        # 2560x1080 ties on area and loses on shape — 540pt tall is cramped.
-        #
-        # DPI STAYS 192 AT BOTH LAYERS — `services.xserver.dpi` in
-        # modules/nixos/desktop-vm.nix and the HM `xfconf` Xft/DPI. DO NOT scale
-        # them with the resolution. `backingScaleFactor = 2` is fixed by the
-        # physical panel, so text size depends on that factor alone and NEVER on
-        # the mode; this change is AREA ONLY. The instinct to pick a
-        # "proportionate" DPI was wrong twice today.
-        #
-        # A PERSISTED USER SETTING CAN OVERRIDE ALL OF THIS. XFCE writes
-        # ~/.config/xfce4/xfconf/xfce-perchannel-xml/displays.xml on the durable
-        # qcow2 and xfsettingsd re-applies it at login, keyed by an EDID HASH — so
-        # changing xres/yres changes the EDID, changes the hash, and ORPHANS the
-        # saved profile. Measured 2026-10-06: that file already pinned
-        # `Resolution = 1920x1440` (he had set it by hand), which is why this value
-        # was chosen. If a future change to this number appears to do nothing,
-        # that file is why.
-        # GATED ON THE SAME FLAG. NOTE the gate does not make it absent — it
-        # falls back to upstream's 1024x768 default, which is simply unread with
-        # no X server. Meaningless headless (it only feeds
-        # services.xserver.resolutions, and there is no X server). Its companion
-        # `services.xserver.dpi` needs no gate: it lives inside desktop-vm.nix's
-        # own `mkIf cfg.enable` and disappears with the desktop, as does the HM
-        # `xfconf` Xft/DPI (gated on `programs.xfconf.enable`, which XFCE owns).
-        resolution = lib.mkIf desktop {
-          x = 1920;
-          y = 1440;
-        };
         # THE GUEST CARRIES ITS OWN STORE IMAGE.
         #
         # CORRECTION 2026-10-06 — the reason recorded here until today was WRONG.
@@ -308,43 +217,9 @@
         # nothing to exchange.
         sharedDirectories = lib.mkForce { };
 
-        # Guest video device X's modesetting driver binds for the desktop, plus
-        # the host half of macOS<->guest CLIPBOARD sharing.
+        # RAW QEMU ARGS ARE CORRECT HERE — `virtualisation.qemu.options` is
+        # nixpkgs' own escape hatch (types.listOf types.str, additive).
         #
-        # RAW QEMU ARGS ARE CORRECT HERE — do not "fix" them to an option.
-        # `virtualisation.qemu.options` is nixpkgs' own escape hatch
-        # (types.listOf types.str, default [ ], nixos/modules/virtualisation/qemu-vm.nix)
-        # and it concatenates additively, so this list is the whole device set.
-        # Grepped the pinned nixpkgs' nixos/modules/virtualisation/ for "vdagent":
-        # ZERO hits — NixOS models only the GUEST side (services.spice-vdagentd,
-        # enabled in modules/nixos/desktop-vm.nix). Nothing upstream wires the
-        # host chardev, so there is no option to prefer.
-        #
-        # How the clipboard reaches macOS: qemu 11.1.1's Cocoa UI registers a real
-        # QemuClipboardPeer named "cocoa" (ui/cocoa.m), so the native window joins
-        # QEMU's clipboard bus; `qemu-vdagent` is compiled in (confirmed with
-        # `-chardev help` on the store path this VM runs). `clipboard=on` is
-        # REQUIRED — qapi/char.json defaults it off. `name=com.redhat.spice.0` is
-        # the fixed protocol contract spice-vdagent listens on, not a free choice.
-        #
-        # TEXT ONLY. The Cocoa peer carries no image or file clipboard.
-        #
-        # The virtserialport deliberately carries NO explicit `bus=`. Measured
-        # 2026-10-06 against this exact qemu store path, with virtio-gpu-pci also
-        # enumerated: both the explicit `bus=virtio-serial0.0` form and this
-        # implicit one start cleanly, and `info qtree` shows the implicit port
-        # landing on `bus: virtio-serial-bus.0` with chardev=vdagent0 and
-        # name=com.redhat.spice.0. Implicit wins on fewer assumptions — it needs
-        # no device id and no guess at the bus alias QEMU derives from it.
-        # `xres`/`yres` ARE REAL PROPERTIES of this device — verified against the
-        # exact pinned binary, not assumed:
-        #   $ qemu-system-aarch64 -device virtio-gpu-pci,help
-        #     xres=<uint32>  -  (default: 1280)
-        #     yres=<uint32>  -  (default: 800)
-        # Those defaults were the measured guest resolution, which is what proved
-        # the device — not Xorg — owns this. See the `resolution` block above for
-        # the full three-layer story; this is LAYER 1, and without it the Xorg
-        # `Modes` line has no 2880x1800 to select.
         # ---- USB PASSTHROUGH: NOT AVAILABLE — decided 2026-10-06, do not re-attempt
         # NO `qemu.options` LINE FIXES THIS. That is the whole point of the note:
         # `usb-host` IS compiled in (the binary links libusb-1.0.30 and carries
@@ -367,60 +242,17 @@
         # 2026-09-18 on macOS 27's VZUSBPassthroughDevice, but issue #7914
         # `VZErrorDomain error -6` on any device assign was open at writing).
         # A move keeps the NixOS guest, sshd, the HM profile and the PGP stack, and
-        # LOSES `nix run .#nixvm`, every QEMU-specific audio/display/clipboard
-        # option below, and the declarative `vmVariant` round-trip.
+        # LOSES `nix run .#nixvm` and the declarative `vmVariant` round-trip.
         # OPERATOR'S DECISION 2026-10-06: keep nixvm as it is, accept no USB.
         # (GPG and SSH specifically need no passthrough — see the memory note
         # `nixvm-usb-passthrough-closed` for the agent-socket RemoteForward recipe.)
-        # THE GPU DEVICE IS UNCONDITIONAL, AND THAT IS LOAD-BEARING HEADLESS.
+        # THE GPU DEVICE IS LOAD-BEARING HEADLESS.
         # `graphics = true` does NOT add a framebuffer — measured in the pinned
         # qemu-vm.nix, which only withholds `-nographic` (:1336) and reorders the
         # kernel `console=` list (:802). aarch64 `virt` has no built-in VGA, so
-        # with this device gated away the Cocoa window would open BLANK and the
-        # break-glass console above would be invisible. Only the `xres`/`yres`
-        # geometry is a desktop nicety, so only that part is gated.
-        qemu.options = [
-          "-device virtio-gpu-pci${lib.optionalString desktop ",xres=1920,yres=1440"}"
-        ]
-        ++ lib.optionals desktop [
-          "-chardev qemu-vdagent,id=vdagent0,name=vdagent,clipboard=on"
-          "-device virtio-serial-pci"
-          "-device virtserialport,chardev=vdagent0,name=com.redhat.spice.0"
-          # ---- AUDIO, HOST HALF. The guest half is in desktop-vm.nix ----------
-          # BOTH HALVES OR SILENCE. There was no sound card in the guest AT ALL
-          # (`/proc/asound/cards` did not exist; only the generic snd/snd_seq/
-          # snd_timer modules were loaded), because nothing had ever given QEMU an
-          # audio device. Adding the guest's PipeWire stack alone would also be
-          # silence — it would have nothing to open.
-          #
-          # THIS IS THE FOURTH TWO-LAYER FEATURE IN THIS VM, and the pattern is
-          # worth naming because each time the config looked complete and built
-          # green with one half missing: the CLIPBOARD (host chardev here + guest
-          # spice-vdagentd there), the DISPLAY (host xres/yres here + guest
-          # dpi/Xft.dpi there), SSH (host forwardPorts here + guest bind and
-          # firewall there), and now AUDIO. CHECK BOTH SIDES FIRST.
-          #
-          # grepped nixos/modules/virtualisation/qemu-vm.nix for audio/soundhw/
-          # audiodev — ZERO hits in 1,559 lines -> no upstream option owns QEMU
-          # audio -> raw qemu.options justified, same escape hatch and the same
-          # additive concatenation as the vdagent lines above.
-          #
-          # `coreaudio` IS COMPILED IN: `-audiodev help` on the exact pinned
-          # binary lists none, coreaudio, dbus, spice, wav. It is the only one of
-          # those that reaches the Mac's speakers.
-          #
-          # WHY virtio-sound-pci AND NOT intel-hda: paravirtualised, and ONE
-          # device instead of a controller plus a separate `hda-duplex` codec —
-          # which matches every other choice in this list (virtio-gpu-pci,
-          # virtio-serial-pci). `-device help` confirms `virtio-sound-pci`
-          # (alias `virtio-sound`) exists at 11.1.1. THE NAMED FALLBACK, if
-          # `snd_virtio` does not bind in a booted guest, is the legacy pair:
-          #   "-device intel-hda" "-device hda-duplex,audiodev=snd0"
-          # The guest kernel has CONFIG_SND_VIRTIO=m and CONFIG_SND_HDA_INTEL=m,
-          # so either driver is available; only a boot can say which binds.
-          "-audiodev coreaudio,id=snd0"
-          "-device virtio-sound-pci,audiodev=snd0"
-        ];
+        # without this device the Cocoa window would open BLANK and the
+        # break-glass console above would be invisible.
+        qemu.options = [ "-device virtio-gpu-pci" ];
         # NOTE: no explicit `-display` flag — QEMU on macOS defaults to a native
         # Cocoa window. On a Linux host you'd add `-display gtk` here instead.
       };
@@ -522,59 +354,5 @@
         { addr = "0.0.0.0"; }
       ];
       services.openssh.openFirewall = lib.mkForce true;
-
-      # ---- polkit: wheel acts unchallenged, MIRRORING sudo --------------------
-      # INERT WHILE HEADLESS (2026-10-06) AND KEPT ANYWAY. With the desktop off
-      # nothing enables `security.polkit`, so polkit-127 and polkit-gnome both
-      # leave the closure (measured: count 0 each) and this rule has no daemon to
-      # read it. Left in place because it costs nothing, it is the correct value
-      # the moment `local.desktopVm.enable` goes back to true, and deleting it
-      # would re-open the unanswerable-prompt hole documented below. If a headless
-      # service ever pulls polkit back in, this rule is already right.
-      # THIRD instance of the credential-prompt class documented in
-      # modules/nixos/desktop-vm.nix — and the one handled DIFFERENTLY. XFCE
-      # installs `polkit_gnome` as the polkit authentication agent
-      # (nixos/modules/services/x11/desktop-managers/xfce.nix:126-127), so a
-      # privileged desktop action pops a password dialog. This VM's account has
-      # NO password, so that dialog is another dead end.
-      #
-      # The three-instance table and the per-instance fix shapes live ONCE, in
-      # modules/nixos/desktop-vm.nix's class block — not restated here. The part
-      # specific to polkit: it is LEFT ON and told not to challenge, because
-      # removing an auth agent makes privileged actions fail SILENTLY rather
-      # than work.
-      #
-      # upstream option security.polkit.extraConfig exists -> using it
-      # (nixos/modules/security/polkit.nix:65, types.lines, rendered into
-      # /etc/polkit-1/rules.d/10-nixos.rules at :182).
-      #
-      # A NARROWER OPTION EXISTS AND IS THE WRONG AXIS: `adminIdentities` (:86)
-      # already defaults to `[ "unix-group:wheel" ]` and feeds
-      # `polkit.addAdminRule` (:178-180). It declares WHO COUNTS as an
-      # administrator, not whether they must authenticate — so wheel is already
-      # the admin identity here, which is precisely why the agent challenges the
-      # operator. No upstream option expresses "authorise without authenticating";
-      # a JS rule returning YES is polkit's own documented mechanism for it
-      # (the option's example shows the same shape).
-      #
-      # COST, stated plainly: any process running as the operator's user in this
-      # VM can take privileged desktop actions unchallenged. That is ALREADY true
-      # of `sudo` here — `security.sudo.wheelNeedsPassword = false`
-      # (modules/nixos/core.nix) — so the two paths now MATCH instead of one
-      # being open and the other being an unanswerable prompt. Not a new hole;
-      # a consistent one.
-      #
-      # DELIBERATELY VM-ONLY. It lives in this host's `vmVariant`, not in
-      # modules/nixos/core.nix and not in desktop-vm.nix: the same rule on
-      # `nixpi` (an internet-facing live server) or on `macos` would be a REAL
-      # weakening, and desktop-vm.nix is a reusable module whose other consumers
-      # must not silently inherit a security posture chosen for a disposable VM.
-      # `polkit_gnome` stays installed — this removes its need to ask, not the
-      # agent that asks.
-      security.polkit.extraConfig = ''
-        polkit.addRule(function(action, subject) {
-          if (subject.isInGroup("wheel")) { return polkit.Result.YES; }
-        });
-      '';
     };
 }
