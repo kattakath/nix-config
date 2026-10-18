@@ -2384,10 +2384,19 @@ in
                 # none and SKIPPED caller->callee validation silently — measured
                 # 2026-10-18: an undefined input passed to nix-ci-impl.yml exited 0 from
                 # the bare copy, and failed `[workflow-call]` once an empty `.git`
-                # marker sat above `.github/workflows`. (Store names cannot start with
-                # `.`, hence the copy rather than pointing at a store path.)
-                mkdir -p proj/.git proj/.github
-                cp -r ${../../.github/workflows} proj/.github/workflows
+                # marker sat above `.github/workflows`. The WHOLE `.github` tree is
+                # copied, not just workflows/: with only workflows/ present, a bad input
+                # to the local composite action `uses: ./.github/actions/nix-setup` also
+                # exited 0, and failed `[action]` once `.github/actions` sat beside it
+                # (actionlint 1.7.12). (Store names cannot start with `.`, hence the
+                # renamed `builtins.path` and the copy.)
+                mkdir -p proj/.git
+                cp -r ${
+                  builtins.path {
+                    path = ../../.github;
+                    name = "dot-github";
+                  }
+                } proj/.github
                 cd proj/.github/workflows
                 # actionlint resolves `shellcheck` from PATH; nativeBuildInputs puts it there.
                 if ! actionlint -shellcheck=shellcheck ./*.yml; then
