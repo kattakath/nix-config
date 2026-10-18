@@ -120,9 +120,16 @@ jobs:
               ;;
             system-only)
               # A name another system ALSO exposes is built there by the leg that
-              # required-checks always waits on (aarch64-linux). Same name is not
-              # the same derivation — that residual risk is the documented trade
-              # (nix-ci.yml, build-darwin), and push:main builds them all.
+              # required-checks always waits on (aarch64-linux). That is only true
+              # under an INVARIANT this filter cannot see: a check name present on
+              # two systems comes from ONE source block, so linux building it means
+              # the same ASSERTION ran. A per-host contract must carry its host in
+              # its name (`determinate-daemon-macos` / `-nixpi`; one shared name
+              # here once dropped the macos contract from every non-operator PR).
+              # Census 2026-10-18: 23 shared names, each ONE definition site. What
+              # remains is the documented trade (nix-ci.yml, build-darwin): a
+              # shared-source check that breaks only on darwin's PLATFORM merges,
+              # and push:main, which builds them all, goes red.
               names=$(printf '%s' "$by_system" | jq -r --arg s "$SYSTEM" \
                 '(.[$s] // []) - [to_entries[] | select(.key != $s) | .value[]] | join(" ")')
               ;;
@@ -166,12 +173,14 @@ jobs:
       #
       # Hosts are ENUMERATED by attrName per category, never listed and never
       # filtered by system: the linux leg evaluates EVERY host, darwin included.
-      # That is sound because flake evaluation is pure — `builtins.currentSystem`
+      # That rests on two facts. (1) Flake evaluation is pure: `builtins.currentSystem`
       # does not exist in pure eval, so the evaluator's own arch cannot reach the
-      # result — and measured: `darwinConfigurations.macos.system.drvPath` is the
-      # IDENTICAL .drv evaluated natively and with `--eval-system aarch64-linux
-      # --option allow-import-from-derivation false` (2026-10-18), so it needs no
-      # darwin builder (no IFD) either.
+      # result. (2) Measured 2026-10-18 on the Mac: `darwinConfigurations.macos`
+      # evaluates with `--option allow-import-from-derivation false`, so it needs no
+      # darwin builder. Comparing drvPaths under `--eval-system aarch64-linux` added
+      # nothing — `--eval-system` only sets what pure eval already hides, so they
+      # could not have differed. A real LINUX evaluator is UNMEASURED until the
+      # first CI run of this leg; a red eval there is a finding, not flakiness.
       - name: Evaluate host config(s) (no build)
         env:
           SYSTEM: ${{ inputs.system }}

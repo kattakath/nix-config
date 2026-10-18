@@ -7,10 +7,14 @@ name: nix-ci
 # kernel — is a RELEASE-time concern handled later against
 # `nixosConfigurations.*` / `darwinConfigurations.*` directly. Per PR, we:
 #
-#   1. BUILD the flake's lint/format checks (`.#checks.<system>` = formatting +
-#      pre-commit) once per SYSTEM on that system's own native runner, and
+#   1. BUILD the flake's checks (`.#checks.<system>` — lint, format, and the
+#      eval-only contract checks) on each system's own native runner: linux
+#      builds ALL its checks; on a PR the darwin leg builds only the darwin-ONLY
+#      ones, and push:main builds all of them (who waits on which: WHO WAITS
+#      below), and
 #   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
-#      catching config/option/type errors) WITHOUT building it.
+#      catching config/option/type errors) WITHOUT building it — on a PR, the
+#      linux leg evaluates every host, macos included.
 #
 # ONE LEG PER HOST SYSTEM, on its arch-native GitHub-HOSTED runner, each a
 # caller of the reusable nix-ci-impl.yml:
@@ -291,13 +295,16 @@ jobs:
     with:
       system: aarch64-darwin
       runs-on: macos-latest
-      # On a PR: only the checks no other system exposes (28 of 52 on
-      # 2026-10-18). The 24 shared names are built by the linux leg; in 38/40
+      # On a PR: only the checks no other system exposes (29 of 52 on
+      # 2026-10-18). The 23 shared names are built by the linux leg; in 38/40
       # measured runs the darwin leg rebuilt ONLY shared checks, so this is where
-      # its build time went. Residual risk, accepted: a same-named check that
-      # breaks only on darwin merges and goes red on push:main, which builds all.
+      # its build time went. Sound only while a shared NAME means one shared
+      # SOURCE — a per-host contract carries its host in its name (invariant in
+      # nix-ci-impl.yml, system-only). Residual risk, accepted: a shared-source
+      # check that breaks only on darwin's platform merges, and goes red on
+      # push:main, which builds all.
       checks: ${{ github.event_name == 'pull_request' && 'system-only' || 'all' }}
-      # On a PR the linux leg already evaluates macos (identical .drv, measured);
+      # On a PR the linux leg already evaluates macos (pure eval, IFD off);
       # push:main re-evaluates it natively as the belt.
       eval-categories: ${{ github.event_name == 'pull_request' && 'none' || 'darwinConfigurations' }}
 

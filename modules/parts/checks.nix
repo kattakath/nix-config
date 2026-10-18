@@ -37,8 +37,8 @@ let
   # looked only at the old two would have gone red on a MOVE.
   #
   # DERIVED, not listed. readDir means a twelfth domain file is an index the
-  # moment it exists — the same reason nix-ci.yml derives its legs rather than
-  # naming them. Two shapes because the two consumers differ: hosts-documented
+  # moment it exists — the same reason nix-ci.yml's `legs` job reads the host
+  # systems out of the flake rather than restating them. Two shapes because the two consumers differ: hosts-documented
   # greps STORE PATHS, docs-indexed resolves link targets relative to each
   # index's own directory inside `${self}` and so needs REPO-RELATIVE names.
   mapIndexNames = lib.naturalSort (
@@ -57,7 +57,7 @@ let
   ]
   ++ map (n: ../../docs/map + "/${n}") mapIndexNames;
 
-  # The ONE shared shape in this file. It was born for `determinate-daemon`,
+  # The ONE shared shape in this file. It was born for `determinate-daemon-{macos,nixpi}`,
   # which is literally the same check run against two hosts whose contracts are
   # opposites (see both halves below); `nixpi-security-posture` is the third
   # consumer, and took it because it wants exactly this behaviour — report EVERY
@@ -760,20 +760,27 @@ in
           # (.github/workflows/nix-ci.yml). The nixpi half lives in the isLinux
           # block below and asserts the OPPOSITE things, on purpose.
           #
+          # The HOST IS IN THE NAME, and that is load-bearing (2026-10-18). Both
+          # halves were once called `determinate-daemon`, and nix-ci's darwin PR
+          # leg builds only check NAMES no other system exposes — so a shared name
+          # read as "linux builds it", and the macos contract went ungated on
+          # every non-operator PR. Invariant: a check name present on two systems
+          # must come from ONE source block; a per-host contract carries its host.
+          #
           # NOT COVERED: this reads the Nix-side declaration only. It cannot see
           # whether determinate-nixd is actually running, whether the account
           # entitlement at dtr.mn/features is live, or whether the local daemon
           # is logged in to FlakeHub — and that last one is what makes
           # `native-linux-builder` silently vanish. Those are runtime facts; the
           # runbook owns them (docs/new-mac-runbook.md).
-          determinate-daemon =
+          determinate-daemon-macos =
             let
               mac = config.flake.darwinConfigurations.macos.config;
               custom = mac.determinateNix.customSettings or { };
             in
             mkHostContract {
               inherit pkgs;
-              name = "determinate-daemon";
+              name = "determinate-daemon-macos";
               subject = "macos: Determinate owns /etc/nix/nix.conf";
               expect = [
                 {
@@ -1014,7 +1021,7 @@ in
 
           # ---- Determinate owns this daemon TOO — and `nix.*` stays LIVE ------
           #
-          # The mirror of the darwin `determinate-daemon` above, and the whole
+          # The mirror of the darwin `determinate-daemon-macos` above, and the whole
           # reason it is a separate list: it is NOT the same contract. The pinned
           # input's modules/nixos.nix is ADDITIVE — it swaps `nix.package` for
           # Determinate's Nix, points nix-daemon's ExecStart at determinate-nixd,
@@ -1045,7 +1052,7 @@ in
           # activation and this is eval. It also says nothing about nixvm, which
           # gets the same module and would be a second (cheap) host to add if it
           # ever stops being throwaway.
-          determinate-daemon =
+          determinate-daemon-nixpi =
             let
               pi = config.flake.nixosConfigurations.nixpi.config;
               # toString, not lib.any: the option is a LIST here but is a bare
@@ -1057,7 +1064,7 @@ in
             in
             mkHostContract {
               inherit pkgs;
-              name = "determinate-daemon";
+              name = "determinate-daemon-nixpi";
               subject = "nixpi: Determinate runs the daemon, nix.settings still applies";
               expect = [
                 {

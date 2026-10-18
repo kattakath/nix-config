@@ -240,8 +240,11 @@ Only **one** of deploy-rs' two `deployChecks` is wired into `checks.<system>`:
   real `inputDrv` — the check would BUILD nixpi's cold `linux-rpi` kernel. The earlier fix
   (`unsafeDiscardStringContext` on the real path) dropped that build edge but kept the **eval**
   edge: measured on aarch64-darwin, the check's eval instantiated **13,871** derivations incl.
-  `linux-rpi`; with the placeholder, **1,827** and none. The verdict cannot move: `interface.json`
-  types `path` as a bare `string`, so the schema never checked the path was real.
+  `linux-rpi`; with the placeholder, **1,827** and none. What the gate gives up is `path`'s
+  **type**: `interface.json` types it as a bare `string` (it never checked the path was real),
+  and the schema now only ever sees the placeholder string. `path`'s **presence** is still
+  checked — the placeholder is substituted only where a profile already has a `path`, so a
+  missing one fails as the schema's own required-key error.
   `deploy.nodes.nixpi` itself still carries the REAL toplevel (same `.drv`, measured).
 - **`deploy-activate` ❌ excluded** — it interpolates `toString profile.path`, so it
   build-depends on the full aarch64-linux toplevel. It only asserts an upstream invariant

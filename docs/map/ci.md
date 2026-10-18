@@ -2,18 +2,20 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## CI, release, publishing
 
-**Three checks exist ONLY on `aarch64-linux`**, so the documented local gate — a bare
+**Four checks exist ONLY on `aarch64-linux`**, so the documented local gate — a bare
 `nix flake check`, which is darwin-native on the Mac — never builds them:
-`cloudflared-connector-module`, `firmware-secrets-module`, `nixpi-firmware-names`
-(re-measured 2026-10-18: 27 linux checks, 52 darwin, 3 linux-only, 28 darwin-only, 24
-shared). Every other linux check has a darwin twin with identical logic, so the bare command
-does exercise those.
+`cloudflared-connector-module`, `determinate-daemon-nixpi`, `firmware-secrets-module`,
+`nixpi-firmware-names` (re-measured 2026-10-18: 27 linux checks, 52 darwin, 4 linux-only, 29
+darwin-only, 23 shared). Every other linux check shares ONE source block with its darwin twin,
+so the bare command does exercise those. (`determinate-daemon-nixpi` was named
+`determinate-daemon` until 2026-10-18 — the same NAME as the macos contract, which is how it
+was miscounted as a twin here.)
 
 Build the three locally when you touch what they cover — Determinate's native Linux
 builder runs them fine, verified with `--rebuild` so they genuinely executed:
 
 ```bash
-nix build --no-link .#checks.aarch64-linux.{cloudflared-connector-module,firmware-secrets-module,nixpi-firmware-names}
+nix build --no-link .#checks.aarch64-linux.{cloudflared-connector-module,determinate-daemon-nixpi,firmware-secrets-module,nixpi-firmware-names}
 ```
 
 **Not** `nix flake check --all-systems` (builds on). It does reach the linux checks —
@@ -40,7 +42,7 @@ the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cach
 | Leg | Required? | Checks | Hosts evaluated |
 |---|---|---|---|
 | `build (aarch64-linux)` | always | all linux | **every** host, macos included |
-| `build (aarch64-darwin)` | push:main, dispatch, **non-operator** PRs | PR: darwin-ONLY (28/52); push: all | PR: none; push: macos |
+| `build (aarch64-darwin)` | push:main, dispatch, **non-operator** PRs | PR: darwin-ONLY (29/52); push: all | PR: none; push: macos |
 | `build (aarch64-darwin, advisory)` | never — nothing `needs` it | all | macos |
 
 - **Operator PRs** (author id `8927166`) skip the required darwin job and run the advisory
@@ -48,11 +50,19 @@ the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cach
   `author_association == 'OWNER'` was rejected: the repo is **org-owned**, and 96/96 sampled
   operator PRs read `MEMBER`, so an OWNER test never matches. Agent sessions open PRs AS the
   operator, so in practice **every agent PR** gets advisory darwin — only bots stay required.
-- **Linux evaluating macos is sound**: pure flake eval has no `builtins.currentSystem`, and
-  `darwinConfigurations.macos.system.drvPath` is the IDENTICAL `.drv` natively and under
-  `--eval-system aarch64-linux --option allow-import-from-derivation false` (measured).
-- **Residual risk, accepted:** a same-named check that breaks only on darwin can merge from a
-  PR; push:main builds every darwin check, so it goes red right after merge.
+- **Linux evaluating macos should be sound**, on two facts: pure flake eval has no
+  `builtins.currentSystem`, and `darwinConfigurations.macos` evaluates with
+  `--option allow-import-from-derivation false` (measured 2026-10-18), so no darwin builder is
+  needed. A drvPath comparison under `--eval-system aarch64-linux` is NOT evidence — that flag
+  only sets what pure eval already hides, so it could not have differed. A real linux evaluator
+  is **unmeasured until the first CI run**; a red macos eval there is a finding.
+- **Name = source, or the PR filter lies.** `system-only` subtracts check NAMES, so it is only
+  correct while a name shared across systems comes from ONE source block. A per-host contract
+  carries its host in its name: the two Determinate contracts were both `determinate-daemon`
+  until 2026-10-18, so every non-operator PR silently skipped the macos one. Census that day:
+  23 shared names, each ONE definition site.
+- **Residual risk, accepted:** a shared-source check that breaks only on darwin's platform can
+  merge from a PR; push:main builds every darwin check, so it goes red right after merge.
 
 **The coverage invariant is SET EQUALITY, verified by `legs`** (since 2026-10-18; derived
 2026-09-21 → 10-18). `legs` used to EMIT the build matrix, so every leg `needs:`-queued behind

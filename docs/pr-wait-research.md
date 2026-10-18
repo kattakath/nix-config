@@ -64,7 +64,7 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 | # | Status | What landed, and its evidence |
 |---|---|---|
 | 2 | **IMPLEMENTED** | `deploySchemaSubject` feeds a context-free placeholder path. Darwin eval of the check: **13,871 → 1,827** derivations instantiated, `linux-rpi`/`raspberrypi-firmware` **5 → 0**. `deploy.nodes.nixpi` keeps the real toplevel (same `.drv`); a bad `magicRollback` type still fails the check |
-| 3 | **IMPLEMENTED** | `legs` is a parallel verifier (no `needs:` edge); the linux leg evaluates every host incl. macos (identical `.drv` under `--eval-system aarch64-linux`, IFD off); the darwin PR leg builds only its **28 of 52** darwin-only checks, push:main builds all |
+| 3 | **IMPLEMENTED** | `legs` is a parallel verifier (no `needs:` edge); the linux leg evaluates every host incl. macos (pure eval + IFD off, measured on the Mac; a real linux evaluator is unmeasured until the first CI run); the darwin PR leg builds only its **29 of 52** darwin-only checks (after renaming the two `determinate-daemon` host contracts apart), push:main builds all |
 | 4 | **IMPLEMENTED** | Darwin is ADVISORY on PRs whose author id is the operator's: the required darwin job skips, an advisory twin runs the full leg, `required-checks` does not need it. `author_association == 'OWNER'` never matches (org-owned repo, operator reads `MEMBER`) |
 
 Not measured: the CI minutes saved. Measure it with the p50 rule under § How to tell a lever
@@ -122,3 +122,6 @@ worked. Mechanics: [`map/ci.md`](map/ci.md).
 - `nix-ci.yml`'s header credited Determinate's parallel eval beyond its documented scope
   (flake check/show, eval --json, search — not `nix build <attrs>`). **Fixed** in the leg's
   install-step comment, now in `nix-ci-impl.yml`.
+- `CONTRIBUTING.md` still described a 2-leg matrix building with nix-fast-build and every
+  leg evaluating every host. **Fixed:** it now points at `docs/map/ci.md` and states the
+  per-author required/advisory split.

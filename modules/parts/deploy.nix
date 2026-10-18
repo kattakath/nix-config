@@ -28,12 +28,16 @@ let
   #
   # Why a placeholder loses nothing: interface.json types `profiles.*.path` as
   # `"type": "string"` and nothing more — the schema never checked that the path
-  # exists or is a toplevel. What the gate DOES check is untouched, because every
-  # other key is still the real value: types on known keys (`magicRollback`,
-  # timeouts), required keys (`hostname`, `path`), and node/profile name
-  # patterns. The placeholder is still shaped like a real store path (32 chars of
-  # Nix's base32 alphabet + a name), so a future upstream schema that tightened
-  # `path` to a store-path pattern would still validate it.
+  # exists or is a toplevel. Every OTHER key is still the real value, so their
+  # checks are untouched: types on known keys (`magicRollback`, timeouts), the
+  # required `hostname`, and node/profile name patterns. `path` itself keeps ONE
+  # check, not two: the placeholder is substituted only where a profile already
+  # HAS a `path` (`?` tests presence without forcing the thunk), so a missing one
+  # still fails as the schema's own required-key error — but its TYPE is no
+  # longer schema-checked, since the schema only ever sees the placeholder
+  # string. The placeholder is shaped like a real store path (32 chars of Nix's
+  # base32 alphabet + a name), so a future upstream schema that tightened `path`
+  # to a store-path pattern would still validate it.
   #
   # Rejected: keeping the real path and only discarding context (above — the
   # eval edge is the cost); deriving the placeholder's NAME from the real
@@ -53,7 +57,7 @@ let
       node
       // {
         profiles = nixpkgs.lib.mapAttrs (
-          _: profile: profile // { path = placeholderStorePath; }
+          _: profile: profile // nixpkgs.lib.optionalAttrs (profile ? path) { path = placeholderStorePath; }
         ) node.profiles;
       }
     ) config.flake.deploy.nodes;
