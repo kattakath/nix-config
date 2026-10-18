@@ -389,12 +389,14 @@
   # ── Extra bulk storage ──────────────────────────────────────────────────────
   # Two USB flash sticks combined into ONE ~18 GB btrfs volume (single data
   # profile ⇒ usable capacity is the SUM of both devices; NO redundancy — either
-  # stick dying loses the whole volume). Mounted at /mnt/storage.
+  # stick dying loses the whole volume). Mounted at /mnt/storage. Both sticks
+  # passed an f3 write/read of the whole volume on 2026-10-18 (17.78 GB OK, 0 lost)
+  # — checked because this host's SD card turned out counterfeit.
   #
-  # SAFETY (nixpi is remote-only, reachable ONLY via the tunnel): `nofail` + a
-  # short device timeout mean a dead, corrupt, or unplugged stick can NEVER block
-  # boot. The Pi always comes up — and the tunnel with it — even if the volume is
-  # absent, so a failed USB mount can't cause the reflash-style remote lockout.
+  # SAFETY (nixpi is headless; its ingresses are the tunnel and the LAN sshd):
+  # `nofail` + a short device timeout mean a dead, corrupt, or unplugged stick can
+  # NEVER block boot. The Pi always comes up — and both ingresses with it — even if
+  # the volume is absent, so a failed USB mount can't cause a reflash-style lockout.
   # The volume is referenced by btrfs LABEL / by-id, never by sdX node, because
   # USB enumeration order is not stable across reboots (sda/sdb can swap).
   #
@@ -409,7 +411,7 @@
     device = "/dev/disk/by-label/nixpi-storage";
     fsType = "btrfs";
     options = [
-      "nofail" # remote-only Pi: a missing/dead stick must never block boot
+      "nofail" # headless Pi: a missing/dead stick must never block boot
       "x-systemd.device-timeout=10s" # fail fast instead of hanging on an absent device
       "compress=zstd" # transparent compression — kinder to slow, low-endurance flash
       "noatime" # fewer metadata writes (endurance) on cheap USB flash
@@ -471,7 +473,8 @@
     # `backupPathEnvSet`).
     environment.BACKUP_PATH = "/mnt/storage/audiobookshelf/metadata/backups";
   };
-  # Group membership so books can be copied in over SSH (`rsync … nixpi.local:/mnt/storage/audiobooks/`).
+  # Group membership so books can be copied in over SSH (`scp … nixpi.local:/mnt/storage/audiobooks/<Author>/<Title>/`;
+  # the Mac's /usr/bin/rsync is openrsync, which rejects `--mkpath`).
   users.users.${loginName}.extraGroups = [ "audiobookshelf" ];
 
   # Static landing page, served by upstream Caddy sitting BEHIND the Cloudflare
