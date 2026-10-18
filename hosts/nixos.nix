@@ -23,7 +23,7 @@
 # GiB tmpfs) — "No space left on device". Rejected: raising the builder's
 # memoryBytes to ~28-32 GiB on a 36 GB Mac; staging into $out instead (that is
 # virtiofs onto the case-INSENSITIVE Mac store, where the terminfo collision
-# below returns); a CI-built 7 GiB release artifact for a once-used bootstrap.
+# modules/nixos/core.nix works around returns); a CI-built 7 GiB release artifact for a once-used bootstrap.
 # A seed also changes almost never, so the image is not rebuilt on every
 # desktop tweak.
 {
@@ -104,13 +104,6 @@ in
         consoleMode = "0";
       };
       boot.loader.efi.canTouchEfiVariables = false;
-
-      # The initrd's `linux` terminfo entry is unreachable on this Mac's
-      # case-INSENSITIVE store (ncurses' terminfo/l and terminfo/L collide), so
-      # every initrd build dies with "failed to get symlink metadata …
-      # terminfo/l/linux". Same fix and the full three-fact explanation:
-      # hosts/nixvm.nix.
-      boot.initrd.systemd.contents."/etc/terminfo/l/linux".enable = false;
 
       fileSystems."/" = {
         device = "/dev/disk/by-partlabel/nixos";
