@@ -163,7 +163,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - [`docs/answer-shape-evidence.md`](../answer-shape-evidence.md) — the published standards
   (COGA, ISO 24495-1, BDA) and effect sizes behind § Answer shape, so the rules stop being
   re-litigated as taste. **A diagram that carries no data measurably HURTS** (g ≈ −0.4).
-- [`docs/false-success-signals.md`](../false-success-signals.md) — six measured instances of TWO
+- [`docs/false-success-signals.md`](../false-success-signals.md) — eight measured instances of TWO
   shapes. **A:** a success signal the system did not produce (`--help` exiting zero, `&& echo "done"`
   after a silent no-op, a NEGATED closing keyword still firing, a clobbered `PIPESTATUS`). **B — a
   false ABSENCE:** `ls` in a worktree branched before the merge "proving" a file does not exist, and
