@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,xfce-xsettings.nix,chromium-extensions/,wallpaper/}`
+`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is 25 `.nix`,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -762,10 +762,6 @@ waves 5-6 absorb them).
   **Pre-emptive, not a fix**: measured that day, the Mac had no Time Machine destination at all,
   so nothing had ever been backed up. The header records the upstream-first grep (neither
   nix-darwin nor home-manager models Time Machine exclusions).
-- **`xfce-xsettings.nix`** (nixvm desktop only) — sets XFCE's `Xft.dpi` through home-manager's
-  own `xfconf.settings`. It is layer 3 of nixvm's display: `services.xserver.dpi = 192` takes in
-  Xorg, but GTK obeys the xsettings daemon, which published 96 until this was set (`xrdb -query`,
-  measured 2026-10-06 in the booted guest). Inert while `local.desktopVm.enable = false`.
 - **`modules/features/keychain-secrets/`** (an IN-TREE CAPSULE — it was extracted from this
   repo into the standalone MIT `nix-keychain-secrets` flake, then absorbed back by ADR-002
   wave 4) — `local.keychainSecrets`: the macOS login-Keychain `secret` CLI
