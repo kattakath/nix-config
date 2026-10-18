@@ -28,7 +28,8 @@ aarch64-darwin; both free & unlimited on public repos). The leg COUNT is no long
 a `legs` job derives the build matrix from the fleet's own host systems (below), so the
 workflow's jobs are `flake-checker` (advisory), `legs`, one `build` leg per host system, and
 the aggregate `required-checks`. Each build leg *builds*
-the lint/format/structural `checks` — `formatting`, `pre-commit`,
+the lint/format/structural `checks` — `formatting`, `pre-commit` (treefmt **and** a gitleaks
+scan of the working tree, `modules/parts/devshell.nix`),
 `claude-md-budget`, `ast-grep`, `deploy-schema`, `capsule-registry` — with `nix-fast-build` (it globs `.#checks.<system>`, so a NEW check needs no workflow edit;
 pushed to the `kattakath` Cachix cache) and
 *evaluates* (no build) its host config toplevel(s). Building host toplevels is deferred to
@@ -83,6 +84,16 @@ publishes each push to `main` as a rolling release to FlakeHub via
 `DeterminateSystems/flakehub-push`, authenticated by OIDC/`id-token: write` with **no** stored
 token; per FlakeHub's trusted-platform model, flakes publish only from CI, never ad-hoc from a
 laptop. Merge mechanics: [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md).
+
+**Not every change goes through a PR.** `protect-main` gives the Repository Admin role
+`bypass_mode: always`, so the operator's sessions may push a change whose every path is
+`docs/**`, a root `*.md` or `.claude/**` (no `.nix`) straight to `main`. They first run a local
+copy of the three required checks: `nix flake check` (which includes the `pre-commit` gitleaks
+scan), `gitleaks git` over the unpushed commits, and, when `.claude/` changed, the
+`claude-config-lint.yml` steps. CI on the push to `main` is then the backstop. The path
+allowlist and the gate live in ONE place:
+[`landing-changes.md`](../../.claude/rules/landing-changes.md) § 2. § 1 of the same file says
+how to wait on a PR's CI: in the BACKGROUND, never by polling inside a turn.
 
 Three more, each self-documenting in its header:
 

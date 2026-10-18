@@ -1,7 +1,7 @@
 # PR-wait research — findings and a deferred lever backlog (2026-10-18)
 
-**Status: RESEARCH ONLY — nothing here is implemented.** The operator asked for it documented
-to act on later. Every lever below is a candidate, ranked on evidence; none is decided.
+**Status: the operator authorised every lever on 2026-10-18.** Per-lever status sits under the
+backlog table. The research text below is kept as measured; it is not re-edited as levers land.
 
 Scope: `kattakath/nix-config` only. Method: a prompt-engineered brief, four parallel read-only
 agents (history census, CI critical path, industry research, session-transcript waits), then an
@@ -58,6 +58,14 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 | 4 | **POLICY:** darwin leg advisory on owner PRs | ~3.5 min/PR — **subsumes #3, not additive** | S | overrides CLAUDE.md § Testing two-system rule; 3/983 PR runs failed darwin-only and would surface post-merge |
 | 5 | Direct push for docs/`.claude`-only changes (~21% of PRs) | ~7.5 min for those | S | trunkbaseddevelopment.com "committing straight to the trunk"; Fowler "Ship". **Risk:** no local gitleaks hook exists, so a secret is public before the scan |
 | 6 | Dependent chains: one PR, or branch N+1 off N | ~7 min per serial link | S | trunk-based precedent; the 10-02 chained session |
+
+### Implementation status
+
+| # | Status | Where |
+|---|---|---|
+| 1 | **IMPLEMENTED** on branch `pr-wait/agent-wait-discipline` | [`.claude/rules/landing-changes.md`](../.claude/rules/landing-changes.md) § 1 (this repo), plus `claude/CLAUDE.md` § CI waits (every repo, because the cost comes from the harness, not the repo). `pr-title.md`'s `autoMergeRequest` race note moved there, so it has ONE home |
+| 5 | **IMPLEMENTED** on branch `pr-wait/agent-wait-discipline` | `landing-changes.md` § 2: the path allowlist plus a local gate that mirrors the three required checks. **The stated risk is closed:** `checks.<sys>.pre-commit` now runs gitleaks over the tree (`modules/parts/devshell.nix`, measured RED on a planted canary token), and the gate adds `gitleaks git` over the unpushed range. It is **not** a commit hook; the devShell installs none, by design. **The adoption test above passed** (2026-10-18, warm store, eval cache OFF): `--all-systems --no-build` 6 s, `nix flake check` 9 s with 7 checks rebuilt, the range scan 3 s. That is far under the 6.78 min PR p50, though a cold store is unmeasured |
+| 6 | **IMPLEMENTED** on branch `pr-wait/agent-wait-discipline` | `pr-title.md` § One PR per change: fold N+1 into N, or branch it off N as a **DRAFT** (`auto-merge.yml` arms any non-draft PR whatever its base) |
 
 - **Quick wins (≤1 h, reversible):** #1, #2, and diagnosing the 14 unarmed PRs below.
 - **Merge-queue history check:** none of #1–#6 re-runs the gate on a second ref, so none

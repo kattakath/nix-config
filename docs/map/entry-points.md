@@ -133,7 +133,7 @@ Single source of truth for formatting + lint-fix (nixfmt + statix + deadnix). Dr
 every entrypoint follows.
 
 Scope is deliberately **tools that rewrite files**. Non-rewriting structural lint is a separate
-layer (`sgconfig.yml` below) because the pre-commit hook *is* the `nix fmt` wrapper: a checker
+layer (`sgconfig.yml` below) because the treefmt pre-commit hook *is* the `nix fmt` wrapper: a checker
 in a formatter slot would block every commit with a diagnostic nothing can auto-fix.
 
 ### `sgconfig.yml` + `ast-grep/`

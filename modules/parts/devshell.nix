@@ -77,10 +77,39 @@ in
         checks.formatting = config.treefmt.build.check config.treefmt.projectRoot;
 
         # ---- Pre-commit hooks (git-hooks.nix) ---------------------------------
-        # A single hook runs the treefmt wrapper, so the commit-time tool list can
-        # never drift from `nix fmt` / CI — they are literally the same binary
-        # (upstream wires the package itself; see the header).
+        # Two hooks, both run by `checks.<system>.pre-commit` (never on
+        # `git commit` — see the shellHook note on why nothing is installed).
+        # treefmt runs the wrapper, so the hook's tool list can never drift
+        # from `nix fmt` / CI — literally the same binary (upstream wires the
+        # package itself; see the header).
         pre-commit.settings.hooks.treefmt.enable = true;
+
+        # gitleaks over the WORKING TREE, so `nix flake check` (and the
+        # `required-checks` CI gate it feeds) scans for secrets before a push —
+        # the precondition for the direct-push lane in
+        # .claude/rules/landing-changes.md, whose risk was "no local scan, so a
+        # secret is public before CI's".
+        #
+        # Custom hook because the pinned git-hooks.nix ships no gitleaks hook
+        # (its hooks.nix has `ripsecrets` and `detect-private-keys` only).
+        # gitleaks rather than ripsecrets: the required `Scan for secrets` check
+        # (.github/workflows/gitleaks.yml) IS gitleaks, from the same nixpkgs pin,
+        # so local and CI give ONE verdict; a different scanner would allow
+        # local-green/CI-red.
+        #
+        # `dir`, never `--staged`: the check derivation (git-hooks.nix's `run`)
+        # commits the tree BEFORE `pre-commit run --all-files`, so a staged-mode
+        # scan would see an empty index and pass vacuously. `package` also puts
+        # the binary on the devShell PATH (via enabledPackages), which the
+        # direct-push gate's history scan over the unpushed range uses.
+        pre-commit.settings.hooks.gitleaks = {
+          enable = true;
+          name = "gitleaks";
+          package = pkgs.gitleaks;
+          entry = "${lib.getExe pkgs.gitleaks} dir --redact --no-banner --exit-code 1 .";
+          pass_filenames = false;
+          always_run = true;
+        };
 
         devPackages = [
           pkgs.git
@@ -165,7 +194,8 @@ in
           # interpreter off-Nix. A single hook file cannot be correct in both a Nix
           # and a non-Nix environment, so we skip local install entirely. The
           # `checks.pre-commit` CI gate + `nix fmt` run the same treefmt pass, so no
-          # coverage is lost; run `nix fmt` before committing.
+          # coverage is lost; run `nix fmt` before committing. The same holds for
+          # the gitleaks hook: it runs inside `nix flake check`, not on commit.
           shellHook = ''
             echo "nix-config devShell ready on ${system} — run 'nix fmt' before committing (pre-commit auto-install disabled: .git is shared with a Nix-less host; CI enforces the gate)"
 
