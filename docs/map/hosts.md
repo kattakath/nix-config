@@ -5,7 +5,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 **`macos` carries ONE account.** `ismail` is `system.primaryUser` and owns the operator
 profile. A second ADMINISTRATOR account (`izzy`, uid 502) lived here from 2026-09-15 to
 2026-09-17 and was then **deleted forever** — account, home directory, per-user casks
-(Opera/CapCut/Audacity) and FileVault enrolment. Three things it taught outlive it, because
+(Opera/CapCut/Audacity) and FileVault enrolment. (It came back once as a hand-made, NON-Nix
+account on 2026-09-23 — its Tor Browser held 127.0.0.1:9151 and broke `ismail`'s — and was
+removed again with `sysadminctl -deleteUser` on 2026-10-18.) Three things it taught outlive it, because
 they bite any future second account:
 
 - **`users.knownUsers` is the DELETE switch, and deleting is NOT "remove the name".**
