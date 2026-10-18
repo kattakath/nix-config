@@ -90,10 +90,10 @@ concurrency:
   # The fix is for MEASURABILITY, not coverage. Coverage was never the problem: a
   # superseding commit's tree is a superset, so main's final state was always verified.
   # What cancellation destroyed was per-merge ATTRIBUTION — which merge broke something,
-  # and whether two independently-green PRs interacted. #683's merge-queue trigger T1
-  # ("3 push:main failures in 30 days caused by two PRs interacting") is UNMEASURABLE
-  # while a third of those runs are cancelled, so this is a precondition for that
-  # trigger being honest rather than a nicety.
+  # and whether two independently-green PRs interacted. #684's merge-queue trigger T1
+  # ("3 push:main failures in 30 days caused by two PRs interacting") was unmeasurable
+  # while ~30% of push:main runs were cancelled (30/100 measured), so this is a
+  # precondition for that trigger being honest rather than a nicety.
   #
   # Branch-scoped rather than dropped entirely: a force-push to a PR should still cancel
   # its in-flight run — that is the case this concurrency group was added for.
@@ -124,12 +124,10 @@ jobs:
 
   # VERIFY the legs against the fleet — in PARALLEL with them, never in front.
   #
-  # Until 2026-10-18 this job EMITTED the build matrix, so `build` had
-  # `needs: [legs]` and every leg queued behind it: measured ~45 s in front of
-  # darwin in 40/40 runs (docs/pr-wait-research.md, lever #3). Its old header said
-  # it was not on the critical path; its `needs:` edge said otherwise. The matrix
-  # depended on its output only because the legs were derived; writing the two legs
-  # out and checking them HERE keeps the invariant and drops the edge. Rejected:
+  # No `needs:` edge on purpose: a job that EMITS the matrix queues every leg
+  # behind it — measured ~45 s in front of darwin in 40/40 runs
+  # (docs/pr-wait-research.md, lever #3). Writing the two legs out and checking
+  # them HERE keeps the invariant without the edge. Rejected:
   # keeping the derivation and shrinking the job (its cost is the cold input
   # fetch every job pays, not the ~3 s eval); computing the matrix inside each leg
   # (the leg cannot see the WHOLE host -> system list, so it cannot tell what is

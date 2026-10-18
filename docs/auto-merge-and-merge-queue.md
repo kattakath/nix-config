@@ -12,7 +12,7 @@ manual "Merge" click.
   auto-merge.yml  --(CI bot App token)-->  gh pr merge --auto --squash
         |
         v
-  required checks green ON THE PR  (required-checks, Scan for secrets)
+  required checks green ON THE PR  (required-checks, Scan for secrets, Lint .claude config)
         |
         v
       merged to main  -->  push:main workflows still fire (App token, not GITHUB_TOKEN)
@@ -76,8 +76,9 @@ branch protection do). Anything moved into the org needs its secrets re-set.
 
 Ruleset `18461567`: `deletion`, `non_fast_forward`, `required_linear_history`,
 `pull_request` (squash-only, 0 approvals, thread resolution required) and
-`required_status_checks` — two contexts, `required-checks` (`nix-ci.yml`) and
-`Scan for secrets` (`gitleaks.yml`).
+`required_status_checks` — three contexts, `required-checks` (`nix-ci.yml`),
+`Scan for secrets` (`gitleaks.yml`) and `Lint .claude config` (`claude-config-lint.yml`). The
+last runs on every PR; how a direct push mirrors it locally: `.claude/rules/landing-changes.md` § 2.
 
 `strict_required_status_checks_policy` (require branches up to date) is **off**.
 It was turned off when the queue landed and deliberately left off when the queue
@@ -151,13 +152,9 @@ mitigation, but the distinction is load-bearing: a transition that must re-arm c
 Measured across **every** draft conversion in #451-#789 — six of them, of which **four
 converted an already-armed PR**: on all four, `auto_merge_disabled` lands in the same second
 as `convert_to_draft`. (The other two, #675 and #673, were never armed before the
-conversion, so there was nothing to disable. That is the #683 defect, not a benign case:
-each had ALREADY been marked ready once — #675 at 21:43:01Z, #673 at 21:55:09Z, both before
-`required-checks` went green — and both of those ready transitions got an arm job
-**SKIPPED** (runs 36781198435, 36782457480; `auto-merge.yml` then still had
-`if: draft == false` and `cancel-in-progress: true`). The operator's convert → ready toggle
-was the workaround. Only that second, operator-forced transition found them green, so its
-arm step merged them directly within 12 s — see §1, "arm means merge now".) Three of the four re-armed within ~12 s of the ready transition (#559,
+conversion, so there was nothing to disable. Both are #683 instances — an earlier ready
+transition got a skipped arm job; timeline and run ids in
+[`pr-wait-research.md`](pr-wait-research.md) § The 14 "unarmed" PRs.) Three of the four re-armed within ~12 s of the ready transition (#559,
 #737, #757). The fourth, #723, did not — its
 ready-transition arm run was **cancelled** by `cancel-in-progress`, since turned off
 (#750, `auto-merge.yml`'s `concurrency` block carries the argument). That is the live tail
@@ -268,7 +265,7 @@ their store paths differ per rev) for the operator's local `nix flake check`.
 
 | Repo | Required context(s) | Merge mechanism |
 | --- | --- | --- |
-| `kattakath/nix-config` | `required-checks`, `Scan for secrets` | auto-merge, no queue |
+| `kattakath/nix-config` | `required-checks`, `Scan for secrets`, `Lint .claude config` | auto-merge, no queue |
 
 This table had a second row until 2026-09-12: `ircc-whatsapp-bot`. It was never a
 `nix-config` input — it was here because membership is "has its own CI and its own
