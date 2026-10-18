@@ -449,6 +449,7 @@
           "/mnt/storage/audiobookshelf/metadata/backups"
           "/mnt/storage/audiobookshelf/metadata/items"
           "/mnt/storage/audiobookshelf/metadata/authors"
+          "/mnt/storage/audiobookshelf/metadata/logs"
         ];
   };
   # Group membership so books can be copied in over SSH (`rsync … nixpi.local:/mnt/storage/audiobooks/`).
