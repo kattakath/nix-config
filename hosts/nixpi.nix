@@ -438,7 +438,18 @@
   # missing, rather than letting an upload fill the SD card instead.
   systemd.services.audiobookshelf = {
     unitConfig.RequiresMountsFor = "/mnt/storage";
-    serviceConfig.ExecStartPre = "+${pkgs.coreutils}/bin/install -d -m 2775 -o audiobookshelf -g audiobookshelf /mnt/storage/audiobooks";
+    # Parents are listed BEFORE their children: `install -d` creates missing parents
+    # as root 0755, which would lock the service out of adding its own siblings.
+    serviceConfig.ExecStartPre =
+      map (d: "+${pkgs.coreutils}/bin/install -d -m 2775 -o audiobookshelf -g audiobookshelf ${d}")
+        [
+          "/mnt/storage/audiobooks"
+          "/mnt/storage/audiobookshelf"
+          "/mnt/storage/audiobookshelf/metadata"
+          "/mnt/storage/audiobookshelf/metadata/backups"
+          "/mnt/storage/audiobookshelf/metadata/items"
+          "/mnt/storage/audiobookshelf/metadata/authors"
+        ];
   };
   # Group membership so books can be copied in over SSH (`rsync … nixpi.local:/mnt/storage/audiobooks/`).
   users.users.${loginName}.extraGroups = [ "audiobookshelf" ];
