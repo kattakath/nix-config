@@ -39,11 +39,15 @@ let
   # Plain name, not `nix-yt-dlp-web-ui`: modules/home/launchd-launcher.nix
   # already renames arg0 to `nix-<agent>`, which is what Login Items and TCC
   # attribute the process by. Two scripts with the same name was the old shape.
-  runner = pkgs.writeShellScriptBin "yt-dlp-web-ui-run" ''
-    set -eu
-    mkdir -p ${lib.escapeShellArg "${stateDir}/downloads"}
-    exec ${lib.getExe pkg} -conf ${configFile}
-  '';
+  # writeShellApplication for ShellCheck; its `set -euo pipefail` only adds
+  # pipefail to the `set -eu` this always had, and there is no pipe.
+  runner = pkgs.writeShellApplication {
+    name = "yt-dlp-web-ui-run";
+    text = ''
+      mkdir -p ${lib.escapeShellArg "${stateDir}/downloads"}
+      exec ${lib.getExe pkg} -conf ${configFile}
+    '';
+  };
 in
 {
   options.local.ytDlpWebUi = {
