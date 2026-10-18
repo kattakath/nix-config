@@ -76,7 +76,7 @@ mandatory, not as a security boundary to rely on. Live example:
    `wait4path`, for the reason in item 1: it is unreachable from a store-resident wrapper.
    Canonical example — and the ONLY hand-written user agent left:
    `modules/features/tart-vms/darwin.nix`'s `launchd.user.agents.tart-vm-<name>`, whose
-   `arg0` is a `writeShellScriptBin "nix-tart-vm-<name>"`. Both CI runner lanes
+   `arg0` is a `writeShellApplication "nix-tart-vm-<name>"`. Both CI runner lanes
    (`tart-vms/gitlab-runner.nix`, `github-runner.nix`) moved to item 1's home-manager lane
    on 2026-10-02, as did `modules/darwin/core.nix`'s `open-maccy` and two trash sweeps
    (`modules/home/macos-user-agents.nix`), where the launcher supplies the `nix-*` arg0 and
