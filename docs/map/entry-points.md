@@ -286,7 +286,7 @@ The `deploy` CLI is in the devShell on **darwin only** (from the deploy-rs *inpu
 `pkgs.deploy-rs`, so the CLI and the `activate` binary baked into nixpi's closure come from one
 lock entry and stay in lockstep). `macos` is the fleet's only SSH client and the only holder of
 the operator key + the cloudflared Access path, so a deploy can originate nowhere else — and
-keeping it out of `devPackagesFor` keeps a from-source Rust build out of the devcontainer image
+keeping it out of `devPackages` (the option declared in `modules/parts/devshell.nix`) keeps a from-source Rust build out of the devcontainer image
 (including its x86_64 Codespaces variant, which cannot reach the Pi anyway).
 
 ⚠ **The lockstep costs a from-source Rust build, once per machine.** The input's overlay build
@@ -298,6 +298,12 @@ fine. So a fresh Mac's first `nix develop` builds it, and the first real deploy 
 Deliberately **not** warmed via `checks`: `checks` is strictly lint-only (`nix flake check`,
 `/eval`, `nix-ci.yml` all build it), and paying a Rust build on every `/eval` to save it on a
 rare fresh-machine `nix develop` is the worse trade.
+
+### `scripts/drv-snapshot.sh`
+
+The ONE file under `scripts/`: ADR-002's acceptance harness ("moved code, changed no build"),
+linted by `checks.<system>.drv-snapshot-lint`. What it captures, and why it is deliberately
+not a flake package: [CLAUDE.md](../../CLAUDE.md) § Testing.
 
 ### `secrets/secrets.nix`
 
