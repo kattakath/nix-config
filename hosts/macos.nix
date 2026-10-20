@@ -360,6 +360,9 @@ in
         "izzy@silvercreek.ai"
         "aloshyakasoto@gmail.com"
       ];
+      # The generic `nix-mcp-gmail <address>`, for plugins that carry their own account
+      # list (the operator's private overlay marketplace).
+      local.gmailMcp.enable = true;
 
       # The three CREDENTIALED servers the gateway owned that no EXISTING plugin could
       # carry — the "wordpress, apify, … local postgres" part of the cost the purge
@@ -393,6 +396,9 @@ in
         # footer. Tokens: `secret set mcp:<workspace>.slack.com:xoxp`. 2026-10-16.
         "slack-infin8"
         "slack-silvercreek"
+        # The generic `nix-mcp-slack <workspace>.slack.com`: the workspace comes from the
+        # naming plugin's `.mcp.json` args, so none is written here.
+        "slack"
         # GitHub MCP with the gh CLI's token (no stored secret). Plugin: github-gh.
         "github"
       ];

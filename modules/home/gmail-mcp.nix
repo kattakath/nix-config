@@ -34,6 +34,14 @@ let
 in
 {
   options.local.gmailMcp = {
+    enable = lib.mkEnableOption ''
+      the GENERIC Gmail launcher `nix-mcp-gmail <address>`, which takes the account
+      from argv at launch. A plugin names it with the address in its own `.mcp.json`
+      `args`, so the mailbox list can live in a PRIVATE plugin rather than in this
+      public repo. Same credentials file and tool prefix per account as the
+      per-account launchers below, so switching between them keeps each sign-in
+    '';
+
     accounts = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
@@ -60,13 +68,17 @@ in
   # Darwin-gated because the launcher reads the macOS login Keychain via
   # /usr/bin/security. On Linux the option exists and does nothing, which keeps
   # `hosts/*.nix` free of platform conditionals.
-  config = lib.mkIf (cfg.accounts != [ ] && pkgs.stdenv.hostPlatform.isDarwin) {
-    home.packages = map (
-      email:
-      pkgs.callPackage ../../packages/gmail-mcp.nix { } {
-        inherit email;
-        inherit (config.home) homeDirectory;
-      }
-    ) cfg.accounts;
+  config = lib.mkIf ((cfg.enable || cfg.accounts != [ ]) && pkgs.stdenv.hostPlatform.isDarwin) {
+    home.packages =
+      lib.optional cfg.enable (
+        pkgs.callPackage ../../packages/gmail-mcp.nix { } { inherit (config.home) homeDirectory; }
+      )
+      ++ map (
+        email:
+        pkgs.callPackage ../../packages/gmail-mcp.nix { } {
+          inherit email;
+          inherit (config.home) homeDirectory;
+        }
+      ) cfg.accounts;
   };
 }

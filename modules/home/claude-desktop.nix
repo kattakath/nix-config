@@ -7,6 +7,8 @@
 # PLUGINS — so a plugin-owned MCP server never reaches Desktop, nor the Cowork
 # bridge behind it. `extraServers` is the only lane: since 2026-10-16 it carries
 # `aws-infin8`, `github` and `stripe-infin8` (modules/home/default.nix).
+# A second, PRIVATE lane rides the same merge: `overlayFile`, a hand-placed JSON
+# the operator keeps out of this public repo, read at activation only.
 #
 # THE TRANSPORT TRAP (why `toStdioShim` exists)
 # Desktop's parser accepts ONLY the stdio shape — {command, args, env}. A
@@ -154,13 +156,42 @@ let
       # Desktop not installed / never launched: nothing to merge into.
       [ -d "$(dirname "$f")" ] || exit 0
       [ -s "$f" ] || printf '{}\n' > "$f"
+
+      # The operator overlay (see `overlayFile` below): optional, hand-placed, and
+      # read HERE rather than at eval, because its content must never enter the
+      # public repo or the store. Missing = none; not {mcpServers:{…}} = ignored.
+      ov=${lib.escapeShellArg cfg.overlayFile}
+      ovServers='{}'
+      if [ -s "$ov" ]; then
+        if jq -e '.mcpServers | type == "object"' "$ov" > /dev/null 2>&1; then
+          ovServers=$(jq -c '.mcpServers' "$ov")
+        else
+          echo "claude-desktop: $ov has no mcpServers object (ignored)" >&2
+        fi
+      fi
+
       tmp=$(mktemp)
       # Keep everything; inside .mcpServers keep FOREIGN entries (no marker),
-      # drop OUR stale ones, then lay the current rendering on top.
+      # drop OUR stale ones, then lay the overlay and the current rendering on
+      # top. Overlay entries get the SAME stdio shim and marker as `extraServers`
+      # (so removing one from the overlay prunes it next run), and the Nix
+      # rendering is the right operand, so a Nix-declared name always wins.
       if jq --arg m ${marker} --arg v ${lib.escapeShellArg markerValue} \
+           --arg npx ${lib.escapeShellArg npx} --arg remote ${lib.escapeShellArg mcpRemote} \
+           --argjson ov "$ovServers" \
            --slurpfile want ${desiredJson} '
-             .mcpServers = (
+             ($ov | with_entries(.value |= (
+               if has("url") then
+                 { command: $npx,
+                   args: ["-y", $remote, .url, "--transport", "http-only"],
+                   env: ((.env // {}) + { ($m): $v }) }
+               else
+                 { command: .command, args: (.args // []),
+                   env: ((.env // {}) + { ($m): $v }) }
+               end))) as $ovr
+             | .mcpServers = (
                ((.mcpServers // {}) | with_entries(select((.value.env[$m] // "") != $v)))
+               + $ovr
                + $want[0]
              )' "$f" > "$tmp"; then
         if cmp -s "$tmp" "$f"; then
@@ -196,6 +227,20 @@ in
       default = "${config.home.homeDirectory}/Library/Application Support/Claude/claude_desktop_config.json";
       defaultText = lib.literalExpression ''"''${config.home.homeDirectory}/Library/Application Support/Claude/claude_desktop_config.json"'';
       description = "Claude Desktop's stateful config file. Only its `mcpServers` key is ever touched.";
+    };
+
+    overlayFile = lib.mkOption {
+      type = lib.types.str;
+      default = "${config.xdg.configHome}/nix-config/claude-desktop.overlay.json";
+      defaultText = lib.literalExpression ''"''${config.xdg.configHome}/nix-config/claude-desktop.overlay.json"'';
+      description = ''
+        Optional, hand-placed `{ "mcpServers": { … } }` merged at activation (and on
+        every Desktop rewrite) for servers this PUBLIC repo must not name — typically a
+        symlink into the operator's private marketplace clone. Same hub shape as
+        `extraServers`; a `url` entry gets the same mcp-remote shim. Never read at eval,
+        so it reaches neither the store nor `renderedServers` (and so not the
+        config-shape check either). A Nix-declared name wins over an overlay one.
+      '';
     };
 
     mcpRemoteVersion = lib.mkOption {
@@ -253,7 +298,11 @@ in
         ProgramArguments = [ (lib.getExe syncScript) ];
         # Desktop writes this file on quit and on preference changes; each write
         # wakes the agent, which re-merges only if the result actually differs.
-        WatchPaths = [ cfg.configFile ];
+        # The overlay too, so an edit to it lands without a rebuild.
+        WatchPaths = [
+          cfg.configFile
+          cfg.overlayFile
+        ];
         # Repair at login too, so a file clobbered while logged out is correct
         # before Desktop is next launched.
         RunAtLoad = true;
