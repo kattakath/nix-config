@@ -2157,6 +2157,13 @@ in
           # Declared user-level rather than per-repo so there is ONE copy — a
           # second project-local copy would drift from this one.
           CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
+          # A PRIVATE marketplace (the operator overlay) refreshes over git with the
+          # Mac's own credentials. If a background check cannot reach or authenticate to
+          # the remote, keep the last checkout instead of attempting a re-clone, so
+          # plugins keep working from the last synced state. Documented behaviour:
+          # code.claude.com/docs/en/plugins/host-marketplace § "What background
+          # auto-update does with credentials" (read 2026-10-20).
+          CLAUDE_CODE_PLUGIN_KEEP_MARKETPLACE_ON_FAILURE = "1";
         }
         // lib.optionalAttrs config.local.claudeOtel.enable {
           CLAUDE_CODE_ENABLE_TELEMETRY = "1";
