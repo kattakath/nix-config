@@ -402,7 +402,7 @@ in
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
               servers = hm.local.claudeDesktop.renderedServers;
-              # A `url` entry (stripe-infin8) is an mcp-remote shim, so its URL
+              # A `url` entry (from the operator's Desktop overlay) is an mcp-remote shim, so its URL
               # rides in `args`, not in a `url` key (Desktop's schema rejects one —
               # that is what toStdioShim exists for).
               badShape = lib.filterAttrs (
@@ -437,28 +437,15 @@ in
                   # empty set from a DISABLED module is a different claim — it means
                   # nothing writes the file, so stale content survives unmanaged.
                   #
-                  # THREE NAMED EXCEPTIONS since 2026-10-16: `aws-infin8`, `github`, `stripe-infin8`, stdio servers
-                  # declared in modules/home/default.nix (operator decision, the why is
-                  # there). An allowlist by NAME, not "any stdio entry", so a portal or
-                  # gateway entry still fails here exactly as before.
-                  lib.optional
-                    (
-                      removeAttrs servers [
-                        "aws-infin8"
-                        "github"
-                        "stripe-infin8"
-                      ] != { }
-                    )
-                    "Desktop must render no servers but aws-infin8, github and stripe-infin8 — the gateway is purged — found: ${
-                      toString (
-                        builtins.attrNames (
-                          removeAttrs servers [
-                            "aws-infin8"
-                            "github"
-                            "stripe-infin8"
-                          ]
-                        )
-                      )
+                  # ONE NAMED EXCEPTION: `github`, the stdio server declared in
+                  # modules/home/default.nix. An allowlist by NAME, not "any stdio entry",
+                  # so a portal or gateway entry still fails here exactly as before.
+                  # Client servers arrive through the operator's hand-placed Desktop
+                  # overlay, which is merged at ACTIVATION — eval cannot see it, and this
+                  # public tree must not name it.
+                  lib.optional (removeAttrs servers [ "github" ] != { })
+                    "Desktop must render no server but github — the gateway is purged — found: ${
+                      toString (builtins.attrNames (removeAttrs servers [ "github" ]))
                     }"
                 ++ lib.optional (
                   servers ? desktop-commander
@@ -467,7 +454,7 @@ in
             pkgs.runCommand "claude-desktop-config-shape" { } (
               if problems == [ ] then
                 ''
-                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (only aws-infin8, github and stripe-infin8 allowed — the gateway is purged)" > "$out"
+                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (only github allowed — the gateway is purged)" > "$out"
                 ''
               else
                 ''
@@ -3033,16 +3020,14 @@ in
               );
               declared = lib.naturalSort (lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") allCommands));
 
-              # The GENERIC launchers, which take their workspace/account from argv. They
-              # exist for plugins in the operator's PRIVATE overlay marketplace — which
+              # The GENERIC Slack launcher, which takes its workspace from argv. Only
+              # plugins in the operator's PRIVATE overlay marketplace name it — which
               # this check cannot read (CI has no access, and the pin is the public tree
               # only) — so "no public plugin names it" is expected, not an orphan.
-              # Exempted BY GENERIC NAME, so no private plugin or account is named here;
-              # the `missing` leg and both non-empty legs still run over everything.
-              namedOutsidePublicTree = [
-                "nix-mcp-slack"
-                "nix-mcp-gmail"
-              ];
+              # Exempted BY GENERIC NAME, so no private plugin or workspace is named
+              # here; the `missing` leg and both non-empty legs still run over everything.
+              # `nix-mcp-gmail` is NOT exempt: the public gmail plugin names it.
+              namedOutsidePublicTree = [ "nix-mcp-slack" ];
 
               missing = lib.subtractLists built declared;
               orphan = lib.subtractLists (declared ++ namedOutsidePublicTree) built;
@@ -3072,7 +3057,7 @@ in
               advice = [
                 "A MISSING launcher means a plugin in github:kattakath/skills names a binary"
                 "this fleet does not build: that server cannot start. Add the name to"
-                "local.pluginMcp.servers / local.gmailMcp.accounts in hosts/macos.nix, or"
+                "local.pluginMcp.servers / local.gmailMcp.enable in hosts/macos.nix, or"
                 "build it as a package the way packages/mcpfinder-mcp.nix does."
                 "An ORPHAN launcher means the reverse — a binary on PATH that no plugin"
                 "declares, so the capability does not exist in any session. Either declare"

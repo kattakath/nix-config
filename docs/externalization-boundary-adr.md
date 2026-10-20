@@ -212,7 +212,7 @@ this layer, but accepted as the price of having no shared MCP process. §10.8.
 | Content lives in its own version-controlled repo | **Done** — `github:kattakath/ai`, extracted 2026-09-12 |
 | One vendor-neutral file every client reads | **Done** — `~/.config/mcp/mcp.json` + the `:8096` gateway, three clients |
 | Runtime install, Nix does not own the state | **Done for plugins** — mutable `~/.claude/plugins`. The MECHANISM named here is stale: `claude plugin marketplace add` runs at activation for **store-path sources only** since 2026-09-30 (§10.7); 31 of 32 plugins now arrive from a settings **declaration** Claude Code acts on at session start |
-| Read-if-present, silent no-op when absent | **Precedent** — git `includeIf` → `~/.config/git/infin8.inc` |
+| Read-if-present, silent no-op when absent | **Precedent** — git include → `~/.config/git/local.inc` |
 
 So the real delta is a single decision applied to skills and MCP: **hash pin, or runtime clone.**
 This ADR answers: hash pin for MCP; either for skills, with pinned content remaining the default

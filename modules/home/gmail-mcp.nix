@@ -1,4 +1,4 @@
-# Per-account Gmail MCP launchers on PATH, for the PLUGIN lane.
+# The Gmail MCP launcher on PATH, for the PLUGIN lane.
 #
 # WHY THIS MODULE EXISTS. The 2026-10-01 purge removed the central MCP gateway from
 # macOS (deleted with modules/shared/mcp.nix on 2026-10-02), and these launchers lived inside it —
@@ -8,9 +8,10 @@
 # THE SPLIT, and it is the pattern the other ownerless servers will follow:
 #   HERE          the launcher binaries, because they read the login Keychain and must
 #                 not be duplicated into a plugin repo.
-#   THE PLUGIN    a `.mcp.json` in github:kattakath/skills naming each launcher by
-#                 BINARY NAME, so Claude Code spawns one stdio server per account,
-#                 per session, with no proxy and nothing shared between clients.
+#   THE PLUGIN    a `.mcp.json` naming `nix-mcp-gmail` with the ACCOUNT in `args`, so
+#                 Claude Code spawns one stdio server per account, per session, with
+#                 no proxy and nothing shared between clients. Public accounts sit in
+#                 github:kattakath/skills; the rest in the operator's private overlay.
 #
 # This is NOT a gateway coming back. There is no long-lived process, no listening
 # socket, no tunnel and no portal: Claude Code starts a launcher when a session needs
@@ -35,50 +36,22 @@ in
 {
   options.local.gmailMcp = {
     enable = lib.mkEnableOption ''
-      the GENERIC Gmail launcher `nix-mcp-gmail <address>`, which takes the account
-      from argv at launch. A plugin names it with the address in its own `.mcp.json`
-      `args`, so the mailbox list can live in a PRIVATE plugin rather than in this
-      public repo. Same credentials file and tool prefix per account as the
-      per-account launchers below, so switching between them keeps each sign-in
+      the Gmail launcher `nix-mcp-gmail <address>`, which takes the account from argv
+      at launch. A plugin names it with the address in its own `.mcp.json` `args`, so
+      the mailbox list lives in the plugin (a PRIVATE one, for anything not already
+      public) rather than in this repo. Each account needs a ONE-TIME browser auth
+      before its tools work; the shared OAuth client id/secret come from the login
+      Keychain at launch, so no credential is in the store
     '';
-
-    accounts = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      example = [ "someone@example.com" ];
-      description = ''
-        Google/Workspace addresses to install a Gmail MCP launcher for, one binary each,
-        named `nix-mcp-gmail-<sanitised-address>`.
-
-        PLAIN ADDRESSES, not aliases: the sanitised form is derived inside
-        `packages/gmail-mcp.nix` so the tool prefix, the credentials filename and the
-        binary name cannot drift apart.
-
-        Empty by default and set PER HOST, because the account list is operator
-        identity rather than fleet shape — a template consumer of this repo wants the
-        mechanism without inheriting someone else's mailboxes.
-
-        Each account needs a ONE-TIME browser auth before its tools work; the launcher
-        prints the exact command. The shared OAuth client id/secret come from the login
-        Keychain at launch, so no credential is in the store or in this list.
-      '';
-    };
   };
 
   # Darwin-gated because the launcher reads the macOS login Keychain via
   # /usr/bin/security. On Linux the option exists and does nothing, which keeps
   # `hosts/*.nix` free of platform conditionals.
-  config = lib.mkIf ((cfg.enable || cfg.accounts != [ ]) && pkgs.stdenv.hostPlatform.isDarwin) {
-    home.packages =
-      lib.optional cfg.enable (
-        pkgs.callPackage ../../packages/gmail-mcp.nix { } { inherit (config.home) homeDirectory; }
-      )
-      ++ map (
-        email:
-        pkgs.callPackage ../../packages/gmail-mcp.nix { } {
-          inherit email;
-          inherit (config.home) homeDirectory;
-        }
-      ) cfg.accounts;
+  config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
+    home.packages = [
+      (pkgs.callPackage ../../packages/gmail-mcp.nix { } { inherit (config.home) homeDirectory; })
+    ];
   };
+
 }

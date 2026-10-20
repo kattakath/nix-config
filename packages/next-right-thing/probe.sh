@@ -26,7 +26,9 @@ set -euo pipefail
 
 GMAIL_DIR="${NRT_GMAIL_DIR:-$HOME/.gmail-mcp}"
 STATE="${NRT_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/next-right-thing/state.json}"
-ACCOUNTS="${NRT_GMAIL_ACCOUNTS:-ismail_kattakath_com izzy_silvercreek_ai ismailkattakath_gmail_com aloshyakasoto_gmail_com}"
+# Every mailbox signed in for the Gmail MCP: one credentials-<alias>.json each, written
+# by `nix-mcp-gmail <address>`. Derived, so the account list is never written here.
+ACCOUNTS="${NRT_GMAIL_ACCOUNTS:-$({ cd "$GMAIL_DIR" && for f in credentials-*.json; do [ -e "$f" ] || continue; f="${f#credentials-}"; printf '%s ' "${f%.json}"; done; } 2>/dev/null || true)}"
 
 mkdir -p "$(dirname "$STATE")"
 [ -s "$STATE" ] || printf '{"sources":{}}\n' > "$STATE"

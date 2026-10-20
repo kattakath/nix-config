@@ -343,10 +343,7 @@ most reusable part of this document:
     wordpress-adapter = "operator";  # same prod site, via the abilities API
     github = "operator";             # PAT-backed: push, merge, delete, create
     cloudflare = "operator";         # account API — can edit the gate you read
-    "gmail-aloshyakasoto_gmail_com" = "operator";
-    "gmail-ismail_kattakath_com" = "operator";
-    "gmail-ismailkattakath_gmail_com" = "operator";
-    "gmail-izzy_silvercreek_ai" = "operator";
+    "gmail-<alias>" = "operator";       # one per mailbox (names omitted: identity)
 
     # trusted — side effects that OUTLIVE the request: money, or bytes on disk.
     apify = "trusted";   # actor runs are billed

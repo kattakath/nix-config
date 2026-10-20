@@ -136,7 +136,7 @@ in
           # Home-manager's module default is an EXPLICIT `mounts = []`, which colima
           # treats as "share nothing" rather than falling back to its own CLI default
           # of auto-mounting `~`. Without this, every wp-env bind mount under $HOME
-          # resolves to an empty root-owned dir inside the guest (silvercreek.ai's
+          # resolves to an empty root-owned dir inside the guest (a client's
           # local WordPress clone hit this 2026-09-24/28: "elementor plugin could not
           # be found" because wp-content/plugins was never actually shared).
           mounts = [

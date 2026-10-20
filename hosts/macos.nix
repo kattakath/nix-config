@@ -248,12 +248,12 @@ in
         # a lane holds its guest slot for the ENTIRE long-poll wait, not just
         # while a job runs. Measured — these two sat up for an hour with 0.0%
         # CPU, 8192 MB each of 36 GB, holding BOTH of Apple's two concurrent
-        # macOS guests, having run zero jobs. Neither org has a single workflow
+        # macOS guests, having run zero jobs. Neither org had a single workflow
         # targeting a self-hosted runner (verified across all 63 repos), so the
         # cost bought nothing and starved dontsell-vm, which never acquired a
         # slot after coming up at 08:04:56.
         #
-        # Re-enable when a workflow in that org actually needs macOS — and
+        # Re-enable when a workflow in the org actually needs macOS — and
         # preferably only after the controller provisions on demand rather than
         # pre-booting a guest to wait. Keeping the scope/installationId here so
         # re-enabling is a one-word change, not a re-derivation.
@@ -264,14 +264,6 @@ in
             value = "kattakath";
           };
           installationId = 159496730;
-        };
-        silvercreek = fleetApp // {
-          enable = false;
-          scope = {
-            type = "org";
-            value = "silvercreek-ai";
-          };
-          installationId = 159496756;
         };
         # Re-enabled 2026-09-06 after the label flip closed a real misroute.
         # GitHub matching is case-insensitive and a runner matches on a SUPERSET,
@@ -330,193 +322,146 @@ in
 
   # ---- Per-session MCP launchers (modules/home/{gmail-mcp,plugin-mcp}.nix,
   # home-manager options — set via home-manager.users)
-  # The operator's COMPLETE Gmail roster. All four are the operator's own
-  # accounts under identities already public elsewhere in this very tree:
-  # the canonical Google account (`googleAccount` = loginName@domainName,
-  # modules/parts/identity.nix — NOT userEmail, which is GitHub's noreply);
-  # silvercreek.ai, whose production WordPress the `wordpress` launcher below
-  # drives; and the operator's `aloshy` handle (the aloshy.ai
-  # zone). The private nix-personal flake used to ADD further accounts via
-  # extraHomeModules; it was fully retired 2026-09-15, and the operator chose to
-  # keep only the two below from its list of seven (#524), so this list is now
-  # the whole set. Anyone else's address still never belongs here — see the
-  # option's description in modules/home/gmail-mcp.nix.
+  # NO mailbox roster here any more (2026-10-20): the generic `nix-mcp-gmail <address>`
+  # takes the account from the naming plugin's `.mcp.json` args — the operator's own
+  # public address in github:kattakath/skills, every other one in the private overlay
+  # marketplace. The address list is identity, and identity that is not already
+  # public does not belong in this public tree.
   #
   # A FUNCTION, not a bare attrset, matching modules/home/default.nix's own
-  # signature: home-manager passes module args here. `googleAccount` is the one
-  # read today — the roster's first entry IS that account, so it is referenced,
-  # not retyped. (It was `publicMcpServers` until the gateway went, 2026-10-02.)
-  home-manager.users.${loginName} =
-    { googleAccount, ... }:
-    {
-      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
-      # The SAME four accounts, now on the plugin lane instead of the gateway. Launchers
-      # land on PATH as `nix-mcp-gmail-<sanitised-address>`; the gmail plugin in
-      # github:kattakath/skills names them in its own `.mcp.json`, so Claude Code spawns
-      # one stdio server per account per session — nothing shared, nothing listening.
-      # This is now the ONLY list: the parallel `local.mcpGateway.gmail.accounts` went
-      # with the gateway in #734.
-      local.gmailMcp.accounts = [
-        googleAccount
-        "ismailkattakath@gmail.com"
-        "izzy@silvercreek.ai"
-        "aloshyakasoto@gmail.com"
-      ];
-      # The generic `nix-mcp-gmail <address>`, for plugins that carry their own account
-      # list (the operator's private overlay marketplace).
-      local.gmailMcp.enable = true;
+  # signature: home-manager passes module args here (none read today).
+  home-manager.users.${loginName} = _: {
+    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+    # The generic Gmail launcher; Claude Code spawns one stdio server per account per
+    # session — nothing shared, nothing listening.
+    local.gmailMcp.enable = true;
 
-      # The three CREDENTIALED servers the gateway owned that no EXISTING plugin could
-      # carry — the "wordpress, apify, … local postgres" part of the cost the purge
-      # accepted. Launchers land on PATH as `nix-mcp-<name>`; in
-      # github:kattakath/skills the new `wordpress` and `apify` plugins name theirs, and
-      # `postgres` goes to the EXISTING `rag` plugin, whose own SKILL.md already said it
-      # "runs entirely local via the postgres MCP server" — it owned this in documentation
-      # before it owned it in code.
-      #
-      # Each was checked LIVE before being declared, because a plugin for a dead endpoint
-      # is worse than no plugin (see modules/home/plugin-mcp.nix for the probes):
-      # silvercreek.ai's REST API answers and only authentication gates it, and the
-      # pgvector store is listening on loopback. All three then completed a real MCP
-      # `initialize` through their launcher.
-      #
-      # `wordpress-adapter` is NOT here and must not be added: that is a DIFFERENT endpoint
-      # on the same site and its route is gone (404 `rest_no_route`) — the failure that
-      # darked all 25 gateway servers.
-      # `desktop-commander` is the odd one out: no credential, declared for its
-      # Seatbelt FENCE (modules/home/plugin-mcp.nix renders the profile). It is the
-      # escape hatch for a worktree-isolated session whose worktree was deleted —
-      # Bash refuses every call there, and this runs commands outside that tool.
-      # The gap that buys: it also routes around every Bash-TEXT deny in
-      # claude-guardrails.nix, which the fence cannot reproduce. Accepted 2026-10-07.
-      local.pluginMcp.servers = [
-        "wordpress"
-        "apify"
-        "postgres"
-        "desktop-commander"
-        # Post as the operator with a user token, so Slack adds no `Sent using Claude`
-        # footer. Tokens: `secret set mcp:<workspace>.slack.com:xoxp`. 2026-10-16.
-        "slack-infin8"
-        "slack-silvercreek"
-        # The generic `nix-mcp-slack <workspace>.slack.com`: the workspace comes from the
-        # naming plugin's `.mcp.json` args, so none is written here.
-        "slack"
-        # GitHub MCP with the gh CLI's token (no stored secret). Plugin: github-gh.
-        "github"
-      ];
-      # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
-      # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
-      # account ids and an SSO start-URL id — reconnaissance in a public repo
-      # (ADR-004 §7, inventory #1). The cloud-cli capsule now installs the CLI and
-      # writes ~/.aws/config.example; the real ~/.aws/config is the operator's,
-      # written by `aws configure sso` / by hand, outside Nix and git. The first
-      # activation after this change keeps the existing profiles: `adoptAwsConfig`
-      # (modules/home/claude-bedrock-gate.nix) turns the leftover store symlink
-      # into a real 0600 file instead of letting orphan cleanup delete it.
-      # Claude Code's Bedrock profile is still selected at runtime with
-      # `secret set AWS_PROFILE <profile>`.
-      local.cloudCli.aws.enable = true;
+    # The three CREDENTIALED servers the gateway owned that no EXISTING plugin could
+    # carry — the "wordpress, apify, … local postgres" part of the cost the purge
+    # accepted. Launchers land on PATH as `nix-mcp-<name>`; in
+    # github:kattakath/skills the new `wordpress` and `apify` plugins name theirs, and
+    # `postgres` goes to the EXISTING `rag` plugin, whose own SKILL.md already said it
+    # "runs entirely local via the postgres MCP server" — it owned this in documentation
+    # before it owned it in code.
+    #
+    # Each was checked LIVE before being declared, because a plugin for a dead endpoint
+    # is worse than no plugin (see modules/home/plugin-mcp.nix for the probes):
+    # the WordPress site's REST API answers and only authentication gates it, and the
+    # pgvector store is listening on loopback. All three then completed a real MCP
+    # `initialize` through their launcher.
+    #
+    # `wordpress-adapter` is NOT here and must not be added: that is a DIFFERENT endpoint
+    # on the same site and its route is gone (404 `rest_no_route`) — the failure that
+    # darked all 25 gateway servers.
+    # `desktop-commander` is the odd one out: no credential, declared for its
+    # Seatbelt FENCE (modules/home/plugin-mcp.nix renders the profile). It is the
+    # escape hatch for a worktree-isolated session whose worktree was deleted —
+    # Bash refuses every call there, and this runs commands outside that tool.
+    # The gap that buys: it also routes around every Bash-TEXT deny in
+    # claude-guardrails.nix, which the fence cannot reproduce. Accepted 2026-10-07.
+    local.pluginMcp.servers = [
+      "wordpress"
+      "apify"
+      "postgres"
+      "desktop-commander"
+      # Post as the operator with a user token, so Slack adds no `Sent using Claude`
+      # footer: the generic `nix-mcp-slack <workspace>.slack.com`. The workspace comes
+      # from the naming plugin's `.mcp.json` args, so none is written here. Tokens:
+      # `secret set mcp:<workspace>.slack.com:xoxp`. 2026-10-16.
+      "slack"
+      # GitHub MCP with the gh CLI's token (no stored secret). Plugin: github-gh.
+      "github"
+    ];
+    # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
+    # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
+    # account ids and an SSO start-URL id — reconnaissance in a public repo
+    # (ADR-004 §7, inventory #1). The cloud-cli capsule now installs the CLI and
+    # writes ~/.aws/config.example; the real ~/.aws/config is the operator's,
+    # written by `aws configure sso` / by hand, outside Nix and git. The first
+    # activation after this change keeps the existing profiles: `adoptAwsConfig`
+    # (modules/home/claude-bedrock-gate.nix) turns the leftover store symlink
+    # into a real 0600 file instead of letting orphan cleanup delete it.
+    # Claude Code's Bedrock profile is still selected at runtime with
+    # `secret set AWS_PROFILE <profile>`.
+    local.cloudCli.aws.enable = true;
 
-      # ADR-004's durable copy, switched on: GCP Secret Manager behind the Keychain.
-      # backend.project stays null (a project id is reconnaissance in a public repo);
-      # the secrets-* CLIs read the project and identity from gcloud at runtime, so
-      # run them with CLOUDSDK_CONFIG=~/.config/gcloud-nix-config — the repo-scoped
-      # config `nix develop` uses, where the canonical googleAccount is active. The
-      # global gcloud config may hold a client identity; never push under it.
-      # The API itself is enabled by infra/gcp/foundation.nix.
-      local.keychainSecrets.backend.type = "gcp";
+    # ADR-004's durable copy, switched on: GCP Secret Manager behind the Keychain.
+    # backend.project stays null (a project id is reconnaissance in a public repo);
+    # the secrets-* CLIs read the project and identity from gcloud at runtime, so
+    # run them with CLOUDSDK_CONFIG=~/.config/gcloud-nix-config — the repo-scoped
+    # config `nix develop` uses, where the canonical googleAccount is active. The
+    # global gcloud config may hold a client identity; never push under it.
+    # The API itself is enabled by infra/gcp/foundation.nix.
+    local.keychainSecrets.backend.type = "gcp";
 
-      # gpg-agent: the GUI pinentry, and NO "Save in Keychain". Written the way
-      # home-manager's own services.gpg-agent writes it (home.file at
-      # modules/services/gpg-agent.nix:352) WITHOUT adopting that module — its agent
-      # is the second stack the gnupg brew comment forbids. No key id here, so this
-      # is safe in a public repo (unlike gpg.conf's encrypt-to, which stays local).
-      #   no-allow-external-cache: pinentry-mac's Keychain checkbox would let every
-      #   later decrypt run silently, from ANY process, forever — including an
-      #   agent's — which defeats the human-present premise of the pgp-ops workflow.
-      #   The name is EXACT and was got wrong once: #832 shipped
-      #   `no-allow-external-password-cache`, which gpg-agent rejects as "invalid
-      #   option" and REFUSES TO START with (exit 2) — while `gpgconf --check-options`
-      #   still passes the file. Prove a change by starting gpg-agent on it, not by
-      #   that check. Measured 2026-10-17, GnuPG 2.5.24.
-      # The running agent reads this on `gpgconf --reload gpg-agent` or its next start.
-      home.file.".gnupg/gpg-agent.conf".text = ''
-        pinentry-program ${config.homebrew.prefix}/bin/pinentry-mac
-        no-allow-external-cache
-      '';
+    # gpg-agent: the GUI pinentry, and NO "Save in Keychain". Written the way
+    # home-manager's own services.gpg-agent writes it (home.file at
+    # modules/services/gpg-agent.nix:352) WITHOUT adopting that module — its agent
+    # is the second stack the gnupg brew comment forbids. No key id here, so this
+    # is safe in a public repo (unlike gpg.conf's encrypt-to, which stays local).
+    #   no-allow-external-cache: pinentry-mac's Keychain checkbox would let every
+    #   later decrypt run silently, from ANY process, forever — including an
+    #   agent's — which defeats the human-present premise of the pgp-ops workflow.
+    #   The name is EXACT and was got wrong once: #832 shipped
+    #   `no-allow-external-password-cache`, which gpg-agent rejects as "invalid
+    #   option" and REFUSES TO START with (exit 2) — while `gpgconf --check-options`
+    #   still passes the file. Prove a change by starting gpg-agent on it, not by
+    #   that check. Measured 2026-10-17, GnuPG 2.5.24.
+    # The running agent reads this on `gpgconf --reload gpg-agent` or its next start.
+    home.file.".gnupg/gpg-agent.conf".text = ''
+      pinentry-program ${config.homebrew.prefix}/bin/pinentry-mac
+      no-allow-external-cache
+    '';
 
-      # ---- Infin8 LiteLLM proxy — REMOVED 2026-09-29 -------------------------
-      # `OPENAI_BASE_URL` + `OPENAI_API_BASE` pointed at https://ai.infin8it.ca/v1.
-      # That host is GONE: `dig ai.infin8it.ca` returns zero A-records and a request
-      # to /v1/models fails to connect (verified 2026-09-29). The LiteLLM gateway it
-      # fronted was itself wound down upstream — see takeoff-api-infra's
-      # docs/ai/litellm-not-deployed.md, where the platform (#827), the CDK construct
-      # (#1452) and the app package were all deleted.
-      #
-      # Pointing these at a dead host is worse than leaving them unset: the OpenAI
-      # SDKs treat an explicit base URL as an override, so instead of falling back to
-      # api.openai.com every client silently failed to connect. Measured cost while
-      # they were still set: two takeoff-api-infra test suites
-      # (test_usage_metering, test_llm_determinism) failed locally and passed the
-      # moment the vars were unset — they had been read as pre-existing breakage on
-      # develop.
-      #
-      # Both vars are dropped, not just one. They held the identical dead URL, and
-      # keeping `OPENAI_BASE_URL` alone would preserve exactly the failure above.
-      # Nothing else in this repo reads either name (`rg OPENAI_` — only the
-      # keychain-secrets tests/docs, which are about the API *key*).
-      #
-      # The Keychain entry `openai.com:api` → `OPENAI_API_KEY` was ALSO removed, after
-      # confirming it was the LiteLLM virtual key and not a real OpenAI credential:
-      # api.openai.com rejected it with HTTP 401 "Incorrect API key provided", and
-      # `secret fp` reported len=25 where a genuine OpenAI key is 50+. The Keychain
-      # copy and the ambient env value hashed identically, so the tested value was the
-      # stored one. Removed with `secret rm openai.com:api` (2026-09-29).
-      #
-      # Nothing declarative recreates it — it was never registered in this repo, only
-      # adopted into the Keychain index by hand, so a rebuild will not bring it back.
-      # If a REAL OpenAI key is needed later: `secret set OPENAI_API_KEY`.
+    # ---- OpenAI base-URL override — REMOVED 2026-09-29 -----------------------
+    # `OPENAI_BASE_URL` + `OPENAI_API_BASE` pointed at a client LiteLLM proxy that was
+    # wound down (zero A-records, connect failure, verified 2026-09-29). An explicit
+    # base URL is an OVERRIDE in the OpenAI SDKs, so a dead one made every client fail
+    # instead of falling back to api.openai.com. Both vars are dropped, and the stale
+    # `openai.com:api` Keychain entry (a proxy virtual key, rejected 401 by
+    # api.openai.com) was removed with `secret rm`. Nothing declarative recreates
+    # either. A REAL OpenAI key, if ever needed: `secret set OPENAI_API_KEY`.
 
-      # Chrome DevTools Protocol, in ATTACH mode against Chromium. The attach flag is
-      # picked at spawn time by probing /json/version — neither --browser-url nor
-      # --autoConnect works in both browser modes; that probe went to the page-lab
-      # plugin with the server, so this flag now gates only the `nix-chromium-debug`
-      # launcher. Nothing can reach a browser without the operator having
-      # enabled debugging deliberately (in-browser, or via that launcher).
-      #
-      # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
-      # nothing listening on the port, the server still answers `initialize` and
-      # stays alive (45s, no exit) — it only touches a browser lazily, when a tool
-      # needs one. That mattered while one server exiting at startup could dark the
-      # whole gateway; since 2026-10-02 every server is spawned per-session by its
-      # own plugin, so it can only cost itself. Individual tool calls simply fail until a browser
-      # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
-      # of the three causes it is.
-      #
-      # What is NOT persistent, deliberately: debugging itself. The in-browser toggle
-      # re-prompts per session and `nix-chromium-debug` is hand-run and dies with the
-      # browser window — because an open remote-debugging port is an unauthenticated
-      # control channel over a profile holding live logins. Measured 2026-09-07 on the
-      # then-default Opera Air: a Chromium-family browser stores no persistent consent
-      # key, so there is nothing to make it stop asking. Opera was removed from this Mac
-      # on 2026-09-21; the attach target is now Chromium (modules/home/default-browser.nix).
-      # The MCP server moved to the page-lab plugin (#657 batch 2); opening the port
-      # did not, and never was an MCP concern. See local.ungoogledChromium.debugLauncher.
-      local.ungoogledChromium.debugLauncher = true;
+    # Chrome DevTools Protocol, in ATTACH mode against Chromium. The attach flag is
+    # picked at spawn time by probing /json/version — neither --browser-url nor
+    # --autoConnect works in both browser modes; that probe went to the page-lab
+    # plugin with the server, so this flag now gates only the `nix-chromium-debug`
+    # launcher. Nothing can reach a browser without the operator having
+    # enabled debugging deliberately (in-browser, or via that launcher).
+    #
+    # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
+    # nothing listening on the port, the server still answers `initialize` and
+    # stays alive (45s, no exit) — it only touches a browser lazily, when a tool
+    # needs one. That mattered while one server exiting at startup could dark the
+    # whole gateway; since 2026-10-02 every server is spawned per-session by its
+    # own plugin, so it can only cost itself. Individual tool calls simply fail until a browser
+    # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
+    # of the three causes it is.
+    #
+    # What is NOT persistent, deliberately: debugging itself. The in-browser toggle
+    # re-prompts per session and `nix-chromium-debug` is hand-run and dies with the
+    # browser window — because an open remote-debugging port is an unauthenticated
+    # control channel over a profile holding live logins. Measured 2026-09-07 on the
+    # then-default Opera Air: a Chromium-family browser stores no persistent consent
+    # key, so there is nothing to make it stop asking. Opera was removed from this Mac
+    # on 2026-09-21; the attach target is now Chromium (modules/home/default-browser.nix).
+    # The MCP server moved to the page-lab plugin (#657 batch 2); opening the port
+    # did not, and never was an MCP concern. See local.ungoogledChromium.debugLauncher.
+    local.ungoogledChromium.debugLauncher = true;
 
-      # Replaces the Colima container of the same name. Loopback only. Downloads
-      # land in ~/.local/share/yt-dlp-webui/downloads.
-      local.ytDlpWebUi.enable = true;
+    # Replaces the Colima container of the same name. Loopback only. Downloads
+    # land in ~/.local/share/yt-dlp-webui/downloads.
+    local.ytDlpWebUi.enable = true;
 
-      # Loopback MeTube for the sideloaded Chrome extension. The extension's
-      # options still need the address typed once: http://127.0.0.1:8081
-      local.meTube.enable = true;
+    # Loopback MeTube for the sideloaded Chrome extension. The extension's
+    # options still need the address typed once: http://127.0.0.1:8081
+    local.meTube.enable = true;
 
-      # Per-user container runtime (Colima via home-manager's services.colima),
-      # replacing the docker-desktop cask whose privileged helper was bound to
-      # one username. Why/cost/migration: modules/home/containers.nix.
-      local.containers.enable = true;
-    };
+    # Per-user container runtime (Colima via home-manager's services.colima),
+    # replacing the docker-desktop cask whose privileged helper was bound to
+    # one username. Why/cost/migration: modules/home/containers.nix.
+    local.containers.enable = true;
+  };
 
   # ---- OpenDesign: kill the in-app self-updater --------------------------------
   # Pairs with the greedy `open-design` cask below — versioning belongs to brew,

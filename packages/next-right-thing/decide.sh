@@ -80,8 +80,7 @@ Known noise — never rank on these:
 ## screen shares. Allowlist; vague by category; silent by default.
   SUPPRESS entirely: credentials, OTP/2FA, password resets, account numbers, and
     anything touching dating, medical, debt collection, legal, immigration.
-  FULL detail only for his own work (kattakath, dontsell-ai, silvercreek-ai,
-    Infin8-Information-Technologies, his own infra). First name only — never
+  FULL detail only for his own work (@OWN_ORGS@, his own infra). First name only — never
     "Full Name, Company, Role".
   VAGUE otherwise — no name, amount, date or count:
     finance -> "A money thing needs 15 minutes."
@@ -95,6 +94,14 @@ next card get read. If nothing clears a real "worth interrupting him" bar, retur
 
 ## CORPUS
 RULES_END
+# Which orgs count as "his own work" is identity, so it is not written in this public
+# script: one org per line in a hand-placed file, `kattakath` if it is absent.
+own_orgs_file="${NRT_OWN_ORGS_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/next-right-thing/own-orgs}"
+own_orgs="kattakath"
+if [ -s "$own_orgs_file" ]; then
+  own_orgs="$(grep -Ev '^[[:space:]]*(#|$)' "$own_orgs_file" | paste -sd, - | sed 's/,/, /g')"
+fi
+RULES="${RULES//@OWN_ORGS@/$own_orgs}"
 
 # BOTH flags are required, measured — --strict-mcp-config alone is NOT enough:
 #   default                        65,709 sys tokens   $0.52

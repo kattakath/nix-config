@@ -5,15 +5,15 @@
 # ~/Library/Application Support/Claude/claude_desktop_config.json. Desktop reads
 # none of ~/.claude/*, .mcp.json or the home-manager MCP hub, and it loads NO
 # PLUGINS — so a plugin-owned MCP server never reaches Desktop, nor the Cowork
-# bridge behind it. `extraServers` is the only lane: since 2026-10-16 it carries
-# `aws-infin8`, `github` and `stripe-infin8` (modules/home/default.nix).
+# bridge behind it. `extraServers` is the public lane: it carries `github`
+# (modules/home/default.nix).
 # A second, PRIVATE lane rides the same merge: `overlayFile`, a hand-placed JSON
 # the operator keeps out of this public repo, read at activation only.
 #
 # THE TRANSPORT TRAP (why `toStdioShim` exists)
 # Desktop's parser accepts ONLY the stdio shape — {command, args, env}. A
 # `url` or `type` key fails its schema validation and the entry is dropped (or
-# the whole mcpServers block is). So a `url`-shaped entry (`stripe-infin8`) is
+# the whole mcpServers block is). So a `url`-shaped entry (an HTTP MCP server) is
 # wrapped in `mcp-remote` (geelen/mcp-remote: a stdio⇄Streamable-HTTP bridge),
 # pinned by version and launched by a store-path npx — a shim, not a server: one
 # thin bridge process, with any OAuth handshake happening inside it.
@@ -21,7 +21,7 @@
 # `checks.<system>.claude-desktop-config-shape` reads
 # `local.claudeDesktop.{enable,renderedServers}` (modules/parts/checks.nix) and
 # asserts: the module is ENABLED (a disabled writer leaves stale content on disk
-# unmanaged — the 2026-10-01 regression), only the three named servers are
+# unmanaged — the 2026-10-01 regression), only the named server is
 # rendered, `desktop-commander` is not among them, and every entry is
 # stdio-shaped ({command,args}, no url/type) and carries the NIX_CONFIG_MANAGED
 # marker.

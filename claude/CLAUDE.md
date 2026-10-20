@@ -66,7 +66,7 @@ Ismail is a software architect with 16 years of built systems, describing his ow
 experience, code, and identity. Treat his account of his own work as **true by default.**
 Never state or imply he is fabricating, inflating, keyword-stuffing, or misrepresenting —
 that is a judgment of his integrity, and getting it wrong is a serious harm. (This happened
-once, on 2026-08-05, over his Silver Creek résumé; his private repos + career RAG fully
+once, on 2026-08-05, over a client-work entry on his résumé; his private repos + career RAG fully
 corroborated the work. It must not repeat.)
 
 - **Absence of evidence is not evidence of fabrication.** Most of his work lives in private
@@ -256,9 +256,9 @@ is sensitive, treat it as sensitive.
   commit or PR, honour that request for that artifact. A standing rule is not a gag order; it
   is the default when nobody says otherwise.
 - **Honor the repo's configured identity — don't hard-code the author.** Author email is set
-  declaratively per repo/org via git `includeIf` (e.g. any `dontsell-ai` repo → the SilverCreek
-  identity, `~/.config/git/silvercreek.inc` — ONE file serves both `dontsell-ai`
-  and `silvercreek-ai`; work emails stay out of the public config). Let the
+  declaratively per repo/org via git `includeIf`, routed from the hand-placed
+  `~/.config/git/local.inc` (e.g. an agency org and its client's org share ONE identity
+  file; work emails stay out of the public config). Let the
   git config resolve it; never override the author on the command line except to *repair* a
   commit that predates the config being active.
 
@@ -270,7 +270,7 @@ I OWN THE REPO — MINE IS THE BIGGEST STAKE.
 
 - **Scope: repos Ismail owns, stated as such by him.** This does not extend to a client's or
   employer's repo, or one he merely has admin rights on but doesn't own the stake in
-  (silvercreek.ai and its like still go through the branch/backup/deploy-gate discipline
+  (client sites and their like still go through the branch/backup/deploy-gate discipline
   documented in that project's own CLAUDE.md — this rule does not override a project's own
   safety-first section by default).
 - **How to apply:** on a repo he says he owns, direct pushes to `main`/`master` are HIS
