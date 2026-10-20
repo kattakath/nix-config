@@ -30,7 +30,13 @@
 {
   # The real Google/Workspace address. The sanitised alias is derived, never passed in,
   # so the caller cannot desynchronise the tool prefix from the credentials filename.
-  email,
+  #
+  # null builds the GENERIC launcher instead: `nix-mcp-gmail <address>`, the address
+  # taken from argv at launch. That is the form a PRIVATE plugin names, so which
+  # mailboxes the operator holds never has to be written into this public repo. Its
+  # runtime alias is the same `@ . +` -> `_`, lower-cased mapping as below, so an
+  # account's credentials file and tool prefix are identical under either launcher.
+  email ? null,
   # Passed in rather than read from a module: a package may not reach into Home Manager
   # config, and a hardcoded /Users/<name> in a .nix VALUE is what
   # ast-grep/rules/no-hardcoded-home-paths.yml exists to reject.
@@ -40,27 +46,33 @@ let
   # `--tool-prefix` cannot contain "@" or "." — the upstream server rejects it — so the
   # address is sanitised once here and reused for the prefix, the credentials filename
   # and the binary name. One derivation, so they cannot drift apart.
-  alias = lib.toLower (
-    lib.replaceStrings
-      [
-        "@"
-        "."
-        "+"
-      ]
-      [
-        "_"
-        "_"
-        "_"
-      ]
-      email
-  );
+  generic = email == null;
+  alias =
+    if generic then
+      null
+    else
+      lib.toLower (
+        lib.replaceStrings
+          [
+            "@"
+            "."
+            "+"
+          ]
+          [
+            "_"
+            "_"
+            "_"
+          ]
+          email
+      );
+  binName = if generic then "nix-mcp-gmail" else "nix-mcp-gmail-${alias}";
   npx = lib.getExe' nodejs "npx";
 in
 # writeShellApplication for the build-time shellcheck; `bashOptions` keeps the exact `set -u`
 # this launcher always ran under — the default errexit would abort a launch the missing-
 # Keychain branch below is meant to let through with a warning.
 writeShellApplication {
-  name = "nix-mcp-gmail-${alias}";
+  name = binName;
   bashOptions = [ "nounset" ];
   text = ''
     # 077 BEFORE the file exists, not chmod after. The previous inline version wrote the
@@ -68,13 +80,31 @@ writeShellApplication {
     # OAuth client secret is readable by anyone on the box. Narrow, but free to close.
     umask 077
 
+    ${
+      if generic then
+        ''
+          # The alias names a FILE and a tool prefix, so the address is validated and
+          # the result must be [a-z0-9_-] only: no `/`, no shell metacharacters.
+          # 64 = EX_USAGE.
+          email="''${1:-}"
+          alias="$(printf '%s' "$email" | tr '@.+' '___' | tr '[:upper:]' '[:lower:]')"
+          if ! [[ "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+$ ]] || ! [[ "$alias" =~ ^[a-z0-9_-]+$ ]]; then
+            echo "usage: ${binName} <address>   (letters, digits, - _ . + @ only)" >&2
+            exit 64
+          fi
+        ''
+      else
+        ''
+          alias=${alias}
+        ''
+    }
     dir="${homeDirectory}/.gmail-mcp"
     mkdir -p "$dir"
 
     client_id="$(/usr/bin/security find-generic-password -a "$(id -un)" -s GMAIL_OAUTH_CLIENT_ID -w 2>/dev/null || true)"
     client_secret="$(/usr/bin/security find-generic-password -a "$(id -un)" -s GMAIL_OAUTH_CLIENT_SECRET -w 2>/dev/null || true)"
     if [ -z "$client_id" ] || [ -z "$client_secret" ]; then
-      echo "nix-mcp-gmail-${alias}: GMAIL_OAUTH_CLIENT_ID / GMAIL_OAUTH_CLIENT_SECRET are not in the login Keychain." >&2
+      echo "${binName}: GMAIL_OAUTH_CLIENT_ID / GMAIL_OAUTH_CLIENT_SECRET are not in the login Keychain." >&2
       echo "  Set them with: secret set GMAIL_OAUTH_CLIENT_ID   (and _SECRET)" >&2
       echo "  Tools will fail until both exist; this launcher still starts so the failure is visible to the client." >&2
     fi
@@ -87,7 +117,7 @@ writeShellApplication {
       "$client_id" "$client_secret" > "$oauth_keys"
 
     export GMAIL_OAUTH_PATH="$oauth_keys"
-    export GMAIL_CREDENTIALS_PATH="$dir/credentials-${alias}.json"
+    export GMAIL_CREDENTIALS_PATH="$dir/credentials-$alias.json"
     # The server writes its token cache relative to HOME; launchd and a plugin-spawned
     # process do not agree on HOME, so it is pinned.
     export HOME="${homeDirectory}"
@@ -95,6 +125,6 @@ writeShellApplication {
     # FIRST RUN NEEDS A BROWSER, once per account:
     #   GMAIL_OAUTH_PATH=$oauth_keys GMAIL_CREDENTIALS_PATH=$GMAIL_CREDENTIALS_PATH \
     #     ${npx} -y @artymclabin/gmail-mcp auth
-    exec ${npx} -y @artymclabin/gmail-mcp --tool-prefix=${alias}_
+    exec ${npx} -y @artymclabin/gmail-mcp --tool-prefix="''${alias}_"
   '';
 }
