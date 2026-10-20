@@ -77,6 +77,11 @@ let
     }
   );
 
+  # Where the operator overlay is read from (see mergeScript). XDG, never a home
+  # literal; `emptyJson` stands in when it is absent so the jq call has one shape.
+  overlayPath = "${config.xdg.configHome}/nix-config/claude-settings.overlay.json";
+  emptyJson = pkgs.writeText "claude-settings-overlay-empty.json" "{}";
+
   # The merge itself, shared by the two activation entries below. Idempotent:
   # running it twice yields the same file.
   mergeScript = ''
@@ -104,11 +109,35 @@ let
       fi
     fi
 
+    # THE OPERATOR OVERLAY: an optional, hand-placed JSON object (typically a
+    # symlink into the operator's PRIVATE marketplace clone) carrying what this
+    # public repo must not name — private marketplaces and the plugin ids they
+    # enable. The repo ships the shape, the content stays on the Mac: ADR-004's
+    # rule, and the "one private operator-content repo" its § 9.7 trigger names.
+    # Missing = no-op; not a JSON object = warned and ignored, never fatal.
+    overlay="${overlayPath}"
+    ov=${emptyJson}
+    if [ -s "$overlay" ]; then
+      if ${pkgs.jq}/bin/jq -e 'type == "object"' "$overlay" > /dev/null 2>&1; then
+        ov="$overlay"
+      else
+        warnEcho "claude-code: $overlay is not a JSON object — ignored."
+      fi
+    fi
+
     # RIGHT OPERAND WINS, recursively: the operator's keys survive, Nix's keys
     # are restored. jq's `*` replaces ARRAYS wholesale rather than concatenating,
     # which is exactly what permissions.deny needs — the floor is reinstated
     # entire, not appended to whatever was there.
-    merged=$(printf '%s' "$base" | ${pkgs.jq}/bin/jq -s --slurpfile nix ${nixSettings} '.[0] * $nix[0]')
+    #
+    # The overlay sits in the MIDDLE on purpose: it beats the live file, so an
+    # overlay value is re-asserted every rebuild — and Nix still wins over it, so
+    # an overlay can never take back a `permissions.deny`. Like the live file,
+    # a key DELETED from the overlay is not removed here; set it to `false`
+    # instead. The cost of `*` replacing arrays: an overlay cannot ADD to an
+    # array Nix owns (hooks, permissions) — private hooks belong in the private
+    # plugins' hooks.json instead.
+    merged=$(printf '%s' "$base" | ${pkgs.jq}/bin/jq -s --slurpfile ov "$ov" --slurpfile nix ${nixSettings} '.[0] * $ov[0] * $nix[0]')
     # THE ONE LINE TWO CONCURRENT ACTIVATIONS CAN COLLIDE ON, and the error it
     # produces names the symptom rather than the cause — which cost two
     # escalations and a withdrawn rewrite spec on 2026-10-02.
