@@ -3033,8 +3033,19 @@ in
               );
               declared = lib.naturalSort (lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") allCommands));
 
+              # The GENERIC launchers, which take their workspace/account from argv. They
+              # exist for plugins in the operator's PRIVATE overlay marketplace — which
+              # this check cannot read (CI has no access, and the pin is the public tree
+              # only) — so "no public plugin names it" is expected, not an orphan.
+              # Exempted BY GENERIC NAME, so no private plugin or account is named here;
+              # the `missing` leg and both non-empty legs still run over everything.
+              namedOutsidePublicTree = [
+                "nix-mcp-slack"
+                "nix-mcp-gmail"
+              ];
+
               missing = lib.subtractLists built declared;
-              orphan = lib.subtractLists declared built;
+              orphan = lib.subtractLists (declared ++ namedOutsidePublicTree) built;
             in
             mkHostContract {
               inherit pkgs;

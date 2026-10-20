@@ -418,6 +418,13 @@ let
       ];
       ghTokenEnv = "GITHUB_PERSONAL_ACCESS_TOKEN";
     };
+
+    # The GENERIC Slack posting launcher, `nix-mcp-slack <workspace>.slack.com`: the
+    # workspace arrives in argv from the plugin's own `.mcp.json`, so no workspace name
+    # is written here. A ready `package` rather than a keychain-mcp.nix entry, because
+    # its Keychain service is chosen at runtime — why that factory cannot do it is in
+    # packages/slack-post-mcp.nix.
+    slack.package = pkgs.callPackage ../../packages/slack-post-mcp.nix { } { inherit homeDirectory; };
   }
   // lib.genAttrs [ "slack-infin8" "slack-silvercreek" ] (
     name:
@@ -513,15 +520,17 @@ in
           force = true;
         };
 
+    # An entry that brings its own `package` is installed as-is; every other entry is
+    # built by the keychain-mcp.nix factory.
     home.packages = map (
       name:
-      pkgs.callPackage ../../packages/keychain-mcp.nix { } (
+      servers.${name}.package or (pkgs.callPackage ../../packages/keychain-mcp.nix { } (
         servers.${name}
         // {
           inherit name;
           inherit (config.home) homeDirectory;
         }
-      )
+      ))
     ) cfg.servers;
   };
 }
