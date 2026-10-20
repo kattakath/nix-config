@@ -90,8 +90,12 @@ in
         # .claude/rules/landing-changes.md, whose risk was "no local scan, so a
         # secret is public before CI's".
         #
-        # Custom hook because the pinned git-hooks.nix ships no gitleaks hook
-        # (its hooks.nix has `ripsecrets`, `detect-private-keys` and `trufflehog`).
+        # Custom ENTRY over git-hooks.nix's own `gitleaks` hook (added upstream in
+        # 2026-10; earlier pins shipped none), because upstream scans `git --staged`,
+        # which the check derivation passes vacuously (see `dir` below).
+        # `args = mkForce [ ]` because upstream's default args (`git --pre-commit
+        # --staged …`) are APPENDED to an overridden entry: that broke the gate with
+        # "unknown flag: --pre-commit" on the 2026-10-19 lock bump (#891).
         # gitleaks rather than either scanner: the required `Scan for secrets`
         # check (.github/workflows/gitleaks.yml) IS gitleaks, from the same
         # nixpkgs pin, so local and CI give ONE verdict; a different scanner would
@@ -109,6 +113,7 @@ in
           enable = true;
           package = pkgs.gitleaks;
           entry = "${lib.getExe pkgs.gitleaks} dir --redact --no-banner --exit-code 1 .";
+          args = lib.mkForce [ ];
           pass_filenames = false;
           always_run = true;
         };
