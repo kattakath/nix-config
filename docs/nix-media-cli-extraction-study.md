@@ -8,7 +8,7 @@
 > the two media-*adjacent* tools it recommended leaving behind (`fidelity-enhance`,
 > `obs-fb-setup`) moved too, opt-in. It also MISSED one coupling — the `nix-*` launchd arg0
 > came from this repo's vendored hm-launchd fork, not upstream. The `media-<verb>` renaming
-> proposal is the one part still open, and with the absorption it is this repo's call again.
+> proposal has since landed (the CLIs are `media-*`).
 
 The answer to [`nix-media-cli-extraction-grant.md`](nix-media-cli-extraction-grant.md).
 Grounded at `959d747` (2026-09-05, `main`); every claim below was re-verified against

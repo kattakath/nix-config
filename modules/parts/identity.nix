@@ -53,8 +53,7 @@ let
   # The GitHub Gist ID hosting resume.json (jsonresume.org). OPTIONAL — set to
   # null to disable. When non-null it composes jsonResumeUrl below (the raw
   # resume.json URL), which is BAKED into the `jsonresume` package as its default
-  # --url (packages/jsonresume.nix) — no ambient env var, since that package is
-  # its only consumer. Owner is the GitHub handle (userName), not the POSIX loginName.
+  # --url (packages/jsonresume.nix) — no ambient env var. Owner is the GitHub handle (userName), not the POSIX loginName.
   # OPERATOR-ONLY: the URLs built from it reach every home profile as extraSpecialArgs
   # (compose.nix), but only the operator's Mac installs their consumers (isMacosHost);
   # the public `packages.*` outputs bake them in as their default `--url`.

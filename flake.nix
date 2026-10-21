@@ -159,10 +159,8 @@
     determinate.inputs.nixpkgs.follows = "nixpkgs";
 
     # agenix — encrypted secrets committed to THIS repo (age, SSH-key based).
-    # The sole secret (./secrets/cloudflared-token.age) is encrypted to the
-    # operator's ~/.ssh/id_ed25519 ALONE — an operator-only vault: decrypted on
-    # the Mac to plant on nixpi's SD FIRMWARE partition, never on any host.
-    # Recipients are declared in ./secrets/secrets.nix. Pure age/SSH — no
+    # Four secrets on two models — one operator-only, three host-decrypted on
+    # macos; ./secrets/secrets.nix declares the recipients and says which is which. Pure age/SSH — no
     # ssh-to-age step, no Go build. Follows our nixpkgs.
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
@@ -360,8 +358,8 @@
     # input copies the GIT TREE, so that footgun cannot fire for these.
     kattakath-skills = {
       # github:kattakath/skills (renamed from kattakath/ai 2026-09-23; GitHub
-      # redirects the old name). Agent Skills in skills/, Claude Code plugins in
-      # plugins/, published as the `kattakath` marketplace.
+      # redirects the old name). Claude Code plugins in plugins/, published as the
+      # `kattakath` marketplace.
       #
       # PINNED FOR TWO THINGS: `page-lab-pick` runs a plugin script as a fleet CLI
       # (a plugin's own bin/ is on the Bash tool's PATH, NOT a hook's — measured

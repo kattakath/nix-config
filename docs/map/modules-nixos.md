@@ -18,8 +18,11 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   **`nixpi` OPTS OUT of that default since 2026-10-01** (`lan-recovery.nix`, below), because
   loopback-only also meant the tunnel was a SINGLE POINT OF FAILURE: when the connector died
   that day the host was unreachable by every route and recovery was a ~40-minute physical SD
-  reflash. `nixvm`, and every `lib.mkNixos` consumer, keep the loopback-only default. The
-  physical console is the break-glass path below both.
+  reflash. The physical console is the break-glass path below both. `nixos` opts out too,
+  through the same option (`hosts/nixos.nix`). `nixvm`'s exported base toplevel, and a
+  `lib.mkNixos` consumer that does not override it, keep the loopback-only default; `nixvm`'s
+  booted `vmVariant` overrides it for its host-loopback forward. Both VMs:
+  [`hosts.md`](hosts.md).
   `nixvm` is only ever the local, HEADLESS `nix run .#nixvm` build-vm (SSH only via the host-loopback forward on `127.0.0.1:2222`) and has no networked login path
   either — but note it autologins with **no password** AND keeps a persistent `/home` in its
   qcow2 (see `nixvm.nix` above), so that image is durable unencrypted local state rather than
@@ -38,7 +41,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   Access enforces at the EDGE such a connection is not merely unauthenticated, it produces **no
   access log at all**. **Narrowing:** putting sshd back on loopback, or dropping the
   per-interface allow-list, silently restores the single point of failure that cost the
-  2026-10-01 reflash. Its legs, each naming its own silent-failure mode:
+  2026-10-01 reflash. Its legs include the ones below, each naming its own silent-failure
+  mode; the check's own leg list in `modules/parts/checks.nix` is the complete set:
   - `openFirewall = false` — upstream defaults it **true** and feeds `cfg.ports` straight into
     `allowedTCPPorts`, i.e. the GLOBAL list, so deleting that one line opens 22 on every
     interface the host has with no other file changing.
@@ -131,8 +135,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   setting is invisible. Nothing here stops the Pi compiling locally either (`max-jobs` is
   still `auto`), and the Access application itself lives in Cloudflare's API, where its
   2026-08-20 disappearance was invisible to eval then and still is.
-- **`modules/nixos/lan-recovery.nix`** — `local.lanRecovery` (default off; `nixpi` turns it on,
-  `hosts/nixpi.nix`). **The SECOND INGRESS**, added 2026-10-01 after a dead cloudflared connector
+- **`modules/nixos/lan-recovery.nix`** — `local.lanRecovery` (default off; `nixpi` and `nixos` turn it on,
+  `hosts/nixpi.nix` and `hosts/nixos.nix`). **The SECOND INGRESS**, added 2026-10-01 after a dead cloudflared connector
   left the host unreachable by every route — Access healthy and still issuing a login URL, the
   zone healthy, the site answering HTTP 530 / Cloudflare 1033, SSH timing out *during banner
   exchange* — and recovery was a ~40-minute physical SD reflash. `uplink-watchdog.nix` had
@@ -217,8 +221,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   RUNTIME `wpa_supplicant.conf`; the card's copy on the FAT `FIRMWARE` partition stays the
   source of truth, and a reboot undoes any escalation. Gated by `checks.<system>.uplink-watchdog-paths-agree`,
   which fails if the watchdog and `local.firmwareProvisioning.files.wifi` stop naming the
-  same runtime file, planted filename, or ordered-before unit — and, since 2026-10-01, if either
-  of those interface names stops matching `local.lanRecovery.interfaces`. **It cannot conjure an
+  same runtime file, planted filename, or ordered-before unit. (The join of the watchdog's
+  interface names to `local.lanRecovery.interfaces` is a leg of `nixpi-security-posture`, not of
+  this check.) **It cannot conjure an
   uplink** — the fallback AP only helps while it is actually broadcasting, and a phone
   hotspot that sleeps with no client attached is not an unattended backup. **Nor is it a
   connector watchdog:** it only ever hands the tunnel a working uplink, so it did nothing for the
@@ -332,6 +337,9 @@ followed on **2026-09-16**, moved off the Pi while nixpi was down so the landing
 depending on it. That last one is served by the `kattakath/ismail-landing` repo now, and its DNS
 is a plain **CNAME → `kattakath.github.io` (DNS-only)** declared in
 `infra/cloudflare/kattakath-dns.nix` — no longer a proxied tunnel CNAME rendered here.
+
+`hostedSites` is not Caddy's only vhost: `hosts/nixpi.nix` also merges a LAN-only
+`http://nixpi.local` vhost for Audiobookshelf — see [`hosts.md`](hosts.md).
 
 **`sites/ismail-landing` stays in the tree regardless** — absent from `hostedSites` means "Caddy
 no longer serves it", not "nothing reads it": its `fonts/` subdir is LIVE, read by

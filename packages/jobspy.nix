@@ -1,5 +1,5 @@
 # `jobspy` — scrape jobs from LinkedIn/Indeed/Glassdoor/Google/ZipRecruiter/etc. into
-# CSV or JSON. A thin, reproducible CLI around the off-the-shelf `python-jobspy` library
+# CSV or JSON. A thin CLI around the off-the-shelf `python-jobspy` library
 # (github.com/speedyapply/JobSpy) — JobSpy has no CLI of its own, so this wraps its
 # `scrape_jobs()` behind argparse and runs it in an EPHEMERAL uv environment
 # (`uv run --with python-jobspy`), so nothing is pip-installed globally. uv + Python are

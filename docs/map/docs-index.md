@@ -7,7 +7,8 @@ Moved here from CLAUDE.md on 2026-09-23. CLAUDE.md is an index and was chronical
 the "encyclopedia" its own header says belongs here. It keeps a short pointer plus only the
 read-this-first warnings that stop someone acting on a superseded design doc.
 
-`checks.<system>.docs-indexed` accepts EITHER file, so this section is what satisfies it for
+`checks.<system>.docs-indexed` accepts a resolving link from ANY index in `docIndexNames`
+(`modules/parts/checks.nix`), so this section is what satisfies it for
 the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 
 
@@ -42,9 +43,10 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   and leaves stale entries on disk (#732); the body is the design record of the merge and the
   watch agent.
 - [`docs/private-home-modules.md`](../private-home-modules.md) — the two composition seams,
-  `lib.mkDarwin { extraHomeModules }` and `lib.mkNixos { hostedSites }`: still real, unused
-  since the private nix-personal flake was retired 2026-09-15. Also nixpi's `hostedSites`
-  runbook.
+  `lib.mkDarwin { extraHomeModules }` and `lib.mkNixos { hostedSites }`, both still real.
+  `extraHomeModules` has been unused since the private nix-personal flake was retired
+  2026-09-15; `hostedSites` is live, carrying nixpi's sites (`config.fleet.hostedSites`,
+  `modules/parts/identity.nix`). Also nixpi's `hostedSites` runbook.
 - [`docs/rdkb-gateway-contract.md`](../rdkb-gateway-contract.md) — the **HTTP contract**
   of the household's Rogers CGM4981 gateway (RDK-B firmware): auth, the server-side
   lockout counter, session lifetime, CSRF, the JSON log endpoint and why entity depth
@@ -65,7 +67,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   input, the `readOnly` `superUser = "postgres"` that breaks peer auth, and the `dataDir`
   default that initdb's a fresh cluster over a live store. Mechanised by
   `checks.<system>.local-rag-upstream-seam`; carries its own proven-vs-unmeasured table.
-- [`docs/secrets-and-keychain.md`](../secrets-and-keychain.md) — agenix operator-only vault,
+- [`docs/secrets-and-keychain.md`](../secrets-and-keychain.md) — the agenix vault,
   the login-Keychain loader, the `secret` CLI.
 - **ADRs, in order** — [`ADR-001`](../flake-architecture-strategy-adr.md) (flake-parts for the
   small supporting flakes; **superseded in part**, and its objection 3 still stands);
@@ -98,23 +100,13 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   [`ADR-008`](../declarative-plugin-floor-adr.md) (**PARTIALLY ACCEPTED 2026-10-02 — read §9a
   FIRST**: the `declared` lane is BUILT as `local.claudePlugins.declared`, the `assured`
   managed-settings lane is NOT, and §9a tables which of §7's five open questions that split made
-  irrelevant — 1-3 all concern the managed FILE, which is untouched). Can the fleet declare a plugin enabled
-  **or disabled** in VCS, restored each activation, while ad-hoc choices still survive? Today
-  **no, for all but three names**: `cfg.marketplaces.*.plugins` reaches `enabledPlugins` only
-  through the hardcoded `alwaysOnNames` filter, and `extraKnownMarketplaces` never reads
-  `plugins` at all — which is why **#751 merged and enabled nothing** (reverted in #754), and
-  **#753 repeated it** with `silent-instruments`, which is what forced §9a.
-  Measured: Nix writes **3** of the **42** live `enabledPlugins` ids; the operator's 39 include
-  **9 explicit `false`**, a value Nix cannot emit. **Read §5 first** — it names the one sentence
-  in the request that cannot be built: for an id Nix declares, "assured" and "overridable in a
-  way that survives activation" are the same value being both fixed and not fixed, so the
-  mechanism forces a per-plugin choice between a root-owned **managed** floor (absolute — a
-  sideload is *"locked by managed settings"*) and a **user-settings** default (re-asserted each
-  activation). §7 holds the five measurements that must land before any code, of which #1 can
-  invalidate the whole shape: the docs say *gateway policy* `extraKnownMarketplaces` maps do not
-  merge and are **silent** on the managed FILE. §4d is the incidental find —
-  `claude-plugins-official` needs **no `source`**, its name being reserved to Anthropic's, yet
-  this repo declares an explicit URL for it. This ADR does **not** reopen #648; §3 upholds it);
+  irrelevant). Can the fleet declare a plugin enabled
+  **or disabled** in VCS, restored each activation, while ad-hoc choices still survive? §5 names
+  the one sentence in the request that cannot be built: for an id Nix declares, "assured" and
+  "overridable in a way that survives activation" are the same value being both fixed and not
+  fixed, so the mechanism forces a per-plugin choice between a root-owned **managed** floor
+  (absolute — a sideload is *"locked by managed settings"*) and a **user-settings** default
+  (re-asserted each activation). This ADR does **not** reopen #648; §3 upholds it);
   [`ADR-009`](../structural-boundaries-adr.md) (**DECIDED 2026-10-02 — documents the EXISTING
   layout, proposes no migration**: the `modules/parts` → class-layer → `modules/features`
   boundary, the one-line rule for which of the **two** `packages/` trees a new package goes in
@@ -128,8 +120,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   its *"the type can be any folder name"* clause, `ryan4yin/nix-config`'s `agents/` + `.agents/`
   + `AGENTS.md` triple mirroring `claude/` + `.claude/` + `CLAUDE.md`) — **with the caveat that
   blueprint is NOT a pinned input**, so that is cited precedent, not a grepped option surface.
-  §8 adopts `modules/shared` → `modules/home` as this ADR's own consequence, to be done in its
-  own PR with an empty `drv-snapshot.sh --compare` diff. §9 is the honest wart list:
+  §8 adopts `modules/shared` → `modules/home` as this ADR's own consequence — **DONE
+  2026-10-02**, per §8's own heading. §9 is the honest wart list:
   `packages/next-right-thing/` holds **no package at all** (six scripts, no `default.nix`, zero
   references in `modules/parts/packages.nix`), and 2 of `modules/shared/`'s then-24 `.nix` were
   not home-manager modules — `nix-cache.nix` calls itself *"NixOS-ONLY"* on its own line 3, and
@@ -154,8 +146,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - [`docs/macvm-readd-runbook.md`](../macvm-readd-runbook.md) — re-adding the removed `macvm`
   Tart guest (2026-09-05); what survives in the `tart-vms` capsule.
 - [`docs/gmail-mcp-multi-account-runbook.md`](../gmail-mcp-multi-account-runbook.md) — TRUE
-  simultaneous multi-account Gmail + a silent-wrong-account failure mode. **LIVE**, and the only
-  MCP doc that is: Gmail moved to the plugin lane on 2026-10-01, and since 2026-10-20 the roster
+  simultaneous multi-account Gmail + a silent-wrong-account failure mode. **LIVE**: Gmail moved
+  to the plugin lane on 2026-10-01, and since 2026-10-20 the roster
   lives only in plugin `.mcp.json` args (`local.gmailMcp.enable` installs one generic launcher).
 - [`docs/claude-code-observability-runbook.md`](../claude-code-observability-runbook.md) — local
   OTel for Claude Code's `tool_decision` telemetry + the `/routing-review` loop.
@@ -188,7 +180,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - [`docs/open-design.md`](../open-design.md) — OpenDesign's declared/imperative boundary: cask +
   updater kill-switch vs. the app's mutable state. Its MCP server left the fleet 2026-09-22.
 - [`docs/photo-system.md`](../photo-system.md) — photo retrieval end to end: the
-  durable/derived split between what `photo-describe` writes and what `rclip` keeps.
+  durable/derived split between what `media-describe` writes and what `rclip` keeps.
 - [`docs/auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md) — how every fleet
   flake merges itself once CI is green (App token, ruleset). **No merge queue** since
   2026-09-22; §3 records why, and what to re-check before re-adopting.
@@ -200,4 +192,4 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   `flake.lock` bump flow.
 - [`docs/nix-media-cli-extraction-grant.md`](../nix-media-cli-extraction-grant.md) + its
   [study](../nix-media-cli-extraction-study.md) — **HISTORY**: extracted 2026-09, then ADR-002
-  brought it back as the `media-cli` capsule. Only the `media-<verb>` rename is open.
+  brought it back as the `media-cli` capsule.

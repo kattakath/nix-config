@@ -37,7 +37,7 @@ only these two scripts need the manual nudge.
 
 ## Scope: real Mac only
 
-Gated on `isMacosHost` (`networking.hostName == "macos"`) — the same gate as
+Gated on `isMacosHost` (the `local.operatorHost` flag) — the same gate as
 the RAG stack (and, until 2026-10-02, the MCP public tunnel and telegram, both gone with the
 gateway). `macos` is the fleet's only
 darwin host today, and `programs.claude-code` is itself darwin-only

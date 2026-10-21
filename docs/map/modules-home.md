@@ -674,7 +674,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   to a store path leaves the wallpaper out of the generation's closure, so
   `nix-collect-garbage` would delete the file out from under the desktop.
 - **`launchd-launcher.nix`** — makes every HM agent's `ProgramArguments[0]`
-  basename is `nix-<activity>` (macOS BTM rule — tags nix-config origin; **never** a bare
+  basename `nix-<activity>` (macOS BTM rule — tags nix-config origin; **never** a bare
   interpreter like `sh`/`python3`). It is upstream's own `waitForNixStore = false` trade
   (pinned HM `modules/launchd/default.nix:47-52`): a named launcher instead of a
   `/bin/sh -c wait4path` arg0, accepting that launchd's exec fails outright if it fires
