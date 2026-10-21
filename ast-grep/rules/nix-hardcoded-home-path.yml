@@ -23,8 +23,8 @@ severity: error
 # ---- THE NON-OPERATOR USERS, and why exempting them is a SCOPE fix ----------
 #
 # This rule's own stated harm is "not reproducible and breaks on any other
-# operator/host" — i.e. it governs paths on THIS fleet's machines. Three literal
-# user segments are not that, and all three arrived with the tart-vms capsule
+# operator/host" — i.e. it governs paths on THIS fleet's machines. Three of these literal
+# user segments (admin, tester, me) are not that, and all three arrived with the tart-vms capsule
 # (ADR-002 wave 5), where they are CORRECT and have no $HOME/XDG spelling:
 #
 #   admin   the account baked into Cirrus' macOS GUEST images. A path under it
@@ -44,9 +44,9 @@ severity: error
 # recorded here.) This NARROWS the rule by literal names; it does not loosen what it
 # catches. `/Users/ismail/`, `/home/ismail/` and every other operator home stay
 # errors, and ast-grep/rule-tests/nix-hardcoded-home-path-test.yml proves both
-# halves — the exemptions are in `valid`, the real homes still in `invalid`.
+# halves — the three named exemptions are in `valid` (`stranger` is untested), the real homes still in `invalid`.
 # KEEP IN SYNC with the companion hook `nix-home-path-lint.js`, which carries the
-# same three names for the same reason.
+# same names for the same reason.
 #
 # THE TWO ARE OUT OF SYNC AS OF 2026-09-16, and saying so here is the point —
 # an unqualified "keep in sync" next to a rule that has diverged is worse than

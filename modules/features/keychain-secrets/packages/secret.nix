@@ -11,16 +11,16 @@
 #
 # The index (`__set_secret_index__`) is SINGLE-WRITER: only this CLI's set/rm
 # maintain it. An item created out-of-band (Keychain Access GUI, raw `security
-# add-generic-password`) therefore EXISTS — `get` still finds it by direct
+# add-generic-password`) therefore EXISTS — `reveal` still finds it by direct
 # lookup — but is invisible to `ls` AND to the shell loader's export loop
-# (`secret load` iterates the same index, so it cannot help either). `get`
+# (`secret load` iterates the same index, so it cannot help either). `reveal`
 # warns on such unindexed hits, and `adopt` re-registers the item through the
 # managed set path — which also puts this CLI on the item's ACL, silencing the
 # per-read auth prompt GUI-created items carry.
 #
 # `set-secret` / `remove-secret` remain as thin back-compat aliases. The MUTATING
 # verbs (set/rm/adopt) forward to `set-secret` so the Keychain/index logic lives
-# in ONE place; get/list are simple reads done here. macOS-ONLY (the Keychain is
+# in ONE place; reveal/list are simple reads done here. macOS-ONLY (the Keychain is
 # macOS-only). A companion shell FUNCTION the home-manager module wraps this so
 # set/rm/adopt/load also update the CURRENT shell's environment — a bare binary
 # cannot mutate its parent's env, and `load` is therefore function-only.

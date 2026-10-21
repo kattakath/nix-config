@@ -114,7 +114,7 @@ let
                   ;;
               esac
               # No ENV half: stored deliberately WITHOUT an env binding, so it
-              # must never become ambient. Read it on demand with `secret get`.
+              # must never become ambient. Use it on demand with `secret exec` / `copy` / `reveal`.
               if [ -z "$__ss_e" ]; then
                 __ss_skipped=$((__ss_skipped + 1))
                 __ss_dbg "not exported: $__ss_s (no env binding; on-demand only)"
@@ -263,13 +263,12 @@ let
         remove-secret() {
           set-secret --remove "$@"
         }
-        # Primary noun-verb interface: `secret <set|get|rm|ls|adopt|load|KEY>`. The
+        # Primary noun-verb interface: `secret <set|rm|ls|adopt|bind|unbind|load|…>`. The
         # mutating verbs update THIS shell (set/adopt→export, rm→unset) by delegating
         # to the set-secret/remove-secret functions above (adopt runs in the binary,
         # then exports here); `load` re-reads the whole store into the current shell
         # (the fix for a manually-unset var — see the sentinel caveat above);
-        # get/ls/help fall through to the `secret` binary. A bare `secret KEY` is
-        # (no bare-KEY shorthand any more — printing is opt-in.)
+        # ls/help and everything else fall through to the `secret` binary.
         secret() {
           case "''${1:-}" in
             set)
@@ -293,9 +292,9 @@ let
               ;;
             bind | unbind)
               # MUST be listed explicitly. Anything not matched here falls to the
-              # `*)` arm below and is treated as a KEY to get — so a missing verb
-              # becomes `secret get unbind`, which exits 44 (security(1): item not
-              # found) and reads as a bug in the binary rather than a gap here.
+              # `*)` arm below, which passes it to the binary — so a missing verb here makes
+              # the binary refuse it as an unknown command, which reads as a bug in
+              # the binary rather than a gap here.
               # Capture the binding BEFORE the call; afterwards the index no
               # longer says what it was.
               __ss_verb="$1"

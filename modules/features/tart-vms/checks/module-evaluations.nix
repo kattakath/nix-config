@@ -507,8 +507,9 @@ in
 
   # ---- THE KILL-SWITCH GATE (ADR-002 §2 anatomy, wave 5) -------------------
   #
-  # NEW — the satellite never needed it, and this fleet does. All four modules
-  # sit in mkDarwin's BASE list (modules/parts/compose.nix), so they are
+  # NEW — the satellite never needed it, and this fleet does. Both runner modules
+  # (and ./slots.nix, which each imports) sit in mkDarwin's BASE list
+  # (modules/parts/compose.nix), so they are
   # evaluated by EVERY darwin composition — the fleet's own and any future
   # caller's of `lib.mkDarwin` alike. compose.nix asserts in prose that they are "inert
   # unless a host sets local.tart.githubRunners"; nothing measured it, and a module

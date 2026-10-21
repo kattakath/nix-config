@@ -37,9 +37,9 @@
 }:
 let
   # A Terraform resource name may hold letters, digits, underscore and dash, and
-  # may not start with a digit. `key` is hand-written in kattakath-dns.nix; this is the
-  # assertion that it stayed that way, not a second sanitiser — two sanitisers
-  # disagreeing is worse than one that is checked.
+  # may not start with a digit. `key` is hand-written in kattakath-dns.nix; this asserts each one is a
+  # valid resource name rather than sanitising it — rewriting a key would rename
+  # the resource, i.e. a destroy + create.
   badKeys = builtins.filter (r: !(builtins.match "[a-z][a-z0-9_]*" r.key != null)) dnsRecords;
 
   # The apex is spelled as the bare domain, subdomains fully qualified. Cloudflare
