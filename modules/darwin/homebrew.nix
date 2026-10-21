@@ -57,34 +57,31 @@ _:
     };
 
     # ---- Taps --------------------------------------------------------------
-    # Exactly one third-party tap, and it is a DELIBERATE RE-ADOPTION (2026-08-31)
-    # of one this repo removed on 2026-07-08 — so do not "clean it up" as leftover
-    # drift. escrcpy is the graphical scrcpy frontend (Electron; hosts/macos.nix
-    # casks) and ships NOWHERE else: absent from homebrew-core AND from nixpkgs,
-    # with only an upstream .dmg otherwise. Since every other GUI app here arrives
-    # as a cask or a masApp, the tap is what keeps this one declarative instead of
-    # a hand-dragged .app no `cleanup` would ever reclaim.
+    # Exactly one third-party tap: our OWN shared tap, ismailkattakath/tap
+    # (github.com/ismailkattakath/homebrew-tap — brew maps `<user>/tap` to
+    # `homebrew-tap`). It holds every cask this fleet ships that homebrew/cask
+    # does not, so a new one is a file in that repo, not a new tap here. It
+    # replaced the per-app fork tap `ismailkattakath/escrcpy` (2026-10-21).
+    # Do not "clean it up" as leftover drift: each cask in it ships NOWHERE else,
+    # and without the tap the app would be a hand-dragged .app no `cleanup` reclaims.
     #
-    # Two costs accepted knowingly, both re-verified against the tap at v3.0.8:
-    #   - `depends_on macos: :catalina` was STILL in upstream's cask. Homebrew 7
-    #     DISABLED that form ("There is no replacement"), turning a cosmetic
-    #     deprecation warning into a hard `brew bundle` failure that aborts
-    #     activation — which is why nix-homebrew sat rev-pinned to brew 6.0.22
-    #     (kattakath/nix-config#613). Hence the tap NAME below: our own fork,
-    #     whose `main` carries the one-line fix (`depends_on :macos`, matching
-    #     Homebrew/homebrew-cask#284098) that viarotel-org/homebrew-escrcpy#61
-    #     still has not merged upstream. That unblocked the unpin.
-    #     TEMPORARY — point `name` back at `viarotel-org/escrcpy` the moment #61
-    #     merges: a fork tap stops receiving upstream's version bumps, so this
-    #     costs cask freshness for as long as it stays. Check with
-    #     `gh pr view 61 -R viarotel-org/homebrew-escrcpy --json state`.
-    #   - Gatekeeper never evaluates the app: upstream ships it unsigned, so a
-    #     quarantined copy is reported "damaged and can't be opened" and will not
-    #     launch at all. The cask therefore carries a `postinstall` that strips the
-    #     quarantine flag (hosts/macos.nix) — that hook is load-bearing, not
-    #     polish. The measurement, the rejected `args.no_quarantine` alternative,
-    #     and the security tradeoff are all recorded at that cask entry; read it
-    #     before touching either flag.
+    #   - escrcpy (graphical scrcpy frontend; absent from homebrew-core AND nixpkgs).
+    #     Migrated verbatim from our fork of viarotel-org/homebrew-escrcpy, keeping
+    #     its one-line fix: upstream's `depends_on macos: :catalina` is DISABLED in
+    #     Homebrew 7 (a hard `brew bundle` failure that aborts activation — why
+    #     nix-homebrew sat rev-pinned to brew 6.0.22, kattakath/nix-config#613).
+    #     The upstream fix, viarotel-org/homebrew-escrcpy#61, was CLOSED unmerged
+    #     (2026-10-10), so the cask stays ours. Cost: no upstream version bumps —
+    #     bump `version` + `sha256` in the tap when escrcpy releases.
+    #   - civitai-live-wallpaper (our own app, gitlab.com/izzykatt/civitai-live-wallpaper;
+    #     DMGs from its public package registry — the project itself is private).
+    #
+    # Both apps are ad-hoc signed / unsigned and not notarized, so Gatekeeper never
+    # evaluates them: a quarantined copy will not launch. Each cask entry therefore
+    # carries a `postinstall` that strips the quarantine flag (hosts/macos.nix) —
+    # load-bearing, not polish. The measurement, the rejected `args.no_quarantine`
+    # alternative, and the security tradeoff are recorded at the escrcpy cask entry;
+    # read it before touching either flag.
     #
     # Workable only because nix-homebrew sets mutableTaps = true (./nix-homebrew.nix)
     # — otherwise a tap must be pinned as a flake input. Framework-level per this
@@ -104,10 +101,8 @@ _:
     # nats-server is homebrew-core, so no tap is needed.
     taps = [
       {
-        # Our fork, not viarotel-org — see the `depends_on` cost above. brew maps
-        # `<user>/<repo>` to github.com/<user>/homebrew-<repo>, so this resolves to
-        # github.com/ismailkattakath/homebrew-escrcpy (cask token stays `escrcpy`).
-        name = "ismailkattakath/escrcpy";
+        # Our shared tap — see above. Resolves to github.com/ismailkattakath/homebrew-tap.
+        name = "ismailkattakath/tap";
         trusted = true;
       }
     ];
