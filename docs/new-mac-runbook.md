@@ -130,7 +130,7 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   `.before-nix-darwin`, or set `local.claudeManagedSettings.enable = false`.
 - **Tart VM disks are NOT restored by a rebuild.** They live under `~/.tart/`; neither this repo nor the key kit restores them.
 - **Google Takeout video shows the generic MP4 icon — re-encode with
-  `fix-google-video`.** Google's Storage Saver tier transcodes to
+  `media-transcode`.** Google's Storage Saver tier transcodes to
   **VP9-in-MP4** server-side, and macOS ships no VP9 decoder, so QuickLook can
   never decode a frame. Duration and dimensions still display (container header,
   not a decoded frame), which makes it read as a thumbnail-cache bug rather than

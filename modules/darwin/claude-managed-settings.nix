@@ -240,8 +240,8 @@ let
     #
     # This fleet plants rank 3. So a rank-1 or rank-2 source arriving with ONE
     # unrelated policy key would silently void everything below — the
-    # secret-value denies, the attribution keys, strictKnownMarketplaces,
-    # disableSideloadFlags. Silently: no warning, and `nix flake check`
+    # secret-value denies, the attribution keys and strictKnownMarketplaces.
+    # Silently: no warning, and `nix flake check`
     # structurally cannot see it either, because this file is PLANTED rather than
     # evaluated.
     #
@@ -393,7 +393,7 @@ let
     #
     # WHY THE EXACT `git` ENTRIES ARE HERE ALONGSIDE THE WILDCARDS, and do not
     # delete them as redundant: whether a `github`-form wildcard matches a
-    # marketplace DECLARED as a `git` source (which all eight of ours are) is
+    # marketplace DECLARED as a `git` source (as every non-store one of ours is) is
     # INFERRED, not measured. It could not be measured — `strictKnownMarketplaces`
     # enforces only from the real managed file, and CLAUDE_CODE_MANAGED_SETTINGS_PATH
     # does NOT deliver it: an allowlist naming only a nonexistent owner still
