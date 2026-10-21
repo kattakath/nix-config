@@ -330,14 +330,6 @@
       url = "github:vercel/workflow";
       flake = false;
     };
-    # Anthropic's OFFICIAL first-party plugin marketplace (Apache-2.0). The marketplace reaches Claude
-    # Code as an HTTPS source, NOT through this pin: `local.claudePlugins.marketplaces.claude-plugins-official`
-    # (modules/home/default.nix; modules/home/claude-plugins.nix says why a directory pin is rejected).
-    claude-plugins-official = {
-      url = "github:anthropics/claude-plugins-official";
-      flake = false;
-    };
-
     # ---- THIS OPERATOR'S OWN agent resources (source-only, flake = false) -----
     # Extracted from this repo 2026-09-12. They are pinned here exactly like the
     # third-party `agent-skills-*` above — same rail, no special case — so the

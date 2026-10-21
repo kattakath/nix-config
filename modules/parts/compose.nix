@@ -36,7 +36,6 @@ let
     agent-skills-jsonresume
     agent-skills-vercel-agent
     agent-skills-vercel-workflow
-    claude-plugins-official
     grok-build-plugin-cc
     ;
 
@@ -110,7 +109,6 @@ let
             agent-skills-jsonresume
             agent-skills-vercel-agent
             agent-skills-vercel-workflow
-            claude-plugins-official
             grok-build-plugin-cc
             # kattakath-skills is DELIBERATELY ABSENT from this seam, and that is
             # the correction rather than an omission. It sat here until 2026-10-02
