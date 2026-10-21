@@ -581,7 +581,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   Desktop should see is a state something must *write*. Switching the writer off leaves whatever
   is on disk, which is exactly how a stale `kattakath-portal` entry pointing at destroyed
   infrastructure survived for a day after the purge (#732). `checks.claude-desktop-config-shape`
-  asserts the module is on and renders exactly those three names.
+  asserts the module is on and renders no server but `github` from Nix.
   The machinery is unchanged and still earns its keep: Desktop accepts ONLY the stdio shape, so
   any `url` becomes a pinned `mcp-remote` shim (`lib.hm.mcp.transformMcpServer` + one
   `extraTransform`, the codex module's pattern); an activation plus the
@@ -689,7 +689,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   hand-written `launchd.daemons`/`launchd.agents` MUST point `arg0` at a
   `writeShellScriptBin "nix-<activity>"` wrapper (canonical today: `nix-tart-vm-<name>` and
   `nix-tart-runner-<name>` in the `tart-vms` capsule, `nix-file-rotation-<suffix>` in
-  `modules/darwin/core.nix` — the trio this line used to name, `telegramMcp`/`wpMcp`/`apifyMcp`,
+  `modules/home/macos-user-agents.nix` — the trio this line used to name, `telegramMcp`/`wpMcp`/`apifyMcp`,
   lived in `mcp.nix` and went with it on 2026-10-02) — codified as the always-applied
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.
