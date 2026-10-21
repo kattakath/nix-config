@@ -446,7 +446,7 @@ The scoping reasoning was right and the mechanism was wrong. **A project's own
 no Nix wiring, and it cannot be loaded in sessions that have nothing to do with that project.
 The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`.
 
-Adding one = a `plugins/<name>/` tree (or a `skills/<name>/` plus a marketplace-root entry)
+Adding one = a `plugins/<name>/` tree
 and a `marketplace.json` entry **in that repo**, then its bare name in
 `local.claudePlugins.marketplaces.kattakath.plugins` here. That list is a **catalogue** and
 enables nothing (the #751 trap): turning the plugin on takes `"<name>@kattakath" = true` in

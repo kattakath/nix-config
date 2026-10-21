@@ -19,8 +19,8 @@ property it encodes.
 
 **~~One caveat~~ — RESOLVED 2026-09-22.** `mcp-allow-operator` now allows by **`email_domain`**
 (`kattakath.com`), applied through terranix after importing the live object so no duplicate
-policy was minted. Adding a second human is a Workspace action, not a policy edit. It gates 28
-applications, `nixpi.kattakath.com` among them, so that one change widened SSH to the Pi from one
+policy was minted. Adding a second human is a Workspace action, not a policy edit. It gates
+`nixpi.kattakath.com` (the one Access application left, per the table above), so that one change widened SSH to the Pi from one
 mailbox to the domain — intended, and worth knowing. The apply also dropped the policy's
 `session_duration = "24h"`, which the resource does not declare.
 

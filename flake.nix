@@ -159,8 +159,8 @@
     determinate.inputs.nixpkgs.follows = "nixpkgs";
 
     # agenix — encrypted secrets committed to THIS repo (age, SSH-key based).
-    # Four secrets on two models — one operator-only, three host-decrypted on
-    # macos; ./secrets/secrets.nix declares the recipients and says which is which. Pure age/SSH — no
+    # Secrets on two models — operator-only, and host-decrypted on macos;
+    # ./secrets/secrets.nix is the count of record, declares the recipients and says which is which. Pure age/SSH — no
     # ssh-to-age step, no Go build. Follows our nixpkgs.
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";

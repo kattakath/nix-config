@@ -77,9 +77,8 @@ set -euo pipefail
 
   # ---- macOS-native UX (osascript). Never used for authentication or secrets: --
   # privilege escalation goes through sudo (Touch ID once nix-darwin's PAM config
-  # is active), and any age passphrase is read by age itself from /dev/tty, so it
-  # never transits another process's stdout. These are notices and confirmations
-  # only, and every one of them degrades to the terminal when there is no GUI.
+  # is active). These are notices, confirmations and the reboot offer, and every
+  # one of them degrades to the terminal when there is no GUI.
   has_gui() {
     [ -n "${SSH_TTY:-}" ] && return 1
     launchctl managername 2>/dev/null | grep -q Aqua
@@ -87,7 +86,7 @@ set -euo pipefail
 
   notify() { # $1 = message
     has_gui || return 0
-    /usr/bin/osascript -e "display notification \"$1\" with title \"Nix key recovery\"" \
+    /usr/bin/osascript -e "display notification \"$1\" with title \"nix-config bootstrap\"" \
       >/dev/null 2>&1 || true
   }
 
