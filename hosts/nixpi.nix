@@ -1,5 +1,6 @@
 # NixOS host for Raspberry Pi 4 (aarch64-linux) — the fleet's LIVE server.
-# raspberry-pi-nix handles the kernel, firmware, and boot configuration.
+# nixos-hardware's raspberry-pi/4 handles the kernel, firmware and config.txt;
+# nixpkgs' own sd-image module builds the card (see the BOOT CHAIN block below).
 # Build a flashable SD card image:
 #   nix build .#nixosConfigurations.nixpi.config.system.build.sdImage
 #
@@ -35,17 +36,24 @@
   hostedSites,
   cloudflaredConnectorModule,
   firmwareSecretsModule,
-  raspberryPiNix,
+  nixosHardware,
+  modulesPath,
   ...
 }:
 {
   imports = [
-    # The Pi's own hardware: kernel, firmware, boot config and the sd-image
-    # builder, from the pinned raspberry-pi-nix input threaded through mkNixos
-    # specialArgs (modules/parts/compose.nix). Owned HERE so that nix-config
-    # builds this host standalone and the private flake never has to name them.
-    raspberryPiNix.nixosModules.raspberry-pi
-    raspberryPiNix.nixosModules.sd-image
+    # The Pi's own hardware: kernel, GPU firmware, config.txt and the
+    # firmware-partition installer, from the pinned nixos-hardware input threaded
+    # through mkNixos specialArgs (modules/parts/compose.nix). Owned HERE so that
+    # nix-config builds this host standalone.
+    nixosHardware.nixosModules.raspberry-pi-4
+    # nixpkgs' generic SD-card image builder. NOT sd-image-aarch64.nix: that wrapper
+    # also imports profiles/base.nix (installer tools, and ZFS in
+    # boot.supportedFilesystems — a kernel module this vendor kernel need not
+    # build) and writes its own config.txt, which nixos-hardware's firmware module
+    # mkForce-overrides anyway. Its one useful line is populateRootCommands, copied
+    # below.
+    "${modulesPath}/installer/sd-card/sd-image.nix"
     # Both of these are IN-TREE CAPSULES
     # (modules/features/cloudflared-connector/ and modules/features/firmware-secrets/),
     # absorbed from standalone flakes by ADR-002 waves 3 and 4. Each arrives
@@ -122,38 +130,71 @@
 
   networking.hostName = "nixpi";
 
-  # nixpkgs enables systemd stage-1 by default (boot.initrd.systemd.enable), and
-  # its TPM2 support (nixos/modules/system/boot/systemd/tpm2.nix) forces the
-  # `tpm-tis` + `tpm-crb` kernel modules into boot.initrd.availableKernelModules.
-  # The raspberry-pi-nix `linux-rpi` kernel builds neither as a loadable module,
-  # and makeModulesClosure treats availableKernelModules as REQUIRED root modules
-  # (boot.initrd.allowMissingModules defaults false) — so the missing module is a
-  # FATAL `modprobe: Module tpm-crb not found`, failing linux-rpi-*-modules-shrunk.
-  # The Pi 4 has no TPM, so disable initrd TPM2 support at the source (removes
-  # both modules).
-  boot.initrd.systemd.tpm2.enable = lib.mkForce false;
+  # ── BOOT CHAIN (nixos-hardware, since the raspberry-pi-nix exit) ─────────────
+  # GPU firmware -> U-Boot (u-boot.bin on FIRMWARE) -> extlinux.conf on the ROOT
+  # partition (/boot/extlinux, written by generic-extlinux-compatible, which
+  # nixos-hardware raspberry-pi/4/default.nix enables) -> kernel + initrd of the
+  # chosen generation. raspberry-pi-nix instead had the GPU firmware load
+  # kernel.img/initrd/cmdline.txt straight off FIRMWARE and copied them there in a
+  # boot-time oneshot.
+  #
+  # BOTH flags below are REQUIRED, and each failure is silent:
+  #   uboot.enable — without it config.txt has no `kernel=` line, the firmware
+  #     looks for kernel8.img, which nothing writes: a fresh image never boots.
+  #   enable — without it a switch never touches FIRMWARE, so an in-place-switched
+  #     Pi keeps booting the OLD kernel.img forever (nothing errors; the new
+  #     generation just never becomes the booted one). The activation script it
+  #     adds (common/firmware.nix) rewrites FIRMWARE on every switch, and skips
+  #     when /boot/firmware is not mounted — hence the mount options below.
+  hardware.raspberry-pi.firmware = {
+    enable = true;
+    uboot.enable = true;
+  };
 
-  # CONFIRMED BOOT FIX: use the SCRIPTED (bash) initrd, not systemd-initrd.
-  # nixpkgs enables systemd stage-1 (boot.initrd.systemd.enable) by default, but on
-  # the raspberry-pi-nix `linux-rpi` kernel it HANGS stage-1 mounting the real root
-  # at /sysroot (the Pi never reaches stage-2 / a login). The classic scripted
-  # initrd mounts /sysroot and hands off reliably on this kernel, so force it off.
-  # mkForce because nixpkgs sets the default to true; keep this OFF forever — a
-  # config that reintroduces systemd-initrd will not reboot on this hardware.
+  # SD-card LAYOUT kept identical to the raspberry-pi-nix one this card was flashed
+  # with (its sd-image/sd-image.nix vs nixpkgs installer/sd-card/sd-image.nix):
+  # MBR, label-id 0x2178694e, FAT `FIRMWARE` then ext4 `NIXOS_SD` flagged
+  # bootable (where U-Boot's distro boot finds extlinux). Same labels and id are
+  # nixpkgs' defaults; only the size differs (nixpkgs 30 MB, raspberry-pi-nix 128).
+  sdImage.firmwareSize = 128;
+  # extlinux on the root partition — the line sd-image-aarch64.nix would add.
+  sdImage.populateRootCommands = ''
+    mkdir -p ./files/boot
+    ${config.boot.loader.generic-extlinux-compatible.populateCmd} -c ${config.system.build.toplevel} -d ./files/boot
+  '';
+  # nixpi-flash and the installer-latest Release both select assets matching
+  # `^nixos-sd-image-`, raspberry-pi-nix's filename. nixpkgs' default is
+  # `nixos-image-…`, which would make `nixpi-flash --release` find nothing.
+  image.baseName = "nixos-sd-image-${config.system.nixos.label}-${pkgs.stdenv.hostPlatform.system}";
+  # nixpkgs' sd-image.nix sets enableAllHardware (an installer default), which
+  # adds ~70 initrd modules — sata_*, pata_*, sun4i-drm, rockchip — that
+  # bcm2711_defconfig does not build; makeModulesClosure treats every
+  # availableKernelModules entry as required, so modules-shrunk would fail. The
+  # Pi's own initrd modules come from nixos-hardware; its firmware we keep below.
+  hardware.enableAllHardware = lib.mkForce false;
+  hardware.enableRedistributableFirmware = true;
+  # FIRMWARE is mounted at boot, as it was under raspberry-pi-nix. nixpkgs'
+  # sd-image.nix marks it `noauto`, which would leave the firmware activation
+  # script above skipping every switch. `nofail` keeps a bad FAT from blocking
+  # boot (the firmware-secrets capsule already only Wants= this mount).
+  fileSystems."/boot/firmware".options = lib.mkForce [ "nofail" ];
+
+  # TPM2: no workaround here any more. nixos-hardware raspberry-pi/4/default.nix
+  # sets `boot.initrd.systemd.tpm2.enable = false` itself ("Allow building kernel")
+  # — the same tpm-tis/tpm-crb modules-shrunk failure this file used to mkForce
+  # away on the old kernel. One copy, upstream's.
+
+  # SCRIPTED initrd, KEPT. On the raspberry-pi-nix 6.6.51 kernel systemd stage-1
+  # HUNG mounting /sysroot (the Pi never reached stage-2). Whether 6.18 + extlinux
+  # still hangs is UNTESTED — and a boot-chain swap is the wrong moment to change a
+  # second boot variable. Revisit only after this generation has booted clean
+  # (`checks.<system>.nixpi-initrd-posture` guards the upstream removal deadline).
   boot.initrd.systemd.enable = lib.mkForce false;
 
-  # C23 FIX for the frozen linux-rpi 6.6.51. glibc's C23 `strchr` returns `const
-  # char *` for a const argument, so tools/lib/bpf/libbpf.c (built by HOSTCC for
-  # resolve_btfids, under its own `-Werror`) fails with -Wdiscarded-qualifiers —
-  # broke warm-nixpi-cache after the #891 nixpkgs bump. Upstream-first: this is
-  # nixpkgs' OWN patch (pkgs/top-level/linux-kernels.nix applies it to linux_6_1;
-  # linux_6_6 gets the fix from its newer stable tree), reused rather than a
-  # `-Wno-error` flag that would also mute the next real warning. No newer
-  # raspberry-pi-nix exists (archived; `nix flake update` leaves 3e8100d5) and its
-  # 6.6.78 / 6.12.17 sources carry the same non-const `next_path`.
-  # RETIRE when the kernel source declares `const char *next_path` in libbpf.c —
-  # i.e. at the nixos-hardware migration (flake.nix, raspberry-pi-nix comment).
-  boot.kernelPatches = [ pkgs.kernelPatches.libbpf_C23_compat ];
+  # The libbpf C23 patch (`kernelPatches.libbpf_C23_compat`) is GONE with the
+  # 6.6.51 kernel: nixos-hardware's linux-rpi tag stable_20260911 already declares
+  # `const char *next_path` in tools/lib/bpf/libbpf.c (fetched and read
+  # 2026-10-21), which is exactly the line that patch changes.
 
   networking.useDHCP = true;
 
@@ -191,16 +232,6 @@
       [ config.local.uplinkWatchdog.wiredInterface ] ++ lib.attrNames config.networking.supplicant
     )
   );
-
-  raspberry-pi-nix = {
-    board = "bcm2711";
-    # The rpi libcamera FORK (0.3.1) no longer compiles against the pinned GCC
-    # (`uint8_t was not declared`), and being a fork it is in no binary cache.
-    # Anything reaching libcamera — Audiobookshelf's ffmpeg-full → openal →
-    # pipewire — then failed warm-nixpi-cache (2026-10-18, run 39111882830).
-    # This host is a headless server with no camera, so stock libcamera is fine.
-    libcamera-overlay.enable = false;
-  };
 
   # SSH over the Cloudflare Tunnel — loginless, token-based connector. Both the
   # connector token AND the Wi-Fi credentials are delivered from the SD card's FAT
@@ -370,8 +401,9 @@
   #
   # TWO INDEPENDENT KNOBS WERE WRONG, and each defeated the other's protection.
   #
-  # 1. `fsck.repair=yes` WAS ALREADY SET AND INERT. It arrives from
-  #    raspberry-pi-nix's sd-image module and says what to do IF a check runs — it
+  # 1. `fsck.repair=yes` WAS ALREADY SET AND INERT. It arrived from
+  #    raspberry-pi-nix's sd-image module (declared below since that input left)
+  #    and says what to do IF a check runs — it
   #    cannot cause one. systemd only fsck's a filesystem it believes is dirty, and
   #    this one marks itself `clean with errors`, so the check was skipped on every
   #    boot for the card's entire life. A knob that looks like protection and is
@@ -393,10 +425,21 @@
   #    and read.
   #
   # Both are DECLARATIVE here on purpose. `boot.kernelParams` is what
-  # raspberry-pi-nix renders into cmdline.txt (verified: the evaluated list matched
-  # the live card byte for byte), so this survives a reflash — unlike the hand-edit
-  # that was needed to recover this incident.
-  boot.kernelParams = [ "fsck.mode=force" ];
+  # generic-extlinux-compatible renders into each generation's extlinux.conf
+  # APPEND line (raspberry-pi-nix rendered it into cmdline.txt), so this survives
+  # a reflash — unlike the hand-edit that was needed to recover this incident.
+  #
+  # fsck.repair=yes and the two consoles were raspberry-pi-nix DEFAULTS (its
+  # sd-image/default.nix and rpi/default.nix); nixos-hardware's raspberry-pi/4
+  # sets no kernel params, so they are declared here or lost. Its root=PARTUUID,
+  # rootwait and init=/sbin/init are NOT carried: stage-1 mounts / by label and
+  # extlinux passes the generation's own init=.
+  boot.kernelParams = [
+    "fsck.mode=force"
+    "fsck.repair=yes"
+    "console=serial0,115200n8"
+    "console=tty1"
+  ];
   fileSystems."/".options = [ "errors=remount-ro" ];
 
   # ── Extra bulk storage ──────────────────────────────────────────────────────

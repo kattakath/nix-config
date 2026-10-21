@@ -141,14 +141,14 @@ they bite any future second account:
   `gpg-agent` REFUSE TO START while `gpgconf --check-options` still passes (#832 → #834), so prove
   a change by starting the agent on it. `~/.gnupg/gpg.conf` (`encrypt-to` self) stays hand-placed —
   [`new-mac-runbook.md`](../new-mac-runbook.md) § Hand-placed files.
-- **`nixpi.nix`** — Pi 4, LIVE: boot fixes + cloudflared + upstream `services.caddy`. Its
+- **`nixpi.nix`** — Pi 4, LIVE: nixos-hardware + U-Boot ([no in-place undo](../nixpi-nixos-hardware-migration.md)) + cloudflared + `services.caddy`. Its
   `sdImage` is prebuilt in CI and published to the `installer-latest` release, since it bakes
   no secrets.
   - **Audiobookshelf, LAN-only** (2026-10-18): loopback `:8000`, served as `http://nixpi.local`
     by a Caddy vhost on the already-open `:80` (no new port). Database on the SD card; books,
     metadata, logs and backups on the `/mnt/storage` USB volume (f3-verified, **no
-    redundancy**). The `--metadata` flag / `BACKUP_PATH` / `libcamera-overlay` whys are
-    commented in `hosts/nixpi.nix`.
+    redundancy**). The `--metadata` flag / `BACKUP_PATH` whys are commented in
+    `hosts/nixpi.nix`.
   - **No IPv6 temporary addresses** (`networking.tempAddresses = "disabled"`, since 2026-10-17).
     dhcpcd hands SLAAC to the kernel with `mngtmpaddr`, so link churn kept minting temporaries
     (on re-add and on pre-expiry regeneration), and each one outlived its base for its full

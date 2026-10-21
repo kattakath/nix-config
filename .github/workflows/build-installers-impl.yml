@@ -32,6 +32,15 @@ name: build-installers-impl
 
 on:
   workflow_call:
+    inputs:
+      # false = BUILD-ONLY: build the image, inspect its layout, and touch NO GitHub
+      # state -- the retire, attest and publish steps below all carry
+      # `if: inputs.publish`. The caller passes true on push-to-main and on a dispatch
+      # that ticks `publish`. Default true, so a caller that omits it keeps the old
+      # publish-always behaviour instead of silently publishing nothing.
+      publish:
+        type: boolean
+        default: true
 
 # READ-ONLY by default; the Release upload's `contents: write` is scoped to the
 # build job only (and is capped by the caller's own grant).
@@ -82,11 +91,51 @@ jobs:
         # a separate `nix log` on the runner.
         run: nix build .#packages.aarch64-linux.nixpi-sd-image --out-link result --print-build-logs
 
+      # BUILD-ONLY: prove the image's LAYOUT, which a green `nix build` does not.
+      # Partition table (p1 FAT, p2 bootable), labels, FIRMWARE contents (u-boot.bin
+      # and a config.txt that boots it) and extlinux.conf on the root partition.
+      # Read-only loop mounts on the runner; nothing is uploaded.
+      - name: Inspect the image layout (build-only)
+        if: ${{ !inputs.publish }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          imgs=(result/sd-image/*.img*)
+          [ "${#imgs[@]}" -eq 1 ] || { echo "Expected one image, found ${#imgs[@]}" >&2; exit 1; }
+          echo "image: $(basename "${imgs[0]}") ($(stat -L -c %s "${imgs[0]}") bytes compressed)"
+          sudo mkdir -p /mnt/inspect && sudo chown "$(id -u)" /mnt/inspect
+          img=/mnt/inspect/nixpi.img
+          case "${imgs[0]}" in
+            *.zst) zstd -d -q -f "${imgs[0]}" -o "$img" ;;
+            *) cp "${imgs[0]}" "$img" ;;
+          esac
+          echo "decompressed: $(stat -c %s "$img") bytes"
+          sfdisk -d "$img" | tee /mnt/inspect/table.txt
+          grep -Eq 'nixpi\.img2 : .*bootable' /mnt/inspect/table.txt || { echo "::error::p2 is not bootable"; exit 1; }
+          loop=$(sudo losetup -P -r -f --show "$img")
+          trap 'sudo umount /mnt/inspect/fw /mnt/inspect/root 2>/dev/null || true; sudo losetup -d "$loop"' EXIT
+          sudo blkid "${loop}p1" "${loop}p2"
+          [ "$(sudo blkid -s LABEL -o value "${loop}p1")" = FIRMWARE ] || { echo "::error::p1 label is not FIRMWARE"; exit 1; }
+          [ "$(sudo blkid -s LABEL -o value "${loop}p2")" = NIXOS_SD ] || { echo "::error::p2 label is not NIXOS_SD"; exit 1; }
+          mkdir -p /mnt/inspect/fw /mnt/inspect/root
+          sudo mount -o ro "${loop}p1" /mnt/inspect/fw
+          sudo mount -o ro,noload "${loop}p2" /mnt/inspect/root
+          df -h /mnt/inspect/fw
+          ls -la /mnt/inspect/fw
+          echo "---- config.txt"; cat /mnt/inspect/fw/config.txt
+          test -s /mnt/inspect/fw/u-boot.bin || { echo "::error::u-boot.bin missing on FIRMWARE"; exit 1; }
+          grep -qx 'kernel=u-boot.bin' /mnt/inspect/fw/config.txt || { echo "::error::config.txt does not boot u-boot.bin"; exit 1; }
+          test -s /mnt/inspect/fw/bcm2711-rpi-4-b.dtb || { echo "::error::Pi 4 dtb missing on FIRMWARE"; exit 1; }
+          echo "---- /boot/extlinux/extlinux.conf (root)"; cat /mnt/inspect/root/boot/extlinux/extlinux.conf
+          grep -q '^  LINUX ' /mnt/inspect/root/boot/extlinux/extlinux.conf || { echo "::error::extlinux.conf has no LINUX entry"; exit 1; }
+          echo "layout OK"
+
       # ---- NAME THE ASSET AFTER THE nix-config COMMIT THAT BUILT IT ---------------
-      # NOTHING in the image's own filename comes from this repo. `sdImage.imageName`
-      # is `"${imageBaseName}-${system.nixos.label}-${system}.img"` (the pinned
-      # raspberry-pi-nix `sd-image/sd-image.nix:38-40` — NOT nixpkgs' newer
-      # `image.fileName`), and that label is nixpkgs' own `.version` plus the PINNED
+      # NOTHING in the image's own filename comes from this repo. nixpkgs'
+      # `image.fileName` is `"${image.baseName}.img.zst"`, and hosts/nixpi.nix sets
+      # `image.baseName = "nixos-sd-image-${system.nixos.label}-${system}"` (keeping
+      # the prefix raspberry-pi-nix used, which the asset regexes below and nixpi-flash
+      # match), and that label is nixpkgs' own `.version` plus the PINNED
       # NIXPKGS commit date and short rev. Measured on revisions ec834e4 and a37c7e05:
       # same flake.lock, DIFFERENT drvPaths, IDENTICAL imageName. Since installer-latest
       # is a rolling slot whose "Retire stale" step below deletes the previous asset,
@@ -120,6 +169,7 @@ jobs:
       # counterfactual: ordering those names LEXICALLY picks the wrong one, which is the
       # #248 lockout — never reintroduce a lexical pick.
       - name: Stage the image under its nix-config revision
+        if: ${{ inputs.publish }}
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -150,6 +200,7 @@ jobs:
       # image so `nixpi-flash --release` cannot pick a stale pubkey-bearing image
       # via glob order. Non-sd-image assets (if any) are left alone.
       - name: Retire stale nixpi SD image assets
+        if: ${{ inputs.publish }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -186,11 +237,13 @@ jobs:
       # BEFORE the upload on purpose: an unattested asset should never be reachable, not
       # even briefly.
       - name: Attest the SD image build provenance
+        if: ${{ inputs.publish }}
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: upload/*.img*
 
       - name: Publish to installer-latest release
+        if: ${{ inputs.publish }}
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: installer-latest
