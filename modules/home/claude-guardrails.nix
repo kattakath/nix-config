@@ -12,7 +12,7 @@
 # tool was deny-listed here and callable everywhere else. Measured 2026-09-15.
 #
 # THAT COUNTER-EXAMPLE IS GONE; THE REASON TO BE GLOBAL IS NOT. The gateway was
-# purged 2026-10-01 — ./mcp.nix deleted, the Cloudflare portal destroyed, the
+# purged 2026-10-01 — modules/shared/mcp.nix deleted, the Cloudflare portal destroyed, the
 # terranix stack removed in #737 — so nothing global ships an MCP server any
 # more: servers arrive ONLY as Claude Code plugins (./plugin-mcp.nix,
 # ./gmail-mcp.nix), which are per-session and carry no fleet-wide write tool.

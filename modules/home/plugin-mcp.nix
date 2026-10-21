@@ -13,7 +13,8 @@
 # THE SPLIT, identical to `local.gmailMcp`'s and for the same reason:
 #   HERE          the launcher binaries, because they read the login Keychain (or a
 #                 fleet-internal coordinate) and must not be duplicated into a plugin repo.
-#   THE PLUGIN    a `.mcp.json` in github:kattakath/skills naming each launcher by BINARY
+#   THE PLUGIN    a `.mcp.json` in github:kattakath/skills (`slack`: the operator's private
+#                 overlay marketplace) naming each launcher by BINARY
 #                 NAME, so Claude Code spawns one stdio server per session with no proxy
 #                 and nothing shared between clients.
 #
@@ -27,9 +28,13 @@
 # to re-adopt. Same split, same cause: the launcher does what a JSON file cannot. Its
 # own entry below carries the why, the risk it does NOT cover, and the measurements.
 #
+# TWO MORE, each with its own entry below: `github` (gh's own token via `ghTokenEnv`)
+# and `slack` (its own launcher, packages/slack-post-mcp.nix).
+#
 # This is NOT the gateway returning: no long-lived process, no listening socket, no
-# tunnel, no portal. Claude Desktop loads no plugins, so none of these reach it —
-# that capability is genuinely gone for Desktop and no declaration here changes it.
+# tunnel, no portal. Claude Desktop loads no plugins, so none of these reach it
+# through a plugin — the one exception is `github`, which Desktop gets separately
+# via `local.claudeDesktop.extraServers` (modules/home/default.nix).
 {
   config,
   lib,
@@ -283,7 +288,8 @@ let
   # `catalogArgOverrides` (the pins) and `requiredEnvToPasswordCommand` (the Keychain
   # service ids) — rather than from an upstream README. The pins are the measured part:
   # the gateway spawned every server at startup and ONE failing import darked all of
-  # them, which is why each `-y <pkg>@<version>` and each `--python` is here.
+  # them, which is why the `-y <pkg>@<version>` pins and each `--python` are here.
+  # `apify` is the one npx entry left UNPINNED.
   servers = {
     # docdyhr/mcp-wordpress, ~59 tools over the WP REST API. `@3.3.30` pins the client
     # library. Three Keychain reads, not one: the SITE URL is stored too, so the live
@@ -381,7 +387,7 @@ let
     #
     # `@0.2.52` is the current stable, read off the registry 2026-10-07 (published
     # 2026-09-29; `0.3.1-alpha.0` carries the `alpha` tag and is deliberately not
-    # taken). Pinned for the same reason as every other entry here: an unpinned
+    # taken). Pinned for the same reason as the other pinned entries here: an unpinned
     # `-y` resolves to whatever is newest at first spawn.
     #
     # No Keychain entry and no `plainEnv`: it needs no credential of its own. The
@@ -439,7 +445,8 @@ in
       `nix-mcp-<name>`. An enum rather than free strings, so a typo fails here instead of
       shipping a plugin that names a binary nobody builds.
 
-      Each one is claimed by a plugin in github:kattakath/skills that declares a server
+      Each one is claimed by a plugin in github:kattakath/skills (or, for `slack`, the
+      operator's private overlay marketplace) that declares a server
       whose `command` is that binary name. Enabling a name here without the plugin
       installed just leaves an unused binary on PATH; installing the plugin without the
       name here leaves a server that cannot start.

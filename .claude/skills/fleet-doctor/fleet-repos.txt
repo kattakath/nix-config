@@ -49,7 +49,8 @@
 #                      generic module vs. one concrete deployment — never two competing
 #                      options). BOTH are gone now: that module, the gateway and its
 #                      Cloudflare portal were deleted/destroyed 2026-10-02, so there is no
-#                      MCP surface in this repo to sweep. docs/mcp-gateway.md is history.
+#                      GATEWAY surface left to sweep (what remains is the packages/*-mcp.nix
+#                      launchers + checks.*.mcp-launcher-parity). docs/mcp-gateway.md is history.
 #   nix-inngest      — never wired into any host. The `inngest` CLI that IS on PATH comes
 #                      from nixpkgs, not from this repo; do not confuse the two.
 # Same rule as the seven above: do not re-add either because a working copy is on disk.

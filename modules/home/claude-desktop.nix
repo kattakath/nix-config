@@ -255,8 +255,8 @@ in
       description = ''
         Additional servers for Desktop only, in the hub shape ({ url } or
         { command, args, env }). A `url` entry is wrapped in the pinned mcp-remote
-        shim, because Desktop's schema accepts stdio only. This is the ONLY way an
-        entry reaches Desktop.
+        shim, because Desktop's schema accepts stdio only. This is the only way a
+        Nix-declared entry reaches Desktop (the private lane is `overlayFile`).
       '';
     };
 
