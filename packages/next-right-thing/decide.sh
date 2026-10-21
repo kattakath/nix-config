@@ -2,12 +2,11 @@
 # Pick ONE thing from a pre-gathered corpus. Emits verdict JSON on stdout.
 #
 # THE MODEL GETS NO TOOLS AND NO MCP, AND THAT IS THE POINT.
-# Measured on this machine: `claude -p` with the fleet's MCP servers loaded costs
-# $0.67 for a two-token prompt — ~95k tokens of tool SCHEMAS are compiled into
+# `claude -p` with the fleet's MCP servers loaded compiles every tool SCHEMA into
 # the system prompt before the model reads anything. `--allowedTools` does not
 # help; it gates PERMISSION, not LOADING. So gather.sh collects the corpus with
-# plain curl/gh, and this runs `--strict-mcp-config` against text.
-#   with MCP:  ~$0.67/run -> ~$48/day        without: ~$0.03/run -> ~$2/day
+# plain curl/gh, and this runs `--strict-mcp-config --safe-mode` against text.
+# Measured costs: the `BOTH flags are required` table above the `claude -p` call.
 # It also removes the tg_read footgun structurally: the model cannot call a tool
 # that was never loaded.
 #

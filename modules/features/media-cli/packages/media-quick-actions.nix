@@ -37,7 +37,7 @@
   media-queue ? callPackage ./media-queue.nix { },
 }:
 let
-  # One entry per menu item. `cmd` is appended to the store path, so adding an
+  # One entry per menu item. `cmd` is what `mkRunner` execs, so adding an
   # action is a line here rather than another copy of the plist scaffolding.
   #
   # The actions ENQUEUE; they do not do the work. `media-enqueue` writes one job

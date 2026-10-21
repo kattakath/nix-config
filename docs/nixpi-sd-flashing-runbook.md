@@ -343,9 +343,10 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi
   `country=` (the Pi 4 radio is rfkill-blocked without a regulatory domain). Wi-Fi is
   OPTIONAL — without it the Pi is LAN-only. With it, a headless Pi reaches
   `nixpi.kattakath.com` from first boot with no LAN cable, keyboard, or monitor.
-- **Plant a FALLBACK AP, not just one.** `--ssid` is repeatable
-  (`nix run .#nixpi-wifi-creds -- --ssid PRIMARY --ssid BACKUP`), and the blocks come out ranked
-  by `priority=`. One AP makes that AP a single point of failure whose recovery is
+- **Plant a FALLBACK AP, not just one.** The declared ladder, `nixpiWifiNetworks` in
+  `modules/parts/identity.nix`, is where the fallback is declared, and the blocks come out
+  ranked by `priority=`. A hand-typed `--ssid` list is a one-off that REPLACES the ladder
+  (above). One AP makes that AP a single point of failure whose recovery is
   this runbook (~40 min): off-site the only route in is the tunnel, and the tunnel
   needs working INTERNET rather than merely a LAN (the LAN sshd path, `local.lanRecovery`,
   helps only when you are on that LAN). Measured 2026-09-22: a two-block config failed

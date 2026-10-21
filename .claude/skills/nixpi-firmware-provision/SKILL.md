@@ -60,7 +60,7 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
 ## Scenarios
 
 1. **A card new to nixpi** → f3-test the WHOLE card first (runbook §3c). A verified flash
-   covers only the image's ~4.9 GB; a fake-capacity card passes it, then corrupts once writes
+   covers only the image's bytes; a fake-capacity card passes it, then corrupts once writes
    land past its real edge (2026-10-17: "32 GB" card, 15.2 GiB real).
 2. **Fresh reflash** → `nix run .#nixpi-flash -- --disk /dev/diskN --release`, then insert +
    boot. (`--release` downloads the CI-prebuilt image; drop it to `nix build` locally instead —

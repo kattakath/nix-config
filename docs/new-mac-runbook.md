@@ -73,8 +73,9 @@ secret is re-issuable by the vendor that minted it:
 3. **Repoint agenix** at the new keys, from the repo root inside `nix develop`: put the
    new pubkey in `secrets/operator-key.nix`, and replace the `macos` recipient in
    `secrets/secrets.nix` with the live `/etc/ssh/ssh_host_ed25519_key.pub`. Then `rm`
-   each old `.age` and re-create it with its fresh vendor value, by the commands in
-   [`secrets-and-keychain.md`](secrets-and-keychain.md) § agenix — two vault models.
+   each old `.age` and re-create it with its fresh vendor value, by the `agenix -e` command in
+   [`secrets-and-keychain.md`](secrets-and-keychain.md) § agenix — two vault models; for the
+   `gh-app-*` pair, by the `age -R` note in `secrets/secrets.nix` instead.
    Delete first: `agenix -e` decrypts an existing file before editing, and the new key
    cannot open it. The old ciphertext is encrypted to the
    lost key and to the lost host key; it is not coming back, and does not need to.

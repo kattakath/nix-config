@@ -14,7 +14,8 @@
 >    evaluates **false forever**, so adding it does not harden a tier — it takes the tier
 >    **OFFLINE**. Item 3 declined it for that reason, and the reason survives the portal.
 > 2. **Pinning the Cloudflare provider still needs a plan run to land safely** (item 0, held;
->    ADR-004 deferred it). Unchanged for the four stacks that remain.
+>    ADR-004 deferred it). Each remaining Cloudflare stack's `required_providers.cloudflare` shows
+>    where it stands.
 >
 > A third thing is worth noting now that the subject is gone: this plan was produced by a
 > 13-agent research + adversarial-refutation pass whose first job was hunting **invented attribute

@@ -212,8 +212,8 @@ copy, which was byte-identical, rather than declining the plugin to protect it.
 
 ### What stayed, and why it is not a failure
 
-`pretooluse-bash-guard.js` (27 KB) is the **fleet-policy** half — Cloudflare API scoping, the
-`deploy` / `darwin-rebuild` live-fleet traps, a desktop-commander nudge. None of it means
+`pretooluse-bash-guard.js` is the **fleet-policy** half — Cloudflare API scoping and the
+other rules its own header enumerates. None of it means
 anything outside this repo. That the generic half could be lifted out cleanly *is* the
 factoring working: `superhook` supervises, the guard decides.
 
@@ -242,7 +242,6 @@ agree, because git is doing the copying.
 | `claude/` (CLAUDE.md + the Brain Signals calibration rule) | operator identity and an accessibility calibration, not a community resource; `context` must also be a single path, and plugins carry no rules or CLAUDE.md context |
 | `.claude/` | project-scoped by definition; it must live in the repo it governs |
 | `.claude/skills/userscript-author` | it is about how a script reaches *this Mac* — the fleet's delivery reality, not the portable authoring method (it stopped being about a Nix declaration or gate on 2026-09-14, when both ceased to exist) |
-| nix-personal's `activation` plugin | documents a CLI only that flake ships |
 
 ## Adding to an extracted repo
 

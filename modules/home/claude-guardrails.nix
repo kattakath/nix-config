@@ -21,7 +21,7 @@
 # always the load-bearing half: a session in a work repo still gets no hook.
 #
 # UPSTREAM FIRST. `programs.claude-code.settings` is `jsonFormat.type`
-# (home-manager efa3ccb, modules/programs/claude-code/options.nix) — freeform,
+# (home-manager modules/programs/claude-code/options.nix) — freeform,
 # so ANY settings.json key passes through untyped, and module-system list
 # merging concatenates `permissions.deny` across modules, so this file ADDS to
 # whatever else sets it. Its own example block shows `permissions.deny`. No
@@ -97,8 +97,8 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   # merely FLAGGING that conflict each time (2026-09-12). This states the same
   # policy where the harness reads it, instead of where a model must recall it.
   #
-  # UPSTREAM FIRST: grepped the pinned home-manager (efa3ccb,
-  # modules/programs/claude-code/options.nix) — there is NO typed
+  # UPSTREAM FIRST: grepped the pinned home-manager
+  # (modules/programs/claude-code/options.nix) — there is NO typed
   # `programs.claude-code.settings.attribution` option, and none is needed:
   # `settings` is `inherit (jsonFormat) type`, so the attrs below reach
   # settings.json verbatim through `pkgs.formats.json`.
@@ -260,7 +260,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # claude/CLAUDE.md § Redact names "`.age` plaintext" outright, and
     # CLAUDE.md § Security says "Never display a secret value" — and it is
     # wrong in every repo, so it belongs at this floor and not in a `.claude/`.
-    # Verified against the PINNED agenix (ryantm/agenix b027ee2,
+    # Verified against the PINNED agenix (ryantm/agenix
     # pkgs/agenix.sh): `-d|--decrypt` sets DECRYPT_ONLY and takes FILE, and the
     # dispatch line appends `-o -`, so the cleartext goes to stdout by
     # construction. `-i/--identity` may PRECEDE it, hence both flag positions —

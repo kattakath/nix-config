@@ -6,11 +6,10 @@
 #
 # The capsule with the most LIVE surface: `macos` declares two ephemeral
 # Tart-VM GitHub lanes off these modules — only `dontsell-vm` is enabled,
-# `kattakath` is `enable = false` because a lane holds its guest slot for the
-# whole long-poll — plus the enabled GitLab lane. Both runner modules sit in
-# mkDarwin's BASE list, so EVERY darwin composition evaluates them: the fleet's
-# own and any future caller's alike (nix-personal was that other caller until
-# 2026-09-15).
+# `kattakath` is `enable = false` — plus the enabled GitLab lane. Both runner
+# modules sit in mkDarwin's BASE list, so EVERY darwin composition evaluates
+# them: the fleet's own and any future caller's alike (nix-personal was that
+# other caller until 2026-09-15).
 #
 # ---- THE FOUR THINGS THAT ARE LOAD-BEARING HERE -----------------------------
 #
@@ -65,8 +64,8 @@
 #                         mandatory ARGUMENT supplied below — same path, same
 #                         store path, same drv.
 #   templates/vanilla-tahoe.pkr.hcl -> ./templates/ verbatim.
-#   flake.nix's 5 EVAL checks  -> ./checks/module-evaluations.nix (bodies
-#                                 verbatim) + ./checks/packer-template.nix.
+#   flake.nix's EVAL checks    -> ./checks/module-evaluations.nix +
+#                                 ./checks/packer-template.nix.
 #   flake.nix's 5 BUILD checks -> folded into ONE `tart-vms-packages` below.
 #     Not ceremony: every one of these is a `writeShellApplication`, and BUILDING
 #     it runs shellcheck over its script. nix-config's darwin CI leg builds
@@ -160,7 +159,7 @@
       #
       # The gate is INSIDE each output, never around the module body — a
       # `perSystem` whose SHAPE depends on `pkgs` is an infinite recursion
-      # through `_module.args`. Same reason as the four capsules before this.
+      # through `_module.args`. Same reason as the capsules before this.
       isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
 
       # §2 above: the narrowed unfree predicate, scoped to this capsule's own

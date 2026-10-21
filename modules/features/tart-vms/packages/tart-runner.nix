@@ -477,8 +477,8 @@ let
       # once the CURRENT base and pin are both confirmed present — never at
       # startup. Deleting first and pulling second means a well-formed but
       # WRONG digest (a typo, or a tag deleted upstream) strands the host with
-      # no base at all, and reverting hosts/macos.nix then costs a multi-hour,
-      # tens-of-GB re-pull. Delete-after-successful-pull has no such hole.
+      # no base at all, and reverting hosts/macos.nix then costs a multi-hour
+      # re-pull. Delete-after-successful-pull has no such hole.
       gc_superseded_bases() {
         local vm
         for vm in $("$TART" list --quiet 2>/dev/null | grep '^tr-base-' || true); do

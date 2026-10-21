@@ -29,10 +29,10 @@
 # pnpm.configHook spellings still work but are DEPRECATED) — grepped
 # pkgs/build-support/node/fetch-pnpm-deps for the hook before writing this.
 # fetcherVersion = 4 is mandatory: 2 was REMOVED in the 26.11 release.
-# Upstream declares packageManager pnpm@11.27.1; nixpkgs now pins 12.3.4 (it
-# was 11.25.0 until the 2026-10-06 input bump). The lockfile format is unchanged
-# across that range, so the skew is accepted rather than vendoring a second pnpm
-# — but the pnpm 12 store layout is what the pnpmDeps override below exists for.
+# Upstream's package.json `packageManager` and nixpkgs' `pnpm` skew (compare both
+# on an input bump). The lockfile format has held across that skew, so it is
+# accepted rather than vendoring a second pnpm — but the pnpm 12 store layout is
+# what the pnpmDeps override below exists for.
 #
 # NODE FLOOR IS REAL. package.json engines require node >=22.13.0 and the build
 # targets node22. This package pins nodejs_22 explicitly rather than inheriting

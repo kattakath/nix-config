@@ -113,7 +113,7 @@ curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap
 nix build .#nixosConfigurations.nixpi.config.system.build.sdImage   # aarch64-linux; builds on the native Linux builder, or use --release
 nix run .#nixpi-flash -- --disk /dev/diskN --release   # Download the CI-prebuilt image → verified dd → auto-plant token+wifi on FIRMWARE
 nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a mounted card (--token / --wifi)
-# Flashing: do a FULL verified write (confirm dd's ~5.6GB byte count) — see docs/nixpi-sd-flashing-runbook.md
+# Flashing: do a FULL verified write (dd's byte count must equal the image's) — see docs/nixpi-sd-flashing-runbook.md §1
 # Companions: nixpi-wifi-creds (emit wpa_supplicant.conf from this Mac), nixpi-vault-token (re-encrypt a rotated token)
 
 # terranix — 5 stacks, 4 on one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.

@@ -34,12 +34,13 @@
       # The operator's SSH public key — the network login credential. sshd binds
       # LOOPBACK ONLY by default on every host this module configures (see
       # listenAddresses below), so the only network route in is the tunnel
-      # connector, which terminates on-host and dials localhost:22. nixpi OPTS OUT
-      # of that default — `local.lanRecovery` (modules/nixos/lan-recovery.nix)
-      # replaces the bind with the wildcard and opens the port on its two LAN
-      # interfaces alone, because a dead connector was otherwise a 40-minute
-      # physical reflash. nixvm keeps loopback-only. Key-only, no password either
-      # way. Physical console (getty) is an independent break-glass path.
+      # connector, which terminates on-host and dials localhost:22. A host that
+      # sets `local.lanRecovery` (modules/nixos/lan-recovery.nix) OPTS OUT of that
+      # default — it replaces the bind with the wildcard and opens the port on the
+      # named LAN interfaces alone, because on nixpi a dead connector was otherwise
+      # a 40-minute physical reflash. nixvm keeps loopback-only. Key-only, no
+      # password either way. Physical console (getty) is an independent
+      # break-glass path.
       #
       # `lib.optional`, not a bare list: `mkNixos` defaults `operatorSshKey` to
       # null so a downstream consumer does not silently inherit the operator's
@@ -69,11 +70,12 @@
       # the LAN, where the Access application in front of nixpi.<domain> is NOT
       # consulted and no Access log is produced: an edge-only identity layer that
       # anything on the same network segment can walk around. That cost is now
-      # PAID ON PURPOSE on nixpi — `local.lanRecovery` mkForces the wildcard pair
-      # and scopes the open port to end0/wlan0 — because the alternative measured
-      # on 2026-10-01 was a dead connector with no way in at all. Do not relax it
-      # HERE: this default is what keeps nixvm, and every `lib.mkNixos` consumer,
-      # loopback-only. Both loopback families are bound because `localhost` may
+      # PAID ON PURPOSE wherever a host sets `local.lanRecovery` (grep hosts/) — it
+      # mkForces the wildcard pair and scopes the open port to the named
+      # interfaces — because the alternative measured on nixpi on 2026-10-01 was a
+      # dead connector with no way in at all. Do not relax it HERE: this default
+      # is what keeps nixvm, and every `lib.mkNixos` consumer that does not set
+      # it, loopback-only. Both loopback families are bound because `localhost` may
       # resolve to ::1 first.
       # Break-glass if both the tunnel and the LAN are down: the console (getty).
       # `port` is deliberately OMITTED so both entries inherit `Port 22` above.
@@ -93,7 +95,8 @@
 
       settings = {
         # Keys-only: the SSH endpoint is fronted by a Cloudflare Access
-        # application (self-hosted app on nixpi.<domain>, operator email only),
+        # application (self-hosted app on nixpi.<domain>; who it admits is
+        # `nixpi_ssh_operator` in infra/cloudflare/nixpi-tunnel.nix),
         # but Access enforces at the EDGE — cloudflared proxies raw TCP to
         # localhost:22, so the origin can verify no JWT. The operator key stays
         # the origin-side boundary and must never accept a password or
@@ -135,7 +138,7 @@
     # merges with nix-ld's baseLibraries and is exposed via NIX_LD_LIBRARY_PATH.
     programs.nix-ld = {
       enable = true;
-      # Shared list — same set the HM shim and the devcontainer image use.
+      # Shared list — its header names every consumer.
       libraries = import ../_lib/nix-ld-libraries.nix pkgs;
     };
 

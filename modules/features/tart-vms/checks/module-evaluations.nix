@@ -1,8 +1,8 @@
-# ---- The satellite's five module-eval checks, carried over -------------------
+# ---- The satellite's module-eval checks, carried over ------------------------
 #
 # From github:kattakath/nix-tart-vms's own flake.nix `checks` (ADR-002 wave 5).
-# The check BODIES are verbatim; only the plumbing changed, and only because the
-# capsule invariant forces it:
+# At that move only the plumbing changed, and only because the capsule
+# invariant forced it:
 #
 #   * the four module files and the four tart-runner sub-derivations arrive as
 #     ARGUMENTS instead of as `./modules/…` / `pkgs.callPackage ./packages/…`
@@ -11,7 +11,7 @@
 #     entry file passes what a leaf needs DOWN — the fix the rule's own note
 #     prescribes, and the same shape as the three capsules before this one.
 #   * `darwinStubs` is inlined here rather than left in the entry file. It is
-#     used by three of these checks and by nothing else, and it is the OPTION
+#     used by these checks and by nothing else, and it is the OPTION
 #     half of the capsule boundary (ADR-002 §2): an `evalModules` against a
 #     hand-written stub of nix-darwin's surface proves the modules do not
 #     silently depend on anything outside themselves. It stays for that reason —
@@ -63,7 +63,7 @@ let
     # file sees exactly the keys the modules WRITE and nothing upstream would
     # add. That is why the arg0 legs below assert `launcher.name` and
     # `waitForNixStore` — the two inputs to upstream's `mutateConfig`
-    # (pinned home-manager modules/launchd/default.nix:92-120) — rather than the
+    # (pinned home-manager modules/launchd/default.nix) — rather than the
     # post-mutation ProgramArguments, which only exist in a real composition.
     options.home-manager.users = lib.mkOption {
       type = lib.types.attrsOf lib.types.anything;

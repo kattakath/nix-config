@@ -46,13 +46,9 @@ let
   cfg = config.local.macosGithubRunner;
   host = config.networking.hostName;
   user = "_github-runner";
-  # Upstream nixpkgs' `github-runner` bundles only `externals/node24` BY DEFAULT — Node 20
-  # is EOL and omitted from the default `nodeRuntimes` (pinned pkgs/by-name/gi/github-runner/
-  # package.nix:19-34), but `override { nodeRuntimes = [ "node24" "node20" ]; }` is still
-  # accepted (:27-34, :253-254) and links the real, insecure-flagged nodejs_20, which would
-  # need `permittedInsecurePackages`. This module keeps the alias instead: no insecure
-  # allowlist, `using: node20` actions run on Node 24 (a deliberate choice, not a nixpkgs
-  # limitation — re-decide if an action ever breaks on 24). But many
+  # Upstream nixpkgs' `github-runner` bundles only `externals/node24` — Node 20 is EOL,
+  # and the pinned pkgs/by-name/gi/github-runner/package.nix's `nodeRuntimes` assert
+  # admits nothing else, so no override can bring node20 back. But many
   # GitHub-authored actions (actions/checkout@v4, actions/setup-node@v4, ...) still declare
   # `using: node20` in their action.yml, and the runner execs `externals/node<version>/bin/
   # node` verbatim per-action — so a plain `pkgs.github-runner` fails those steps with
@@ -140,8 +136,8 @@ let
   # so a hook there would caffeinate a disposable VM and leave the host free to
   # sleep. That lane is NOT fixed here: whether Virtualization.framework takes
   # its own assertion while a guest runs is unmeasured, and a fix built on a
-  # guess would be surface for nothing. See the PR for the one command that
-  # settles it.
+  # guess would be surface for nothing. See #760 § Deferred for the one command
+  # that settles it.
   #
   # The hook's cost is that it cannot use the utility form: it must RETURN before
   # the job starts (`exec caffeinate -i …` there would block the job forever), so
@@ -437,8 +433,9 @@ in
       description = ''
         The GitHub App's numeric ID (shown on the app's settings page — NOT
         secret, this is public identifying info, not a credential). The app must
-        have Organization permission "Self-hosted runners: Read and write" and
-        nothing else it doesn't need.
+        have Organization permission "Self-hosted runners: Read and write"; its
+        full, App-global permission set is recorded in hosts/macos.nix
+        § Ephemeral Tart-VM CI runners.
       '';
     };
 
@@ -463,10 +460,10 @@ in
     # `--no-default-labels` is passed. This lane keeps them; the Tart lane
     # suppresses them and re-declares the same three plus `tart`. So a job
     # asking for `[self-hosted, macOS, ARM64]` matches BOTH — the Tart set is a
-    # strict superset — and can land on a guest with no nix at all. Today the
-    # only thing distinguishing this lane is the ABSENCE of `tart`, and GitHub
-    # has no "must not have label" selector. Hence an explicit POSITIVE
-    # discriminator: `nix`.
+    # strict superset — and can land on a guest with no nix at all. Without a
+    # label of its own, the only thing distinguishing this lane would be the
+    # ABSENCE of `tart`, and GitHub has no "must not have label" selector. Hence
+    # an explicit POSITIVE discriminator: `nix`.
     #
     # upstream option nix-darwin.services.github-runners.<name>.extraLabels
     # exists (modules/services/github-runner/options.nix:149, rendered as

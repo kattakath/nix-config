@@ -21,7 +21,7 @@
 # slot is emitted as its NORMAL partner, and slots 0 and 7 are seized for
 # background/foreground. Eight of the sixteen values below would come out wrong
 # and the measured pair separation would be gone — for +16 flake.lock nodes
-# against a lock deliberately held at 62. base16.nix was the close runner-up
+# against a lock deliberately kept lean. base16.nix was the close runner-up
 # (+2 nodes, round-trips the ring exactly) and lost on two counts: it carries no
 # fonts at all, and its base24 vocabulary FUSES background with ANSI 0 and
 # foreground with ANSI 7, the two roles this palette deliberately splits.

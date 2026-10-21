@@ -7,8 +7,7 @@
   nix-homebrew = {
     enable = true; # install/manage brew at the host's default (arch-correct) prefix
     user = loginName; # account that owns the prefix directories
-    # This fleet's Mac needs no x86 brew, so Rosetta stays off; the module also
-    # asserts enableRosetta => isAarch64, so it must stay false here.
+    # This fleet's Mac needs no x86 brew, so Rosetta stays off.
     enableRosetta = false;
     # Safely adopts a pre-existing /opt/homebrew in place if one is already
     # installed (removes only the brew-repo metadata, not installed packages)

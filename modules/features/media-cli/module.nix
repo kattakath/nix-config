@@ -39,9 +39,11 @@
 # Upstream home-manager's DEFAULT (`waitForNixStore = true`) wraps every agent as
 #   ProgramArguments = [ "/bin/sh" "-c" "wait4path … && exec …" ]
 # which is exactly that failure mode; its `waitForNixStore = false` (pinned
-# modules/launchd/default.nix:37-53) names the launcher after the agent key but
-# still runs it through `#!/bin/sh`. This module therefore builds its OWN
-# `nix-<activity>` wrapper and sets ProgramArguments itself. One honest note: on
+# modules/launchd/default.nix:37-53) names the launcher after the agent key and
+# runs it through `#!/bin/sh` unless `launcher.name`/`launcher.shell` say
+# otherwise (modules/home/launchd-launcher.nix sets both on the engine). This
+# module builds its OWN `nix-<activity>` wrapper and sets ProgramArguments
+# itself. One honest note: on
 # the engine the launchd launcher re-wraps this agent once more (nix-media-queue →
 # nix-media-queue → media-worker).
 {
@@ -184,8 +186,8 @@ in
       '';
     };
 
-    # The two media-ADJACENT tools. They ship in this flake so the whole media
-    # story is one repo you can add or strip off, but they are opt-in and stay
+    # The two media-ADJACENT tools. They ship in this capsule, under
+    # `local.mediaCli.enable`, but they are opt-in and stay
     # out of the media-toolkit bundle — see the two membership questions in
     # packages/media-toolkit.nix. Neither is wanted by default: one is a
     # gigabyte, the other does nothing without a Keychain secret.
@@ -314,7 +316,7 @@ in
           KeepAlive.SuccessfulExit = false;
           # Stated rather than inherited because it is LOAD-BEARING FOR LATENCY,
           # not only for crash bounding: the throttle spaces every start of the
-          # job, so at launchd's default of 60 a right-click waited a full minute
+          # job, so at 60 a right-click waited a full minute
           # (measured). `media-enqueue` also kickstarts the agent, so this is now
           # only the ceiling for a job arriving without an enqueue, and for a
           # crash restart.

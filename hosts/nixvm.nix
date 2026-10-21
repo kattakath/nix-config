@@ -119,11 +119,11 @@
         # CORRECTION 2026-10-06 — the reason recorded here until today was WRONG.
         # It said nixpkgs implements every share via virtiofs and that
         # `hostPkgs.virtiofsd` is Linux-only, so NO share can exist on a macOS
-        # host. The second half is true; the first is not. At the pinned nixpkgs
-        # (44a91898) nixos/modules/virtualisation/qemu-vm.nix:27 reads
+        # host. The second half is true; the first is not. At the pinned nixpkgs,
+        # nixos/modules/virtualisation/qemu-vm.nix reads
         #     useVirtiofs = hostPkgs.stdenv.hostPlatform.isLinux;
-        # which is FALSE here, so shares fall back to `-virtfs local,…` 9p (:1309)
-        # plus a guest mount with `fsType = "9p"` (:1405). Measured against the
+        # which is FALSE here, so shares fall back to `-virtfs local,…` 9p
+        # plus a guest mount with `fsType = "9p"`. Measured against the
         # qemu store path this runner executes: `-fsdev local,id=x help` lists the
         # security models and `-device help` lists virtio-9p-pci. SHARES WORK ON
         # THIS HOST — there is simply NONE CONFIGURED. One was built on 2026-10-06
@@ -148,14 +148,15 @@
         # NOT an optimisation and not a preference — the line above silently
         # turned nix off, through TWO layers of inherited defaults that nobody
         # chose:
-        #   `writableStore`      default = cfg.mountHostNixStore   (qemu-vm.nix:720)
-        #   `mountHostNixStore`  default = !useNixStoreImage && !useBootLoader (:899)
+        #   `writableStore`      default = cfg.mountHostNixStore   (qemu-vm.nix)
+        #   `mountHostNixStore`  default = !useNixStoreImage && !useBootLoader
         # So `useNixStoreImage = true` forces mountHostNixStore false, which drags
         # writableStore to FALSE by inheritance. Confirmed by evaluating this very
         # config before the fix: writableStore = false, mountHostNixStore = false.
         #
         # WHAT THAT COSTS. With writableStore false, /nix/store is a BIND of
-        # /nix/.ro-store, an erofs mounted `ro` (:1448-1463, :1464-1469) — and
+        # /nix/.ro-store, an erofs mounted `ro` (qemu-vm.nix's
+        # `virtualisation.fileSystems`) — and
         # `findmnt /nix/store` in the guest confirmed `erofs ro,relatime`. The
         # nix-daemon then dies on its first write:
         #   unexpected Nix daemon error: error: creating directory
@@ -163,7 +164,7 @@
         # With it true, the SAME stanza switches to overlayfs —
         # lowerdir=/nix/.ro-store, upperdir=/nix/.rw-store/upper,
         # workdir=/nix/.rw-store/work — and /nix/.rw-store is a tmpfs
-        # (writableStoreUseTmpfs defaults true, :731, mount at :1470-1474). So the
+        # (writableStoreUseTmpfs defaults true). So the
         # per-boot-fresh-store design SURVIVES: the upper layer is RAM and is
         # discarded every boot. Nothing durable changes.
         #
@@ -205,7 +206,8 @@
         # NO SHARES AT ALL, and `lib.mkForce` is what keeps it that way: without
         # it upstream's own two defaults come back — `xchg` (/tmp/xchg) and
         # `shared` (/tmp/shared), the NixOS TEST driver's conveniences for passing
-        # files between a test script and its guest (qemu-vm.nix:1235-1250). This
+        # files between a test script and its guest (qemu-vm.nix's own
+        # `virtualisation.sharedDirectories` definition). This
         # VM is booted by hand from a QEMU window, runs no test script, and has
         # nothing to exchange.
         sharedDirectories = lib.mkForce { };
@@ -237,12 +239,11 @@
         # A move keeps the NixOS guest, sshd, the HM profile and the PGP stack, and
         # LOSES `nix run .#nixvm` and the declarative `vmVariant` round-trip.
         # OPERATOR'S DECISION 2026-10-06: keep nixvm as it is, accept no USB.
-        # (GPG and SSH specifically need no passthrough — see the memory note
-        # `nixvm-usb-passthrough-closed` for the agent-socket RemoteForward recipe.)
+        # (GPG and SSH specifically need no passthrough.)
         # THE GPU DEVICE IS LOAD-BEARING HEADLESS.
         # `graphics = true` does NOT add a framebuffer — measured in the pinned
-        # qemu-vm.nix, which only withholds `-nographic` (:1336) and reorders the
-        # kernel `console=` list (:802). aarch64 `virt` has no built-in VGA, so
+        # qemu-vm.nix, which only withholds `-nographic` and reorders the
+        # kernel `console=` list (`qemu.consoles`). aarch64 `virt` has no built-in VGA, so
         # without this device the Cocoa window would open BLANK and the
         # break-glass console above would be invisible.
         qemu.options = [ "-device virtio-gpu-pci" ];
@@ -305,7 +306,7 @@
       #
       # EXPOSURE IS THE MAC'S LOOPBACK ONLY. `host.address = "127.0.0.1"` is
       # emitted verbatim into the qemu arg (`hostfwd=${proto}:${host.address}:…`,
-      # qemu-vm.nix:1264), so SLiRP binds that address alone — nothing on the LAN
+      # qemu-vm.nix), so SLiRP binds that address alone — nothing on the LAN
       # can reach port 2222. Leaving `host.address` at its `""` default would bind
       # every Mac interface, which is NOT what was approved. The widened guest
       # bind is harmless on its own merits too: the guest's only NIC is a SLiRP
@@ -318,7 +319,7 @@
       # this host — that is a different layer and was not asked for.
       #
       # upstream option virtualisation.forwardPorts exists -> using it
-      # (qemu-vm.nix:632, host.address at :659). No hand-rolled -netdev/hostfwd.
+      # (qemu-vm.nix, with `host.address`). No hand-rolled -netdev/hostfwd.
       virtualisation.forwardPorts = [
         {
           from = "host";
@@ -334,7 +335,8 @@
       # mkForce on BOTH, because core.nix ASSIGNS both (not mkDefault) — a plain
       # definition here would be a conflict, not an override. `openFirewall` is
       # the upstream knob core.nix itself names as the supported way to control
-      # this (its comment at :52-57), so it is preferred over hand-adding
+      # this (its `services.openssh.openFirewall` comment), so it is preferred
+      # over hand-adding
       # `networking.firewall.allowedTCPPorts = [ 22 ]`: sshd's own module derives
       # the port list from `cfg.ports`, which stays correct if the port ever moves.
       # IPv4 wildcard ONLY, and deliberately not the `0.0.0.0` + `::` pair nixpi
@@ -342,7 +344,8 @@
       # only IPv4 forwarding", qemu-vm.nix forwardPorts description), so a v6
       # bind here would listen for traffic that cannot arrive. Nothing in this
       # guest dials localhost:22 over v6 either. `port` is omitted on purpose —
-      # see core.nix:73-82 for the `ListenAddress ::1:22` parse trap that costs.
+      # see core.nix's `listenAddresses` comment for the `ListenAddress ::1:22`
+      # parse trap that costs.
       services.openssh.listenAddresses = lib.mkForce [
         { addr = "0.0.0.0"; }
       ];

@@ -6,7 +6,8 @@
 #   media enqueue [...]    hand that same work to the background queue instead
 #   media queue [...]      inspect and control the background work queue
 #
-# WHY THIS EXISTS: discoverability, not ergonomics. The five media CLIs are
+# WHY THIS EXISTS: discoverability, not ergonomics. The media CLIs (the
+# `paths` of packages/media-toolkit.nix) are
 # individually well-named, but nothing tells an operator they are related, or
 # that `media-describe` exists at all — `media <TAB>` and `media --help` do.
 # Typing `media describe` is LONGER than `media-describe`, so if this were about
@@ -108,7 +109,7 @@ writeShellApplication {
       fix       <--video|--image> <path>... repair a media file by class — fixes a
                                             lying extension, re-encodes an
                                             editor-hostile codec
-      audio     [--mp3|--wav|--flac] <file> pull the audio track out of a video
+      audio     [--<format>] <file>         pull the audio track out of a video
       enqueue   <--video|--image|--describe> [--priority high|normal|low] <path>...
                                             the same describe/fix work, handed
                                             to the background queue instead of

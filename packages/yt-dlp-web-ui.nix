@@ -47,7 +47,7 @@ let
       inherit version src;
       sourceRoot = "${src.name}/frontend";
       pnpm = pnpm_10;
-      # lockfileVersion 9.0. pnpm 9 still accepts fetcherVersion 3; pnpm 11 does not.
+      # lockfileVersion 9.0. The `pnpm_10` above still accepts fetcherVersion 3; pnpm 11 does not.
       fetcherVersion = 3;
       hash = "sha256-92PFDyYqREiRr4GqAZrJQ6qlDLh5IchhaZevTlenhQI=";
     };

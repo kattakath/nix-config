@@ -21,7 +21,7 @@ let
       inherit pkgs;
       # `extra` is its OWN module, never `base // extra`: `//` is a
       # SHALLOW merge, so `{ local.mediaCli.ollamaHost = …; }`
-      # replaces the whole `programs` attrset and takes
+      # replaces the whole `local` attrset and takes
       # `local.mediaCli.enable = true` with it — the module then
       # defines no agents at all and the assertion below dies on a
       # missing attribute instead of testing anything. The module
