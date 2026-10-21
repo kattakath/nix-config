@@ -135,7 +135,7 @@ in
           # And there is no blanket fallback: treefmt.nix is REWRITE-only by design
           # and enables no shellcheck or shfmt, so the only shellcheck this tree has
           # is `writeShellApplication`'s, actionlint's `-shellcheck` over `run:`
-          # blocks, and the four checks named above.
+          # blocks, and the checks named above.
           #
           # SHELLCHECK IS A BASH GATE, NOT A SHELL GATE. It refuses zsh outright
           # (SC1071, "ShellCheck only supports sh/bash/dash/ksh"), so nothing here
