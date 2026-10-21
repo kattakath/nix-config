@@ -16,10 +16,10 @@ Core package set:
   deliberately defeated (read-only store, and the `$HOME/.grok/bin` PATH entry is gone) —
   updating is a version+hash bump. Per-user state still lives in `~/.grok`, which is what
   makes one shared binary correct rather than a conflict.
-- **`antigravity-cli.nix`** — Google's `agy` CLI, pinned from the Darwin ARM64 archive named
-  by the vendor's release manifest. It replaces the moving `curl -fsSL
-  https://antigravity.google/cli/install.sh | bash` bootstrapper, so the binary is shared
-  through `environment.systemPackages` and updates are reviewed as a version + hash bump.
+- **Antigravity (`agy`) is NOT a file here** — it is nixpkgs' `antigravity-cli`, shared
+  through `environment.systemPackages`. The hand-pinned `antigravity-cli.nix` was retired
+  2026-10-21 once the nixpkgs build was measured to keep Google's Developer ID signature
+  (`modules/parts/packages.nix` records the measurement).
 - **`acpx.nix`** — the headless client for **ACP** (Zed's Agent *Client* Protocol), which is
   the rail `claude`, `grok` and `agy` already share; it drives one from another with a real
   permission policy (`--permission-policy`, `--deny-all`, `--allowed-tools`, `--max-turns`,
