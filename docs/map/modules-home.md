@@ -135,9 +135,10 @@ in the repo can catch that; see that fixture file's header for the measurement.
       one week, not unbounded. When a leg goes red, the plugin is **already** broken on this
       Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile PR is the symptom,
       not the fault.
-  - `local.gmailMcp.accounts` → `nix-mcp-gmail-<sanitised-address>`, one per Gmail account
-    (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys FILE with
-    `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
+  - `local.gmailMcp.enable` → ONE `nix-mcp-gmail <address>` launcher; the account arrives in
+    argv from a plugin's `.mcp.json` (public `gmail`, private `gmail-private`), so no mailbox is
+    written here (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys
+    FILE with `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
   - `local.pluginMcp.servers` → `nix-mcp-{wordpress,apify,postgres}`, the three CREDENTIALED
     servers the purge left homeless, **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**.
     One generic `packages/keychain-mcp.nix` builds all four —
@@ -155,7 +156,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `allowedDirectories` is explicitly NOT the boundary — upstream's SECURITY.md calls directory
     restrictions "guardrails, not sandboxing", and an empty list means every path is allowed.
   - Secret handles (NAMES only; values stay in the login Keychain): `mcp:apify.com:token`,
-    `mcp:silvercreek.ai:wp_url` / `:wp_user` / `:wp_app_password`. `postgres` needs none — its
+    `mcp:wordpress:wp_url` / `:wp_user` / `:wp_app_password` (host-free names since 2026-10-20). `postgres` needs none — its
     `DATABASE_URI` is the local-rag capsule's `local.rag.pgvector.databaseUri`, loopback `trust`
     with no password, and the module ASSERTS `local.rag.pgvector.enable` so it cannot declare a
     server pointing at a store that is switched off.
@@ -168,7 +169,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     a plugin-spawned launcher has no such PATH control. `gmail-mcp.nix` bakes `npx` the same way
     and does **not** prepend — it works today only because its server tolerates node 20.
   - All three were smoke-tested through a real MCP `initialize` before being declared, not just
-    evaluated: wordpress reported `Connection successful` against silvercreek.ai PROD, apify
+    evaluated: wordpress reported `Connection successful` against the PROD site, apify
     registered its Actor tools, postgres logged `Successfully connected to database`.
 - **`chromium.nix`** — `local.ungoogledChromium`, real-Mac-only: the declarative surface for
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
@@ -571,7 +572,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     Home Manager config never touched. See [`modules-darwin.md`](modules-darwin.md)
     § `modules/darwin/`.
 - **`claude-desktop.nix`** — `local.claudeDesktop`. Desktop loads no plugins, so its ONLY lane is
-  `extraServers`: `aws-infin8`, `github` and `stripe-infin8` since 2026-10-16 (the gateway portal
+  `extraServers` (`github`) plus a hand-placed Desktop overlay for client servers (the gateway portal
   it used to dial was destroyed 2026-10-02). **The module stays ENABLED on purpose** — the set
   Desktop should see is a state something must *write*. Switching the writer off leaves whatever
   is on disk, which is exactly how a stale `kattakath-portal` entry pointing at destroyed
@@ -665,9 +666,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `programs/git.nix:63-116`; impl `:470-506` writes `$XDG_CONFIG_HOME/git/allowed_signers` and
   points `gpg.ssh.allowedSignersFile` at it). `modules/home/default.nix` sets the fleet default
   principal (`userEmail`); because `allowedSigners` is a `lines` option, extra identities
-  simply **append** — the persona addresses `izzy@silvercreek.ai` and `hi@izzykatt.ca` are
-  listed alongside it, which is how the retired nix-personal layer's principals came across
-  with no custom seam.
+  simply **append** — which is how the retired nix-personal layer's principals came across
+  with no custom seam. (Since ADR-004 the file itself is hand-placed, so no further mailbox is
+  listed in Nix.)
 - **`wallpaper/wallpaper.png`** — the vendored desktop wallpaper `desktop-aesthetics.nix`
   installs. It is copied to `~/.local/share/nix-desktop-wallpaper.png` via `home.file` and
   pointed at from there, **not** referenced as a store path directly: `settings.picture` set

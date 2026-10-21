@@ -1,7 +1,7 @@
 # korotovsky/slack-mcp-server, built from source at a pinned tag.
 #
 # WHY THIS SERVER EXISTS NEXT TO THE HOSTED ONE. Slack's hosted MCP (mcp.slack.com,
-# the `slack` and `slack-infin8` plugins) appends `*Sent using* <@…|Claude>` to every
+# the official `slack` plugin and any second-workspace twin) appends `*Sent using* <@…|Claude>` to every
 # message it posts, with no opt-out (slackapi/slack-skills-plugin#25). #824 therefore
 # denies its post tools and routes through drafts the operator sends by hand. This
 # server posts with the operator's OWN user token (xoxp) through `chat.postMessage`

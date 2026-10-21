@@ -1,13 +1,14 @@
 # Claude Desktop / Cowork — MCP (2026-09-15, rewritten 2026-10-02)
 
-> # ⚠ CURRENT STATE (2026-10-16): Claude Desktop has **THREE** MCP servers — `aws-infin8`, `github`, `stripe-infin8`.
+> # ⚠ CURRENT STATE (2026-10-20): Claude Desktop has ONE public MCP server — `github` — plus whatever the operator's private overlay adds.
 >
 > The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Claude Desktop loads
-> no plugins**, so no plugin-owned server reaches it or the Cowork bridge behind it. The three
-> above arrive through `local.claudeDesktop.extraServers` (`modules/home/default.nix`), the ONLY
-> lane; `stripe-infin8` is a `url` entry and goes through the `mcp-remote` shim.
+> no plugins**, so no plugin-owned server reaches it or the Cowork bridge behind it. `github`
+> arrives through `local.claudeDesktop.extraServers` (`modules/home/default.nix`); client servers
+> arrive through the hand-placed Desktop overlay (`claude-desktop.nix`, merged at activation, so
+> this public repo names none). A `url` overlay entry goes through the `mcp-remote` shim.
 > `checks.aarch64-darwin.claude-desktop-config-shape` asserts the module is enabled and that
-> exactly those three names are rendered.
+> exactly `github` is rendered from Nix.
 >
 > **The module stays ENABLED. Do not "clean it up" by switching it off.** The set Desktop should
 > see is a state something must **write**. A disabled module writes nothing, which leaves

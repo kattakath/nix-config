@@ -5,7 +5,7 @@
 # went home with it; three CREDENTIALED ones did not, and the operator chose to keep the
 # capability rather than let it go dark:
 #
-#   wordpress   site administration over the WP REST API against silvercreek.ai PROD
+#   wordpress   site administration over the WP REST API against the operator's PROD site
 #   apify       Apify Store Actors — the rag-web-browser / web-fetch scraping lane
 #   postgres    the LOCAL pgvector RAG store (NOT a hosted Postgres; the Neon connector
 #               covers Neon projects and cannot see 127.0.0.1:5433)
@@ -290,7 +290,7 @@ let
     # host never appears in a public repo or in this file.
     #
     # VERIFIED LIVE 2026-10-02, because a plugin for a dead endpoint is worse than no
-    # plugin: `https://silvercreek.ai/wp-json/` returns 200 with the `wp/v2` namespace
+    # plugin: the site's `/wp-json/` returns 200 with the `wp/v2` namespace
     # present and advertises `application-passwords` auth, and
     # `/wp-json/wp/v2/users/me` returns 401 `rest_not_logged_in` — the route exists and
     # only authentication gates it. Its SIBLING `wordpress-adapter` is a different
@@ -305,9 +305,11 @@ let
         "mcp-wordpress@3.3.30"
       ];
       keychainEnv = {
-        WORDPRESS_SITE_URL = "mcp:silvercreek.ai:wp_url";
-        WORDPRESS_USERNAME = "mcp:silvercreek.ai:wp_user";
-        WORDPRESS_APP_PASSWORD = "mcp:silvercreek.ai:wp_app_password";
+        # Service names carry no host: `wp_url` already holds the site, so a host in
+        # the NAME added nothing but a public client literal (renamed 2026-10-20).
+        WORDPRESS_SITE_URL = "mcp:wordpress:wp_url";
+        WORDPRESS_USERNAME = "mcp:wordpress:wp_user";
+        WORDPRESS_APP_PASSWORD = "mcp:wordpress:wp_app_password";
       };
     };
 
@@ -393,16 +395,16 @@ let
       sandboxProfile = desktopCommanderProfile;
     };
   }
-  # Slack, posting as the operator: one server per workspace, each with its own user
-  # token (xoxp), so a post carries no `Sent using Claude` footer (see
-  # packages/slack-mcp-server.nix for why the hosted server cannot do this). The plugin
-  # that names each binary is the plugin for that workspace (`slack-infin8`,
-  # `slack-silvercreek` in github:kattakath/skills), so the Infin8/Silver Creek folder
-  # routing hook in ./default.nix covers these by plugin prefix.
+  # Slack, posting as the operator: one `nix-mcp-slack <host>` process per workspace,
+  # each with its own user token (xoxp), so a post carries no `Sent using Claude` footer
+  # (see packages/slack-mcp-server.nix for why the hosted server cannot do this). The
+  # plugins naming it, and the workspace hosts in their `args`, live in the operator's
+  # private overlay marketplace — never in this public repo.
   #
   # Posting to every channel and every upstream tool are the operator's choices
   # (2026-10-16), over a channel allowlist and a post-only tool set. Per-workspace
   # caches cannot collide: upstream keys them by team id (pkg/provider/api.go:706).
+  #
   # GitHub's official MCP server (github/github-mcp-server, nixpkgs-pinned — no npx/uvx
   # download at spawn), authenticated with the gh CLI's own token via `ghTokenEnv`, so
   # its reach is exactly gh's: the same user, the same scopes. `--toolsets all` and no
@@ -425,22 +427,7 @@ let
     # its Keychain service is chosen at runtime — why that factory cannot do it is in
     # packages/slack-post-mcp.nix.
     slack.package = pkgs.callPackage ../../packages/slack-post-mcp.nix { } { inherit homeDirectory; };
-  }
-  // lib.genAttrs [ "slack-infin8" "slack-silvercreek" ] (
-    name:
-    let
-      host = if name == "slack-infin8" then "infin8-it.slack.com" else "silvercreekinsights.slack.com";
-    in
-    {
-      interpreter = pkgs.callPackage ../../packages/slack-mcp-server.nix { };
-      args = [
-        "--transport"
-        "stdio"
-      ];
-      keychainEnv.SLACK_MCP_XOXP_TOKEN = "mcp:${host}:xoxp";
-      plainEnv.SLACK_MCP_ADD_MESSAGE_TOOL = "true";
-    }
-  );
+  };
 in
 {
   options.local.pluginMcp.servers = lib.mkOption {
@@ -461,8 +448,8 @@ in
       identity, not fleet shape — a template consumer wants the mechanism without
       inheriting someone else's WordPress site or Apify billing.
 
-      Credentials come from the login Keychain at launch (`wordpress`, `apify`, the two
-      `slack-*` user tokens), so no
+      Credentials come from the login Keychain at launch (`wordpress`, `apify`, the
+      `slack` per-workspace user tokens), so no
       secret is in the store or in this list. `postgres` needs none — its URI is
       loopback `trust` — and neither does `desktop-commander`, which is here for its
       Seatbelt fence rather than for a credential.

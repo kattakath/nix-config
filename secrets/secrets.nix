@@ -57,7 +57,7 @@ in
   ];
   # The fleet-wide CI GitHub App ("ismailkattakath-ci", appId 4849830, PUBLIC
   # so it installs beyond its owning personal account) — ONE key serves every
-  # install: kattakath + silvercreek-ai + dontsell-ai orgs and the personal
+  # install: kattakath + a client org + dontsell-ai and the personal
   # account. Powers local.tart.githubRunners.* — the ephemeral Tart-VM-per-job
   # runners (nix-tart-vms darwinModules.github-runner, hosts/macos.nix). Same
   # model as the dontsell key above: HOST-decrypted at activation. Content is

@@ -2,8 +2,9 @@
 name: gmail-mcp-accounts
 description: >
   Add, remove, or authenticate accounts for the self-hosted multi-account
-  Gmail MCP (local.gmailMcp.accounts, modules/home/gmail-mcp.nix, launchers
-  from packages/gmail-mcp.nix, declared by the `gmail` plugin's .mcp.json) —
+  Gmail MCP (local.gmailMcp.enable, modules/home/gmail-mcp.nix, the generic
+  `nix-mcp-gmail <address>` launcher from packages/gmail-mcp.nix, accounts
+  declared in the `gmail` / private `gmail-private` plugins' .mcp.json) —
   TRUE simultaneous multi-account Gmail via ArtyMcLabin/Gmail-MCP-Server, one
   process per account, unlike the built-in single-account connector. Use when
   asked to "add a gmail account", "authenticate gmail mcp", "gmail multi
@@ -14,6 +15,15 @@ description: >
 # Gmail MCP multi-account operator
 
 Canonical docs: [`docs/gmail-mcp-multi-account-runbook.md`](../../../docs/gmail-mcp-multi-account-runbook.md).
+
+> **ROSTER LEFT NIX 2026-10-20.** There is no `local.gmailMcp.accounts` any more. Nix
+> installs ONE generic launcher, `nix-mcp-gmail <address>` (`local.gmailMcp.enable`), and the
+> ACCOUNT lives in a plugin's `.mcp.json` as `{"command":"nix-mcp-gmail","args":["<address>"]}`:
+> the operator's own public address in `github:kattakath/skills`'s `gmail` plugin, every other
+> address in the PRIVATE overlay marketplace (`<your-handle>/skills`, `gmail-private`). Adding
+> or removing an account is a plugin `.mcp.json` edit, not a Nix edit. Alias, credentials file
+> and tool prefix are unchanged (same `@ . +` → `_` mapping), so existing sign-ins carry over.
+> Read every `local.gmailMcp.accounts` / `nix-mcp-gmail-<alias>` below with that substitution.
 
 > **LANE CHANGE 2026-10-01/02 — the capability is LIVE, the plumbing moved.** The central MCP
 > gateway and its Cloudflare portal are **destroyed** and `modules/shared/mcp.nix` is **deleted**.
@@ -107,9 +117,8 @@ unset tok
 
 `<alias>` = the email, lowercased, with `@`/`.`/`+` replaced by `_` (matches
 `gmailAlias` in `packages/gmail-mcp.nix`, where it is **derived, never passed in** — e.g.
-`a@b.com` → `a_b_com`). It names both the launcher binary (`nix-mcp-gmail-a_b_com`) and the
-per-account credentials file, which is why the account list cannot simply be read from a local
-file at runtime.
+`a@b.com` → `a_b_com`). Since 2026-10-20 it is computed at RUNTIME from argv by the one
+`nix-mcp-gmail` launcher; it names the per-account credentials file and the `--tool-prefix`.
 
 ## Failure modes
 
@@ -126,8 +135,7 @@ file at runtime.
 
 ## Removing an account
 
-Remove from `local.gmailMcp.accounts` (`hosts/macos.nix`),
-evaluate/commit/push/activate, **remove its entry from the `gmail` plugin's
-`.mcp.json` too** (otherwise Claude Code keeps trying to spawn a launcher that
-is no longer on PATH), then `rm ~/.gmail-mcp/credentials-<alias>.json`. See
-runbook for full rotation/revocation steps.
+Remove its server from the owning plugin's `.mcp.json` (public `gmail` or private
+`gmail-private`), commit and push in that repo, then
+`rm ~/.gmail-mcp/credentials-<alias>.json`. No Nix change. See runbook for full
+rotation/revocation steps.
