@@ -220,9 +220,9 @@
         tart-vms-runner-module = evalChecks.runner-module;
         tart-vms-gitlab-runner-module = evalChecks.gitlab-runner-module;
         tart-vms-state-dir = evalChecks.state-dir;
-        # The kill-switch gate (ADR-002 §2 anatomy): all four modules, ZERO
-        # configuration, MUST contribute nothing — they are in mkDarwin's base
-        # list, so anything they leak lands on every composition in the fleet.
+        # The kill-switch gate (ADR-002 §2 anatomy): this capsule's modules in
+        # mkDarwin's base list, with ZERO configuration, MUST contribute nothing —
+        # anything they leak lands on every composition in the fleet.
         tart-vms-inert = evalChecks.inert;
 
         # The satellite's five BUILD checks in one derivation. Building each is
