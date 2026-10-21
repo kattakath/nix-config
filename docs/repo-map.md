@@ -12,7 +12,7 @@ lane rules and spawn-test measurements that outlived it) and
 
 > **MCP, 2026-10-02 — THE GATEWAY AND ITS PORTAL ARE GONE.** Read this before acting on any MCP
 > sentence anywhere in this repo. There is no shared proxy, nothing on `127.0.0.1:8097`, no
-> `mcp.kattakath.com` portal (that hostname now answers **403**), and no
+> `mcp.kattakath.com` portal (that hostname has had **no DNS record** since 2026-10-02), and no
 > `modules/shared/mcp.nix`. **Every MCP server now comes from an enabled plugin's own
 > `.mcp.json`, spawned per session, nothing shared** — see [`map/claude.md`](map/claude.md)
 > § MCP after the gateway for the replacement and for what the teardown measured.

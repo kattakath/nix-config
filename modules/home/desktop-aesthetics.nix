@@ -1,5 +1,6 @@
 # macOS desktop "look" — Terminal.app's type + colours, and the custom wallpaper
-# (macOS only).
+# (macOS only). OPERATOR-ONLY content but NOT gated: a template consumer gets this
+# wallpaper too, because `local.desktopAesthetics.enable` defaults to true (opt-out).
 #
 # Two separate concerns, deliberately gated differently:
 #

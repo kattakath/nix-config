@@ -27,7 +27,7 @@ ONLY copy. Even with it, the durable copy holds only what `secrets-push` has pus
 mapping are documented in the capsule's README § Backend; the rule that activation never calls
 any of them is `ast-grep/rules/activation-must-not-touch-secrets.yml`.
 
-## agenix — an operator-only vault
+## agenix — two vault models
 
 Encrypted secrets are committed via **agenix**: recipients are declared in
 `secrets/secrets.nix` (pure age/SSH, **no `ssh-to-age`**), ciphertext lives in
