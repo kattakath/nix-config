@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
 # Refresh the fallback wallpaper image, at most once per NRT_ART_TTL_HOURS.
 #
-# Runs UNAUTHENTICATED on purpose. The browse endpoint returns HTTP 200 with no
-# key (measured), and a launchd agent reaching into the login Keychain adds a
-# failure mode — locked keychain, no access — for zero benefit. `civitai.com:api`
-# is in the Keychain if rate limits ever bite; wire it with `secret exec` then.
+# AUTH is optional: see the bearer-auth note below and
+# `local.nextRightThing.artTokenEnv`.
 #
-# RATING: the ceiling is the operator's setting (default None), enforced twice —
-# server-side via the `nsfw` query param and again client-side on each item's
-# `browsingLevel`, because trusting one server field alone is a single point of
-# failure. The audience gate below is the only thing that overrides the setting.
+# RATING: the ceiling is the operator's setting (`local.nextRightThing.artRating`,
+# which owns the default), enforced twice — server-side via the `nsfw` query
+# param and again client-side on each item's `browsingLevel`, because trusting
+# one server field alone is a single point of failure. The audience gate below is the only thing that overrides the setting.
 set -euo pipefail
 
 ART_FILE="${NRT_ART_FILE:?NRT_ART_FILE required}"
@@ -22,15 +20,17 @@ API_TEMPLATE="${NRT_ART_SOURCE:-https://civitai.red/api/v1/images?limit=40&nsfw=
 
 # Operator's call, not a hardcoded policy. Civitai's own rating ladder:
 #   None (PG) | Soft (PG-13) | Mature (R) | X
-# Default None. Set `local.nextRightThing.artRating` to change it.
+# None is only this script's fallback when NRT_NSFW is unset; the real default
+# is the `local.nextRightThing.artRating` option's.
 RATING="${NRT_NSFW:-None}"
 
 # AUDIENCE GATE — the one place the setting is overridden, and it exists because
 # this is a WALLPAPER behind every window, not a private viewer. If the screen is
 # likely being shown to other people, drop to None regardless of the setting.
 # Same downgrade principle the text side uses for private items.
+# No `-f`: with it, `-x` must match the WHOLE argv, so the gate never fired.
 if [ "${NRT_AUDIENCE_GATE:-1}" = "1" ] && pgrep -qx \
-     -f 'zoom.us|Microsoft Teams|Webex|OBS|ScreenSharing|Slack Call' 2>/dev/null; then
+     'zoom.us|Microsoft Teams|Webex|OBS|ScreenSharing|Slack Call' 2>/dev/null; then
   RATING="None"
 fi
 
@@ -70,8 +70,7 @@ fi
 
 curl -fsSL -m 25 --retry 2 --retry-delay 3 "${AUTH[@]}" "$API_URL" -o "$tmp.json" 2>/dev/null || exit 0
 
-# Independent client-side gate. `nsfwLevel` must be the literal "None" AND
-# `browsingLevel` must be 1 — trusting either alone trusts one server field.
+# Independent client-side gate on each item's `browsingLevel` (see RATING above).
 url="$(jq -r --argjson max "$MAXLEVEL" '
   [ .items[]
     | select((.browsingLevel // 99) <= $max)

@@ -76,6 +76,8 @@ exactly that reason. Do not relax it.
 | `files.<name>.{before,requiredBy}` | `[ ]` | systemd `Before=` / `RequiredBy=` on the consuming unit |
 | `files.<name>.wantedBy` | `[ "multi-user.target" ]` | systemd `WantedBy=` |
 
+The table is not the whole surface; [`module.nix`](module.nix) is.
+
 ## Planting from macOS
 
 The satellite shipped a `firmware-plant` app for this. It did **not** come along:
@@ -95,7 +97,8 @@ Full procedure — including the full verified `dd` write — is
 
 - The FAT partition is **world-readable on the card** and unencrypted. Treat a
   planted secret as *exposed to anyone with physical access to the card*.
-- The `/run` copy is `0600` root-only, and lives on tmpfs (never the disk).
+- The `/run` copy is `0600` root-only, and lives on tmpfs. A file with `cache = true`
+  also keeps a copy on disk under `cacheDir` — see [`module.nix`](module.nix).
 - This is the right trade-off for *appliance* secrets (tunnel tokens, Wi-Fi PSKs)
   where the alternative is a bricked headless device. It is **not** a replacement
   for `agenix`/`sops-nix` for multi-machine fleets, servers, or high-value secrets.

@@ -205,7 +205,7 @@ in
       default = [ ];
       example = [
         "caddy.service"
-        "cloudflared.service"
+        "cloudflared-connector.service"
       ];
       description = ''
         Units that must be active for the heartbeat to fire. An ALLOWLIST, never a

@@ -22,8 +22,7 @@
 # `TorBrowser/Data/Tor/...` (verified by `tar tf` on 16.0a13 and again on
 # 16.0a14). The stock buildPhase's `--replace-fail` would abort on the missing
 # file, so the path prefix is rewritten in the phase text — one substitution
-# covers all four uses (substituteInPlace, the torrc-defaults_path lockPref, and
-# both GeoIP lines).
+# covers every use.
 #
 # Everything else in that derivation is arch-generic (autoPatchelfHook + a
 # makeWrapper LD_LIBRARY_PATH), which is why this works at all.

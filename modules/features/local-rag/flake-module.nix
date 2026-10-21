@@ -36,7 +36,7 @@
 #   flake.nix's treefmt block + checks.treefmt -> DROPPED. This repo's own
 #     treefmt.nix / `checks.formatting` already covers this tree; a capsule
 #     carrying a second formatter config would be two sources of truth for one
-#     `nix fmt`. Same call the four capsules before this one made.
+#     `nix fmt`. Same call the capsules before this one made.
 #
 # NO PACKAGES. Unlike every other absorbed capsule this one registers no
 # `perSystem.packages` — the satellite had none either. Everything it installs

@@ -5,7 +5,7 @@ there is no `local.agentOverlay` option, no overlay directory, and no behaviour 
 host. It records a boundary and a rejection, so that the next time the "let a CLI install it at
 runtime" idea arrives it is answered from a decision rather than re-litigated.
 
-**Read §10 before trusting §§1-9** — or rather, read that §10 is still **empty**. ADR-002 exists
+**Read §10 before trusting §§1-9.** ADR-002 exists
 in two states, design and execution, and its §9 correction record had to overturn four of its own
 "ADOPT" rows. This document is currently only the first state. Where execution later disagrees
 with a section here, execution wins and §10 records it.
@@ -465,7 +465,7 @@ overturned, and it is worth distinguishing from being wrong.
 |---|---|
 | `flake.lock` pinning of server versions | server content floats on a marketplace branch; the 2026-09-14 recovery levers (**pin the input, override the package**) do not exist for a plugin-declared `npx` spec |
 | `passwordCommand` Keychain wiring **inside** the server declaration | partially recovered, not lost: a launcher that needs a Keychain read is a **nix-config PATH package** the plugin names — `local.gmailMcp` + `packages/gmail-mcp.nix`. The credential logic stays in Nix; only the *declaration* left |
-| any eval-time check on the MCP set | **total.** Nothing in this repo can read a plugin's `.mcp.json`, so no `nix flake check` leg can see which servers exist or whether one silently vanished. The replacement is a runtime procedure ([`mcp-gateway.md`](mcp-gateway.md) § How to verify a plugin-owned server actually answers) |
+| any eval-time check on the MCP set | **total.** Nothing in this repo can read a plugin's `.mcp.json`, so no `nix flake check` leg can see which servers exist or whether one silently vanished. The replacement is a runtime procedure ([`mcp-gateway.md`](mcp-gateway.md) § How to verify a plugin-owned server actually answers). *Partly superseded the same day by #771: `checks.*.mcp-launcher-parity` reads the pinned `kattakath-skills` plugins' `.mcp.json` — see [`map/claude.md`](map/claude.md) § MCP after the gateway.* |
 | presence in Claude Desktop / Cowork | **total, for every server.** §10.6 accepted this for eight; it now applies to all of them. Desktop renders an **empty** `mcpServers` block |
 
 **And §6's "the delta is one decision" claim is now settled for MCP in the direction this ADR

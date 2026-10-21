@@ -1,8 +1,7 @@
 # ---- Remote activation: deploy-rs -------------------------------------------
 #
 # deploy-rs has NO flakeModule — grepped the pinned source (its flake.nix
-# exports `lib`, `packages`, `overlays`, `defaultPackage`, `checks`, nothing
-# module-shaped). So `flake.deploy` stays hand-written in the freeform `flake`
+# exports nothing module-shaped). So `flake.deploy` stays hand-written in the freeform `flake`
 # attr, and this file says so out loud rather than implying flake-parts
 # modularises it.
 { config, inputs, ... }:

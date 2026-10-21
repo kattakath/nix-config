@@ -23,8 +23,7 @@ claude.ai in the browser — paste once, both surfaces get it.
 
 ## Canonical text — the whole field, verbatim
 
-This is the **entire** field, byte-for-byte (SHA-256 prefix `6f6be54b618f3509` of the
-text + trailing newline, read back from claude.ai 2026-09-24). Its **Principles** block is
+The block's **Principles** section is
 the Desktop/claude.ai counterpart of `claude/CLAUDE.md` § Motto; its diagram bullet is the
 counterpart of the **"Diagrams — render as ASCII, never print diagram code"** section in [`claude/CLAUDE.md`](../claude/CLAUDE.md).
 It differs deliberately: Claude Code renders via the `mermaid-ascii` CLI on
@@ -43,16 +42,6 @@ Principles (ground every task in these)
 - Separate derived from assumed: label what is proven vs. fitted vs. a
   judgement call, and flag the weakest assumption.
 - No evidence, no claim: if a choice rests on taste or a hunch, say so.
-
-Tools
-- (**REMOVE THIS BLOCK from the live instructions — 2026-10-02.** It said: *"For
-  terminal/file-system access, use Desktop Commander via the kattakath-portal MCP connector
-  (already added in Settings -> Connectors). Prefer it over asking me to run commands myself."*
-  **That connector was destroyed** ([`claude-desktop-mcp.md`](claude-desktop-mcp.md) has
-  Desktop's current servers). An instruction naming a dead connector is
-  worse than none: Desktop tries, fails, and the failure reads as a tool bug rather than a
-  missing tool. This is a hand-pasted account-level setting, so nothing here can delete it for
-  you — that is the whole reason this file exists.)
 
 Response format
 - Bullets by default, short one-idea sentences. Verdict first -- never make
@@ -75,14 +64,16 @@ Response format
   under 80 characters wide -- a 4+ node left-to-right chain wraps and
   becomes unreadable. Keep each diagram small; split large ones. Verify
   boxes close, arrows connect, labels aren't clipped, before sending.
-```mermaid (or other) code block, and never
-just describe it in prose. Use graph/flowchart shapes only. Stack nodes
-TOP-DOWN by default and keep every diagram under 80 characters wide -
-a left-to-right chain of 4+ boxes is too wide, wraps mid-box, and becomes
-unreadable. Keep each diagram small and split a large one into several.
-Make sure boxes are closed, arrows connect, and labels aren't clipped
-before sending.
 ```
+
+> **REMOVE the `Tools` block from the live instructions — 2026-10-02.** It said: *"For
+> terminal/file-system access, use Desktop Commander via the kattakath-portal MCP connector
+> (already added in Settings -> Connectors). Prefer it over asking me to run commands myself."*
+> **That connector was destroyed** ([`claude-desktop-mcp.md`](claude-desktop-mcp.md) has
+> Desktop's current servers). An instruction naming a dead connector is
+> worse than none: Desktop tries, fails, and the failure reads as a tool bug rather than a
+> missing tool. This is a hand-pasted account-level setting, so nothing here can delete it for
+> you — that is the whole reason this file exists.
 
 **Keep this block 7-bit ASCII.** It reaches the field through the macOS clipboard, and
 `pbcopy` encodes using the caller's locale — in a `LANG`-less shell (every non-interactive
@@ -96,7 +87,7 @@ LC_ALL=en_US.UTF-8 pbcopy < file
 Note: Desktop renders Mermaid natively, so this ASCII rule is a deliberate
 choice for **cross-surface parity** with Claude Code, at the cost of Desktop's
 nicer visual Mermaid. To instead let Desktop render real diagrams, replace the
-"Never leave a diagram as a raw code block" line with an instruction to *output a
+**Diagrams** bullet with an instruction to *output a
 `mermaid` code block, which Desktop renders visually.*
 
 ## After a machine reset

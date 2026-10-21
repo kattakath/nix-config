@@ -18,8 +18,7 @@
 # should.
 id: home-must-not-cross-layers
 valid:
-  # Down into the repo's own content trees — the whole point of the profile, and
-  # every one of these shapes is live in modules/home today.
+  # Down into the repo's own content trees — the whole point of the profile.
   - '{ pkg = ../../packages/mermaid-ascii.nix; }'
   - '{ src = ../../claude/CLAUDE.md; }'
   - '{ skill = ../../skills/explain; }'

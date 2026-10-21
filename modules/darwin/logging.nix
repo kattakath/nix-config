@@ -113,11 +113,12 @@
 # THE USER TICK IS A HOME MANAGER AGENT, not `launchd.user.agents` — the same
 # move metube and yt-dlp-web-ui made on 2026-09-22, for the same reason.
 # nix-darwin's user-agent activation is diff-gated (pinned
-# modules/system/launchd.nix:36) and modules/darwin/launchd-reconcile.nix filters
+# modules/system/launchd.nix, `userLaunchdActivation`) and
+# modules/darwin/launchd-reconcile.nix filters
 # `config.launchd.daemons` ONLY, so a nix-darwin user agent that falls out of its
 # launchd domain is never re-bootstrapped: its plist stops changing and every
 # later activation skips it. Home Manager probes with `launchctl print` and
-# re-bootstraps (pinned home-manager modules/launchd/default.nix:411-419). A
+# re-bootstraps (pinned home-manager modules/launchd/default.nix, `agentIsLoaded`). A
 # rotator that silently stops is precisely the unbounded-growth failure this
 # module exists to end, and no flake check can observe a launchd domain. The ROOT
 # tick stays a nix-darwin daemon — Home Manager has no root tier — and

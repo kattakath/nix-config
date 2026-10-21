@@ -25,8 +25,8 @@
 # option exists -> the pull agent below is custom, because upstream's HM module
 # models the SERVER only and never fetches a model. (Prior art for the shape:
 # NixOS `services.ollama.loadModels`, pinned nixos/modules/services/misc/
-# ollama.nix:151-169 — a separate one-shot `ollama-model-loader` unit, which is
-# exactly what the pull agent is on launchd.)
+# ollama.nix's `systemd.services.ollama-model-loader` — a separate one-shot
+# unit, which is exactly what the pull agent is on launchd.)
 #
 # macOS-ONLY: gated on stdenv.hostPlatform.isDarwin, so enabling it on a Linux host is a
 # clean no-op (safe for mixed nix-darwin + NixOS fleets, and for `nix flake
@@ -130,8 +130,8 @@ in
       # grepped home-manager/modules/services/ollama.nix for Standard*Path — no
       # option exists -> custom, because losing `ollama serve`'s log is an
       # operator-visible regression.
-      # (pinned home-manager modules/launchd/default.nix:36 — `config` is
-      # `submodule (import ./launchd.nix)`; StandardOutPath at launchd.nix:437)
+      # (pinned home-manager modules/launchd/default.nix — `config` is
+      # `submodule (import ./launchd.nix)`, which declares `StandardOutPath`)
       #
       # Gated with the server itself: with `manageServer = false` there is no
       # `launchd.agents.ollama` to attach a log path to, and configuring one
@@ -151,7 +151,8 @@ in
       # session. Measured 2026-09-22: `runs = 1, last exit code = 1`, and ten
       # consecutive "could not connect to ollama server" lines in the log below.
       #
-      # Note what that does NOT mean: the poll at :104 already waits 120 x 1s for
+      # Note what that does NOT mean: the `ollama list` poll loop in `pullScript`
+      # already waits 120 x 1s for
       # the server, so this is not a missing wait. It is a pull that exhausted a
       # two-minute budget on a cold login — the machine-wide daemon
       # (`local.ollamaDaemon`, since `manageServer = false` here) was still coming
@@ -161,7 +162,8 @@ in
       # which is exactly the semantic wanted, and the same Lego media-cli's queue
       # already uses (modules/features/media-cli/module.nix's `KeepAlive.SuccessfulExit = false`). ThrottleInterval
       # raises launchd's flat ~10s respawn floor to a minute, because a model pull
-      # is not something to retry ten times a minute. The poll at :104 STAYS: it is
+      # is not something to retry ten times a minute. The `ollama list` poll loop in
+      # `pullScript` STAYS: it is
       # what makes the common case succeed in a single spawn, so removing it would
       # turn every cold login into a throttled respawn.
       #

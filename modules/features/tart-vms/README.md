@@ -327,8 +327,7 @@ The machinery here is extracted and generalized from
 **[kattakath/nix-config](https://github.com/kattakath/nix-config)**, where it
 ran a persistent `macvm` sandbox guest until 2026-09-05 (see its
 [`docs/macvm-readd-runbook.md`](https://github.com/kattakath/nix-config/blob/main/docs/macvm-readd-runbook.md)
-for the measured VirtioFS-coherence and quarantine-xattr findings that shaped
-this design, and what re-adding the guest would take).
+for what re-adding the guest would take).
 
 ## Ephemeral GitHub Actions runners (`local.tart.githubRunners.*`)
 

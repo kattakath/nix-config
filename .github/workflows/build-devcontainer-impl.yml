@@ -114,9 +114,9 @@ jobs:
             OUT=$(nix develop .#default --command true 2>&1) || { echo "$OUT"; exit 1; }
             echo "$OUT"
             if echo "$OUT" | grep -Eiq "permission denied|could not lock config file|creating symlink .*\.pre-commit-config"; then
-              echo "✗ shellHook emitted a pre-commit/permission error — the [ -w .git ] guard regressed:"; echo "$OUT"; exit 1
+              echo "✗ shellHook emitted a pre-commit/permission error — see the shellHook note in modules/parts/devshell.nix:"; echo "$OUT"; exit 1
             fi
-            echo "✓ shellHook clean (pre-commit install guarded on non-writable .git)"
+            echo "✓ shellHook clean (no pre-commit install — see the shellHook note in modules/parts/devshell.nix)"
             if echo "$OUT" | grep -Eq "^building .|building of "; then
               echo "⚠ devShell built from source — warm-store miss:"; echo "$OUT"
             else
@@ -129,7 +129,7 @@ jobs:
             echo "=== smoke test passed ==="
           '
 
-      # REGRESSION GUARD (see fix/devcontainer-glibc-loader): prove a FOREIGN,
+      # REGRESSION GUARD: prove a FOREIGN,
       # standard-FHS glibc binary — the REAL VS Code Server node, whose ELF
       # PT_INTERP is the standard loader path and which links libstdc++ — actually
       # EXECUTES in the image. This is the exact breakage that hid behind a green
@@ -174,7 +174,7 @@ jobs:
             || { echo "✗ node produced no version string — libstdc++ likely unresolved"; exit 1; }
           echo "=== foreign-glibc execution guard passed (${{ matrix.arch }}) ==="
 
-      # REGRESSION GUARD (see fix/devcontainer-usr-bin-env): prove /usr/bin/env
+      # REGRESSION GUARD: prove /usr/bin/env
       # resolves so the VS Code Server bootstrap scripts (#!/usr/bin/env sh) can
       # exec. On a distroless Nix image /usr/bin/env is absent → the kernel rejects
       # the shebang (exit 126) and the server never installs. Nix binaries hardcode

@@ -94,9 +94,9 @@ let
       '';
 
   # ---- The command launchers' icon ---------------------------------------
-  # The operator's own gold chevron mark. ./fleet-mark.svg is a VERBATIM copy of
-  # ~/Pictures/icon.svg (`cmp`-clean), so refreshing it is a plain `cp` — which
-  # is why the squaring below happens in Nix rather than in the committed file.
+  # The operator's own gold chevron mark (./fleet-mark.svg), squared below in Nix
+  # rather than in the committed file. A refreshed mark must keep the canvas
+  # `fleetMarkCanvas` names; the assert on `fleetMarkSvg` refuses anything else.
   #
   # Squaring is not cosmetic: the source canvas is 434.93933 x 448, and png2icns
   # needs exact NxN rasters. Rendering a non-square source into a square page
@@ -306,8 +306,8 @@ let
   mkCommandApp =
     {
       # Display name (CFBundleName) — also the ~/Applications/<name>.app
-      # filename and what Spotlight matches. Every one starts "Nix " so a single
-      # `nix` query surfaces the whole set.
+      # filename and what Spotlight matches. Every one begins with "Nix" so a
+      # single `nix` query surfaces the whole set.
       name,
       # Reverse-DNS bundle id.
       bundleId,
@@ -470,8 +470,8 @@ in
     iconSvg = androidIconSvg;
   };
 
-  # The fleet operations, each a Spotlight-findable bundle. Every name starts
-  # "Nix " so one `nix` query lists the set, and every one wears the same gold
+  # The fleet operations, each a Spotlight-findable bundle. Every name begins
+  # with "Nix" so one `nix` query lists the set, and every one wears the same gold
   # mark — they are told apart by NAME in the results row, not by icon.
   #
   # Deliberately small, and it got smaller twice on 2026-09-23 — both times

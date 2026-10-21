@@ -1,7 +1,7 @@
 # treefmt-nix configuration — the single source of truth for Nix formatting
 # and lint-fixing across the whole repo. Wired into `nix fmt` (the wrapper),
-# `nix flake check` (the formatting gate), the pre-commit hook, and the editor
-# via nixd. Change a tool HERE and every entrypoint follows.
+# `nix flake check` (the formatting gate) and the pre-commit hook. Change a tool
+# HERE and every entrypoint follows.
 #
 # SCOPE: tools that REWRITE files. Report-only structural lint lives in
 # sgconfig.yml + ast-grep/rules/ and is gated by checks.<system>.ast-grep, NOT
@@ -38,7 +38,7 @@ _:
   # The pinned module defaults to `includes = [ "README.md" ]` (treefmt-nix
   # programs/mdsh.nix:9) and treefmt globs match at ANY DEPTH, so one line would
   # run `bash -c` over every README.md in the tree, during a local `nix fmt`, as
-  # the operator. Today those are the capsules' own; when `skills/` and
+  # the operator. Today every one is authored here; when `skills/` and
   # `plugins/` were vendored here (both now live in github:kattakath/skills) it
   # would have been third-party content this fleet's rules class as data.
   #

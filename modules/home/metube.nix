@@ -12,11 +12,11 @@
 # WHY HOME MANAGER AND NOT nix-darwin's `launchd.user.agents` (moved 2026-09-22).
 # Both layers can place a user agent; only one repairs it. nix-darwin's
 # activation is diff-gated — `if ! diff` the plist, load, else skip (pinned
-# nix-darwin modules/system/launchd.nix:19,36) — and modules/darwin/
+# nix-darwin modules/system/launchd.nix `launchdActivation`/`userLaunchdActivation`) — and modules/darwin/
 # launchd-reconcile.nix covers `launchd.daemons` ONLY, so a nix-darwin user
 # agent that has fallen out of its launchd domain is never re-bootstrapped.
 # Home Manager probes with `launchctl print` and re-bootstraps an
-# up-to-date-but-not-loaded agent (pinned home-manager/modules/launchd/default.nix:411-419) — which is why 22 HM agents survived the 2026-09-22
+# up-to-date-but-not-loaded agent (pinned home-manager/modules/launchd/default.nix `processAgent`'s `agentIsLoaded` probe) — which is why 22 HM agents survived the 2026-09-22
 # outage while the system tier did not (launchd-reconcile.nix's header).
 #
 # The move renames the Label `org.nixos.metube` -> `org.nix-community.home.metube`.

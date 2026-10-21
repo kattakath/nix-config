@@ -3,7 +3,7 @@ description: Author or fix a Violentmonkey userscript for a site — routes to t
 argument-hint: "<site> <wish>  # e.g. photos.google.com icon rail at every width | fix google-photos-icon-nav"
 ---
 
-Run the **`page-lab:userscript-author`** skill (from the pinned `page-lab` plugin) end to end
+Run the **`page-lab:userscript-author`** skill (from the `page-lab` plugin) end to end
 for: $ARGUMENTS
 
 Then read `.claude/skills/userscript-author/SKILL.md` for the two things that plugin cannot

@@ -1,5 +1,5 @@
 {
-  description = "Greenfield aarch64 Nix mono-repo: macOS (nix-darwin) client, a Raspberry Pi 4 NixOS server (nixpi), and a disposable aarch64-linux NixOS dev VM (nixvm) booted only via `nix run .#nixvm` — single source of truth across the fleet.";
+  description = "Greenfield aarch64 Nix mono-repo: one macOS (nix-darwin) client and its NixOS hosts — single source of truth across the fleet.";
 
   inputs = {
     # nixpkgs — ONE tree for every platform, pinned through FlakeHub's
@@ -70,9 +70,10 @@
     # git-hooks' flake-compat feeds only its legacy non-flake shim (default.nix /
     # shell.nix), which reads the rev out of git-hooks' OWN vendored flake.lock
     # rather than from `inputs` — its `outputs = { self, nixpkgs, ... }` never even
-    # destructures it. We reach git-hooks solely through `lib.<system>.run`, so the
-    # fetch is pure waste. (`follows = ""` REBINDS the name to this flake, it does
-    # not delete it — only safe because nothing ever forces it.)
+    # destructures it. We reach git-hooks only as a flake (its `flakeModule`, in
+    # modules/parts/devshell.nix), so the fetch is pure waste. (`follows = ""`
+    # REBINDS the name to this flake, it does not delete it — only safe because
+    # nothing ever forces it.)
     git-hooks.inputs.flake-compat.follows = "";
 
     # Raspberry Pi 4 hardware for nixpi: the linux-rpi vendor kernel, the GPU firmware
@@ -137,15 +138,14 @@
     # failure, which is how 6.0.11 and then 6.0.22 each became a pin in turn.
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
 
-    # Nix -> OpenTofu/Terraform JSON renderer for the Cloudflare-side tunnel
-    # objects (infra/cloudflare/nixpi-tunnel.nix — the remotely-managed tunnel +
-    # ingress + proxied CNAME + connector-token output).
+    # Nix -> OpenTofu/Terraform JSON renderer for the infra/ stacks
+    # (modules/parts/terranix.nix wires each one).
     terranix.url = "github:terranix/terranix";
     terranix.inputs.nixpkgs.follows = "nixpkgs";
 
     # Determinate Nix on EVERY host. On `macos` `determinate-nixd` takes over the
-    # Nix daemon and owns /etc/nix/nix.conf (nix.enable = false there); on the
-    # NixOS hosts (nixpi, nixvm — since 2026-09-21) its nixosModule swaps
+    # Nix daemon and owns /etc/nix/nix.conf (nix.enable = false there); on every
+    # NixOS host (mkNixos, modules/parts/compose.nix) its nixosModule swaps
     # `nix.package`, runs `determinate-nixd` as the daemon and moves the
     # generated conf to nix.custom.conf, so standard `nix.settings` still works
     # there. Sourced from FlakeHub.
@@ -263,8 +263,8 @@
     };
     # xAI's OFFICIAL Claude Code plugin (grok-build-plugin-cc) — the sanctioned
     # Grok Build <-> Claude Code bridge (/grok-build:{review,critique,delegate,
-    # import,...}). Pinned flake=false; its self-contained plugin dir is wired into
-    # programs.claude-code.plugins (modules/home/default.nix, darwin-gated). Needs
+    # import,...}). Pinned flake=false; patched (`grokBuildPluginPatched`) and wired as
+    # `local.claudePlugins.marketplaces.xai-grok-build` (modules/home/default.nix, darwin-gated). Needs
     # grok on PATH + Node; grok must be authenticated. That PATH entry is the
     # STORE one from hosts/macos.nix's environment.systemPackages, NOT
     # `~/.grok/bin` — home.sessionPath dropped that on purpose 2026-09-15 so a
@@ -274,10 +274,10 @@
       flake = false;
     };
     # ---- Additional third-party skill collections (source-only, flake = false) --
-    # Wired into programs.claude-code.skills alongside the two above. Chosen to
+    # Wired into programs.claude-code.skills. Chosen to
     # DRIVE tools this fleet already has (Cloudflare Tunnel + cloudflare/cloudflare-docs
     # MCP, the postgres/macos-automator MCP servers, the Excalidraw
-    # connector, the Google Drive connector). Bumped via `nix flake update`; nothing vendored.
+    # connector). Bumped via `nix flake update`; nothing vendored.
     agent-skills-cloudflare = {
       # OFFICIAL Cloudflare (Apache-2.0): `cloudflare` + `cloudflare-one` (Access/Tunnel) product reference.
       url = "github:cloudflare/skills";
@@ -301,12 +301,12 @@
     };
     agent-skills-superpowers = {
       # obra/superpowers (MIT): only systematic-debugging + verification-before-completion are pinned
-      # (cherry-picked subpaths, NOT the whole 14-skill plugin) — hypothesis-driven debugging plus an evidence-before-claims completion check. Keeps the always-loaded set lean.
+      # (cherry-picked subpaths, NOT the whole plugin) — hypothesis-driven debugging plus an evidence-before-claims completion check. Keeps the always-loaded set lean.
       url = "github:obra/superpowers";
       flake = false;
     };
     agent-skills-jsonresume = {
-      # Paramchoudhary/ResumeSkills (MIT, 1.4k★): 21 job-search agent skills. We cherry-pick a LEAN,
+      # Paramchoudhary/ResumeSkills (MIT, 1.4k★): job-search agent skills. We cherry-pick a LEAN,
       # complementary subset in programs.claude-code.skills (JD analysis / ATS / cover-letter / interview /
       # salary) — NOT resume-tailor, which the json-native jsonresume-tailor (kattakath/skills) supersedes.
       # These are plain-markdown workflows over pasted text; they DON'T touch resume.json / resume-cli.
@@ -324,15 +324,15 @@
     agent-skills-vercel-workflow = {
       # OFFICIAL Vercel Workflow SDK repo (vercel/workflow, Apache-2.0, 2.3k★) — the durable/resumable
       # TypeScript workflow engine, DISTINCT from the two vercel-labs skill repos above. We cherry-pick
-      # its three USER-facing skills in programs.claude-code.skills (workflow / workflow-init /
+      # a subset in programs.claude-code.skills (workflow / workflow-init /
       # migrating-to-workflow-sdk); we deliberately DROP `internal-dev-workbench`, which only sets up a
       # tmux/portless dev session for contributors HACKING ON the SDK repo itself — irrelevant to this fleet.
       url = "github:vercel/workflow";
       flake = false;
     };
-    # Anthropic's OFFICIAL first-party plugin marketplace (Apache-2.0). Pinned to enable the in-repo
-    # `security-guidance` plugin (hook-driven secret/injection warnings + Stop-hook diff review) via
-    # programs.claude-code.marketplaces + enabledPlugins — the same declarative path as grok-build.
+    # Anthropic's OFFICIAL first-party plugin marketplace (Apache-2.0). The marketplace reaches Claude
+    # Code as an HTTPS source, NOT through this pin: `local.claudePlugins.marketplaces.claude-plugins-official`
+    # (modules/home/default.nix; modules/home/claude-plugins.nix says why a directory pin is rejected).
     claude-plugins-official = {
       url = "github:anthropics/claude-plugins-official";
       flake = false;
