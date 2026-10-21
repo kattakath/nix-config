@@ -167,8 +167,8 @@ let
             # with the gateway (2026-10-02), but the trap it proved is not; it is why
             # `fleet.identityArgs` is a CLOSED submodule (identity.nix).
             #
-            # modules/home/default.nix derives the gitlab.com include's address from it, so no
-            # literal address is left in that file (ADR-004 §7, inventory #3).
+            # No Home Manager module reads it today; like operatorSshKey above, it
+            # stays a fleet constant rather than a per-consumer one.
             googleAccount
             ;
           # MODULE, not a flake — hence the name. It was the `keychain-secrets`
