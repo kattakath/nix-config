@@ -66,8 +66,8 @@ _:
     # and without the tap the app would be a hand-dragged .app no `cleanup` reclaims.
     #
     #   - escrcpy (graphical scrcpy frontend; absent from homebrew-core AND nixpkgs).
-    #     Migrated verbatim from our fork of viarotel-org/homebrew-escrcpy, keeping
-    #     its one-line fix: upstream's `depends_on macos: :catalina` is DISABLED in
+    #     Migrated from our fork of viarotel-org/homebrew-escrcpy; the tap's README
+    #     lists what diverges. The first divergence: upstream's `depends_on macos: :catalina` is DISABLED in
     #     Homebrew 7 (a hard `brew bundle` failure that aborts activation — why
     #     nix-homebrew sat rev-pinned to brew 6.0.22, kattakath/nix-config#613).
     #     The upstream fix, viarotel-org/homebrew-escrcpy#61, was CLOSED unmerged
