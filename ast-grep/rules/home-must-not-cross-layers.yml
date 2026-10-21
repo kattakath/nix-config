@@ -54,7 +54,7 @@ rule:
 message: A home module crossed a layer boundary with a parent-directory path literal.
 note: |
   modules/home/ is the home-manager profile. It may reach DOWN into this
-  repo's content trees (packages/, skills/, claude/, sites/) and sideways to its
+  repo's content trees (packages/, claude/, sites/) and sideways to its
   own siblings - but not into modules/features/, modules/parts/, hosts/ or
   infra/.
 

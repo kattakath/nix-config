@@ -1815,7 +1815,7 @@ in
           # health belongs to a monitor, not to `nix flake check`; there is none
           # today, and that gap is real.
           #
-          # Four further CONFIG paths are known and deliberately ungated:
+          # Three further CONFIG paths are known and deliberately ungated:
           #
           #   `networking.firewall.extraCommands` — the iptables backend's raw
           #     escape hatch (firewall-iptables.nix:235, option at :290). It is
@@ -1829,8 +1829,6 @@ in
           #     on iptables. Flipping networking.nftables.enable moves the whole
           #     rule set to a renderer none of these legs read, so that flip needs
           #     new legs rather than an edit to these.
-          #   UDP, ports and ranges both. The failure this check exists to catch
-          #     is an unauthenticated, unlogged path to sshd, and sshd is TCP.
           #   the rest of sshd_config. A `Port` smuggled through extraConfig is
           #     harmless here — the binds are pinned and the allow-list is
           #     pinned — but nothing above reads, say, a `Match` block that

@@ -28,7 +28,7 @@ let
   # this shape -- nixos/modules/services/networking/cloudflared.nix:387-390 loads the
   # tunnel credentials + cert straight off an operator-supplied path. Grepped the
   # pinned nixpkgs for it; the option exists and fits the general idea, so a copy
-  # unit is still custom ON PURPOSE, for three things credentials cannot do:
+  # unit is still custom ON PURPOSE, for four things credentials cannot do:
   #   * OPTIONAL sources. `LoadCredential=ID:/abs/path` is FATAL when the file is
   #     absent; systemd.exec(5) grants the non-fatal case only to an omitted path or
   #     a bare credential identifier resolved from the credstore, and the
