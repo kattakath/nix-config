@@ -13,7 +13,8 @@
 #                            BOUNDED (TR_SLOT_WAIT, default 120s): prepare runs
 #                            after the coordinator has already assigned the job,
 #                            so on expiry it exits SYSTEM_FAILURE_EXIT_CODE —
-#                            job back to `pending` — instead of quietly eating
+#                            the job then fails as runner_system_failure after
+#                            gitlab-runner's bounded retries — instead of quietly eating
 #                            the job's own timeout.
 #   nix-gitlab-tart-run      passthrough.
 #   nix-gitlab-tart-cleanup  real cleanup first (deletes the VM), then release

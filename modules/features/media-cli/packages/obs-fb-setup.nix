@@ -1,8 +1,8 @@
 # `obs-fb-setup` (macOS only) — configure an OBS "Facebook" profile with the IDEAL
 # screencast-to-Facebook-Live settings, and inject the stream key FROM THE LOGIN KEYCHAIN
 # at run time (`FB_PERSISTENT_STREAM_KEY`, set via `secret set`). The key is NEVER in git
-# or the Nix store — read live from the Keychain (same pattern as the context7/cloudflared
-# passwordCommand wrappers) and written into OBS's own service.json (OBS stores keys in
+# or the Nix store — read live from the Keychain (same pattern as packages/rogers-gw.nix's
+# passwordCommand read) and written into OBS's own service.json (OBS stores keys in
 # plaintext there regardless; that file is local, not committed). Re-run any time the key
 # rotates or the profile is reset.
 #
