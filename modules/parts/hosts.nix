@@ -1,9 +1,8 @@
-# ---- The fleet's three host configurations ----------------------------------
+# ---- The fleet's host configurations ----------------------------------
 #
 # Nothing here changed in wave 2 except where it lives and that the builders are
 # reached through `config.flake.lib.*` — the public composition seam — rather
-# than through a `let` binding only this file could see. `darwinConfigurations`
-# is declared mergeable in modules/parts/lib-option.nix; `nixosConfigurations`
+# than through a `let` binding only this file could see. `nixosConfigurations`
 # flake-parts already declares (modules/nixosConfigurations.nix:11).
 { config, ... }:
 let
