@@ -95,8 +95,8 @@ world-readable by design: anyone can query `kattakath.com` and get every record 
 commit. Publishing the operator's own zone discloses approximately nothing that `dig` does not.
 
 What a public commit *does* disclose is **aggregation across domains that are not only the
-operator's** — a client's zone, `dontsell.ai`, `aloshy.ai`, `snoringirl.com`, `etuper.com`,
-`izzykatt.ca`. Publishing another business's zone in a personal public repo is someone else's
+operator's** — a client's zone, `dontsell.ai`, `aloshy.ai`, `snoringirl.com`, `etuper.com`.
+Publishing another business's zone in a personal public repo is someone else's
 disclosure to make.
 
 So the line is drawn by **ownership, not by secrecy**: the operator's own zone goes in the

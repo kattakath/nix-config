@@ -252,7 +252,7 @@ written by hand (or restored from your own backup) — a missing one degrades si
 |---|---|---|
 | `~/.aws/config` | account ids / start-URL ids are reconnaissance; every user's differs | copy `~/.aws/config.example` (written by `local.cloudCli.aws`) or `aws configure sso` |
 | `~/.config/git/local.inc` | which org/folder authors as which identity is the operator's alone | the ONE include `modules/home/default.nix` names unconditionally; holds `[includeIf "gitdir:…"]` / `[includeIf "hasconfig:remote.*.url:…"]` blocks, each `path = <identity>.inc`. Template: the private overlay repo's README |
-| `~/.config/git/<identity>.inc` (each one `local.inc` routes to, plus `izzykatt.inc`) | personal/work/client mailboxes and a persona | `[user]` + `email` (+ `name` for the persona) |
+| `~/.config/git/<identity>.inc` (each one `local.inc` routes to) | personal/work/client mailboxes | `[user]` + `email` (+ `name` where the identity's name differs) |
 | `~/.config/git/allowed_signers` | lists every mailbox you author as | `<mailbox> namespaces="git" <your ssh public key>`, one line per address; signing works without it, only VERIFYING needs it |
 | `~/.config/nix-config/claude-settings.overlay.json`, `claude-desktop.overlay.json` | client plugins/servers are the operator's alone | copy (or symlink) from the private overlay repo's `overlay/` and `desktop/`, then `activate` |
 | the login Keychain's secrets | never in Nix | `macos` runs `local.keychainSecrets.backend.type = "gcp"` (since 2026-10-17): `gcloud auth login` → `secrets-rehydrate`, both under `CLOUDSDK_CONFIG=~/.config/gcloud-nix-config`. Or `secret set …` by hand |

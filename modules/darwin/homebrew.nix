@@ -73,8 +73,7 @@ _:
     #     The upstream fix, viarotel-org/homebrew-escrcpy#61, was CLOSED unmerged
     #     (2026-10-10), so the cask stays ours. Cost: no upstream version bumps —
     #     bump `version` + `sha256` in the tap when escrcpy releases.
-    #   - civitai-live-wallpaper (our own app, gitlab.com/izzykatt/civitai-live-wallpaper;
-    #     DMGs from its public package registry — the project itself is private).
+    #   - civitai-live-wallpaper (DMGs from its project's public package registry).
     #
     # Both apps are ad-hoc signed / unsigned and not notarized, so Gatekeeper never
     # evaluates them: a quarantined copy will not launch. Each cask entry therefore

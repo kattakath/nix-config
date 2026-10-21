@@ -176,7 +176,7 @@ let
   # These were applied by hand during the 2026-09-12 audit and existed nowhere in
   # Nix, so nothing reproduced them and they would drift silently. Declared here
   # for every zone THIS module manages — the SSH host's zone plus each hosted
-  # site's zone. Zones outside this module (aloshy.ai, etuper.com, izzykatt.ca,
+  # site's zone. Zones outside this module (aloshy.ai, etuper.com,
   # dontsell.ai and a client zone) are deliberately NOT covered: they have no
   # terranix module anywhere. dontsell.ai had one in the private flake until
   # 2026-09-14; its apex moved to Vercel out-of-band, the module drifted from
