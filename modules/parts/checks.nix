@@ -102,18 +102,12 @@ in
           # impossible. Counted on 2026-10-02 — 15 tracked `.sh` files, of which
           # exactly TWO are `builtins.readFile`d into a `writeShellApplication` and
           # therefore shellchecked by BUILDING it (packages/design-tokens/build.sh,
-          # packages/email-signature/signature.sh). The other THIRTEEN are unwrapped:
+          # packages/email-signature/signature.sh). The others are unwrapped:
           #
           #   bootstrap.sh                 gated — by this check.
           #   scripts/drv-snapshot.sh      gated — by `drv-snapshot-lint`, in the
           #     ungated block below. Its own header used to tell the operator to run
           #     `nix develop -c shellcheck` BY HAND, which is not a gate.
-          #   packages/next-right-thing/{run,decide,render,art,probe,gather}.sh
-          #     gated — by `next-right-thing-lint`, below, as of 2026-10-02. They are
-          #     `cp`'d into a `runCommand` libexec dir
-          #     (modules/home/next-right-thing.nix), so the generator's own
-          #     `writeShellApplication` shellchecks the ~25-line wrapper that `exec`s
-          #     them and none of the ~1,000 lines it hands over to.
           #   modules/features/keychain-secrets/tests/grammar.sh
           #     gated — by `keychain-secrets-grammar-lint`, in the capsule's own
           #     ./checks/ dir, as of 2026-10-02. It is the one that genuinely cannot
@@ -201,103 +195,6 @@ in
                     echo "modules/parts/hosts.nix builds /etc/nix-darwin -> ~/${expectedPrefix}/flake.nix." >&2
                     echo "A disagreement leaves that symlink DANGLING, and a dangling one is silent:" >&2
                     echo "activation succeeds and darwin-rebuild ignores the broken link." >&2
-                    exit 1
-                  ''
-              )
-            );
-
-          # ---- The ~1,000 lines the next-right-thing wrapper hands over to ------
-          #
-          # modules/home/next-right-thing.nix builds the übersicht widget's engine
-          # in two halves, and only one of them was ever linted. The half that is:
-          # a ~25-line `writeShellApplication` wrapper, shellchecked by being built.
-          # The half that was not: the six scripts it `exec`s, which reach the store
-          # through `cp ${scriptDir}/render.sh … $out/libexec/` inside a
-          # `runCommand` — and `runCommand` runs no linter. So the ~1,000 lines that
-          # do the actual work had no gate, while the 25 lines that point at them
-          # did.
-          #
-          # SHAPE: `drv-snapshot-lint`'s, below — shellcheck over SOURCE PATH
-          # LITERALS, one per script. Measured on that precedent 2026-10-02: its
-          # `.drv` lists `/nix/store/…-drv-snapshot.sh` as a STANDALONE single-file
-          # path, not a subpath of `self`, and this one lists six the same way. So
-          # the drvPath moves only when one of the six moves — the `bootstrap-lint`
-          # class, not the `formatting` class (which takes `self` and therefore
-          # churns every commit, which is why it sits in drv-snapshot.sh's
-          # EXCLUDE_RE). This is a one-time, named, ONE-row delta in the acceptance
-          # baseline; re-baseline once, do not exclude it.
-          #
-          # DARWIN-ONLY, following bootstrap.sh rather than drv-snapshot.sh. The
-          # ungated block's reasoning for `drv-snapshot-lint` is that the harness "is
-          # a dev tool either leg can run"; these six are an übersicht widget's
-          # engine, macOS-only like the widget, so the SCRIPT'S platform decides and
-          # this costs one row instead of two.
-          #
-          # TWO HALVES, AND BOTH EARN THEIR PLACE — this is #772's finding applied
-          # before it could fire again. There, a pure dedupe was a NET LOSS in
-          # safety: a list typed in two places went red when an entry was dropped,
-          # and the same list with ONE definition and three readers shrank on both
-          # sides at once and stayed GREEN at exit 0. So a derived list of files to
-          # lint needs its own roster, or the gate silently stops covering a deleted
-          # script:
-          #
-          #   `found` is DERIVED (`builtins.readDir`), and is what gets linted — so a
-          #     SEVENTH script added to that directory is covered the day it lands,
-          #     which a typed list of six would silently miss. readDir is eval-time
-          #     and copies nothing; only the per-file literals reach the store.
-          #   `roster` is TYPED, independently, and is compared against `found` BOTH
-          #     ways — so a deleted script is a RED gate naming it rather than a
-          #     quietly smaller one, and a new script must be named here as well as
-          #     linted.
-          #
-          # Proven in both directions 2026-10-02, with `nix build` (not `nix eval`,
-          # which hides a throw): an unquoted `$var` injected into run.sh failed the
-          # shellcheck leg (SC2086), and renaming art.sh out of the directory failed
-          # the roster leg naming `art.sh` as missing.
-          #
-          # NOT COVERED: that the widget WORKS, or that run.sh still calls the other
-          # five. shellcheck is a syntax and quoting lint, and a `cp` list in
-          # next-right-thing.nix that silently dropped a file would be as clean as
-          # one that did not.
-          next-right-thing-lint =
-            let
-              scriptDir = ../../packages/next-right-thing;
-              found = lib.naturalSort (
-                lib.filter (lib.hasSuffix ".sh") (lib.attrNames (builtins.readDir scriptDir))
-              );
-              roster = [
-                "art.sh"
-                "decide.sh"
-                "gather.sh"
-                "probe.sh"
-                "render.sh"
-                "run.sh"
-              ];
-              missing = lib.subtractLists found roster;
-              unexpected = lib.subtractLists roster found;
-            in
-            pkgs.runCommand "next-right-thing-lint" { nativeBuildInputs = [ pkgs.shellcheck ]; } (
-              lib.concatMapStringsSep "\n" (n: "shellcheck --shell=bash ${scriptDir + "/${n}"}") found
-              + "\n"
-              + (
-                if missing == [ ] && unexpected == [ ] then
-                  ''
-                    echo "all ${toString (builtins.length found)} packages/next-right-thing/*.sh are shellcheck-clean" > "$out"
-                  ''
-                else
-                  ''
-                    echo "next-right-thing-lint: the roster in modules/parts/checks.nix no longer matches the directory." >&2
-                    ${lib.concatMapStringsSep "\n" (
-                      n: ''echo "  ✘ ${n} is in the roster but NOT in packages/next-right-thing/" >&2''
-                    ) missing}
-                    ${lib.concatMapStringsSep "\n" (
-                      n: ''echo "  ✘ ${n} is in packages/next-right-thing/ but NOT in the roster" >&2''
-                    ) unexpected}
-                    echo "" >&2
-                    echo "The roster exists so a DELETED script cannot shrink this gate's coverage" >&2
-                    echo "while it stays green — #772 measured exactly that, at exit 0. Name the" >&2
-                    echo "change in \`roster\` (and in modules/home/next-right-thing.nix's cp list," >&2
-                    echo "which this check cannot see)." >&2
                     exit 1
                   ''
               )
@@ -705,7 +602,7 @@ in
                       (
                         namedMacos.config.local.operatorHost
                         || namedHm.home.activation ? emailSignature
-                        || namedHm.local.nextRightThing.enable
+                        || namedHm.local.claudeOtel.enable
                       )
                       "a consumer whose host is NAMED 'macos' got operator-only behaviour — gate on local.operatorHost, never the hostname"
                   ++ lib.optional (

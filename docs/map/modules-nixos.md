@@ -341,10 +341,6 @@ is a plain **CNAME → `kattakath.github.io` (DNS-only)** declared in
 `hostedSites` is not Caddy's only vhost: `hosts/nixpi.nix` also merges a LAN-only
 `http://nixpi.local` vhost for Audiobookshelf — see [`hosts.md`](hosts.md).
 
-**`sites/ismail-landing` stays in the tree regardless** — absent from `hostedSites` means "Caddy
-no longer serves it", not "nothing reads it": its `fonts/` subdir is LIVE, read by
-`modules/home/next-right-thing.nix` for the übersicht widget's typography.
-
 One site also means the `cf-tunnel` **≤2-ingress site-free floor can never fire for it** — this
 render carries three entries (SSH + the site + the mandatory catch-all 404). That floor is an
 absolute "is the render blank" check, not a diff against what is live; the guard that catches a

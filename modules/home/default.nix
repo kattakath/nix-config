@@ -507,10 +507,6 @@ in
     ./spotlight-actions.nix
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
-    # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
-    ./ubersicht.nix # local.ubersicht — the one full-screen HTML Übersicht widget (cask in hosts/macos.nix)
-    # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
-    ./next-right-thing.nix # local.nextRightThing — decides what that widget says
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
     # The two loopback download servers. They were nix-darwin `launchd.user.agents`
     # until 2026-09-22; moved here because Home Manager re-bootstraps an agent that
@@ -681,26 +677,6 @@ in
   # does PASSWORDS (and verification codes). On macOS a passkey comes from the OS
   # AuthenticationServices API the browser itself calls, never through an extension.
   local.defaultBrowser = lib.mkIf isMacosHost "chrome";
-
-  # The one Übersicht widget: a single HTML file rendered full-screen, re-read every
-  # five minutes (module: ./ubersicht.nix; the app is the `ubersicht` cask). The
-  # value is a runtime shell string read by the widget's `cat`, so it never enters
-  # the store. Real Mac only — nothing else declares the cask.
-  #
-  # NOT ~/Documents, and not ~/Desktop or ~/Downloads: Übersicht is unsandboxed and
-  # runs `command` through /bin/sh, which TCC denies inside those three directories
-  # (measured on this fleet — a /nix/store arg0 reads ~/Downloads fine, /bin/sh gets
-  # EPERM). ~/.local/share is outside TCC, and is the right home for a file that
-  # aggregates private mail, Telegram and calendar data in plaintext anyway.
-  # Single-sourced from the generator so the writer and the reader cannot drift:
-  # a path typed twice is a path that eventually disagrees, and the failure mode
-  # is a widget silently rendering a file nothing updates any more.
-  # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
-  local.ubersicht.htmlWidget = lib.mkIf isMacosHost config.local.nextRightThing.outputPath;
-
-  # The generator: scan, rank, publish ONE action (module: ./next-right-thing.nix).
-  # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
-  local.nextRightThing.enable = isMacosHost;
 
   # The userscript set. Keying it is what lets a layer composed in through
   # `extraHomeModules` add its own without touching this file; keys must stay

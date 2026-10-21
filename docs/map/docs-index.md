@@ -122,8 +122,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   blueprint is NOT a pinned input**, so that is cited precedent, not a grepped option surface.
   §8 adopts `modules/shared` → `modules/home` as this ADR's own consequence — **DONE
   2026-10-02**, per §8's own heading. §9 is the honest wart list:
-  `packages/next-right-thing/` holds **no package at all** (six scripts, no `default.nix`, zero
-  references in `modules/parts/packages.nix`), and 2 of `modules/shared/`'s then-24 `.nix` were
+  `packages/next-right-thing/` held **no package at all** (deleted 2026-10-21 with its widget), and 2 of `modules/shared/`'s then-24 `.nix` were
   not home-manager modules — `nix-cache.nix` calls itself *"NixOS-ONLY"* on its own line 3, and
   `nix-ld-libraries.nix` is a `pkgs:`-taking function, not a module. **§9b is now DONE**: those
   two moved to `modules/nixos/nix-cache.nix` and `modules/_lib/nix-ld-libraries.nix` on 2026-10-02, so

@@ -123,7 +123,7 @@ in
   # `launchd.enable` defaults to isDarwin, so on nixpi/nixvm the agent would
   # silently evaluate to nothing while `pkgs.callPackage` above still had to
   # build for aarch64-linux. modules/home/default.nix imports this file for
-  # EVERY host. House spelling: the same gate in modules/home/next-right-thing.nix.
+  # EVERY host.
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
     launchd.agents.metube = {
       enable = true;
