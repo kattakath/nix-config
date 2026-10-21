@@ -35,9 +35,9 @@
 # — but the pnpm 12 store layout is what the pnpmDeps override below exists for.
 #
 # NODE FLOOR IS REAL. package.json engines require node >=22.13.0 and the build
-# targets node22. The fleet's default `nodejs` is 20.x, so this package pins
-# nodejs_22 explicitly instead of inheriting — an acpx run under node 20 fails
-# at import, not with a friendly version message.
+# targets node22. This package pins nodejs_22 explicitly rather than inheriting
+# `pkgs.nodejs`, so the floor never depends on the fleet default (20.x when this was
+# written) — an acpx run under node 20 fails at import, not with a friendly message.
 {
   lib,
   stdenv,

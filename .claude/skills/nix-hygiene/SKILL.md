@@ -90,7 +90,7 @@ This table only adds the **output** column. The full path list (`modules/_lib/`,
 [`docs/repo-map.md`](../../../docs/repo-map.md). A path missing from both is itself a finding.
 
 **Platform branching:** `lib.mkIf` in `modules/`, not copy-paste across hosts.
-**Host gates:** `networking.hostName` / `osConfig` for per-host divergence.
+**Host gates:** an option flag for per-host divergence — `isMacosHost` (`modules/_lib/is-macos-host.nix`, reading `local.operatorHost`) for the operator's Mac, a `local.*` enable in `hosts/*.nix` elsewhere. Never the hostname: a template consumer can reuse it.
 
 ## Checklist (run in order)
 
@@ -117,7 +117,7 @@ This table only adds the **output** column. The full path list (`modules/_lib/`,
 ### C. DRY / modular / atomic
 
 - [ ] One path for one fact (e.g. the `~/Downloads` path shape shared conceptually host/guest).
-- [ ] No host-specific lists in shared modules without `mkIf` / hostName / `isMacosHost`.
+- [ ] No host-specific lists in shared modules without `mkIf` on `isMacosHost` or a `local.*` flag (never the hostname).
 - [ ] Launchd BTM basenames: `nix-<activity>` via `modules/home/launchd-launcher.nix` for HM
       agents, or a hand-written `writeShellScriptBin "nix-<activity>"` arg0 for nix-darwin units
       (the `tart-vms` capsule's runners) — never bare `sh`/`open`. (`mkNixAgent` is gone; see
@@ -213,7 +213,7 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 | Do | Don't |
 |---|---|
 | Delete dead code and experiment comments | Drive-by renames across the monorepo |
-| Gate host-only agents with `hostName` | Add options "for later" |
+| Gate host-only agents with `isMacosHost` | Add options "for later" |
 | Update runbook + skill together | Leave CLAUDE.md lists stale |
 | One logical commit, one PR per change | Silent behavior change without note |
 
