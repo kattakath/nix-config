@@ -142,8 +142,8 @@ Declares `nixpi`'s **remotely-managed** Cloudflare Tunnel itself:
   one rule per `hostedSites` entry → the local Caddy at `http://localhost:80`, plus the
   mandatory catch-all `http_status:404`),
 - one proxied `cloudflare_dns_record` CNAME per site → `<tunnel-id>.cfargotunnel.com`,
-- per site that opts into www, a www CNAME plus a www→apex redirect (`cloudflare_ruleset`), and
-  the tunnel-health alert (`cloudflare_notification_policy`) — the file is the full list,
+- per site that opts into www, a www CNAME plus a www→apex redirect (`cloudflare_ruleset`),
+- the tunnel-health alert (`cloudflare_notification_policy`),
 - the connector **token** surfaced as a sensitive `output` (via the
   `cloudflare_zero_trust_tunnel_cloudflared_token` data source),
 - **the edge's TLS floor, DECLARED rather than clicked** — a `cloudflare_zone_setting` per

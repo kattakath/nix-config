@@ -328,8 +328,8 @@ depend on.
 | `file-rotation-logs` / `file-rotation-logs-system` (launchd log rotation) | **macos only** |
 | `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (a Tart guest whose `~/Downloads` is VirtioFS-shared with the host's would lose host files to a guest-side rotation — `mv` across filesystems is `cp`+`rm`) |
 
-Gate with `networking.hostName` (set in `hosts/*.nix`) — or, from a home-manager module,
-with `osConfig.networking.hostName`, which is where all three of the agents below now live.
+Gate with `isMacosHost` (`modules/_lib/is-macos-host.nix`, which reads the `local.operatorHost`
+flag set in `hosts/macos.nix`) — never the hostname. All three of the agents below use it.
 
 ```nix
 # modules/home/macos-user-agents.nix (GUI opener — quiet: menu-bar only, no window)

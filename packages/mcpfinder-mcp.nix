@@ -13,7 +13,7 @@
 #
 # `node:sqlite` landed in Node 22.5. The fleet's default Node is 20.x (fnm), so the Node a
 # plugin's bare `npx` resolves to can never satisfy this package; under this flake's
-# `pkgs.nodejs` (24.20.0) the same spec starts and lists its four tools. `runtimeInputs`
+# `pkgs.nodejs` the same spec starts and lists its four tools. `runtimeInputs`
 # puts that Node in front of `npx`, which is the entire job — same shape as
 # ./resend-cli.nix, which wraps a different unpackaged npm CLI for a different reason.
 #

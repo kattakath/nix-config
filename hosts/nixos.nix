@@ -74,7 +74,7 @@ in
       # ---- Reachability from the Mac -----------------------------------------
       # modules/nixos/core.nix binds sshd to LOOPBACK ONLY and opens no port,
       # which would leave this guest unreachable over UTM's shared network.
-      # local.lanRecovery is the fleet's existing, posture-checked way to widen
+      # local.lanRecovery is the fleet's existing way (posture-checked on nixpi) to widen
       # exactly that, scoped per interface — reused rather than a second
       # hand-rolled override.
       #

@@ -34,8 +34,9 @@ aarch64-darwin; both free & unlimited on public repos). Jobs: `flake-checker` (a
 `modules/parts/devshell.nix`) with plain `nix build` (enumerated from
 the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cachix cache —
 `nix-fast-build` was dropped 2026-09-22, its own closure was half the darwin leg) and
-*evaluates* (no build) host toplevels. Building host toplevels is deferred to release time
-(`build-installers`, also hosted). Check-run names are `build (<system>) / leg`.
+*evaluates* (no build) host toplevels — this workflow builds none (its own header says so).
+nixpi's toplevel is built by `warm-nixpi-cache.yml` instead (below; why:
+[`hosts.md`](hosts.md)). Check-run names are `build (<system>) / leg`.
 
 **Who waits on what** (2026-10-18, [`pr-wait-research.md`](../pr-wait-research.md) levers
 #3 + #4):
@@ -100,7 +101,7 @@ native Linux builder on the Mac. The ruleset's required checks:
 
 Do **not** read that as "the Mac has no runners": `macos` declares **five** runners — two
 bare-metal ephemeral runners on the **`dontsell-ai`** org
-(`modules/darwin/github-runner.nix` above), two ephemeral Tart-VM-per-job lanes
+(`modules/darwin/github-runner.nix`, [`modules-darwin.md`](modules-darwin.md)), two ephemeral Tart-VM-per-job lanes
 (`local.tart.githubRunners.*` — `dontsell-vm`, plus `kattakath` declared `enable = false`), and one GitLab runner
 (`local.tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
 
