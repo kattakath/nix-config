@@ -114,9 +114,8 @@ and is how the error below was found.
 - `gcp-foundation-plan`, `gcp-foundation-apply`, `gcp-budget-plan`,
   `gcp-budget-apply`.
 
-Where a `-plan` app exists, a review's apply plan must route through it first.
-Where none exists, say so and give the by-hand `tofu plan -out=` in the stack's
-state dir — never invent a plan app that does not exist.
+A review's apply plan must route through the stack's `-plan` app (listed above)
+first — never invent a plan app that does not exist.
 
 ## Invariants to enforce (fail the review if any is violated)
 
@@ -161,8 +160,8 @@ state dir — never invent a plan app that does not exist.
   ingress list, every credential reference, and every cross-stack literal id.
 - Verify it still evaluates: prefer `nix eval`/`nix build` of the terranix output
   or `git add -A && nix flake check` (flakes ignore untracked files).
-- If credentials are present you MAY run a **read-only** plan — a `*-plan` app
-  where one exists, otherwise `tofu plan` in the stack's state dir — but
+- If credentials are present you MAY run a **read-only** plan — the stack's `*-plan`
+  app — but
   **NEVER** `tofu apply`/`destroy`, and never run any `.#*-apply`/`.#*-destroy`
   flake app.
 

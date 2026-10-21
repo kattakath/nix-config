@@ -304,7 +304,7 @@ const CF_TERRANIX_DESTROY =
 // actually hold are named further down, at the rule body: the Keychain's own
 // ACL prompts, and not having the value ambient at all (`secret unbind`).
 //
-// `secret reveal` is the CLI's one printing verb (nix-keychain-secrets). It
+// `secret reveal` is the CLI's one printing verb (the keychain-secrets capsule). It
 // exists so printing is deliberate and greppable; this rule is the grep.
 // Anchored at COMMAND POSITION — start, or after a separator / substitution
 // opener. A bare \bsecret\s+reveal\b matched the literal text ANYWHERE, so
@@ -783,7 +783,7 @@ function main() {
   // Keychain entry re-arms it. Worth one line, never a block.
   if (!bedrockSelected && awsIdentityLive.length) {
     const activates = rawSegs.some(
-      (seg, i) => ACTIVATION_ARGV0.has(segs[i]) && (segs[i] === "activate" || DARWIN_SWITCH_VERB.test(seg)),
+      (seg, i) => ACTIVATION_ARGV0.has(segs[i]) && DARWIN_SWITCH_VERB.test(seg),
     );
     if (activates) {
       nudges.push(
