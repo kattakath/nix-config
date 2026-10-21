@@ -307,9 +307,9 @@ How a host gets composed — change these knobs, not the hosts' internals:
   profiles, extra gmail accounts, git identities, the OpenAI gateway, the real `hostedSites`)
   were folded directly into `hosts/macos.nix` and `modules/parts/identity.nix` — and on
   2026-09-20 (ADR-004) the AWS profiles and the personal git-identity files left Nix again for
-  hand-placed local files (`~/.aws/config`, `~/.config/git/{REDACTED,izzykatt}.inc`,
-  `allowed_signers`): the repo ships shape, the operator's content stays on the Mac. See
+  hand-placed local files (`~/.aws/config`, `~/.config/git/local.inc`, `allowed_signers`): the repo ships shape, the operator's content stays on the Mac. See
   [`docs/map/engine.md`](docs/map/engine.md).
+- **Client config: a PRIVATE overlay marketplace** (`<handle>/skills`) — [how](docs/agent-resource-externalization.md).
 - **Whole features are ONE enable flag — and they are all IN-TREE now.** The media stack
   (`local.mediaCli`) and the Keychain secret store (`local.keychainSecrets`) are each one
   switch: `local.mediaCli.enable = false` removes the CLIs, both launchd agents, the Finder
@@ -323,7 +323,7 @@ How a host gets composed — change these knobs, not the hosts' internals:
   (1) `local.macosGithubRunner` (`modules/darwin/github-runner.nix`, `count = 2`): bare-metal
   ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `local.tart.githubRunners.*`
   (the `tart-vms` capsule's `github-runner.nix`, configured in `hosts/macos.nix`): **ephemeral
-  Tart-VM-per-job** runners for `kattakath` + `REDACTED` + `dontsell-ai` (label
+  Tart-VM-per-job** runners for `kattakath` + `dontsell-ai` (label
   `dontsell-vm`), sharing Apple's hard 2-concurrent-VM budget via a slot semaphore. Both mint ~1h
   tokens from GitHub App keys (agenix); since 2026-09-06 **both lanes share ONE App**,
   `ismailkattakath-ci` (appId 4849830, operator-owned + public), which replaced the retired
@@ -374,8 +374,7 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   `infra/cloudflare/nixpi-tunnel.nix` owns the zone settings and
   `cloudflare_zero_trust_access_application.nixpi_ssh`. That Access app **vanished once**
   (2026-08-20) and took `ssh` + both deploy legs with it; declaring it means a rebuild restores
-  the gate. Zones with no terranix module here (aloshy.ai, etuper.com, izzykatt.ca,
-  REDACTED) are still configured out-of-band.
+  the gate. Zones with no terranix module here are still configured out-of-band.
 - **OpenTofu state is the fragile part of the edge, not the config** — it was lost **twice** to
   `tofu` running in whatever the CWD happened to be. EVERY stack's state is **encrypted** with
   one Keychain passphrase (`tofu:state:passphrase`), so **losing that passphrase makes all

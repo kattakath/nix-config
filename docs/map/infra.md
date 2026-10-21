@@ -29,7 +29,7 @@ scopes `gcloud`, but it does **not** scope Terraform: the Go auth library ignore
 the well-known ADC path instead, so only the devShell's `GOOGLE_APPLICATION_CREDENTIALS`
 (`modules/parts/devshell.nix`) points tofu at this repo's credentials. Measured 2026-09-22: a
 bare `nix run .#cf-access-org-plan` failed at `Initializing the backend` with
-`REDACTED does not have storage.objects.list access` — a correct `gcloud` account and
+`<client-tenant account> does not have storage.objects.list access` — a correct `gcloud` account and
 a tofu authenticated as a **different Workspace tenant** entirely. The 403 was the lucky
 outcome; the shape to fear is an ambient credential that *does* have access and writes to the
 wrong place silently. Canonical invocation:
@@ -151,7 +151,7 @@ Declares `nixpi`'s **remotely-managed** Cloudflare Tunnel itself:
   is not tidiness: that object **vanished once, on 2026-08-20**, and took `ssh` plus both deploy
   legs down with it. Declared, a rebuild restores the gate instead of a dashboard click.
 
-Zones with no terranix module here (aloshy.ai, etuper.com, izzykatt.ca, REDACTED) are
+Zones with no terranix module here (aloshy.ai, etuper.com, izzykatt.ca, a client zone) are
 still configured out-of-band, so none of the above applies to them.
 
 A pure function of its `hostedSites`/`domainName`/`accountId`/`zoneId` module args (same

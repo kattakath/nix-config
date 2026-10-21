@@ -28,7 +28,7 @@ inventory, a verification command per item, and the two things that must never b
 | Admin-SDK automation identity | `ws-domain-admin@kattakath-family.iam.gserviceaccount.com` | account **declared**; its power is not — see §2 |
 | Terraform automation identity | `tofu-fleet@kattakath-family.iam.gserviceaccount.com` | **declared**, impersonated, no key |
 | Workspace-facing APIs | `admin`, `drive`, `gmail` | **declared** (`infra/gcp/foundation.nix`) |
-| Gmail MCP accounts | 4, each its own process | **declared** (`hosts/macos.nix`, `local.gmailMcp.accounts`) — since 2026-10-01 one stdio child **per session** from the `gmail` plugin, not a long-lived gateway process |
+| Gmail MCP accounts | several, each its own process | **declared** in plugin `.mcp.json` files (public `gmail`, private `gmail-private`) since 2026-10-20; one stdio child **per session**, not a long-lived gateway process |
 
 Everything marked *declared* re-plans clean. Everything else is in this document because there
 is nowhere else to put it.
@@ -114,20 +114,19 @@ gcloud services list --enabled --project=kattakath-family | grep -E 'admin|drive
 Admin console → Security → API controls → Domain-wide delegation.
 
 **Sign in as `ismail@kattakath.com` to do it, and as nothing else.** It is the only account in
-this fleet with Admin console access on `kattakath.com`. The Mac holds four Google logins (the
-four Gmail MCP accounts, `local.gmailMcp.accounts`), and the other three cannot open that screen at
-all — notably
-`REDACTED`, which *is* a full Workspace account with GCP access, but on a **different
-tenant**. "Log in to Google and check" is therefore not a well-formed instruction here; three
-of the four answers are a permission error.
+this fleet with Admin console access on `kattakath.com`. The Mac holds several Google logins (the
+Gmail MCP accounts), and the others cannot open that screen at all — notably a client-tenant
+account, which *is* a full Workspace account with GCP access, but on a **different
+tenant**. "Log in to Google and check" is therefore not a well-formed instruction here; most
+of the answers are a permission error.
 
 That tenant boundary is real and was measured rather than assumed: running a terranix app under
-`REDACTED`'s ADC on 2026-09-22 failed with
+the client-tenant account's ADC on 2026-09-22 failed with
 `does not have storage.objects.list access` on `kattakath-tofu-state` — a different Workspace,
 correctly walled off from this project. The consequence worth keeping: **suspending
-`ismail@kattakath.com` does not touch `REDACTED`**, because the single lever in
+`ismail@kattakath.com` does not touch the client-tenant account**, because the single lever in
 [`identity-and-offboarding.md`](identity-and-offboarding.md) is scoped to *this* domain. That is
-correct, not a gap — the REDACTED identity is a different business's to revoke — but it means
+correct, not a gap — the client identity is a different business's to revoke — but it means
 the lever is one-per-tenant, and this fleet's Mac is signed into two.
 
 **Expected state, as of 2026-09-22: the API clients table is EMPTY.** Any row appearing there is

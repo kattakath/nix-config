@@ -100,66 +100,12 @@ let
   # fontconfig indexing 164 faces and no display service on the host to use one.
   wantsFonts = pkgs.stdenv.hostPlatform.isDarwin;
 
-  # The REDACTED org's checkout root — ONE source for the three things keyed on it:
-  # the git work identity (`programs.git.includes`), the folder-wide agent context
-  # (the `home.file` CLAUDE.md) and the Slack routing hook. `home.file` keys are
-  # home-relative, hence the two forms.
-  clientRoot = "Developer/github.com/REDACTED";
-  clientRoot = "${config.home.homeDirectory}/${clientRoot}";
-
-  # Slack workspace routing for Claude Code, by folder — the agent analogue of the
-  # gitdir include above. Two plugin servers, two Slack sign-ins:
-  #   `slack@claude-plugins-official`  mcp__plugin_slack_slack__*        REDACTED
-  #   `REDACTED@kattakath`         mcp__plugin_REDACTED_slack__* REDACTED IT
-  # plus one user-token POSTING server per workspace (modules/home/plugin-mcp.nix,
-  # `slack-*`), carried by a plugin of that workspace so this hook routes it by prefix:
-  #   `REDACTED@kattakath`         mcp__plugin_REDACTED_post__*       REDACTED IT
-  #   `REDACTED@kattakath`    mcp__plugin_REDACTED_post__*  REDACTED
-  # Both point at https://mcp.slack.com/mcp with the same OAuth client. That works
-  # because Claude Code keys an MCP sign-in by SERVER NAME plus a config hash, not by
-  # URL — read at the source, 2.1.295: `function zl(e,n){… sha256({type,url,headers})
-  # .substring(0,16); return `${e}|${s}`}` builds the `mcpOAuth` key. (The 2026-10-07
-  # note here said "one token per endpoint", from the docs' wording; the code says
-  # otherwise, and the second plugin exists because of it.)
-  # This PreToolUse hook enforces the folder split both ways: the REDACTED plugin
-  # is denied under the REDACTED root, the REDACTED plugin everywhere else. The claude.ai
-  # Slack connector is also REDACTED IT and stays allowed under the root.
-  # Fail-OPEN by design: unparseable input exits non-zero, which Claude Code treats
-  # as a non-blocking hook error — routing, not a security boundary.
-  slackWorkspaceRoute = pkgs.writeShellApplication {
-    name = "claude-slack-workspace-route";
-    runtimeInputs = [ pkgs.jq ];
-    text = ''
-      input=$(cat)
-      cwd=$(jq -r '.cwd // empty' <<<"$input")
-      tool=$(jq -r '.tool_name // empty' <<<"$input")
-      deny() {
-        jq -n --arg reason "$1" \
-          '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
-      }
-      in_client=false
-      case "$cwd/" in "${clientRoot}/"*) in_client=true ;; esac
-      case "$tool" in
-        mcp__plugin_slack_slack__* | mcp__plugin_REDACTED_*)
-          if $in_client; then
-            deny "This folder is REDACTED IT, and the slack plugin is signed in to REDACTED Use the REDACTED IT sign-in instead: the same tool with the prefix mcp__plugin_REDACTED_slack__ (or the claude.ai Slack connector)."
-          fi
-          ;;
-        mcp__plugin_REDACTED_*)
-          if ! $in_client; then
-            deny "REDACTED is the REDACTED IT workspace and is only for folders under ${clientRoot}. Here, use the slack plugin (mcp__plugin_slack_slack__)."
-          fi
-          ;;
-      esac
-    '';
-  };
-
   # No "Sent using Claude" footer on Slack posts, for EVERY Slack MCP (both plugins and
   # the claude.ai connector). Slack's hosted MCP server (mcp.slack.com) appends
   # `*Sent using* <@U…|Claude>` to every message it posts. It is server-side, has no
   # opt-out (slackapi/slack-skills-plugin#25, open), and is a real @-mention, so it can
   # also wake the Claude app in a channel. Seen 2026-10-16 on a DM sent through
-  # REDACTED. The one path without it: a DRAFT (`slack_send_message_draft`), which
+  # a second-workspace Slack plugin. The one path without it: a DRAFT (`slack_send_message_draft`), which
   # the user sends from Slack as their own message. So this denies the posting tools
   # with that redirect:
   #   slack_send_message, slack_schedule_message  always
@@ -167,7 +113,7 @@ let
   #                                               comment is posted as a footed message)
   # Escape hatch for a post that should go out directly (e.g. an automation that may
   # carry the footer): run Claude Code with SLACK_ALLOW_SENT_USING_CLAUDE=1.
-  # Fail-OPEN like the routing hook: a non-zero exit is a non-blocking hook error.
+  # Fail-OPEN: a non-zero exit is a non-blocking hook error.
   slackNoFooter = pkgs.writeShellApplication {
     name = "claude-slack-no-footer";
     runtimeInputs = [ pkgs.jq ];
@@ -191,121 +137,6 @@ let
           fi
           ;;
       esac
-    '';
-  };
-
-  # AWS account routing for Claude Code, by folder — the same split as
-  # `slackWorkspaceRoute`, for the same reason: two plugin servers, one name each.
-  #   `aws-core@claude-plugins-official`  mcp__plugin_aws-core_aws-mcp__*    UNSIGNED
-  #   `REDACTED@kattakath`              mcp__plugin_REDACTED_aws-mcp__*  REDACTED SSO
-  # Both run the same pinned proxy (mcp-proxy-for-aws-cli==1.7.0). aws-core passes
-  # `--skip-auth`, so its AWS calls are unsigned; REDACTED passes
-  # `--profile REDACTED REDACTED` (development default, production only by
-  # an explicit `aws_profile`), measured 2026-10-16 returning AdministratorAccess in
-  # each account. Under the REDACTED root aws-core's server is denied with a redirect, so
-  # the model never reaches for the unsigned twin; outside it REDACTED is denied, so
-  # production admin is not one tool call away from an unrelated project. Fail-OPEN
-  # like the Slack hook: routing, not a security boundary.
-  awsAccountRoute = pkgs.writeShellApplication {
-    name = "claude-aws-account-route";
-    runtimeInputs = [ pkgs.jq ];
-    text = ''
-      input=$(cat)
-      cwd=$(jq -r '.cwd // empty' <<<"$input")
-      tool=$(jq -r '.tool_name // empty' <<<"$input")
-      deny() {
-        jq -n --arg reason "$1" \
-          '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
-      }
-      in_client=false
-      case "$cwd/" in "${clientRoot}/"*) in_client=true ;; esac
-      case "$tool" in
-        mcp__plugin_aws-core_aws-mcp__*)
-          if $in_client; then
-            deny "aws-core's AWS MCP server runs with --skip-auth, so its AWS calls are unsigned. Under the REDACTED folder use the same tool from REDACTED instead: prefix mcp__plugin_REDACTED_aws-mcp__ (development by default; pass aws_profile=REDACTED for production)."
-          fi
-          ;;
-        mcp__plugin_REDACTED_*)
-          if ! $in_client; then
-            deny "REDACTED holds REDACTED IT AdministratorAccess (development and production) and is only for folders under ${clientRoot}."
-          fi
-          ;;
-      esac
-    '';
-  };
-
-  # Stripe account routing by folder — the third instance of the Slack/AWS split.
-  #   `stripe@claude-plugins-official`  mcp__plugin_stripe_stripe__*         other login
-  #   `REDACTED@kattakath`         mcp__plugin_REDACTED_stripe__*  REDACTED IT
-  # Both are mcp.stripe.com with OAuth; REDACTED adds `?workspace=REDACTED` so
-  # Claude Code keeps a separate token and does not drop it as a duplicate
-  # (kattakath/skills#80; same 401 + resource_metadata for both URLs, measured
-  # 2026-10-16). Fail-OPEN like the other two: routing, not a security boundary.
-  stripeAccountRoute = pkgs.writeShellApplication {
-    name = "claude-stripe-account-route";
-    runtimeInputs = [ pkgs.jq ];
-    text = ''
-      input=$(cat)
-      cwd=$(jq -r '.cwd // empty' <<<"$input")
-      tool=$(jq -r '.tool_name // empty' <<<"$input")
-      deny() {
-        jq -n --arg reason "$1" \
-          '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "deny", permissionDecisionReason: $reason}}'
-      }
-      in_client=false
-      case "$cwd/" in "${clientRoot}/"*) in_client=true ;; esac
-      case "$tool" in
-        mcp__plugin_stripe_stripe__*)
-          if $in_client; then
-            deny "This folder is REDACTED IT, and the stripe plugin is signed in to a different Stripe login. Use the same tool with the prefix mcp__plugin_REDACTED_stripe__ instead."
-          fi
-          ;;
-        mcp__plugin_REDACTED_*)
-          if ! $in_client; then
-            deny "REDACTED is the REDACTED IT Stripe login and is only for folders under ${clientRoot}. Here, use the stripe plugin (mcp__plugin_stripe_stripe__)."
-          fi
-          ;;
-      esac
-    '';
-  };
-
-  # REDACTED AWS SSO freshness, at SessionStart under the REDACTED root only. Both
-  # profiles share ONE Identity Center session (`sso-session REDACTED`), whose lifetime
-  # is set in Identity Center (7 days interactive, read 2026-10-16) — role credentials
-  # refresh on their own inside it, so the only thing that can lapse is that session.
-  # This checks both profiles in parallel with `sts get-caller-identity` (the CLI reads
-  # its own cache; nothing here reads a token) and tells the agent which one is stale
-  # and the one command that fixes it. Silent outside the root, and silent-on-success
-  # apart from one line, so it costs a session nothing but ~1-2 s of STS round trips.
-  clientRoot = pkgs.writeShellApplication {
-    name = "REDACTED";
-    runtimeInputs = [
-      pkgs.jq
-      pkgs.awscli2
-      pkgs.coreutils
-    ];
-    text = ''
-      input=$(cat)
-      cwd=$(jq -r '.cwd // empty' <<<"$input")
-      case "$cwd/" in "${clientRoot}/"*) ;; *) exit 0 ;; esac
-      tmp=$(mktemp -d)
-      trap 'rm -rf "$tmp"' EXIT
-      profiles=(REDACTED REDACTED)
-      for p in "''${profiles[@]}"; do
-        ( timeout 15 aws sts get-caller-identity --profile "$p" \
-            --query Arn --output text >"$tmp/$p" 2>/dev/null || echo FAIL >"$tmp/$p" ) &
-      done
-      wait
-      ok=() stale=()
-      for p in "''${profiles[@]}"; do
-        if grep -q '^arn:aws:sts::.*AdministratorAccess' "$tmp/$p"; then ok+=("$p"); else stale+=("$p"); fi
-      done
-      if [ "''${#stale[@]}" -eq 0 ]; then
-        msg="REDACTED AWS SSO: OK, AdministratorAccess on ''${ok[*]} (REDACTED MCP is signed)."
-      else
-        msg="REDACTED AWS SSO: STALE for ''${stale[*]}. The REDACTED MCP server and the aws CLI will fail for those profiles. Fix: run \`aws sso login --sso-session REDACTED\` yourself (it opens the browser for the operator), then re-check with \`aws sts get-caller-identity --profile <p>\`."
-      fi
-      jq -n --arg m "$msg" '{hookSpecificOutput: {hookEventName: "SessionStart", additionalContext: $m}}'
     '';
   };
 
@@ -645,7 +476,7 @@ in
     # puts a binary on PATH that a plugin's `.mcp.json` in github:kattakath/skills names
     # as its `command`, because that file can set `env` only to literals or passthroughs
     # and cannot run a Keychain read. See each module's header.
-    ./gmail-mcp.nix # four Gmail accounts, one launcher each
+    ./gmail-mcp.nix # the generic nix-mcp-gmail <address> launcher
     ./plugin-mcp.nix # wordpress + apify (Keychain) and postgres (loopback pgvector URI)
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
@@ -946,9 +777,9 @@ in
         #   aws-core          17 AWS skills + a secret-safety PreToolUse hook + `aws-mcp`,
         #                     the AWS MCP Server proxy pinned at ==1.7.0 but run with
         #                     --skip-auth: docs/skill tools work, AWS API calls are
-        #                     UNSIGNED. The signed twin is `REDACTED@kattakath`, and
-        #                     `awsAccountRoute` (let-block) denies this one under the
-        #                     REDACTED root so the model never picks the unsigned server.
+        #                     UNSIGNED. A signed twin, and the folder routing that keeps
+        #                     the model off this one where the twin applies, belong in
+        #                     the operator's private overlay marketplace.
         #   aws-serverless    7 Lambda/SAM/Step Functions skills + a SAM-validate
         #                     PostToolUse hook + `awslabs.aws-serverless-mcp-server@latest
         #                     --allow-write`. UNPINNED (PyPI @latest at every spawn) and
@@ -1260,33 +1091,11 @@ in
         # field-splitting case — was closed as not planned.
         "silent-instruments"
 
-        # REDACTED: a second mcp.slack.com sign-in, for the REDACTED IT workspace, next to
-        # the official `slack` plugin's REDACTED one. Which folder may use which is the
-        # PreToolUse hook at `slackWorkspaceRoute` (let-block), which says why two
-        # sign-ins to one URL can coexist.
-        "REDACTED"
-
-        # REDACTED: REDACTED's user-token POSTING server (no hosted sign-in;
-        # that stays on the official `slack` plugin). REDACTED IT's posting server rides in
-        # `REDACTED` instead, so each workspace is one plugin prefix for the routing hook.
-        "REDACTED"
-
-        # REDACTED (kattakath/skills#77): the AWS MCP Server, SIGNED with the REDACTED IT
-        # SSO profiles — `REDACTED` by default, `REDACTED` only by
-        # an explicit `aws_profile`. The same pinned proxy as aws-core's, minus --skip-auth.
-        # REDACTED only, by `awsAccountRoute`; SSO freshness by `clientRoot`.
-        "REDACTED"
-
         # github-gh (kattakath/skills#78): github/github-mcp-server, all toolsets, on the
         # gh CLI's own token via the `nix-mcp-github` launcher (./plugin-mcp.nix). One
         # GitHub credential for gh and MCP; the official `github` plugin would need a PAT
         # in Claude Code's own environment instead.
         "github-gh"
-
-        # REDACTED (kattakath/skills#80): a second mcp.stripe.com OAuth sign-in for
-        # the REDACTED IT Stripe login, next to the official `stripe` plugin's. Folder
-        # routing: `stripeAccountRoute` (let-block).
-        "REDACTED"
 
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
         # the one thing they are for: a worktree-isolated session whose worktree was
@@ -1469,27 +1278,12 @@ in
     # fresh machine has it alongside the brew GnuPG and keychain-secrets lane it names.
     "pgp-ops@kattakath" = true;
 
-    # REDACTED: the REDACTED IT Slack sign-in (REDACTED). Declared, not
-    # clicked, because the folder-routing hook (`slackWorkspaceRoute`) denies the Silver
-    # Creek `slack` plugin under the REDACTED root: without this id enabled, REDACTED folders
-    # would have no plugin Slack at all. Sign-in is a one-time `/mcp` OAuth as
-    # REDACTED; the token lives in Claude Code's own store, not in Nix.
-    "REDACTED@kattakath" = true;
-
-    # REDACTED: REDACTED's user-token posting server, `REDACTED`
-    # (modules/home/plugin-mcp.nix). Allowed outside the REDACTED root, denied under it.
-    "REDACTED@kattakath" = true;
-
-    # AWS, decided by the operator 2026-10-16: AdministratorAccess on the REDACTED development and
-    # production accounts, through MCP, under the REDACTED root. REDACTED is the signed
-    # server; the three official plugins bring the skills (catalogue entries above say
-    # what each one really ships). Declared, not clicked, for the reason the block above
-    # records: a clicked toggle does not survive a fresh machine.
-    "REDACTED@kattakath" = true;
+    # AWS: the official plugins bring the skills (catalogue entries above say what each
+    # one really ships). Declared, not clicked, for the reason the block above records:
+    # a clicked toggle does not survive a fresh machine. Client-account servers come
+    # from the operator's private overlay marketplace, never from this file.
     # GitHub over MCP with gh's token and scopes (operator decision 2026-10-16).
     "github-gh@kattakath" = true;
-    # The REDACTED IT Stripe sign-in; one-time `/mcp` OAuth. Operator decision 2026-10-16.
-    "REDACTED@kattakath" = true;
     "aws-core@claude-plugins-official" = true;
     "aws-serverless@claude-plugins-official" = true;
     # OFF, 2026-10-16, the same day it went on. Its `.mcp.json` ships `aurora-dsql` and
@@ -1620,7 +1414,7 @@ in
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       darwinActivate # `activate [extra darwin-rebuild args]` — `darwin-rebuild switch` that re-execs under sudo, so a forgotten `sudo` becomes the Touch ID sheet instead of exit 1; names the flake + branch/rev it is about to activate first (packages/activate.nix)
       androidEmu
-      awscli2 # AWS CLI v2 — SSO login into the REDACTED accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
+      awscli2 # AWS CLI v2 — SSO login into client accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
       # buku — the bookmark manager of record (SQLite + CLI), chosen over rolling anything
       # custom: `buku --ai` reads Chrome/Brave/Chromium/Firefox profiles DIRECTLY off disk
       # (it does NOT need the browser installed), collapses duplicates on URL, and maps each
@@ -1797,12 +1591,13 @@ in
   # DERIVED — its address is the canonical Google account (config.fleet.googleAccount,
   # identity.nix), so no literal mailbox is written here.
   #
-  # REDACTED / izzykatt.inc / allowed_signers left Nix on 2026-09-20
-  # (ADR-004 §7, inventory #3): they name mailboxes and a persona that are the
-  # operator's alone, in a public repo. They are now HAND-PLACED under
-  # ~/.config/git/, exactly like the work identity REDACTED always was. A
-  # missing include file is a silent git no-op — so after a fresh bootstrap,
-  # write them before authoring in those namespaces (docs/new-mac-runbook.md).
+  # Every per-namespace identity (work, client, persona) and allowed_signers left
+  # Nix (ADR-004 §7, inventory #3; client routing too, 2026-10-20): they name
+  # mailboxes, orgs and folders that are the operator's alone, in a public repo.
+  # They are HAND-PLACED under ~/.config/git/, reached through ONE include,
+  # `local.inc` (programs.git.includes below), which holds the operator's own
+  # includeIf blocks. A missing include file is a silent git no-op — so after a
+  # fresh bootstrap, write it before authoring (docs/new-mac-runbook.md).
   # `adoptGitIdentityFiles` below keeps the EXISTING copies across the activation
   # that stops managing them.
   home.file.".config/git/gitlab.inc".text = ''
@@ -1810,115 +1605,18 @@ in
     	email = ${googleAccount}
   '';
 
-  # ---- REDACTED folder: Claude Code context + Slack routing ----------------------
-  # Claude Code loads every CLAUDE.md "in the directory hierarchy above the working
-  # directory" at launch (code.claude.com/docs/en/memory), so ONE file at the org
-  # root reaches every clone and worktree under it, present and future — no per-repo
-  # edit, and nothing added to the team-shared repos themselves. The hook
-  # (`slackWorkspaceRoute`, let-block) is the enforcement; this file is the intent.
-  # Mac only: it is the sole host with ~/Developer checkouts.
-  home.file."${clientRoot}/CLAUDE.md" = lib.mkIf isMacosHost {
-    text = ''
-      # REDACTED Information Technologies: folder-wide agent context
-
-      Placed by Home Manager (`kattakath/nix-config`, `modules/home/default.nix`).
-      Every Claude Code session under this folder loads it.
-
-      ## Slack: use the REDACTED IT workspace (REDACTED)
-
-      - Use the **`REDACTED` plugin**: tools prefixed `mcp__plugin_REDACTED_slack__`.
-        It is signed in to **REDACTED IT**; check with its `slack_read_user_profile`.
-        Not signed in yet? Run `/mcp`, pick `plugin:REDACTED:slack`, Authenticate,
-        and choose REDACTED as `REDACTED`.
-      - The **claude.ai Slack connector** (`slack_*` tools with neither plugin prefix) is
-        also REDACTED IT and is fine to use.
-      - **Never** use the `slack` plugin (`mcp__plugin_slack_slack__*`) here. It is signed
-        in to **REDACTED**. A PreToolUse hook denies it under this folder (and denies
-        `REDACTED` outside it).
-
-      ## AWS: use the `REDACTED` MCP server (AdministratorAccess, SSO)
-
-      - Tools prefixed `mcp__plugin_REDACTED_aws-mcp__` are signed with Identity
-        Center SSO. **development (`REDACTED`) is the default**; production needs an
-        explicit `aws_profile: "REDACTED"` on the call.
-      - **Canonical AWS names:** one string per account, used as Organizations account name,
-        IAM alias and CLI profile, named for the ONE environment it hosts and spelled like
-        the app's environments: `REDACTED` (REDACTED),
-        `REDACTED` (REDACTED). `SDLC`/`Prod` are OU names only (AWS
-        Organizations OU best practices). `REDACTED`, `REDACTED`,
-        `REDACTED` and `REDACTED` are legacy aliases: never use them in new code.
-      - **Never** use `mcp__plugin_aws-core_aws-mcp__*` here: it runs `--skip-auth`, so its
-        AWS calls are unsigned. A PreToolUse hook denies it under this folder (and denies
-        `REDACTED` outside it). aws-core's **skills** are fine to use.
-      - The `aws` CLI uses the same two profiles. A SessionStart hook reports whether
-        both are fresh. If either is STALE, run `aws sso login --sso-session REDACTED`
-        yourself; it opens the browser for the operator. The Identity Center session lasts
-        7 days, and role credentials refresh on their own inside it.
-
-      ## Stripe: use the `REDACTED` plugin
-
-      - Tools prefixed `mcp__plugin_REDACTED_stripe__` are the REDACTED IT Stripe
-        sign-in. **Never** use `mcp__plugin_stripe_stripe__*` here: it is a different
-        Stripe login, and a PreToolUse hook denies it under this folder.
-      - Accounts: **REDACTED - Estim8** `REDACTED` (production, live webhook;
-        operator role Developer-level: full API, no team admin) and **REDACTED Information
-        Technologies Inc.** `REDACTED` (operator role: sandboxes only).
-      - **MCP reach (authorized 2026-10-16, Write):** the three Inc. sandboxes only —
-        REDACTED Local `REDACTED`, REDACTED REDACTED `REDACTED`,
-        Inc. sandbox `REDACTED`. Estim8 production cannot be authorized for
-        MCP with the operator's role (needs Administrator); use the CLI for production.
-      - Stripe CLI: use `--project-name REDACTED` for production (live + test
-        keys, expire 2027-01-15); put flags AFTER the subcommand
-        (`stripe get /v1/balance --live --project-name REDACTED`). The CLI's
-        `default` project is a different login.
-
-      ## GitHub: `gh` and the `github-gh` MCP server share one token
-
-      - MCP tools prefixed `mcp__plugin_github-gh_github__` run github-mcp-server (all
-        toolsets) on `gh auth token`, so they have exactly gh's user and scopes.
-      - In the `REDACTED` org the operator is a **Member**, not an
-        Owner (sole Owner: REDACTED). Repo role: **admin on `REDACTED`** (plus
-        `REDACTED`, `design-system`, `REDACTED`), read on most others.
-      - On REDACTED, admins bypass the `main`, `release/*` and `hotfix/*` rulesets but
-        **not** `develop` or the `v*` tag ruleset: land develop changes through a PR.
-    '';
-  };
-
-  # ---- Claude Desktop: the REDACTED AWS server --------------------------------------
-  # The same server as `REDACTED@kattakath` (kattakath/skills#77), rendered for
-  # Desktop because Desktop loads no plugins (./claude-desktop.nix says why that is the
-  # only lane). Operator decision 2026-10-16: BOTH profiles, development default and production via
-  # `aws_profile`. Desktop has no working directory, so `awsAccountRoute` cannot fence
-  # it: production AdministratorAccess is reachable from every Desktop chat and from
-  # the Cowork bridge. That was asked for; it is written here so nobody mistakes it
-  # for the Claude Code setup, which IS folder-fenced. uvx by store path: Desktop
-  # spawns servers with launchd's PATH, which has no Nix profile on it. The
-  # `claude-desktop-config-shape` check allows this name, `github` and `REDACTED`, no other.
+  # ---- Claude Desktop: extra servers ------------------------------------------
+  # Desktop loads no plugins (./claude-desktop.nix says why that is the only lane).
+  # Client servers are NOT declared here: they come from the operator's hand-placed
+  # Desktop overlay (claude-desktop.nix), so this public file names none. The
+  # `claude-desktop-config-shape` check allows `github` and no other name.
   local.claudeDesktop.extraServers = lib.mkIf isMacosHost {
-    REDACTED = {
-      command = lib.getExe' pkgs.uv "uvx";
-      args = [
-        "mcp-proxy-for-aws-cli==1.7.0"
-        "https://aws-mcp.us-east-1.api.aws/mcp"
-        "--profile"
-        "REDACTED"
-        "REDACTED"
-        "--region"
-        "us-east-1"
-        "--disable-telemetry"
-      ];
-    };
     # GitHub, the same launcher Claude Code's `github-gh` plugin names (plugin-mcp.nix,
     # `github`): github-mcp-server with the gh CLI's token, all toolsets, write-capable.
-    # By absolute profile path for the same launchd-PATH reason as uvx above. Through
+    # By absolute profile path: Desktop spawns servers with launchd's PATH, which has
+    # no Nix profile on it. Through
     # /usr/bin/env because the renderer drops an EMPTY `args`, and the shape check then
     # rejects the entry as non-stdio (measured: "non-stdio or unmarked entries: github").
-    # Stripe, the REDACTED IT sign-in (same URL as the REDACTED plugin). A `url`
-    # entry: the module wraps it in the pinned mcp-remote shim, whose OAuth handshake
-    # opens the browser on first use. Like REDACTED here, NOT folder-fenced.
-    REDACTED = {
-      url = "https://mcp.stripe.com/?workspace=REDACTED";
-    };
     github = {
       command = "/usr/bin/env";
       args = [ "${config.home.profileDirectory}/bin/nix-mcp-github" ];
@@ -1970,26 +1668,13 @@ in
       # collision risk.
       context = ../../claude/CLAUDE.md;
 
-      # Slack workspace routing by folder: deny the REDACTED `slack` plugin under
-      # the REDACTED root. The why is at `slackWorkspaceRoute` (let-block); the intent
-      # Claude reads is the REDACTED `home.file` CLAUDE.md. Same isMacosHost gate as it.
-      # This is the FIRST `settings.hooks` in the Nix floor, and ./claude-code-settings.nix
-      # merges arrays WHOLESALE (jq `*`): a PreToolUse hook added by hand to
-      # ~/.claude/settings.json is replaced at the next rebuild — declare it here instead.
-      # (Measured 2026-10-07: the live file had no `hooks` key, so nothing was lost.)
+      # No "Sent using Claude" footer, on every Slack MCP (`mcp__<id>__slack_*`). The why
+      # is at `slackNoFooter` (let-block). Client folder ROUTING hooks are not here: they
+      # ride in the operator's private overlay plugins, which fire only while enabled.
+      # ./claude-code-settings.nix merges arrays WHOLESALE (jq `*`): a PreToolUse hook
+      # added by hand to ~/.claude/settings.json is replaced at the next rebuild —
+      # declare it here, or in a plugin's hooks.json, instead.
       settings.hooks.PreToolUse = lib.mkIf isMacosHost [
-        {
-          matcher = "^mcp__plugin_slack(_slack|-REDACTED[^_]+|-REDACTED[^_]+)__.*";
-          hooks = [
-            {
-              type = "command";
-              command = lib.getExe slackWorkspaceRoute;
-              timeout = 10;
-            }
-          ];
-        }
-        # No "Sent using Claude" footer, on every Slack MCP: both plugins and the claude.ai
-        # connector (`mcp__<id>__slack_*`). The why is at `slackNoFooter` (let-block).
         {
           matcher = "^mcp__.+__slack_(send_message|schedule_message|complete_file_upload)$";
           hooks = [
@@ -2000,44 +1685,13 @@ in
             }
           ];
         }
-        # AWS account routing by folder: the signed REDACTED server only under the
-        # REDACTED root, aws-core's unsigned one never there. Why: `awsAccountRoute`.
-        {
-          matcher = "^mcp__plugin_aws-(REDACTED|core)_aws-mcp__.*";
-          hooks = [
-            {
-              type = "command";
-              command = lib.getExe awsAccountRoute;
-              timeout = 10;
-            }
-          ];
-        }
-        # Stripe login routing by folder. Why: `stripeAccountRoute`.
-        {
-          matcher = "^mcp__plugin_stripe(-REDACTED)?_stripe__.*";
-          hooks = [
-            {
-              type = "command";
-              command = lib.getExe stripeAccountRoute;
-              timeout = 10;
-            }
-          ];
-        }
       ];
 
-      # REDACTED AWS SSO freshness at session start, under the REDACTED root only. Why:
-      # `clientRoot` (let-block). Same wholesale-merge caveat as PreToolUse above.
-      settings.hooks.SessionStart = lib.mkIf isMacosHost [
-        {
-          hooks = [
-            {
-              type = "command";
-              command = lib.getExe clientRoot;
-              timeout = 40;
-            }
-          ];
-        }
-      ];
+      # An EXPLICIT empty array, not an absent key: the wholesale merge keeps whatever
+      # the live file holds for a key Nix does not name, so dropping the key would leave
+      # a retired hook pointing at a stale store path. Session-start hooks for client
+      # folders come from the private overlay plugins.
+      settings.hooks.SessionStart = lib.mkIf isMacosHost [ ];
 
       # Marketplaces and `settings.enabledPlugins` are NOT declared here — the
       # marketplace set is DATA (`local.claudePlugins.marketplaces` above) and its
@@ -2087,7 +1741,7 @@ in
         #     "[BackendRegistry] Selected: tmux (running inside tmux session)", i.e.
         #     auto takes the pane backend only when ALREADY inside tmux. Claude is
         #     launched from a bare Ghostty window, so auto never picks panes.
-        #   - in-process — works (the REDACTED team on 2026-10-06 ran this way,
+        #   - in-process — works (a client-repo team on 2026-10-06 ran this way,
         #     ~/.claude/teams/session-9aa658ae/config.json, backendType
         #     "in-process") but the binary refuses background agents from an
         #     in-process teammate: "In-process teammates cannot spawn background
@@ -2151,7 +1805,7 @@ in
           # usable door; `tengu_amber_flint` is a server-side gate that defaults
           # to true and is not settable here.
           # Precedent that settings.env DOES feed this gate (it is not read
-          # before settings load): the REDACTED REDACTED repo sets the same var
+          # before settings load): a client repo sets the same var
           # in its project .claude/settings.json, and that session wrote
           # ~/.claude/teams/session-9aa658ae/config.json at 13:21 on 2026-10-06.
           # Declared user-level rather than per-repo so there is ONE copy — a
@@ -2305,50 +1959,14 @@ in
       };
       settings.gpg.ssh.allowedSignersFile = "${config.home.homeDirectory}/.config/git/allowed_signers";
 
-      # Per-directory identity under ~/Developer/<host>/<owner>/. Work email lives
-      # in ~/.config/git/REDACTED (not in this public repo); missing include is a
-      # silent no-op. Paths absolute under $HOME.
+      # Per-namespace identity. Work and client identities (their includeIf
+      # conditions AND addresses) live in ONE hand-placed file,
+      # ~/.config/git/local.inc — not in this public repo; a missing include is a
+      # silent no-op. Template: the operator's private overlay repo README, and
+      # docs/new-mac-runbook.md. Unconditional, so local.inc's own nested
+      # `[includeIf …]` blocks decide. Paths absolute under $HOME.
       includes = [
-        {
-          condition = "gitdir:${clientRoot}/";
-          path = "${config.home.homeDirectory}/.config/git/REDACTED";
-        }
-        # Both orgs author as the same REDACTED identity: dontsell-ai is the agency,
-        # REDACTED is the client whose site it builds. One include file serves both —
-        # splitting it would duplicate the same address into two places.
-        #
-        # Matched by REMOTE url (hasconfig), not gitdir, so it applies regardless of clone
-        # path — including throwaway agent clones. Two patterns per org cover https + ssh://
-        # (**/org/**) and scp-style ssh git@github.com:org/… (**:org/**).
-        #
-        # The address itself lives in ~/.config/git/REDACTED, written by the
-        # `home.file` block at the bottom of this module — for EVERY account, since
-        # 2026-09-16. It used to be written by hosts/macos.nix under the operator's
-        # user only, so on the second account all of these conditions dangled (a
-        # missing include is a silent no-op) and he authored as the fallback identity.
-        #
-        # KNOWN DEBT, deliberately not fixed in the 2026-09-15 hygiene pass:
-        # upstream option home-manager.programs.git.includes[].contents EXISTS
-        # (pinned programs/git.nix:204, impl :235-241 generates the include file via
-        # writeText + toGitINI) → this condition/content split into a separate
-        # `home.file` should collapse into one `includes` entry. Left alone because
-        # a wrong edit changes COMMIT AUTHORSHIP; do it as its own change.
-        {
-          condition = "hasconfig:remote.*.url:**/dontsell-ai/**";
-          path = "${config.home.homeDirectory}/.config/git/REDACTED";
-        }
-        {
-          condition = "hasconfig:remote.*.url:**:dontsell-ai/**";
-          path = "${config.home.homeDirectory}/.config/git/REDACTED";
-        }
-        {
-          condition = "hasconfig:remote.*.url:**/REDACTED/**";
-          path = "${config.home.homeDirectory}/.config/git/REDACTED";
-        }
-        {
-          condition = "hasconfig:remote.*.url:**:REDACTED/**";
-          path = "${config.home.homeDirectory}/.config/git/REDACTED";
-        }
+        { path = "${config.xdg.configHome}/git/local.inc"; }
         # GitLab personal namespace (ismailkattakath). gitlab.com-specific so
         # github.com/ismailkattakath keeps the GitHub noreply. Address lives in
         # ~/.config/git/gitlab.inc, written at the bottom of this module.
@@ -2995,8 +2613,7 @@ in
     # onChange/force only) → custom; the same holds for grokSandboxProfile below.
     adoptGitIdentityFiles = lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ] ''
       hmFiles="$(readlink -e ${builtins.storeDir})/*-home-manager-files/*"
-      for f in "$HOME/.config/git/REDACTED" "$HOME/.config/git/izzykatt.inc" \
-               "$HOME/.config/git/allowed_signers"; do
+      for f in "$HOME/.config/git/allowed_signers"; do
         if [[ -L "$f" && "$(readlink "$f")" == $hmFiles ]]; then
           if [[ -r "$f" ]]; then
             run cp -L $VERBOSE_ARG "$f" "$f.adopt"

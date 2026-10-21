@@ -336,8 +336,8 @@ them. The hosting/publishing columns are dead.
 | ~~`macos-automator`~~ | **MOVED 2026-10-01** to the `mac-app-send` plugin (#657, final mover). The Accessibility (TCC) grant carried — TCC scopes it to `/usr/bin/osascript`, not the parent. The preflight probe in `mcp.nix` stays. Was: AppleScript/JXA automation — needs a one-time macOS Accessibility (TCC) grant, see [`osascript-accessibility-tcc.md`](osascript-accessibility-tcc.md) |
 | ~~`mobile-mcp`~~ | **MOVED 2026-09-30** to the `android-phone` plugin (#657 batch 1). No longer on the gateway |
 | `postgres` | local Postgres (incl. the RAG store) |
-| `wordpress` | docdyhr/mcp-wordpress (pinned) — **CLIENT-SIDE** WordPress admin over a live site's REST API with an Application Password (nothing installed on the site). Creds are Keychain items `mcp:REDACTED:wp_url`/`:wp_user`/`:wp_app_password`, read BY SERVICE NAME (the `$WP_*` names are only env bindings) and injected by the generated `mkGeneratedStdio` wrapper — `wpMcp` is gone; canonical **www** host required, and the password must be a 24-alphanumeric Application Password, not a login password |
-| `wordpress-adapter` | the official WordPress MCP Adapter (**server-side, REDACTED PROD**), reached via a Keychain-injecting `mcp-remote` wrapper against `https://www.REDACTED`; always-on since prod is always reachable |
+| `wordpress` | docdyhr/mcp-wordpress (pinned) — **CLIENT-SIDE** WordPress admin over a live site's REST API with an Application Password (nothing installed on the site). Creds are Keychain items `mcp:wordpress:wp_url`/`:wp_user`/`:wp_app_password` (renamed from a host-named form 2026-10-20), read BY SERVICE NAME (the `$WP_*` names are only env bindings) and injected by the generated `mkGeneratedStdio` wrapper — `wpMcp` is gone; canonical **www** host required, and the password must be a 24-alphanumeric Application Password, not a login password |
+| `wordpress-adapter` | the official WordPress MCP Adapter (**server-side, a client's PROD site**), reached via a Keychain-injecting `mcp-remote` wrapper against that site; always-on since prod is always reachable |
 
 ## Publishing — `config.fleet.publicMcpServers`
 
@@ -409,9 +409,8 @@ model and the three-objects-per-publish trap are in
   `mcp-proxy` spawns every named server at startup and an unreachable endpoint would fail that
   server on boot; enable only while working against the local clone.
 - **`gmail-<sanitized-email>`** — one per `local.mcpGateway.gmail.accounts` entry, a list of
-  PLAIN EMAIL ADDRESSES (`hosts/macos.nix` sets the operator's own four:
-  `ismail@kattakath.com`, `REDACTED`, `REDACTED`,
-  `REDACTED`). ArtyMcLabin/Gmail-MCP-Server (maintained
+  PLAIN EMAIL ADDRESSES (`hosts/macos.nix` set the operator's own four; since 2026-10-20 no
+  address is in this repo — plugins pass it to `nix-mcp-gmail <address>`). ArtyMcLabin/Gmail-MCP-Server (maintained
   fork of the archived GongRzhe original) run as ONE process **PER** Google/Workspace account
   (each with its own `--tool-prefix`, sanitized from the email since MCP tool names can't
   contain `@`/`.`) for TRUE simultaneous multi-account Gmail, unlike the

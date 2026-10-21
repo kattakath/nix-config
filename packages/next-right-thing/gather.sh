@@ -19,7 +19,9 @@
 set -euo pipefail
 
 GMAIL_DIR="${NRT_GMAIL_DIR:-$HOME/.gmail-mcp}"
-ACCOUNTS="${NRT_GMAIL_ACCOUNTS:-ismail_kattakath_com REDACTED REDACTED REDACTED}"
+# Every mailbox signed in for the Gmail MCP: one credentials-<alias>.json each, written
+# by `nix-mcp-gmail <address>`. Derived, so the account list is never written here.
+ACCOUNTS="${NRT_GMAIL_ACCOUNTS:-$({ cd "$GMAIL_DIR" && for f in credentials-*.json; do [ -e "$f" ] || continue; f="${f#credentials-}"; printf '%s ' "${f%.json}"; done; } 2>/dev/null || true)}"
 MAXMAIL="${NRT_MAX_MAIL:-15}"
 
 client_id="$(jq -r '.installed.client_id // empty' "$GMAIL_DIR/gcp-oauth.keys.json" 2>/dev/null || true)"
