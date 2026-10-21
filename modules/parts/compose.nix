@@ -27,7 +27,7 @@ let
     determinate
     agenix
     mcp-servers-nix
-    raspberry-pi-nix
+    nixos-hardware
     agent-skills-vercel
     agent-skills-cloudflare
     agent-skills-anthropic-official
@@ -292,11 +292,11 @@ let
         # 2026-09-15) repeat the same two modules to build the same Pi — a shape
         # leak. nix-config must build every host standalone; a composition layer
         # passes data only.
-        raspberryPiNix = raspberry-pi-nix;
+        nixosHardware = nixos-hardware;
         # For hosts/nixvm.nix's `build-vm` variant, whose QEMU runner executes
         # on the aarch64-darwin Mac. LAZY: only `system.build.vm` forces it, so
         # the aarch64-linux toplevel eval (CI) never pulls in darwin pkgs. Same
-        # principle as raspberryPiNix above — a host's shape lives in its own
+        # principle as nixosHardware above — a host's shape lives in its own
         # file, never in a per-call `extraModules`.
         darwinPkgs = nixpkgs.legacyPackages."aarch64-darwin";
       };

@@ -75,53 +75,27 @@
     # not delete it — only safe because nothing ever forces it.)
     git-hooks.inputs.flake-compat.follows = "";
 
-    # Raspberry Pi 4 NixOS support: kernel, firmware, and SD-card image builder.
+    # Raspberry Pi 4 hardware for nixpi: the linux-rpi vendor kernel, the GPU firmware
+    # + config.txt, and the firmware-partition installer. Consumed as
+    # `nixosModules.raspberry-pi-4`. Its one input, `nixpkgs`, feeds only its own
+    # packages/checks/formatter (`eachSystem` in its flake.nix) — the nixosModules
+    # evaluate against OUR pkgs — so `follows` dedupes a second nixos-unstable.
     #
-    # ARCHIVED UPSTREAM, KEPT DELIBERATELY. `gh api repos/nix-community/raspberry-pi-nix`
-    # reports `archived: true`, last push 2025-03-23; our pin (3e8100d5, 2025-03-17) is
-    # therefore permanent — update-flake-lock.yml allowlists this input but can never
-    # move it. It is also the single largest input in the lock: itself plus 9 pinned
-    # source inputs (rpi-linux-*, rpi-firmware*, libcamera, libpisp, rpicam-apps), out
-    # of 62 nodes total.
+    # REPLACED raspberry-pi-nix (archived upstream 2025-03, pin frozen at 3e8100d5 with
+    # a 6.6.51 kernel and 9 source inputs). Its migration trigger #2 FIRED 2026-10-21
+    # (gcc 16 broke the frozen kernel's libbpf); this is the exit path that comment
+    # named. The sdImage half it said nixos-hardware lacked is now covered by two
+    # upstream pieces, not ours: nixpkgs' own `installer/sd-card/sd-image.nix` builds
+    # the image, and nixos-hardware's `raspberry-pi/common/firmware.nix` fills its
+    # FIRMWARE partition (`sdImage.populateFirmwareCommands`, wired automatically
+    # whenever an sd-image module is imported). Costing, layout diff and the
+    # in-place-vs-reflash verdict: hosts/nixpi.nix header and docs/map/hosts.md.
     #
-    # WHY IT STAYS: the bcm2711 sdImage builder — hosts/nixpi.nix imports
-    # `nixosModules.sd-image`, and nixos-hardware has none. (Grepped its raspberry-pi/
-    # tree 2026-09-21: the only `sdImage` hits are a README line and
-    # common/firmware.nix.) And hosts/nixpi.nix carries two mkForce workarounds
-    # (`boot.initrd.systemd.tpm2.enable`, `boot.initrd.systemd.enable`) written
-    # specifically against linux-rpi's behaviour (tpm2
-    # modules-shrunk failure; systemd-initrd stage-1 hang), which a kernel swap would
-    # invalidate rather than inherit.
-    #
-    # IT IS **NOT** "the only source of the kernel" — that claim stood here and was
-    # FALSE, corrected 2026-09-21. nixos-hardware's raspberry-pi/4 DOES ship a kernel:
-    # default.nix:31-32 sets boot.kernelPackages from common/kernel.nix, which builds
-    # the SAME raspberrypi/linux vendor tree (`pname = "linux-rpi"`, tag
-    # stable_20260911, 6.18.50). Ours is 6.6.51 off a rev frozen 2025-03, so the gap is
-    # twelve minor versions of one lineage — not a vendor-vs-mainline switch. The
-    # sdImage builder is the whole remaining reason, and it is a smaller one.
-    #
-    # MIGRATION TRIGGER — revisit when any fires, not on a schedule:
-    #   1. a kernel CVE affecting the Pi 4 with no backport onto this frozen rev,
-    #   2. a nixpkgs bump that breaks the modules-shrunk build against this kernel, or
-    #   3. nixpkgs finishing the linux_rpi4 removal below — a clock we do not control.
-    # FIRED: #2, 2026-10-21 — glibc 2.44 / gcc 16 broke this kernel's bundled libbpf
-    # (`-Werror=discarded-qualifiers`); patched in hosts/nixpi.nix with nixpkgs' own
-    # `kernelPatches.libbpf_C23_compat`. Migration is the operator's call, not yet started.
-    # EXIT PATH: nixos-hardware's raspberry-pi/4 for BOTH kernel and tuning, plus a
-    # replacement for the sdImage half (the one piece it does not cover — unverified,
-    # cost it before committing), re-testing both mkForce workarounds (they may become
-    # unnecessary at 6.18) and rebuilding the SD image from scratch
-    # (docs/nixpi-sd-flashing-runbook.md).
-    #
-    # NOT via nixpkgs' `linux_rpi4`, which this comment used to name as the exit: it is
-    # 6.12.75-1+rpt1 — also a Pi vendor kernel, never "mainline" — and evaluating it
-    # against the pinned nixpkgs now prints "linux-rpi series will be removed in a
-    # future release. Please change to use nixos-hardware." Measured 2026-09-21. The
-    # named exit path is itself being deleted, and upstream points where this one now
-    # does.
-    raspberry-pi-nix.url = "github:nix-community/raspberry-pi-nix";
-    raspberry-pi-nix.inputs.nixpkgs.follows = "nixpkgs";
+    # NOT via nixpkgs' `linux_rpi4`: also a Pi vendor kernel, and evaluating it against
+    # the pinned nixpkgs prints "linux-rpi series will be removed in a future release.
+    # Please change to use nixos-hardware." (measured 2026-09-21).
+    nixos-hardware.url = "github:NixOS/nixos-hardware";
+    nixos-hardware.inputs.nixpkgs.follows = "nixpkgs";
 
     # Daily-updated VS Code Marketplace + Open VSX mirror. Lets us pin editor
     # extensions declaratively (programs.vscode). macOS-only consumer — the
