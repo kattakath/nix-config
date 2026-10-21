@@ -56,9 +56,9 @@ achieved entirely via `networking.hostName`-gated `lib.mkIf`, never via a separa
 
 Pinned input revisions; commit every change, never hand-edit.
 
-**The input diet — `follows` is not optional bookkeeping here.** 31 root inputs pull a
+**The input diet — `follows` is not optional bookkeeping here.** The root inputs pull a
 transitive graph, and every duplicate node is another fetch, another eval, another thing
-`flake-checker` has to reason about. The lock sits at **56 nodes** today; it bottomed out at
+`flake-checker` has to reason about. The lock (count its nodes with `jq`) bottomed out at
 **56** the day ADR-002 finished, was **69** before ADR-002 absorbed the satellites, and **72**
 before the dedupe pass. The wave table below is that ADR's accounting, not a live count —
 inputs added since carried it back up, the 2026-09-14 userscripts removal took it 59 → 58, and
@@ -116,7 +116,7 @@ What the current lock drops, and the evidence for each:
 - **terranix's `flake-parts`** stays on its own rev: it imports flake-parts internals
   (`flakeModules.partitions`, `flake-parts-lib.importApply`), and folding it in would net one
   node while downgrading a third-party flake to a rev its maintainers never tested.
-- **The 15 `agent-skills-*` / plugin inputs** are `flake = false` leaves with zero transitive
+- **The `agent-skills-*` / plugin inputs** are `flake = false` leaves with zero transitive
   nodes. They inflate the *root-input* count and nothing else; dieting them means deleting a
   skill.
 
@@ -255,7 +255,7 @@ Only **one** of deploy-rs' two `deployChecks` is wired into `checks.<system>`:
   while the check and the CI build leg were both green. When adding or overriding a PACKAGE
   the only real gate is `nix build .#darwinConfigurations.macos.system` yourself.
 
-It is added via `deployChecksFor system` folded into `forAllSystems`, guarded by
+It is added in `modules/parts/deploy.nix`'s `perSystem.checks`, guarded by
 `lib.optionalAttrs (deploy-rs.lib ? ${system})`, **not** the README's `mapAttrs …
 deploy-rs.lib` — deploy-rs exports `lib` for four systems, and that idiom would create
 `checks.x86_64-linux` + `checks.x86_64-darwin`, which this flake permits nowhere.
@@ -307,7 +307,7 @@ not a flake package: [CLAUDE.md](../../CLAUDE.md) § Testing.
 
 agenix recipients rules — **four** committed secrets on **two different models**. The operator
 public key they all share is single-sourced in **`secrets/operator-key.nix`** (also the fleet's
-`authorizedKeys`, via `flake.nix` → `modules/nixos/core.nix`), so a key rotation is one edit.
+`authorizedKeys`, via `modules/parts/identity.nix` (`operatorSshKey`) → `mkNixos`), so a key rotation is one edit.
 
 - **Operator-only vault (1).** `secrets/cloudflared-token.age` (nixpi's Cloudflare tunnel token)
   — encrypted to the **operator's key alone**: the operator decrypts it on the Mac to plant on

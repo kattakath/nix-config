@@ -14,9 +14,10 @@
 # The fix is upstream's own: declare it as `lazyAttrsOf raw`, copying
 # flake-parts' `modules/nixosConfigurations.nix:11` verbatim in shape. Nothing
 # else is declared here: flake-parts ships that for `nixosConfigurations`, and
-# `darwinConfigurations` comes from nix-darwin's own flake-parts module (pinned
-# nix-darwin flake-module.nix:6-10, exported as `flakeModules.default` at
-# nix-darwin/flake.nix:59) — which this repo does NOT import. A second declaration
+# `darwinConfigurations` is left undeclared — nix-darwin ships a flake-parts module
+# for it (pinned nix-darwin flake-module.nix:6-10, `flakeModules.default` at
+# nix-darwin/flake.nix:59) but this repo does not import it; modules/parts/hosts.nix
+# is its only definer. A second declaration
 # here was a duplicate — removed 2026-09-13.
 #
 # Leaving these undeclared is the single most expensive mistake available in a
