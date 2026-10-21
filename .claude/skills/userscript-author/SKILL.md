@@ -82,8 +82,7 @@ its gates the same day.
       adult-adjacent site (one codebase, but a site lands on only one of the two).
 - [ ] **Updates ship by webhook — push to `main`, nothing else** (since 2026-10-21). Both repos
       run the same pipeline: lint + parse, then a publish job fast-forwards a **`published`**
-      branch, but only when both are green. Greasy Fork listens on a GitHub hook
-      (`ismailkattakath/userscripts`), Sleazy Fork on a GitLab hook (`izzykatt/userscripts`), and
+      branch, but only when both are green. Greasy Fork listens on a GitHub push hook, Sleazy Fork on a GitLab one, and
       both sync from `published`, never `main`. A pushed file reaches a listing only if it
       **exactly** equals that listing's sync URL (`…/published/<f>.user.js`, plus
       `listings/<f>.md` for the additional info).

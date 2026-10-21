@@ -335,7 +335,9 @@ Four files, and the layer exists for their shape rather than their count:
   by `hosts/nixos.nix` only (nixvm's desktop, its other consumer, was deleted 2026-10-17).
 - **`modules/_lib/is-macos-host.nix`** — `osConfig -> bool`, the ONE `isMacosHost` predicate
   (#856) for the home modules that gate macos-only behaviour: `default.nix`,
-  `macos-user-agents.nix`, `spotlight-actions.nix`, `tor-browser-backup-exclusion.nix`.
+  `macos-user-agents.nix`, `spotlight-actions.nix`, `tor-browser-backup-exclusion.nix`. It reads
+  `local.operatorHost` (`modules/darwin/operator-host.nix`), NOT the hostname: a template
+  consumer may name its own Mac "macos" (`checks.*.template-consumer` builds one to prove it).
 
 **Why `modules/_lib/` and not `modules/nixos/` — and not a top-level `lib/` either.** It sat in
 `modules/shared/` until 2026-10-02 — wrong twice over, since it is neither home-manager nor a

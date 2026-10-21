@@ -1,4 +1,5 @@
-# OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+# OPERATOR-ONLY: installed only on the operator's Mac (isMacosHost, modules/home/default.nix);
+# the flake's `packages` output bakes the operator's gist URL in as the default `--url`.
 # `email-signature` — generate a self-contained HTML email signature from a JSON Resume
 # (jsonresume.org) plus a logo SVG, BOTH fetched from the same gist (one source of truth).
 # A thin writeShellApplication mirroring packages/jsonresume.nix: resume.json is fetched with

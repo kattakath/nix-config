@@ -142,6 +142,8 @@ Declares `nixpi`'s **remotely-managed** Cloudflare Tunnel itself:
   one rule per `hostedSites` entry → the local Caddy at `http://localhost:80`, plus the
   mandatory catch-all `http_status:404`),
 - one proxied `cloudflare_dns_record` CNAME per site → `<tunnel-id>.cfargotunnel.com`,
+- per site that opts into www, a www CNAME plus a www→apex redirect (`cloudflare_ruleset`), and
+  the tunnel-health alert (`cloudflare_notification_policy`) — the file is the full list,
 - the connector **token** surfaced as a sensitive `output` (via the
   `cloudflare_zero_trust_tunnel_cloudflared_token` data source),
 - **the edge's TLS floor, DECLARED rather than clicked** — a `cloudflare_zone_setting` per
@@ -254,8 +256,8 @@ different mechanisms**, which is why its module is NixOS-only: `modules/nixos/ni
 `/etc/nix/nix.conf` and `nix.*` is unavailable. The URL/key literal is single-sourced for both
 from `modules/parts/identity.nix` via `cachixUrl`/`cachixKey`. Read is public — only the substituter
 URL + public key, **NO token on any consumer**. The write credential `CACHIX_AUTH_TOKEN` lives
-in exactly two places: a **GitHub Actions secret** (used by `cachix/cachix-action` in
-`nix-ci.yml`, `build-devcontainer.yml`, and `build-installers.yml` to push build closures) and
+in exactly two places: a **GitHub Actions secret** (used by `cachix/cachix-action` in every workflow that names `CACHIX_AUTH_TOKEN`, to push
+build closures) and
 — since 2026-08-21 — the operator's **login Keychain** (registered via `secret set`,
 loader-exported like every personal token) for ad-hoc local `cachix push kattakath <paths>`;
 never in Nix or git, and consumers still substitute tokenless (read stays public). Note the

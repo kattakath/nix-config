@@ -50,7 +50,8 @@ is defined once in `modules/parts/identity.nix` (`identityArgs`) and threaded th
 (and `mkHomeManagerModule` is a function of it) so a host *could* run under a different
 persona, but nothing in the fleet uses it today — `macos` and `nixpi` both inherit
 the same global identity; per-host divergence (leanness, package sets, desktop aesthetics) is
-achieved entirely via `networking.hostName`-gated `lib.mkIf`, never via a separate identity.
+achieved via `isMacosHost`-gated `lib.mkIf` (the `local.operatorHost` flag, not the hostname),
+never via a separate identity.
 
 ### `flake.lock`
 
