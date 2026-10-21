@@ -198,22 +198,6 @@
         "type": "github"
       }
     },
-    "claude-plugins-official": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1792118421,
-        "narHash": "sha256-Tfs8Ig1rzLvaAuTZwqGUzKCK0TMWE2SddYss+H/04ug=",
-        "owner": "anthropics",
-        "repo": "claude-plugins-official",
-        "rev": "ea10b213686c90bb1984b2016937310e05336cf3",
-        "type": "github"
-      },
-      "original": {
-        "owner": "anthropics",
-        "repo": "claude-plugins-official",
-        "type": "github"
-      }
-    },
     "deploy-rs": {
       "inputs": {
         "flake-compat": [],
@@ -690,7 +674,6 @@
         "agent-skills-vercel": "agent-skills-vercel",
         "agent-skills-vercel-agent": "agent-skills-vercel-agent",
         "agent-skills-vercel-workflow": "agent-skills-vercel-workflow",
-        "claude-plugins-official": "claude-plugins-official",
         "deploy-rs": "deploy-rs",
         "determinate": "determinate",
         "flake-parts": "flake-parts_2",
