@@ -1,6 +1,6 @@
 # media-queue — the durable work queue behind the Finder Services.
 #
-#   media-enqueue <--video|--image> [--priority high|normal|low] <file-or-dir>...
+#   media-enqueue <class> [...] <file-or-dir>...  (grammar: its `usage=`)
 #                                                       write jobs, return at once
 #   media-worker                                       drain the queue (launchd)
 #   media-queue-pause                                  freeze the in-flight job
@@ -15,7 +15,8 @@
 # user's foreground apps for CPU. Moving it behind launchd fixes all four with
 # no scheduler of our own.
 #
-# EVERY MECHANISM HERE IS launchd's, NOT OURS — the full list, no exceptions:
+# EVERY MECHANISM HERE IS launchd's, NOT OURS — the keys, as set, are tabled
+# in this capsule's module.nix; in short:
 #
 #   QueueDirectories               the queue: launchd starts the worker whenever
 #                                  the directory is non-empty
@@ -93,9 +94,8 @@
 # next queued file. Nothing extra is needed to stop the QUEUE, only the job.
 #
 # FOUND VIA `running-<worker-pid>.job`, THE SAME MARKER THE WORKER USES FOR
-# ITS OWN ORPHAN RECOVERY. `pgrep -P` on that pid is a DIRECT child by
-# construction (the job is backgrounded once, from that exact process), so
-# this can never accidentally reach into some other worker's job.
+# ITS OWN ORPHAN RECOVERY. How the job pid is read from it: see
+# media-queue-pause's own comment.
 #
 # KNOWN GAP: the brief window between one job finishing and the next being
 # claimed has no `running-*.job` file, so a pause issued in that instant finds
@@ -132,7 +132,7 @@
   media-describe ? callPackage ./media-describe.nix { },
 }:
 let
-  # Spliced into all three, so the layout is stated once. INLINED rather than
+  # Spliced into each script that needs it, so the layout is stated once. INLINED rather than
   # sourced from a `writeText`: shellcheck cannot follow a `.` into /nix/store
   # (SC1091) and would then treat every shared variable as unassigned, so the
   # lint gate would have to be switched off for exactly the code most worth
@@ -177,11 +177,9 @@ let
     # on any parse hiccup — every caller compares the result against the
     # literal string "1", so a missing/empty/unexpected value reads as "not
     # active" rather than blocking work. An optional efficiency signal must
-    # never be able to wedge the whole queue. Used by media-worker (the
-    # pre-dispatch gate), media-queue-power-monitor (the periodic pause/
-    # resume) and media-queue-resume (the refusal check) — shared here
-    # rather than duplicated, per this file's own "common holds what more
-    # than one script needs" rule.
+    # never be able to wedge the whole queue. Shared here rather than
+    # duplicated, per this file's own "common holds what more than one
+    # script needs" rule.
     lowpower_active() {
       /usr/bin/pmset -g 2>/dev/null | awk '/lowpowermode/{print $2; exit}'
     }
@@ -599,7 +597,7 @@ symlinkJoin {
         ${common}
         ensure_dirs
 
-        # The prelude holds only what ALL THREE scripts use; anything narrower
+        # The prelude holds only what more than one script uses; anything narrower
         # lives with its user, because an unused variable is a lint failure —
         # and rightly so, since it is usually a leftover.
         LOCK="$STATE/worker.lock"
@@ -843,8 +841,7 @@ symlinkJoin {
             # `wait` can only block on / reap a real child. That also
             # means its true exit status is gone forever — recoverable by
             # no one but its original parent, a limit even systemd's own
-            # MAINPID mechanism shares (see this feature's own plan for
-            # the citation). Treated as a TERMINAL outcome either way,
+            # MAINPID mechanism shares. Treated as a TERMINAL outcome either way,
             # NEVER fed into the retry-with-backoff branch below: its real
             # attempt count is already unknowable, and a job that actually
             # failed gets caught by the tool's own idempotency on the next

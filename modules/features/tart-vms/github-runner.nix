@@ -342,9 +342,10 @@ in
     # modules/home/launchd-launcher.nix's `mkDefault`s — that module belongs to
     # this fleet's home profile and a capsule may not assume its consumer loads
     # it. Upstream's default arg0 is `/bin/sh -c "/bin/wait4path /nix/store &&
-    # exec …"` (:112-117), the bare `sh` arg0 .claude/rules/launchd-naming.md
+    # exec …"` (`mutateConfig`), the bare `sh` arg0 .claude/rules/launchd-naming.md
     # forbids; with it disabled the arg0 is a store-resident launcher named
-    # `nix-tart-runner-<name>` (:99-104, :119) — the SAME basename BTM and TCC
+    # `nix-tart-runner-<name>` (`launcherName` in `mutateConfig`) — the SAME
+    # basename BTM and TCC
     # saw before the move.
     home-manager.users.${config.system.primaryUser}.launchd.agents = lib.mapAttrs' (
       name: r:

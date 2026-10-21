@@ -396,14 +396,6 @@ in
       # `vector.control` and `http.control`: an `initdb` from PATH can
       # `CREATE EXTENSION vector` (which a plain postgresql_16 cannot) and
       # `CREATE EXTENSION http`.
-      #
-      # SECOND CONSUMER, so do not narrow this to the RAG's own needs: the
-      # dontsell-ai/app CI `integration` job needs pgvector whenever it lands on
-      # the REPO-level runner (`macos-throwaway`), which runs out of this profile.
-      # The ORG runners get their own copy from modules/darwin/github-runner.nix
-      # and do not depend on this line. That job therefore rides on
-      # `local.rag.pgvector.enable`, which modules/home/default.nix sets to
-      # `isMacosHost` — turning it off on the Mac would break the job.
       home.packages = [ pgPkg ];
 
       # THE SHELL-FACING HALF OF THE SAME SEAM. `databaseUri` already reaches

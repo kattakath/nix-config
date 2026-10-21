@@ -29,8 +29,7 @@ inputs:
     default: ""
   extra-nix-config:
     description: >-
-      Extra lines appended to nix.conf (e.g. `extra-platforms = aarch64-linux`
-      for the emulated aarch64-linux leg). Merged with the always-on
+      Extra lines appended to nix.conf. Merged with the always-on
       experimental-features + accept-flake-config.
     required: false
     default: ""

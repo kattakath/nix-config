@@ -19,10 +19,10 @@
 # `modules/services/colima.nix`):
 #
 #   services.colima.enable                          :17
-#   services.colima.profiles.<name>.isService       :121   one launchd agent per profile (:264-308)
+#   services.colima.profiles.<name>.isService       :121   one launchd agent per profile (`launchd.agents`)
 #   services.colima.profiles.<name>.isActive        :130   `colima start --activate=true`
-#   services.colima.profiles.<name>.setDockerHost   :143   exports DOCKER_HOST=unix://$COLIMA_HOME/<p>/docker.sock (:257-259)
-#   services.colima.profiles.<name>.settings        :160   rendered to $COLIMA_HOME/<p>/colima.yaml (:243-249)
+#   services.colima.profiles.<name>.setDockerHost   :143   exports DOCKER_HOST=unix://$COLIMA_HOME/<p>/docker.sock (`dockerHostProfile`)
+#   services.colima.profiles.<name>.settings               rendered to $COLIMA_HOME/<p>/colima.yaml (`yamlFormat.generate`)
 #   services.colima.colimaHomeDir                   :19    default `.colima` for stateVersion < 26.05, also sets $COLIMA_HOME
 #
 # Everything is per-user by construction: the agent is a `launchd.agents` entry
@@ -33,7 +33,7 @@
 # home-manager agent (.claude/rules/launchd-naming.md) — nothing to do here.
 #
 # `nix-darwin` has NO `virtualisation.*` namespace (grepped the pinned input's
-# modules/ for `docker|colima|podman|virtualisation` — zero hits), so a system-
+# modules/ for `docker|colima|podman|virtualisation` — no container-runtime option), so a system-
 # level answer does not exist; the home-manager one is the whole surface.
 #
 # WHAT IS GENUINELY CUSTOM HERE: nothing but the `local.containers.enable`
@@ -63,7 +63,7 @@
 # THE DOCKER CLI STAYS ON BREW. `docker`, `docker-buildx` and `docker-compose`
 # in hosts/macos.nix are the CLIENT (plugins under /opt/homebrew/lib/docker/
 # cli-plugins); the module only adds nixpkgs' `docker` to the AGENT's PATH so
-# colima can run `docker context use` (:283-293). Nothing in this repo consumes
+# colima can run `docker context use` (the agent's `EnvironmentVariables.PATH`). Nothing in this repo consumes
 # the socket: tart-vms is Apple Virtualization, gitlab-runner is the Tart custom
 # executor, local-rag is native postgres, and the devcontainer image is a
 # CI/Codespaces artifact.

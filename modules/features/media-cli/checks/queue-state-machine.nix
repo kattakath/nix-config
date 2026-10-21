@@ -34,8 +34,8 @@
 #                                      build user may not exec it.
 #
 # /bin/ps is the hole, and it BOUNDS this check honestly. Every path that reads a
-# process state — media-queue-pause/resume, media-queue-power-monitor,
-# cleanup()'s "spare a PAUSED job", and the ADOPTION half of orphan recovery —
+# process state — every `/bin/ps` call in media-queue.nix, among them
+# cleanup()'s "spare a PAUSED job" and the ADOPTION half of orphan recovery —
 # needs it. Those are not stubbed into passing and not asserted at all; the
 # scenarios below deliberately stay on the side of orphan recovery that /bin/ps
 # never reaches (a job pid that is already dead). Adoption and pause need a live

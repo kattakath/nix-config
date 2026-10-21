@@ -338,7 +338,8 @@ in
   #
   # Enforcement is at the EDGE only: cloudflared proxies raw TCP to localhost:22,
   # so the origin never sees a JWT. That is why modules/nixos/core.nix binds sshd
-  # to loopback — the two halves are one control and neither works alone.
+  # to loopback by default. nixpi's LAN path (modules/nixos/lan-recovery.nix) is the
+  # deliberate exception: it reaches sshd WITHOUT this gate.
   #
   # ---- (e2) The ONE policy that gates it, declared HERE as of 2026-10-02 -------
   # It was declared in infra/cloudflare/mcp-public.nix and referenced from here by

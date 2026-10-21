@@ -25,7 +25,8 @@
 let
   cfg = config.local.firmwareProvisioning;
   # PRIOR ART: systemd's own LoadCredential=, which nixpkgs already uses for exactly
-  # this shape -- nixos/modules/services/networking/cloudflared.nix:387-390 loads the
+  # this shape -- the `LoadCredential` of the `cloudflared-tunnel-<name>` unit in
+  # nixos/modules/services/networking/cloudflared.nix loads the
   # tunnel credentials + cert straight off an operator-supplied path. Grepped the
   # pinned nixpkgs for it; the option exists and fits the general idea, so a copy
   # unit is still custom ON PURPOSE, for four things credentials cannot do:
@@ -72,8 +73,7 @@ let
       #
       # Same shape as the USB storage volume's `nofail` in hosts/nixpi.nix, and for the
       # same stated reason: on a remote-only host a failed mount must never be able to
-      # block the way back in. That pattern was written down there and never applied to
-      # the partition that gates the tunnel.
+      # block the way back in.
       after = [ firmwareMountUnit ];
       wants = [ firmwareMountUnit ];
       serviceConfig = {

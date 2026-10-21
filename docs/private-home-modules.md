@@ -8,8 +8,9 @@ That flake was **fully retired 2026-09-15**: every value it held is now
 folded directly into this repo (`hosts/macos.nix`, `modules/parts/identity.nix`)
 as plain public Nix.
 
-The two seams themselves are unchanged and still real — just currently unused,
-since there's no second composition calling into them:
+The two seams themselves are unchanged and still real. `extraHomeModules` is
+currently unused, since there's no second composition calling into it;
+`hostedSites` is live (below):
 
 - **`lib.mkDarwin { extraHomeModules }`** — a list of extra home-manager
   modules merged into the Mac's home-manager config (`modules/parts/compose.nix`).
@@ -54,6 +55,9 @@ not a generic loop over `hostedSites`. **No site uses it today** —
 moved to Vercel; its connector module and terranix zone module were both
 deleted. The marker stays because the engine still honours it.
 
+**Read [`nixpi-nixos-hardware-migration.md`](nixpi-nixos-hardware-migration.md) before any
+in-place switch of `nixpi`** — its verdict decides between an in-place switch and a reflash.
+
 Deploy nixpi (build locally, switch remotely — nixpi has no local build
 capacity; it is reached over the Cloudflare Tunnel's SSH ingress, or as `nixpi.local` on
 the LAN via `local.lanRecovery`):
@@ -67,7 +71,9 @@ exports `deploy.nodes.nixpi`, `magicRollback`/`autoRollback` on, `remoteBuild`
 off). `nixos-rebuild --target-host` has no undo — a generation that breaks
 sshd, the tunnel connector, or networking leaves the Pi simply *gone*,
 recoverable only by pulling the SD card and reflashing
-(`docs/nixpi-sd-flashing-runbook.md`, ~40 min).
+(`docs/nixpi-sd-flashing-runbook.md`, ~40 min). Magic rollback's undo covers the
+ACTIVATION only — see [`map/hosts.md`](map/hosts.md) § What magic rollback actually buys, and
+the migration doc above.
 
 > **Never `--build-host nixpi`.** It is hard-blocked (Rule 1d): the Pi is on an
 > SD card and a power cut mid-build corrupts it. The caddy `Caddyfile-formatted`
@@ -80,6 +86,10 @@ recoverable only by pulling the SD card and reflashing
 nix develop -c deploy --targets .#nixpi              # magic rollback armed
 nix develop -c deploy --targets .#nixpi --dry-activate  # rehearse first
 ```
+
+**Before running either, read [`map/hosts.md`](map/hosts.md) § Two operator lanes the Access
+gate and Rule 1d leave open** — it says when to add `--hostname` and deploy over the LAN
+instead of the tunnel.
 
 `deploy` with **no** `--targets` fans out over every node — always name the
 target.

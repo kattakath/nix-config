@@ -1,16 +1,9 @@
 # `secret <command> …` — the primary, discoverable interface to the macOS
 # login-Keychain secret store, in the modern noun-verb CLI shape (git/docker/op
-# style). Verbs:
-#   secret set   <KEY> [VALUE]  store/rotate (hidden prompt if no VALUE)
-#   secret reveal <KEY>         PRINT one value (the only printing verb)
-#   secret rm    <KEY>          delete + unregister
-#   secret ls                   list every registered KEY (from the index; `list` also accepted)
-#   secret adopt <KEY>          register a Keychain item added outside this CLI
-#   secret load                 reload secrets into the CURRENT shell — SHELL-FUNCTION ONLY
-#   (no bare `secret <KEY>`, and no `get` — printing is opt-in)
+# style). Verbs: `usage()` below is the list.
 #
-# The index (`__set_secret_index__`) is SINGLE-WRITER: only this CLI's set/rm
-# maintain it. An item created out-of-band (Keychain Access GUI, raw `security
+# The index (`__set_secret_index__`) is written only by `set-secret` and by
+# `rebind()` below. An item created out-of-band (Keychain Access GUI, raw `security
 # add-generic-password`) therefore EXISTS — `reveal` still finds it by direct
 # lookup — but is invisible to `ls` AND to the shell loader's export loop
 # (`secret load` iterates the same index, so it cannot help either). `reveal`
@@ -19,8 +12,8 @@
 # per-read auth prompt GUI-created items carry.
 #
 # `set-secret` / `remove-secret` remain as thin back-compat aliases. The MUTATING
-# verbs (set/rm/adopt) forward to `set-secret` so the Keychain/index logic lives
-# in ONE place; reveal/list are simple reads done here. macOS-ONLY (the Keychain is
+# verbs (set/rm/adopt) forward to `set-secret`; `rebind()` is the one other
+# index writer. reveal/list are simple reads done here. macOS-ONLY (the Keychain is
 # macOS-only). A companion shell FUNCTION the home-manager module wraps this so
 # set/rm/adopt/load also update the CURRENT shell's environment — a bare binary
 # cannot mutate its parent's env, and `load` is therefore function-only.

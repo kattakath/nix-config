@@ -4,7 +4,8 @@
 >
 > The question was *"what succeeds the portal layer?"*. **There is no portal and no `mcp-proxy`.**
 > `modules/shared/mcp.nix` is deleted, `infra/cloudflare/mcp-public.nix` is deleted,
-> `https://mcp.kattakath.com/mcp` answers **403**, and MCP servers now come from an enabled
+> `https://mcp.kattakath.com/mcp` answered **403** before its DNS record was deleted the same day
+> (the `infra/cloudflare/kattakath-dns.nix` header), and MCP servers now come from an enabled
 > plugin's own `.mcp.json`, spawned per session with nothing shared
 > ([`map/claude.md`](map/claude.md) § MCP after the gateway). **§8's side-by-side cutover cannot be
 > run** — `packages.mcp-worker-probe` was deleted with the stack, there is no `:8097` to diff

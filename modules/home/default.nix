@@ -347,7 +347,7 @@ let
   # NO GATE BUILDS THE DARWIN CLOSURE (flake check and CI only evaluate it), so
   # a package override that cannot build first fails at `activate` — this one
   # did. Build it yourself: nix build .#darwinConfigurations.macos.system
-  # (docs/map/engine.md § `modules/parts/`, "No gate BUILDS the darwin closure").
+  # (docs/map/entry-points.md, "No gate BUILDS the darwin closure").
   rclipCli = pkgs.rclip.overridePythonAttrs (_: {
     dontCheckRuntimeDeps = true;
   });
@@ -394,7 +394,7 @@ let
       esac
 
       if [ ! -x "$sdkmanager" ]; then
-        echo "android-emu: sdkmanager not found — run 'darwin-rebuild switch' to install the android-commandlinetools cask" >&2
+        echo "android-emu: sdkmanager not found — run 'activate' to install the android-commandlinetools cask" >&2
         exit 1
       fi
 
@@ -461,7 +461,7 @@ in
     # code. See `local.mediaCli` below. Imported UNCONDITIONALLY — it is
     # internally gated on (enable && isDarwin), and `checks.media-cli-inert`
     # asserts that an unset `enable` contributes nothing at all, which is the
-    # state the two NixOS hosts are in.
+    # state the NixOS hosts are in.
     mediaCliModule
     # Keeps the Tor Browser profile out of Time Machine (the cask lives in
     # hosts/macos.nix). Internally gated on isMacosHost (local.operatorHost) — tmutil
@@ -897,33 +897,15 @@ in
         # implementation of a feature. Broader than plugin maintenance; kept because the
         # exploration/architecture agents are reusable on any repo in this fleet.
         "feature-dev"
-        # code-modernization — DELIBERATELY ABSENT, and this comment is the reason so it
-        # is not re-added on sight. The plugin CANNOT INSTALL on Claude Code 2.1.268: its
-        # own manifest fails the CLI's own validator.
-        #
-        #   $ claude plugin validate …/plugins/code-modernization
-        #   ✘ userConfig.track: Invalid input
-        #   ✘ userConfig.panel: Invalid input
-        #
-        # Measured 2026-09-29 against the PRISTINE marketplace checkout, so it is upstream's
-        # bug, not a local or activation fault. `track` and `panel` are the only two keys
-        # declaring `"type": "string"` alongside `"options": [...]`, and code-modernization is
-        # the ONLY plugin of the marketplace's 314 using `options` in userConfig at all — the
-        # validator takes an enum some other way. It is an early-access plugin (its hooks call
-        # $.ui.* / ui.render) whose manifest schema is simply ahead of this CLI.
-        #
-        # Declaring it anyway is not harmless: the install loop in ./claude-plugins.nix ends
-        # each attempt with `|| true`, so it would print a red install failure on EVERY
-        # activation forever while installing nothing. Re-test with `claude plugin validate`
-        # after a marketplace refresh or a claude-code bump, and add it back when that passes.
+        # code-modernization — not declared; adding it is the operator's call. Run
+        # `claude plugin validate` on it before declaring it.
       ];
     };
 
     # Upstash's OWN marketplace (github:upstash/context7), HTTPS like
     # claude-plugins-official above — the KEY must be the name upstream declares
     # in its .claude-plugin/marketplace.json ("context7-marketplace"), because
-    # the activation loop in ./claude-plugins.nix greps `plugin marketplace
-    # list` for it and derives the install id as "<plugin>@<key>".
+    # `idsOf` in ./claude-plugins.nix derives the plugin id as "<plugin>@<key>".
     #
     # WHY NOT the `context7` entry in claude-plugins-official: Anthropic's copy
     # is `external_plugins/context7`, which carries a .mcp.json and NOTHING else
@@ -968,15 +950,14 @@ in
     # this moves the version decision out of flake.lock for plugins.
     #
     # The `kattakath-skills` flake input still exists, for ONE PATH package built
-    # from a plugin script (`page-lab-pick`), its `checks.<system>.page-lab` gate,
-    # and `checks.<system>.mcp-launcher-parity`, which joins the `nix-mcp-*`
-    # launchers this fleet BUILDS against the servers that repo's `plugins/*/.mcp.json`
-    # NAME. It was TWO packages until 2026-09-30, when superhook moved to
-    # plugin-hook delivery and `packages/superhook.nix` was deleted, and it had a
-    # THIRD consumer — `modules/shared/mcp.nix`'s `mcpCatalog` — until that module
+    # from a plugin script (`page-lab-pick`), and `checks.<system>.mcp-launcher-parity`,
+    # which joins the `nix-mcp-*` launchers this fleet BUILDS against the servers that
+    # repo's `plugins/*/.mcp.json` NAME. It was TWO packages until 2026-09-30, when
+    # superhook moved to plugin-hook delivery and `packages/superhook.nix` was deleted, and it had
+    # another consumer — `modules/shared/mcp.nix`'s `mcpCatalog` — until that module
     # was deleted with the gateway 2026-10-02. No plugin or skill is read from the
-    # input, and no home-manager module takes it at all: all three consumers live
-    # in the flake engine and read `inputs.kattakath-skills` directly.
+    # input, and no home-manager module takes it at all: every consumer lives
+    # in the flake engine and reads `inputs.kattakath-skills` directly.
     #
     # Adding a plugin or skill = its tree + marketplace entry IN THAT REPO, then
     # its bare name below. Changing one that is already listed = a merge there.
@@ -997,11 +978,10 @@ in
         # RETIRED 2026-09-14 with the userscripts it linted (the fleet declares zero —
         # docs/agent-resource-externalization.md), so nothing in this repo runs it.
         #
-        # The Nix-specific half (declaring a script in home.nix, activation, the install
-        # click) stays in .claude/skills/userscript-author — it is about THIS repo, not
-        # about userscripts. The MCP servers page-lab drives are declared in the plugin's
+        # The fleet-specific half stays in .claude/skills/userscript-author — it is about
+        # THIS repo, not about userscripts. The MCP servers page-lab drives are declared in the plugin's
         # own .mcp.json; this repo owns only the browser half (modules/home/chromium.nix's
-        # debugLauncher / kaptureMcp, both opt-in and off by default).
+        # debugLauncher / kaptureMcp).
         "page-lab"
         # claude-code-nix: the two Nix PostToolUse hooks this repo used to carry in
         # .claude/hooks — auto-stage a .nix write (flakes evaluate the GIT tree, so an
@@ -1077,7 +1057,7 @@ in
         # ${PIPESTATUS[0]} (which in zsh is always empty, because the variable is `pipestatus`
         # and arrays are 1-indexed), a CI run green because its only job SKIPPED, ancestry after
         # a squash, a truncated API page with no marker in the body, a zsh `for f in $list` that
-        # iterates ONCE and exits 0. 28 entries, measured, with primary sources.
+        # iterates ONCE and exits 0. Measured, with primary sources.
         #
         # WHY IT IS A PLUGIN AND NOT A nix-config RULE. The traps are repo-agnostic — they are
         # properties of bash, zsh, git and the GitHub API, not of this tree — so the home for
@@ -1161,9 +1141,8 @@ in
     # third-party marketplace in this attrset (`claude-plugins-official`,
     # `context7-marketplace`) — only `kattakath` (the operator's own repo) is `true`.
     # These are other people's repos, and autoUpdate means whatever lands on their
-    # `main` reaches this Mac on a background refresh with no review. It is also
-    # moot while `plugins = [ ]`: there is nothing installed to update. Revisit it
-    # per-marketplace in step 2, when a plugin is actually enabled.
+    # `main` reaches this Mac on a background refresh with no review. Revisit it
+    # per-marketplace in step 2.
     #
     # LICENCE, and why marketplace-not-vendor is the RIGHT shape here:
     # `trailofbits/skills` is CC-BY-SA-4.0 — a share-alike licence. Consuming it as
@@ -1176,8 +1155,7 @@ in
     #
     # Every KEY below is the `name` field of that repo's own
     # .claude-plugin/marketplace.json, fetched and read 2026-09-30 — NOT the repo or
-    # org name. The activation loop in ./claude-plugins.nix greps `plugin
-    # marketplace list` for the key and derives the install id as
+    # org name. `idsOf` in ./claude-plugins.nix derives the plugin id as
     # "<plugin>@<key>", so a guessed key silently resolves nothing.
     #   cloudflare/skills     -> "cloudflare"                 (1 plugin)
     #   trailofbits/skills    -> "trailofbits"                (44 plugins)
@@ -1235,7 +1213,7 @@ in
     # The PostToolUse instrument layer under the verification gate — see the
     # `silent-instruments` entry in the kattakath catalogue above for what it is and
     # why it is a plugin. It is here rather than always-on because nothing in this
-    # repo BREAKS without it: the gate still runs, it just loses the 28 measured
+    # repo BREAKS without it: the gate still runs, it just loses the measured
     # cases where "check the exit code" lies. Reproducible is the requirement, not
     # unoverridable — a session can still turn it off, until the next `activate`.
     #
@@ -1311,7 +1289,7 @@ in
     # re-asserted into ~/.claude/settings.json on every activation, where `false` is
     # first-class — "`true` enables, `false` disables"
     # (the `local.claudePlugins.declared` option in modules/home/claude-plugins.nix). Deleting the key emits NO key, and
-    # the jq merge in claude-code-settings.nix (`.[0] * $nix[0]`) then LEAVES the
+    # the jq merge in claude-code-settings.nix (`mergeScript`) then LEAVES the
     # stale `true` the previous activation wrote. Deletion does not disable; it
     # abandons.
     #
@@ -1435,7 +1413,7 @@ in
     # are installed only on the macos host, never on a template consumer's Mac.
     ++ lib.optionals isMacosHost [
       jsonresume # `jsonresume download|print|validate|markdown|text` — fetch a JSON Resume (default URL from jsonResumeUrl, or --url) + render PDF via resumed (fallback resume-cli); md/text via resume-cli (packages/jsonresume.nix)
-      email-signature # `email-signature [--url URL] [--logo-url URL] [--out DIR]` — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
+      email-signature # `email-signature` (flags: `email-signature --help`) — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
     ]
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
@@ -1471,17 +1449,9 @@ in
       # are in packages/mcpfinder-mcp.nix.
       mcpfinderMcp # `nix-mcp-mcpfinder` — cross-registry MCP-server DISCOVERY, pinned @1.1.0 (the pin is a security control); named by the mcp-utilities plugin (packages/mcpfinder-mcp.nix)
       #
-      # uv: needed because `arxiv` launches as `uvx --python 3.12 --from
-      # arxiv-mcp-server==0.7.2 …` and arxiv-mcp-server is NOT in nixpkgs — unlike
-      # mcp-nixos and terraform-mcp-server, there is no packaged alternative, so uvx
-      # is the only route. Spawn-verified end to end.
-      #
-      # CORRECTION: #689's body claimed uv was not needed because "the only other
-      # server that would want it (postgres) is HELD". That was WRONG — `arxiv` is
-      # one of the moving eight and needs uvx too, which the earlier reasoning
-      # missed by looking only at postgres. uv is a genuine requirement, not a
-      # package for nobody.
-      uv # `uv`/`uvx` — ephemeral Python tool runner; the only route for arxiv-mcp-server, which nixpkgs does not package
+      # uv: the same PREREQUISITE shape, for an enabled plugin whose `.mcp.json`
+      # names bare `uvx`.
+      uv # `uv`/`uvx` — ephemeral Python tool runner; on PATH for an enabled plugin whose `.mcp.json` names bare `uvx`
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
@@ -1657,9 +1627,9 @@ in
       # this repo.
       #
       # upstream option home-manager.programs.claude-code.context exists → using it
-      # (modules/programs/claude-code/options.nix:133, `either lines path`;
-      # impl home-manager/modules/programs/claude-code/default.nix:319-322 writes `"''${cfg.configDir}/CLAUDE.md".source`
-      # for a path value, and configDir defaults to ~/.claude at options.nix:61).
+      # (modules/programs/claude-code/options.nix `context`, `either lines path`;
+      # impl home-manager/modules/programs/claude-code/default.nix writes `"''${cfg.configDir}/CLAUDE.md".source`
+      # for a path value, and `configDir` defaults to ~/.claude in options.nix).
       # This replaced a hand-written `home.file.".claude/CLAUDE.md"` shim under
       # the identical darwin gate — same target, one fewer duplicate-home.file
       # collision risk.
@@ -1853,8 +1823,7 @@ in
         cloudflare = "${agent-skills-cloudflare}/skills/cloudflare";
         cloudflare-one = "${agent-skills-cloudflare}/skills/cloudflare-one";
         # The Anthropic skills (mcp-builder, webapp-testing, pdf/docx/pptx/xlsx) are NOT
-        # here: they arrive from the `anthropic-agent-skills` marketplace above. Their
-        # heavy runtime deps still live in this repo: pandoc + poppler from nixpkgs
+        # here. Their heavy runtime deps still live in this repo: pandoc + poppler from nixpkgs
         # (home.packages above), LibreOffice/soffice from the macos-only Homebrew cask
         # (nixpkgs libreoffice-bin cannot reliably block on headless --convert-to).
         # Community (MIT, 10.9k★): senior-Postgres skill — pairs with the `postgres` MCP + pgvector RAG.
@@ -1869,7 +1838,7 @@ in
         # (hosts/macos.nix Homebrew cask `vercel`) for non-interactive / token auth —
         # the deploy/manage counterpart to the CLI itself. Cherry-picked (one skill).
         vercel-cli-with-tokens = "${agent-skills-vercel-agent}/skills/vercel-cli-with-tokens";
-        # OFFICIAL Vercel Workflow SDK (vercel/workflow, Apache-2.0): the three USER-facing
+        # OFFICIAL Vercel Workflow SDK (vercel/workflow, Apache-2.0): USER-facing
         # skills for building/adopting durable, resumable TypeScript workflows. We DROP the
         # repo's `internal-dev-workbench` skill (tmux/portless session for hacking on the SDK
         # repo itself — not applicable here). Pairs with the `inngest` CLI already on PATH.
@@ -1878,7 +1847,7 @@ in
         migrating-to-workflow-sdk = "${agent-skills-vercel-workflow}/skills/migrating-to-workflow-sdk";
         # ---- Security / methodology skills (from the audit) ----
         # obra/superpowers (MIT): the SINGLE systematic-debugging skill (cherry-picked subpath, NOT
-        # the whole 14-skill plugin) — a hypothesis-driven debugging methodology.
+        # the whole plugin) — a hypothesis-driven debugging methodology.
         systematic-debugging = "${agent-skills-superpowers}/skills/systematic-debugging";
         # obra/superpowers (MIT): the SINGLE verification-before-completion skill, same
         # cherry-picked-subpath rule as systematic-debugging above. 120 lines, one file, no
@@ -1902,7 +1871,7 @@ in
         # skill. Measured 2026-10-02.
         verification-before-completion = "${agent-skills-superpowers}/skills/verification-before-completion";
         # ---- Job-search skills (Paramchoudhary/ResumeSkills, MIT) ----
-        # A LEAN, complementary slice of the 21-skill pack — the text-based job-search steps that
+        # A LEAN, complementary slice of the pack — the text-based job-search steps that
         # AREN'T resume.json-specific. resume-tailor is deliberately OMITTED: the json-native
         # jsonresume-tailor plugin (kattakath/skills) supersedes it, reading/writing real resume.json
         # and rendering via the `jsonresume` wrapper. These pair with the jobspy + Indeed connectors.
@@ -2039,7 +2008,7 @@ in
     # ONLY the package + env here — deliberately NO `flake`/`darwinFlake`
     # pointer. Whatever that names is what a bare `nh darwin switch` activates. Leaving
     # it unset means `nh darwin switch` needs an explicit path, and `activate`
-    # (the only sanctioned entry point) already passes one. It gates on a tty:
+    # (the only sanctioned entry point) already passes one. It does not use nh:
     # nh's own progress ticker repaints ~15x/s with NO off switch (measured:
     # NH_NOM=0 and NO_COLOR=1 both change nothing), so under a pipe it is far
     # worse than plain darwin-rebuild.
@@ -2068,7 +2037,7 @@ in
 
     # zsh as the interactive shell — matches the devcontainer default
     # (common-utils configureZshAsDefaultShell). Kept lean: no oh-my-zsh /
-    # framework, default prompt. bash stays enabled above for login-shell
+    # framework. bash stays enabled above for login-shell
     # compatibility.
     # Ghostty — GPU-accelerated terminal, macos only. `package = null` is the
     # escape hatch home-manager documents for exactly this: nixpkgs' `ghostty` is
@@ -2076,11 +2045,7 @@ in
     # in hosts/macos.nix ships the app and this owns nothing but the config — the
     # same split already used for the ungoogled-chromium cask.
     #
-    # The settings deliberately MATCH the existing terminal rather than introduce
-    # a second look: 16pt is the size modules/home/desktop-aesthetics.nix holds
-    # Terminal.app at on every darwin host, and UbuntuMono Nerd Font is already
-    # installed fleet-wide (home.packages) as the VS Code terminal face.
-    # Switching terminals should cost no re-adjustment.
+    # The type comes from terminal-theme.nix's `font` (sizes: its `font.sizes`).
     #
     # Shell integration is left to Ghostty's OWN auto-injection and deliberately
     # NOT enabled here: `enableZshIntegration` sources the integration script out
@@ -2149,9 +2114,9 @@ in
         # OPAQUE, deliberately. Translucency was chosen while the ground was a
         # theme colour, where it was decoration. It stopped being decoration the
         # moment the ground became a specific value: at 0.95 the window does not
-        # show #24081B, it shows 95% of it composited over whatever is behind,
-        # so the one colour carried over from the old Ubuntu profile is the one
-        # thing translucency dilutes.
+        # show the ground (`config.lib.terminalTheme.background`), it shows 95% of
+        # it composited over whatever is behind, so the ground is the one thing
+        # translucency dilutes.
         background-opacity = 1.0;
         background-blur = false;
 
@@ -2311,17 +2276,17 @@ in
       # profile (measured 2026-09-16, vscode-1.136.1).
       #
       # upstream option home-manager.programs.vscode.package is `nullable = true`
-      # (pinned modules/programs/vscode/mkVscodeModule.nix:444-447) → using it.
-      # Null removes ONLY the package (`home.packages = mkIf (cfg.package != null)`,
-      # :501). Everything this module is actually here for survives, because none
+      # (pinned modules/programs/vscode/mkVscodeModule.nix, its `mkPackageOption`) → using it.
+      # Null removes ONLY the package (`home.packages = mkIf (cfg.package != null)`).
+      # Everything this module is actually here for survives, because none
       # of it is derived from the package:
       #   * settings/keybindings/tasks land in `userDir`, which is built from
-      #     `nameShort` ("Code"), NOT from the package (:35-39) — so they land in
+      #     `nameShort` ("Code"), NOT from the package — so they land in
       #     the directory the CASK app reads.
-      #   * extensions are still symlinked into the extensions dir (:663-664),
+      #   * extensions are still symlinked into the extensions dir (`toPaths`),
       #     unconditionally.
       # The one thing dropped is the `.extensions-immutable.json` onChange hook
-      # (:666-683, explicitly gated on `cfg.package != null`), which force-
+      # (explicitly gated on `cfg.package != null`), which force-
       # regenerates extensions.json by running `code --list-extensions`. VS Code
       # regenerates that file itself on next launch; with `mutableExtensionsDir`
       # already true this profile was never relying on a locked extensions dir.

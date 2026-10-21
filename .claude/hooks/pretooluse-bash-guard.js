@@ -499,8 +499,7 @@ const BUILDERS_PI = new RegExp(String.raw`--(?:builders|store)[=\s]+["']?ssh(?:-
 // token in ~/.aws/sso/cache that expires every few hours. Any of those can be
 // absent while the Keychain flag still says "use Bedrock": Bedrock stays selected
 // with no region and no profile, Claude Code can reach no model, and the agent
-// needed to fix it is the thing that just died. settings.json is a read-only
-// /nix store symlink, so it cannot be hand repaired either.
+// needed to fix it is the thing that just died.
 // What CLOSES that trap is modules/home/claude-bedrock-gate.nix, which unsets
 // the flag for a shell where no identity resolves. All this hook carries is the
 // inverse heads-up below — identity live, flag off — and it is a nudge, never a
@@ -849,7 +848,7 @@ function main() {
       emit(
         "block",
         "This builds ON nixpi (a Pi 4 on an SD card). A build there is slow, and a power cut mid-build corrupts the card — which then needs a physical reflash (~40 min, docs/nixpi-sd-flashing-runbook.md) and defeats the remotely-managed design.",
-        "The Pi should only SUBSTITUTE. CI warms the whole nixpi closure into Cachix on every closure change (.github/workflows/warm-nixpi-cache.yml), so after that lands use `nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo` (builds HERE, activates there) or `deploy --targets .#nixpi`. If the Mac still wants to BUILD instead of fetch, the cache is merely not warm yet — or Nix negatively cached an earlier 404 for up to an hour; retry with `--narinfo-cache-negative-ttl 0` rather than moving the build onto the Pi.",
+        "The Pi should only SUBSTITUTE. CI warms the whole nixpi closure into Cachix on every closure change (.github/workflows/warm-nixpi-cache.yml), so after that lands use `nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo` (builds HERE, activates there) or `nix develop -c deploy --targets .#nixpi` — over the LAN (`--hostname <pi-lan-ip>`) when it restarts cloudflared, per docs/map/hosts.md. If the Mac still wants to BUILD instead of fetch, the cache is merely not warm yet — or Nix negatively cached an earlier 404 for up to an hour; retry with `--narinfo-cache-negative-ttl 0` rather than moving the build onto the Pi.",
       );
     }
   }
@@ -921,7 +920,7 @@ function main() {
     emit(
       "block",
       "Direct `wrangler` invocation — a Cloudflare API call (Workers/Pages/D1/KV/R2/Queues).",
-      "Use mcp__claude_ai_cloudflare__execute (or __search) for Cloudflare API operations instead of raw wrangler.",
+      "Use the Cloudflare MCP server's API tools for Cloudflare API operations instead of raw wrangler (read the live tool name from the session: plugin `cloudflare` or a claude.ai connector).",
     );
   }
   {
@@ -933,17 +932,17 @@ function main() {
       if (host.toLowerCase() === "api.cloudflare.com") {
         const reason = `Direct HTTP request to ${host} — a Cloudflare API endpoint.`;
         if (RULE1_API_HOST_BLOCKING) {
-          emit("block", reason, "Use mcp__claude_ai_cloudflare__execute (or __search) instead of a raw request to api.cloudflare.com.");
+          emit("block", reason, "Use the Cloudflare MCP server's API tools instead of a raw request to api.cloudflare.com (read the live tool name from the session).");
         }
         // Non-blocking by default (see 2026-08-19 POLICY CHANGE in file header).
-        nudges.push(`${reason} (mcp__claude_ai_cloudflare__execute lacks Rulesets/Page-Rules write scope — raw call allowed.)`);
+        nudges.push(`${reason} (the Cloudflare MCP server lacks Rulesets/Page-Rules write scope — raw call allowed.)`);
       }
       // ---- Rule 2: Cloudflare docs lookups ----
       if (isCloudflareDocsHost(host)) {
         emit(
           "block",
           `Direct HTTP request to ${host} — a Cloudflare docs lookup.`,
-          "Use mcp__claude_ai_cloudflare__docs instead of fetching developers.cloudflare.com directly.",
+          "Use the Cloudflare MCP server's docs tool instead of fetching developers.cloudflare.com directly (read the live tool name from the session).",
         );
       }
     }
