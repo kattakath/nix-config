@@ -4,7 +4,7 @@
 # layout to provision, no builder VM and no self-hosted runner — CI is GitHub-hosted and
 # local aarch64-linux builds use Determinate's native Linux builder (enabled on
 # the macos host, see flake.nix). Distinct from `nixpi`, which targets real
-# Raspberry Pi 4 hardware via raspberry-pi-nix.
+# Raspberry Pi 4 hardware via nixos-hardware's raspberry-pi/4.
 #
 # DISPOSABLE, NOT EPHEMERAL — only the Nix STORE is rebuilt per boot
 # (useNixStoreImage, below); the ROOT filesystem is a `nixvm.qcow2` that

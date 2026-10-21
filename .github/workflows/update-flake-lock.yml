@@ -94,9 +94,15 @@ jobs:
       # reasonably can instead of silently updating nothing. grok-build-plugin-cc
       # still needs a manual `nix flake lock --update-input grok-build-plugin-cc`
       # from a machine whose IP isn't blocked (this Mac's IP works fine).
+      #
+      # nixos-hardware is excluded for a DIFFERENT reason: it carries the LIVE Pi's
+      # kernel (raspberry-pi/common/kernel.nix pins one linux-rpi tag), so a weekly
+      # bump would move nixpi's kernel unannounced and cost a cold kernel build in
+      # warm-nixpi-cache. Kernel moves are deliberate: `/update-input nixos-hardware`
+      # by hand (flake.nix, its input comment).
       - id: updatable-inputs
         run: |
-          inputs=$(jq -r '.nodes[.root].inputs | keys[] | select(. != "grok-build-plugin-cc")' flake.lock | tr '\n' ' ')
+          inputs=$(jq -r '.nodes[.root].inputs | keys[] | select(. != "grok-build-plugin-cc" and . != "nixos-hardware")' flake.lock | tr '\n' ' ')
           echo "list=$inputs" >> "$GITHUB_OUTPUT"
 
       - id: update
