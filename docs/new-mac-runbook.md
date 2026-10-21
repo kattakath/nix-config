@@ -70,15 +70,19 @@ secret is re-issuable by the vendor that minted it:
 1. **Generate a keypair.** `ssh-keygen -t ed25519`.
 2. **Re-upload the pubkey** wherever passwordless auth is wanted — GitHub, GitLab,
    and any host you SSH to.
-3. **Repoint agenix** at the new key: put the new pubkey in
-   `secrets/operator-key.nix`, then re-encrypt each secret with its fresh vendor
-   value (`agenix -e secrets/<name>.age`). The old ciphertext is encrypted to the
+3. **Repoint agenix** at the new keys, from the repo root inside `nix develop`: put the
+   new pubkey in `secrets/operator-key.nix`, and replace the `macos` recipient in
+   `secrets/secrets.nix` with the live `/etc/ssh/ssh_host_ed25519_key.pub`. Then `rm`
+   each old `.age` and re-create it with its fresh vendor value, by the commands in
+   [`secrets-and-keychain.md`](secrets-and-keychain.md) § agenix — two vault models.
+   Delete first: `agenix -e` decrypts an existing file before editing, and the new key
+   cannot open it. The old ciphertext is encrypted to the
    lost key and to the lost host key; it is not coming back, and does not need to.
-4. **Commit and push** `secrets/operator-key.nix` plus the re-encrypted `.age` files.
+4. **Commit and push** `secrets/operator-key.nix`, `secrets/secrets.nix` and the re-encrypted `.age` files.
 5. **Finish the rotation by hand** — the steps that do NOT read `operator-key.nix` are listed in
    its own header (`allowed_signers`, and re-adding the key on GitHub as a *signing* key).
 
-Until step 3, `/run/agenix/*` stays empty. That does **not** block activation —
+Until step 4 lands and you `activate`, `/run/agenix/*` stays empty. That does **not** block activation —
 agenix decrypts from its own `org.nixos.activate-agenix` launchd daemon, not
 inline in `activate` — but the self-hosted runners will crash-loop under
 `KeepAlive` until their secrets exist. Expected, and harmless if you are not
@@ -115,8 +119,8 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
 
 - **App logins / personal tokens** — `gh` / `hf` / `docker` / `claude` one-time CLI
   logins and any Keychain-stored personal tokens are re-established by hand (Nix
-  manages only the *service* secrets via agenix — see the "Secrets — agenix"
-  convention in `CLAUDE.md`, not personal logins).
+  manages only the *service* secrets via agenix — see
+  [`secrets-and-keychain.md`](secrets-and-keychain.md), not personal logins).
 - **Claude Code's MANAGED settings need a `/status` check — `nix flake check` cannot verify
   this.** `local.claudeManagedSettings` (on `macos`) writes a root-owned
   `/Library/Application Support/ClaudeCode/managed-settings.json` at activation. Open Claude
@@ -130,7 +134,7 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   If the fresh Mac already carries an MDM or hand-placed file at that path, activation does not
   clobber it — it ABORTS with exit 2 and names both paths; rename the foreign file by appending
   `.before-nix-darwin`, or set `local.claudeManagedSettings.enable = false`.
-- **Tart VM disks are NOT restored by a rebuild.** They live under `~/.tart/`; neither this repo nor the key kit restores them.
+- **Tart VM disks are NOT restored by a rebuild.** They live under `~/.tart/`; nothing in this repo restores them.
 - **Google Takeout video shows the generic MP4 icon — re-encode with
   `media-transcode`.** Google's Storage Saver tier transcodes to
   **VP9-in-MP4** server-side, and macOS ships no VP9 decoder, so QuickLook can
@@ -171,9 +175,7 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   1. Generate a token at <https://flakehub.com/user/settings?editview=tokens>.
   2. Store it durably: `secret set FLAKEHUB_TOKEN` (hidden prompt), so this
      never has to be redone from scratch on the NEXT reinstall either.
-  3. `secret exec FLAKEHUB_TOKEN -- sh -c 'determinate-nixd auth login token --token-file <(printf %s "$FLAKEHUB_TOKEN")'`
-     — or write it to a temp file first if your shell doesn't support
-     `<(...)` process substitution, then `rm` the file immediately after.
+  3. `secret exec FLAKEHUB_TOKEN -- bash -c 'determinate-nixd auth login token --token-file <(printf %s "$FLAKEHUB_TOKEN")'`
   4. Confirm: `determinate-nixd status` shows `Logged in: true`, and
      `determinate-nixd version` lists `native-linux-builder`.
 

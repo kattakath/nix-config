@@ -98,8 +98,8 @@ address never goes in a public plugin.
    Keychain, then delete the downloaded file — **never** paste these into
    chat, a file that gets committed, or anywhere outside the Keychain:
    ```bash
-   secret set GMAIL_OAUTH_CLIENT_ID <client_id>
-   secret set GMAIL_OAUTH_CLIENT_SECRET <client_secret>
+   secret set GMAIL_OAUTH_CLIENT_ID      # no value argument: it prompts hidden
+   secret set GMAIL_OAUTH_CLIENT_SECRET
    ```
    If you're driving this via an agent with browser access: prefer clicking
    "Download JSON" and piping the file straight into `security
@@ -114,11 +114,11 @@ address never goes in a public plugin.
    plugin only for an already-public address, otherwise the private overlay), as
    `{"command":"nix-mcp-gmail","args":["<address>"]}`. The server NAME becomes part of the
    tool prefix, so keep it stable once chosen.
-3. **Pick it up**: `claude plugin marketplace update <marketplace>` (or wait for auto-update),
-   then start a **fresh** session — a running session's tool namespace was fixed at start.
+3. **Pick it up** per [kattakath/skills `CLAUDE.md`](https://github.com/kattakath/skills/blob/main/CLAUDE.md)
+   § Shipping a change (or wait for auto-update), then start a **fresh** session — a running session's tool namespace was fixed at start.
    `local.gmailMcp.enable = true` must already be activated so `nix-mcp-gmail` is on PATH.
 4. **Run the one-time interactive auth**, using the SAME shared
-   `gcp-oauth.keys.json` (materialized once, on the launcher's first run) and a
+   `gcp-oauth.keys.json` (rewritten from the Keychain on every launcher start) and a
    credentials path matching the email's sanitized alias:
    ```bash
    GMAIL_OAUTH_PATH="$HOME/.gmail-mcp/gcp-oauth.keys.json" \
@@ -171,8 +171,8 @@ unset) on the *next* invocation.
 
 ## Removing or rotating an account
 
-1. Remove the account's server entry from the plugin `.mcp.json` that holds it, and update
-   that marketplace.
+1. Remove the account's server entry from the plugin `.mcp.json` that holds it, and ship it
+   the way step 3 of § Per-account procedure links.
 2. `rm ~/.gmail-mcp/credentials-<alias>.json` — nothing references it any
    more, and the local token should not linger.
 3. Optionally revoke the grant from the account's own Google Account →
@@ -183,8 +183,8 @@ unset) on the *next* invocation.
 5. To rotate the **shared** OAuth client itself: repeat "One-time setup"
    steps 4–5 with a new client, `secret set` the new Keychain values (old
    ones are simply overwritten), then every account needs its one-time auth
-   re-run against the new `gcp-oauth.keys.json` (delete the old file first so
-   it's regenerated, not stale).
+   re-run against the new `gcp-oauth.keys.json` (the launcher rewrites it from the
+   Keychain on every start, so start one session after `secret set` before re-running auth).
 
 ## Troubleshooting
 

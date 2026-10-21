@@ -1,11 +1,11 @@
 This is `kattakath/nix-config` — the all-in-one, public Nix mono-repo that declaratively
-manages Ismail's entire aarch64-only fleet: one client Mac, one live Raspberry Pi server, a
-disposable NixOS dev VM, and a devcontainer image. Everything below is
+manages Ismail's entire aarch64-only fleet: one client Mac, one live Raspberry Pi server, two
+NixOS VMs, and a devcontainer image. Everything below is
 guidance for Claude Code (claude.ai/code) when working in this repository.
 
 # CLAUDE.md
 
-**This file is an index, not an encyclopedia.** It stays scannable and under the 40k-char
+**This file is an index, not an encyclopedia.** It stays scannable and under the 40k-byte
 context lint limit; the full per-path detail lives in **eleven per-domain files** under
 [`docs/map/`](docs/map/), routed by the index [`docs/repo-map.md`](docs/repo-map.md).
 When you change repo shape, update the one-liner here **and** the section in the `map/` file
@@ -73,7 +73,7 @@ ast-grep test --skip-snapshot-tests          # Prove each rule still fires (fixt
 nix build .#checks.<system>.actionlint       # .github/workflows/*.yml + shellcheck over every `run:` block
 nix build .#checks.<system>.capsule-registry # readDir modules/features == the capsules import-tree loaded
 nix build .#checks.<system>.claude-md-budget # THIS file must stay under 40,000 BYTES (wc -c) — a GATE
-scripts/drv-snapshot.sh --compare .baseline/wave0-final   # "moved code, changed no build" (see § Testing)
+scripts/drv-snapshot.sh --compare .baseline/<before>       # "moved code, changed no build" (see § Testing)
 # Agent hygiene (LEAN/DRY/docs drift → fix → fmt → check): /hygiene  or skill nix-hygiene
 
 # Activation
@@ -89,7 +89,8 @@ activate                                     # Activate macos, from ANY director
                                              #   scanning for errors. Mechanism, the measured cost, and the
                                              #   plugin/marketplace FALSE alarm: docs/map/packages.md
 nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
-nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
+nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo
+                                             # nixos-rebuild is NOT on the Mac's PATH; without --sudo activation fails as ismail.
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
                                              #   Cachix), activates THERE. NEVER --build-host — the Pi must not build
                                              #   (hard-blocked by the PreToolUse guard, Rule 1d).
@@ -273,7 +274,8 @@ lane is `local.claudeDesktop.extraServers` (`github` only; client servers come f
   - The two `gh-app-*` files hold **identical key material on purpose** (same App, different
     owning user: `_github-runner` daemons vs. the login-user Tart agents) — rotating the App key
     means re-encrypting **both**. `secrets/secrets.nix` carries the full why.
-  - Edit any with `agenix -e secrets/<name>.age`; re-key with `-r` after changing recipients.
+  - Edit one inside `nix develop` with `AGENIX_RULES=secrets/secrets.nix agenix -e <name>.age` (the
+    `gh-app-*` pair takes `age -R` instead, per `secrets/secrets.nix`); re-key with `-r`.
 - **Personal tokens live in the macOS login Keychain**, managed with
   `secret <set|reveal|rm|ls|exec|copy|fp|bind|unbind|adopt|load>` (there is **no `secret get`** —
   printing a value is opt-in via `reveal`); secret *names* sit in `.nix` only where a launcher needs one (the Keychain index is
@@ -300,7 +302,7 @@ How a host gets composed — change these knobs, not the hosts' internals:
   to it; [`docs/identity-and-offboarding.md`](docs/identity-and-offboarding.md)); it is a fleet
   constant, deliberately NOT in `identityArgs`. `mkDarwin` accepts a per-host `identity` override, but
   **nothing in the fleet uses it** — every host runs the same operator identity.
-- **Per-host divergence is a gate, not a fork.** an option flag gating `lib.mkIf` (`isMacosHost` for
+- **Per-host divergence is a gate, not a fork.** Use an option flag gating `lib.mkIf` (`isMacosHost` for
   the operator's Mac, `local.*` enables elsewhere; never the hostname) inside `modules/`; never a second identity, never a copy-pasted host block.
 - **No private NIX layer** (nix-personal retired 2026-09-15; `extraHomeModules`/`hostedSites` stay
   generic hooks defaulting to `[ ]`). The repo ships shape; the operator's content stays on the Mac
@@ -380,9 +382,6 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 - **Magic rollback** (`deploy.nodes.nixpi.magicRollback = true`): a change that kills sshd, the
   tunnel or networking becomes a *failed deploy* — the Pi reverts **itself** unless the deployer
   reconnects and confirms. `--target-host` has no such undo. Detail: `docs/map/hosts.md`.
-- `home-manager switch` activates and is hard to reverse; prefer `build` to verify, and
-  `switch` only when explicitly asked. `home-manager generations` lists,
-  `home-manager rollback` reverts.
 - **`nix run .#nixvm` is the only way `nixvm` is ever booted**, and it is **NOT stateless** —
   the ROOT disk, so `/home`, PERSISTS in `$XDG_STATE_HOME/nixvm/nixvm.qcow2` until you `rm` it
   (only the Nix store image is rebuilt per boot). The filesystem split, and the per-CWD trap

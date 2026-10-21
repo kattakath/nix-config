@@ -1,6 +1,6 @@
 # nix-config
 
-> One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, a disposable dev VM, and a prebuilt devcontainer.
+> One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, two NixOS VMs, and a prebuilt devcontainer.
 
 [![nix-ci](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml)
 [![build-devcontainer](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml)
@@ -16,7 +16,7 @@ A single Nix flake that manages complete, reproducible system configurations acr
 | Host | Type | System | Machine | Role |
 |------|------|--------|---------|------|
 | `macos` | [nix-darwin](https://github.com/nix-darwin/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
-| `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — Access-gated, loopback-bound SSH over a Cloudflare Tunnel connector + Caddy |
+| `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — Access-gated SSH over a Cloudflare Tunnel connector, a LAN path (`nixpi.local`), + Caddy |
 | `nixvm` | NixOS | `aarch64-linux` | Disposable QEMU dev VM on the Mac | **Headless** since 2026-10-06 (SSH on `127.0.0.1:2222`) via `nix run .#nixvm` — not installed; its root disk persists in `$XDG_STATE_HOME/nixvm` |
 | `nixos` | NixOS | `aarch64-linux` | Long-lived UTM guest on the Mac (QEMU + virgl) | GNOME desktop, driven by `nixos-vm` (`create` boots a seed image, `switch` installs the desktop) |
 | `devcontainer` | OCI image | `aarch64-linux` + `x86_64-linux` | Dev container (multi-arch manifest, published to GHCR) | — |
@@ -95,9 +95,8 @@ rather than half-activating home-manager for a user that does not exist.
 > pin a commit SHA in place of `/main/` for a stronger guarantee). `bootstrap.sh` is the exact
 > bytes CI shellchecks (the `bootstrap-lint` derivation); a truncated download runs nothing
 > (it is brace-guarded). **No secret
-> transits the pipe** — nothing here reads a secret at all, `osascript` is only ever used for
-> notices, and privilege escalation goes through `sudo` / Touch ID. Founding mode mints a **new**
-> identity: old service-secret contents are unrecoverable (and revocable).
+> transits the pipe** — nothing here reads a secret at all, `osascript` never touches a
+> secret, and privilege escalation goes through `sudo` / Touch ID.
 
 ## Quick start
 
@@ -123,7 +122,7 @@ nix flake show
 ```bash
 activate                                     # macOS (Apple Silicon) — self-elevating darwin-rebuild switch
 nix run github:kattakath/nix-config#macos    # macOS FIRST activation only, before `activate` exists
-nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
+nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo
                                              # Raspberry Pi 4 — builds HERE (substituting from Cachix),
                                              # activates THERE; the Pi never builds.
 nix develop -c deploy --targets .#nixpi      # Same Pi, with deploy-rs magic rollback: an activation
@@ -201,7 +200,7 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)): 
 
 - [`build-devcontainer`](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch (arm64 + amd64) devcontainer image to GHCR as a manifest list.
 - [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixpi` SD image to a rolling pre-release.
-- [`gitleaks`](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml) scans every push and PR (and weekly) for leaked secrets.
+- [`gitleaks`](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml) scans every push to `main`, every PR, and weekly for leaked secrets.
 - [`flakehub-publish`](https://github.com/kattakath/nix-config/actions/workflows/flakehub-publish.yml) publishes each push to `main` as a rolling release to [FlakeHub](https://flakehub.com/flake/kattakath/nix-config) via [`flakehub-push`](https://github.com/DeterminateSystems/flakehub-push). Auth is OIDC (`id-token: write`) — no long-lived token. Per FlakeHub's [trusted-platform model](https://docs.determinate.systems/flakehub/publishing/), flakes publish only from CI, never ad-hoc from a laptop.
 
 ## Secrets

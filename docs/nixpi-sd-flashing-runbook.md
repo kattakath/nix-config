@@ -18,7 +18,7 @@ Everything here is grounded in the repo files:
 ## 1. TL;DR / golden rule — verify the write ACTUALLY completed
 
 > **A flash is not done when `dd` returns. It is done when `dd` prints a byte
-> count of ~5.6 GB after several minutes of writing.** A `dd` that returns fast
+> count equal to the decompressed image's size after several minutes of writing.** A `dd` that returns fast
 > and silent did **not** write the full image — it wrote the small FAT boot
 > partition and truncated the multi-GB ext4 ROOT partition. The Pi will load the
 > kernel from FAT (one green flicker) and then hang forever on `rootwait`,
@@ -31,16 +31,16 @@ The single habit that prevents this:
   total size and prints `<N> bytes transferred in <secs> secs` at the end; when
   it reads from a pipe an interrupted/short stream can end early with no visible
   total. The pipe form is exactly what produced the truncated-write failures.
-- **Watch the numbers.** A healthy full write of the `nixpi` `sdImage`
-  decompresses to **~5.6 GB** and takes **several minutes** (order of 4-6 min to
-  a real SD card). It should end with a line like
-  `5872025600 bytes transferred in 300 secs (~19 MB/sec)`. If `dd` finishes in
+- **Watch the numbers.** A healthy full write of the `nixpi` `sdImage` takes
+  **several minutes** to a real SD card. It should end with
+  `<N> bytes transferred in <secs> secs`, where `<N>` equals `ls -l` of the
+  decompressed image — the same `copied == size` check `nixpi-flash` runs. If `dd` finishes in
   seconds, or never prints a byte count, **assume the write is incomplete and
   re-flash** — do not put the card in the Pi.
 - Press **Ctrl-T** during the write to print an in-progress byte count at any
   time (macOS `dd` responds to SIGINFO).
 
-If you remember one thing from this doc: **confirm the ~5.6 GB byte count.**
+If you remember one thing from this doc: **confirm `dd`'s byte count equals the image's size.**
 
 ---
 
@@ -60,8 +60,9 @@ The one-command path (`nix run .#nixpi-flash`, §4) handles acquisition for you:
   bullet), but this skips a heavy multi-GB build.
 - **default (no flag)** — `nix build` the sdImage. The Cachix warm substitutes the
   kernel/intermediates, but the *final* image assembly is an `aarch64-linux` build.
-  The client Mac can now do this locally on **Determinate's native Linux builder**,
-  but that runs on a small ephemeral VM (1 CPU / 8 GiB by default; `determinateNixd.builder.memoryBytes` raises it if the assembly OOMs), so a full SD-image assembly is
+  The client Mac can now do this locally on **Determinate's native Linux builder**
+  (except the step in `docs/map/hosts.md` § The one operation it cannot do),
+  but that runs on a small ephemeral VM (1 CPU / 8 GiB by default; `determinateNix.determinateNixd.builder.memoryBytes` raises it if the assembly OOMs), so a full SD-image assembly is
   slow there — prefer `--release` unless you specifically want a from-source image.
   (It also completes on any other aarch64-linux builder, e.g. the devcontainer.)
 - **`--image FILE.img.zst`** — flash a local prebuilt image you already have.
@@ -75,8 +76,8 @@ ls -lh result/sd-image/                                              # the compr
 ```
 
 The build output is a **zstd-compressed** `*.img.zst` under
-`result/sd-image/`. Decompressed it is **~5.6 GB** (a full FAT boot partition +
-a multi-GB ext4 root) — that is the size you must see land on the card in §4.
+`result/sd-image/`. Decompressed it is a full FAT boot partition +
+a multi-GB ext4 root — its `ls -l` size is the byte count you must see land on the card in §4.
 
 ---
 
@@ -136,9 +137,10 @@ do forensics on the copy, as many times as you like:
 diskutil list
 diskutil unmountDisk /dev/diskN
 
-# 2. Image the WHOLE card, raw device for speed. ~5.9 GB.
-sudo dd if=/dev/rdiskN of=~/nixpi-forensic-$(date +%Y%m%d-%H%M).img bs=4m
-#    Same golden rule as §1: this MUST print a byte count ≈ 5872025600.
+# 2. Image the WHOLE card, raw device for speed.
+sudo /bin/dd if=/dev/rdiskN of="$HOME/nixpi-forensic-$(date +%Y%m%d-%H%M).img" bs=4m
+#    Same golden rule as §1, but against the whole CARD, not the image: the byte
+#    count MUST equal the "Disk Size … (N Bytes)" of `diskutil info /dev/diskN`.
 #    Ctrl-T prints progress. Returns in seconds with no count → incomplete, re-run.
 
 # 3. The FIRMWARE partition is FAT, so macOS mounts it natively. The glob picks
@@ -187,7 +189,7 @@ showed holding only 15.2 GiB on 2026-10-17. Run §3c before blaming the flasher.
 ## 3c. Test the CARD before trusting it — a verified write is not a healthy card
 
 **Do this for every card that is new to nixpi.** A verified flash (§1, and `nixpi-flash`'s
-read-back) proves only that the image's ~4.9 GB landed. It says nothing about the rest of the
+read-back) proves only that the image's bytes landed. It says nothing about the rest of the
 card — and nixpi's first boot grows root to the size the card *claims*
 (`sdImage.expandOnBoot`, default `true` — nixpkgs' `installer/sd-card/sd-image.nix` since the
 move off raspberry-pi-nix). A fake-capacity card accepts every write past its
@@ -240,15 +242,16 @@ diskutil info /dev/diskN          # double-check: "Removable Media", size, "SD C
 
 # 2. Decompress to a plain file FIRST (so dd can report the total byte count).
 zstd -d -k -f ~/Downloads/nixos-sd-image-*.img.zst -o /tmp/nixpi.img
-ls -lh /tmp/nixpi.img             # EXPECT ~5.6G — if it is tiny, the .zst is bad, re-copy (§3)
+ls -l /tmp/nixpi.img              # note the byte count step 4 must match — if it is tiny, the .zst is bad, re-copy (§3)
 
 # 3. Unmount (not eject) so dd can open the raw device.
 diskutil unmountDisk /dev/diskN
 
 # 4. Write. Use the RAW device (/dev/rdiskN) — much faster than /dev/diskN.
-sudo dd if=/tmp/nixpi.img of=/dev/rdiskN bs=4m
+sudo /bin/dd if=/tmp/nixpi.img of=/dev/rdiskN bs=4m   # /bin/dd: the PATH dd is GNU and rejects bs=4m
 #    ^^^ THE CRITICAL STEP. This MUST run for several minutes and end with a line like:
-#        5872025600 bytes transferred in 300 secs (19573418 bytes/sec)
+#        <N> bytes transferred in <secs> secs (<rate> bytes/sec)
+#    where <N> equals step 2's `ls -l` count (nixpi-flash's own `copied == size` check).
 #    Press Ctrl-T at any time to print an in-progress byte count.
 #    If this returns in seconds or prints NO byte count → the write is incomplete.
 #    Do NOT boot the card; re-run this step.
@@ -265,9 +268,9 @@ Notes:
 - **Get the disk number right.** `diskutil info /dev/diskN` before every `dd` —
   writing to `disk0` overwrites the Mac's own drive. There is no undo.
 - **macOS re-mounts the FIRMWARE partition after the write.** Seeing the card
-  reappear in Finder (as `bootfs`/a small FAT volume) immediately after `dd`
+  reappear in Finder (as `FIRMWARE`, a small FAT volume) immediately after `dd`
   finishes is **normal** — that is the FAT boot partition, not evidence of a bad
-  write. What matters is that the `dd` byte count was ~5.6 GB and that
+  write. What matters is that the `dd` byte count matched the image's size and that
   `diskutil eject` succeeded / the prompt returned cleanly.
 
 ---
@@ -285,15 +288,14 @@ planted file is copied into a root-only `/run` file before its consumer starts.
 confirm dialog:
 
 ```bash
-nix run .#nixpi-flash -- --disk /dev/diskN            # + --image FILE.img.zst to skip build; + --ssid NAME on a band-split Wi-Fi (see below)
+nix run .#nixpi-flash -- --disk /dev/diskN            # + --image FILE.img.zst to skip build
 ```
 
-⚠ **`nixpi-flash` plants only AFTER its `dd`, which runs for ~6½ minutes** (6.35 GB at
-~16 MB/s). If anything backgrounds or detaches the command in that window — a wrapper's
+⚠ **`nixpi-flash` plants only AFTER its `dd`, which runs for several minutes.** If anything
+backgrounds or detaches the command in that window — a wrapper's
 command timeout, `nohup`, a CI step, an agent shell that moves long jobs to the background —
-the plant step loses its controlling terminal, and `nixpi-provision`'s "age prompts on
-`/dev/tty`" branch dies with `/dev/tty: Device not configured` → `vault decrypt failed`.
-**The write still succeeded**; only the plant was skipped, so re-plant onto the mounted card
+the plant step loses its controlling terminal.
+**The write still succeeded**, so if the plant did not land, re-plant onto the mounted card
 with the commands below rather than re-flashing. Run `nixpi-flash` in a real foreground TTY.
 
 ⚠ **`READ-BACK MISMATCH` at `char 8390660` is a known FALSE alarm on macOS** (fix deferred).
@@ -304,8 +306,8 @@ reproduced on both 2026-10-17 flashes. It aborts **before** the plant, so confir
 yourself and then run `nixpi-provision` (below). A mismatch at any OTHER offset is real —
 believe it. Confirmations that can come back red:
 
-- **Root:** `e2fsck -n -f /dev/diskNs2` (nixpkgs `e2fsprogs.bin`) must exit 0, and
-  `dumpe2fs -h` must show `Mount count: 0` / `Last mount time: n/a` (an untouched image). For
+- **Root:** `sudo e2fsck -n -f /dev/diskNs2` (nixpkgs `e2fsprogs.bin`) must exit 0, and
+  `sudo dumpe2fs -h` must show `Mount count: 0` / `Last mount time: n/a` (an untouched image). For
   bytes, hash the root partition on both sides with **measured** byte counts — slice the image
   stream with `tail -c`/`head -c`, never BSD `dd count=` (on a pipe it counts short reads as
   records and silently returns less).
@@ -319,7 +321,7 @@ believe it. Confirmations that can come back red:
 ```bash
 nix run .#nixpi-provision                 # token + Wi-Fi (default --all)
 nix run .#nixpi-provision -- --token      # just re-plant the token (e.g. after a rotation)
-nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi from this Mac's network
+nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi
 ```
 
 - **Token** — decrypted from the operator-only vault `secrets/cloudflared-token.age`
@@ -333,17 +335,16 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi from this Mac's n
   key, but a fresh flash mints a new host key, so the ciphertext would stop
   decrypting and the tunnel would die — and the tunnel is the only remote path in,
   so unrecoverably. A file on the macOS-writable FAT partition is immune.
-- **Wi-Fi** — `nixpi-provision --wifi` writes a `wpa_supplicant.conf` from this Mac's
-  current network (`nix run .#nixpi-wifi-creds`). **Band-split gotcha:** if the Mac is
-  joined to `<name>-5G` but the keychain holds the base `<name>` PSK, auto-detect fails
-  ("no saved password"); pin it with `nixpi-flash … --ssid <name>` (or
-  `nixpi-wifi-creds --ssid <name> > wpa.conf` → `nixpi-provision --wifi --wifi-conf wpa.conf`).
-  The 2.4 GHz `<name>` also gives a headless Pi better range. It must carry
+- **Wi-Fi** — `nix run .#nixpi-provision -- --wifi` writes a `wpa_supplicant.conf` from
+  `nix run .#nixpi-wifi-creds`. With no `--ssid` that is the DECLARED ladder,
+  `nixpiWifiNetworks` in `modules/parts/identity.nix` (PSKs read from this Mac's keychain) —
+  the "No --ssid at all AND a declared ladder" branch in `packages/nixpi-provision.nix`. An
+  explicit `--ssid` REPLACES the ladder, so passing one plants a one-AP card. It must carry
   `country=` (the Pi 4 radio is rfkill-blocked without a regulatory domain). Wi-Fi is
   OPTIONAL — without it the Pi is LAN-only. With it, a headless Pi reaches
   `nixpi.kattakath.com` from first boot with no LAN cable, keyboard, or monitor.
 - **Plant a FALLBACK AP, not just one.** `--ssid` is repeatable
-  (`nixpi-wifi-creds --ssid PRIMARY --ssid BACKUP`), and the blocks come out ranked
+  (`nix run .#nixpi-wifi-creds -- --ssid PRIMARY --ssid BACKUP`), and the blocks come out ranked
   by `priority=`. One AP makes that AP a single point of failure whose recovery is
   this runbook (~40 min): off-site the only route in is the tunnel, and the tunnel
   needs working INTERNET rather than merely a LAN (the LAN sshd path, `local.lanRecovery`,
@@ -368,10 +369,10 @@ root capped below its bad region:
 | Partition | Start LBA | Sectors | Role |
 |---|---|---|---|
 | p1 `FIRMWARE` | 16,384 | 262,144 | from the image, untouched |
-| p2 `NIXOS_SD` | 278,528 | 29,081,600 | root, **ends at 14 GiB** — 1,600 MiB below the first bad LBA, 31,948,800 |
+| p2 `NIXOS_SD` | 278,528 | 29,081,600 | root, **ends at 14 GiB** — below the first bad LBA, 31,948,800 |
 | p3, type `0xda` | 29,360,128 | 36,175,872 | **fence** to the card's claimed end (65,536,000 sectors). Never format or mount it |
 
-**Every reflash undoes this.** `dd` writes the image's own MBR (p2 ≈ 4.9 GB, then free
+**Every reflash undoes this.** `dd` writes the image's own MBR (p2 only as large as the image, then free
 space), and the next first boot grows root across the whole claimed 31 GiB, straight back into
 the bad region. So after §4 and §4b, **before the card goes back in the Pi**, rewrite sector 0.
 
@@ -506,7 +507,7 @@ is not.)
 
 | Symptom | Most likely cause | First action |
 |---|---|---|
-| Green ACT flickers **once** then goes DARK; Ethernet link LED is up but there is **no DHCP lease / no SSH / no mDNS** | **Truncated SD write** (by far the most common). The FAT boot partition read fine (the flicker), but the ext4 root is half-written so the kernel hangs on `rootwait`. | **Re-flash with a verified full write** (§4) — confirm the ~5.6 GB `dd` byte count this time. Only if a *verified* full write still hangs, suspect the scripted-initrd fix (next row). |
+| Green ACT flickers **once** then goes DARK; Ethernet link LED is up but there is **no DHCP lease / no SSH / no mDNS** | **Truncated SD write** (by far the most common). The FAT boot partition read fine (the flicker), but the ext4 root is half-written so the kernel hangs on `rootwait`. | **Re-flash with a verified full write** (§4) — confirm `dd`'s byte count equals the image's size this time. Only if a *verified* full write still hangs, suspect the scripted-initrd fix (next row). |
 | Green ACT blinks normally for a while, then boot stalls with root never mounting (only visible on serial, or as "up but never reachable" after a *known-good* full write) | **systemd-initrd stage-1 hang** — the `linux-rpi` kernel (6.6.x when measured) wedges mounting `/sysroot` under systemd stage-1. The fix (`boot.initrd.systemd.enable = lib.mkForce false`) lives in `hosts/nixpi.nix`; a config change that reintroduces systemd-initrd will hang here. | Confirm `hosts/nixpi.nix` still forces scripted initrd (§8); rebuild the image and re-flash. |
 | A verified flash boots and serves fine, then root is **corrupt after a later reboot** (e2fsck: block-bitmap checksum mismatch), or first boot logs `EFSCORRUPTED` | **Fake-capacity card.** The image fits below its real edge, so the flash verifies; writes past the edge (first boot's `resize2fs`, store growth, a GC, the persistent journal) vanish | **f3-test the card** (§3c). On a FAIL, use another card or cap it (§4c) |
 | Green ACT **never blinks at all**; only the **red** power LED is on | Firmware can't read the card at all — the Pi never even loads the bootloader off FAT. | Check **power (needs a solid 5V/3A supply — undervoltage is a classic cause), the SD slot, and the card itself** (reseat / try another card). |
@@ -516,7 +517,8 @@ is not.)
 ## 7. Debugging a boot hang with NO serial console (initrd SSH)
 
 When there is no serial cable and the Pi hangs before userspace, you can still
-get a shell — put **dropbear** in the **scripted** initrd and bring up the
+get a shell — put an **SSH server** (OpenSSH, not dropbear, in the pinned nixpkgs'
+`initrd-ssh.nix`) in the **scripted** initrd and bring up the
 network *before* root is mounted, then SSH in and inspect why the root mount is
 failing. This is the technique that actually diagnosed the truncated-write hang.
 
@@ -527,7 +529,7 @@ host):
 boot.kernelParams = [ "ip=dhcp" ];          # bring up eth0 in the initrd
 boot.initrd.network.enable = true;
 boot.initrd.network.ssh = {
-  enable = true;                            # dropbear in the SCRIPTED initrd
+  enable = true;                            # OpenSSH in the SCRIPTED initrd  
   port = 22;
   authorizedKeys = [ "ssh-ed25519 AAAA... your-debug-key" ];
   hostKeys = [ /path/to/an/initrd_host_key ];
@@ -538,7 +540,8 @@ Rebuild, flash (with a **verified full write** — §4, or you'll be debugging t
 wrong thing), boot, and:
 
 ```bash
-ssh root@nixpi.local            # lands in the initrd shell, BEFORE root is mounted
+ssh root@<pi-dhcp-lease-ip>     # lands in the initrd shell, BEFORE root is mounted
+                                #   (the initrd runs no mDNS, so nixpi.local does not resolve)
 dmesg | tail -40                # look for ext4 mount / rootwait errors
 ls -l /dev/disk/by-partuuid/    # is the ROOT partuuid even present? (absent ⇒ truncated write)
 # then attempt the mount by hand to see the exact failure:
@@ -564,13 +567,13 @@ ext4 errors, the card or write is corrupt.
 - **Scripted-initrd boot fix:** `hosts/nixpi.nix` forces
   `boot.initrd.systemd.enable = lib.mkForce false` (the `tpm2` one is now set by
   nixos-hardware's raspberry-pi/4 module itself — the Pi 4 has no TPM).
-  This MUST stay in place; systemd stage-1 hangs mounting root on this kernel.
-  A config that reintroduces systemd-initrd will not reboot on this hardware,
-  and eval / generic-kernel QEMU will not catch it — only a real Pi (or serial)
-  does.
+  This MUST stay in place; why, and what is still untested on the current kernel, is the
+  "SCRIPTED initrd, KEPT" comment above that line in `hosts/nixpi.nix`.
+  A systemd-initrd hang is invisible to eval / generic-kernel QEMU — only a real Pi
+  (or serial) shows it.
 - **What `nixpi` does once booted:** `hosts/nixpi.nix` +
   the `modules/features/cloudflared-connector/` capsule — the Cloudflare Tunnel connector carrying
-  Access-gated, loopback-bound SSH (`ssh://localhost:22`) and Caddy serving whatever
+  Access-gated SSH (`ssh://localhost:22`) and Caddy serving whatever
   `hostedSites` the composing flake passed. **That list lives in THIS repo** —
   `config.fleet.hostedSites` in `modules/parts/identity.nix`, **one entry today**
   (`snoringirl.com`). `mkNixos`'s parameter still defaults to `[ ]`, so a `templates/`

@@ -50,6 +50,8 @@ ck block "$SH $DC '$NR switch --flake .#nixpi $BH $PI'"
 ck block "/bin/$SH $LC \"ssh nixpi nix build .#foo\""
 ck block "env $NR switch $BH=nixpi"
 ck block "sudo -u ismail $NR switch $BH=nixpi"
+# The form CLAUDE.md documents, since nixos-rebuild is not on the Mac's PATH.
+ck block "nix run --inputs-from . nixpkgs#${NR}-ng -- switch --flake .#nixpi $BH $PI --sudo"
 # A payload containing `&&` proves the wrapper's payload is re-segmented.
 ck block "$SH $DC 'true $AND nix build .#foo --builders ssh://nixpi'"
 # A QUOTED payload on a remote shell. The old splitter was quote-blind and the
@@ -62,6 +64,7 @@ $SH $DC '$NR switch $BH nixpi'"
 
 echo "== must APPROVE (builds HERE, or does not build at all) =="
 ck approve "$NR switch --flake .#nixpi $TH ismail@$PI"
+ck approve "nix run --inputs-from . nixpkgs#${NR}-ng -- switch --flake .#nixpi $TH ismail@$PI --sudo"
 ck approve "deploy --targets .#nixpi"
 ck approve "darwin-rebuild switch --flake .#macos"
 ck approve "nix build .#nixosConfigurations.nixpi.config.system.build.toplevel"

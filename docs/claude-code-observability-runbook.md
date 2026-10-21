@@ -40,9 +40,9 @@ only these two scripts need the manual nudge.
 Gated on `isMacosHost` (the `local.operatorHost` flag) — the same gate as
 the RAG stack (and, until 2026-10-02, the MCP public tunnel and telegram, both gone with the
 gateway). `macos` is the fleet's only
-darwin host today, and `programs.claude-code` is itself darwin-only
-(`modules/home/claude-brain.nix`), so `nixpi`/`nixvm` run no Claude Code
-for this system to instrument.
+darwin host today, and `programs.claude-code` is itself darwin-only: the Linux
+hosts get the bare CLI with no `settings.env` block (`modules/home/default.nix`),
+so nothing exports there.
 
 The gate still earns its keep as a second darwin host's off-switch: any other
 darwin host (a Tart guest, say) gets base Claude Code but no telemetry collector

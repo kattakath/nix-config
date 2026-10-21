@@ -24,8 +24,6 @@
       "Bash(nix-instantiate:*)",
       "Bash(statix check:*)",
       "Bash(deadnix:*)",
-      "Bash(home-manager build:*)",
-      "Bash(home-manager generations:*)",
       "Bash(osascript:*)",
       "Bash(plutil:*)",
       "Bash(qemu-img:*)",
