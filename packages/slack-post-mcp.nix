@@ -32,7 +32,7 @@
 }:
 {
   # Passed in rather than read from Home Manager: a package may not reach into that, and
-  # a hardcoded home literal is what ast-grep/rules/no-hardcoded-home-paths.yml rejects.
+  # a hardcoded home literal is what ast-grep/rules/nix-hardcoded-home-path.yml rejects.
   homeDirectory,
 }:
 let

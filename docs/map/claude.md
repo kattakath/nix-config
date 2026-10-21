@@ -88,7 +88,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 |---|---|
 | `/eval` | stage + `nix flake check` |
 | `/hygiene` | LEAN/DRY audit→fix→gate via skill `nix-hygiene` |
-| `/update-input` | bump one flake input + commit the lock |
+| `/update-input` | bump one input (or all, with no argument) + stage the lock + gate both systems |
 | `/pretooluse-review` | triage `Bash`/`Write\|Edit` gate REJECTIONS from the harness's own OTel `tool_decision` stream (`decision`/`source`/`hook_name`), since prompt-type hooks keep no log of their own |
 | `/remember-nix` | capture into the harness's native per-project memory store (outside the repo) |
 | `/gmail-account` | add/authenticate/remove a Gmail MCP account — now `local.gmailMcp` + the `gmail` plugin, **not** the retired gateway; see [`gmail-mcp-multi-account-runbook.md`](../gmail-mcp-multi-account-runbook.md) |
@@ -307,7 +307,8 @@ only difference between "someone else's skill" and "mine" is now who can push to
   **No pin bump follows** since 2026-09-23: the marketplace is an https git source with
   `autoUpdate`, so a merge on `kattakath/skills` `main` ships by itself. A `flake.lock` bump is
   needed **only** when the thing you landed is consumed through the `kattakath-skills` INPUT —
-  i.e. the `page-lab-pick` PATH package — **the only such consumer left.** (`superhook` became a
+  i.e. the `page-lab-pick` PATH package, or a plugin `.mcp.json` that `checks.*.mcp-launcher-parity`
+  joins against. (`superhook` became a
   plugin hook 2026-09-30; `mcp.nix`'s `mcpCatalog` was the other, and it went with `mcp.nix` on
   2026-10-02.)
 
@@ -344,10 +345,10 @@ The operator's OWN Claude Code plugin marketplace is
 [`github:kattakath/skills`](https://github.com/kattakath/skills) — **not a tree in this repo** since
 2026-09-12 ([`agent-resource-externalization.md`](../agent-resource-externalization.md)). It is **not a
 flake pin**: since 2026-09-23 it is registered as the https git source
-`https://github.com/kattakath/skills.git` with `autoUpdate = true`, and it is one of **FOUR**
-marketplaces — `kattakath`, `claude-plugins-official` (https), `context7-marketplace` (https) and
-`xai-grok-build` (the one `/nix/store` path, from a patched pinned input). The `kattakath-skills`
-input survives for the `page-lab-pick` PATH package and its check **only** — never for the
+`https://github.com/kattakath/skills.git` with `autoUpdate = true`, and it is one of the declared
+marketplaces in `local.claudePlugins.marketplaces` (`modules/home/default.nix` — read it, not a count
+here); the only `/nix/store` one is `xai-grok-build`, from a patched pinned input. The `kattakath-skills`
+input survives for the `page-lab-pick` PATH package, its check, and `checks.*.mcp-launcher-parity` — never for the
 marketplace source. (It was `superhook` + `page-lab-pick` + `mcp.nix`'s `mcpCatalog`; superhook
 became a plugin hook 2026-09-30 and `mcpCatalog` died with the gateway 2026-10-02.) (The renamed-repo and pinned-era history is the quoted
 update block above.)

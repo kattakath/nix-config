@@ -261,18 +261,18 @@ in
     #
     # The removal reason this comment used to give ("home.file would only
     # unlink what it still knows about") is FALSE. Grepped pinned home-manager
-    # (a49f50d) modules/files.nix for cleanOldGen/rmdir: `cleanOldGen` (:354)
-    # walks the OLD generation's leaves and hands each to `cleanup` (:307),
-    # which `rm`s every target the new generation no longer has (:324) and
-    # `rmdir -p`s the emptied parents (:334). That IS the
+    # modules/files.nix for cleanOldGen/rmdir: `cleanOldGen` walks the OLD
+    # generation's leaves and hands each to `cleanup`, which `rm`s every target
+    # the new generation no longer has and `rmdir -p`s the emptied parents.
+    # That IS the
     # `installQuickActions = false` case, and upstream already does it right.
     #
     # What actually blocks `home.file` TODAY: these bundles are real
     # DIRECTORIES on every machine that has run this module. home-manager's
-    # checkLinkTargets pre-flight (files.nix:142 → files/check-link-targets.sh)
+    # checkLinkTargets pre-flight (files.nix → files/check-link-targets.sh)
     # records "would be clobbered" and exits 1 BEFORE writeBoundary; with
     # `force = true` the check is skipped but the slow path's `ln -Tsf`
-    # (files.nix:302) then fails on the directory and exits 1 anyway. A blind
+    # (files.nix) then fails on the directory and exits 1 anyway. A blind
     # swap therefore aborts activation mid-run on a live Mac. It needs a
     # one-time migration step, not an option change.
     #

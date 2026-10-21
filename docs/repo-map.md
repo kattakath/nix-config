@@ -56,7 +56,9 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   tunnel, and builds `aarch64-linux` locally on Determinate's native Linux builder.
 - **`nixpi`** (aarch64-linux) — NixOS Raspberry Pi 4, the **LIVE server**: static-key SSH
   over a Cloudflare Tunnel connector + Caddy, serving its real sites directly
-  (`config.fleet.hostedSites`, `modules/parts/identity.nix` — **one** today, `snoringirl.com`).
+  (`config.fleet.hostedSites`, `modules/parts/identity.nix` — **one** today, `snoringirl.com`),
+  plus a SECOND, LAN ingress (`nixpi.local`, sshd on `end0`/`wlan0` — `local.lanRecovery`) and a
+  LAN-only Audiobookshelf.
 - **`nixvm`** (aarch64-linux) — a disposable NixOS dev VM materialised **only** as
   `nix run .#nixvm` (**headless** — no GUI, no installed VM, no builder, no runner; its XFCE
   stack was deleted 2026-10-17). Reached over SSH on `127.0.0.1:2222`. Its
