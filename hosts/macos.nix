@@ -1,7 +1,7 @@
 # macOS host config for "macos" (Apple Silicon, aarch64-darwin) — the fleet's
 # sole client Mac. No public tunnel / inbound SSH from the internet; the machine
-# may still run local agent services (MCP gateway) and a self-hosted GitLab CI
-# runner for private pipelines (see `local.tart.gitlabRunner` below; gitlab-runner
+# may still run local agent services and a self-hosted GitLab CI runner for
+# private pipelines (see `local.tart.gitlabRunner` below; gitlab-runner
 # moved OFF brew 2026-09-05).
 # Home Manager and the nix-vscode-extensions overlay are wired centrally by
 # mkDarwin in modules/parts/compose.nix — this file only provides host-specific settings.
@@ -25,9 +25,10 @@ let
   # this file already say the two lanes share one App, and App rotation is
   # already a documented multi-file ritual (secrets/secrets.nix) — 4689619,
   # 4845230 and 4243998 were all retired on 2026-09-06 — so leaving the id
-  # duplicated added a fourth place to forget. `installationId` legitimately
-  # differs per lane and stays at each call site.
+  # duplicated added a fourth place to forget. `installationId` differs per
+  # ORG, not per lane: both dontsell-ai lanes share this one.
   fleetAppId = 4849830;
+  dontsellInstallationId = 159496676;
 in
 {
   imports = [
@@ -83,7 +84,7 @@ in
   # scope. Both are Home Manager modules since 2026-09-22 — their enables moved
   # into the `home-manager.users.${loginName}` block below.
 
-  # Machine-wide CLIs — the mechanism for "shared between both accounts". A
+  # Machine-wide CLIs — the mechanism for "shared by every account". A
   # systemPackages entry is ONE store path on PATH for every user, so neither
   # profile has to declare it and neither can drift to a different version.
   #
@@ -165,7 +166,7 @@ in
     enable = true;
     org = "dontsell-ai";
     appId = fleetAppId;
-    installationId = 159496676;
+    installationId = dontsellInstallationId;
     count = 2;
   };
 
@@ -285,7 +286,7 @@ in
             type = "org";
             value = "dontsell-ai";
           };
-          installationId = 159496676;
+          installationId = dontsellInstallationId;
         };
       };
 

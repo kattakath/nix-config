@@ -67,7 +67,7 @@
   plainEnv ? { },
   # Passed in rather than read from Home Manager config: a package may not reach into that,
   # and a hardcoded /Users/<name> in a .nix VALUE is what
-  # ast-grep/rules/no-hardcoded-home-paths.yml rejects.
+  # ast-grep/rules/nix-hardcoded-home-path.yml rejects.
   homeDirectory,
   # A macOS Seatbelt profile (`.sb`) to run the server UNDER, or null for the three
   # servers that need no fence. A store path, so the profile itself is unwritable by

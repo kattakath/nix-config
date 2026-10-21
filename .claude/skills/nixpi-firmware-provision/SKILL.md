@@ -68,8 +68,9 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
    release artifact is safe.) **On the live capped card, redo the cap before boot** (runbook
    §4c) — a reflash restores the image's partition table, and first boot would grow root back
    into the card's bad region.
-3. **Update the tunnel token** (rotation): `CLOUDFLARE_API_TOKEN=… nix run .#cf-tunnel-apply`
-   prints a new token → pipe it to `nix run .#nixpi-vault-token` → commit the vault →
+3. **Re-plant the tunnel token**: `CLOUDFLARE_API_TOKEN=… nix run .#cf-tunnel-apply`
+   prints the tunnel's CURRENT token (a data source; it mints nothing — a real rotation
+   means replacing the tunnel resource) → pipe it to `nix run .#nixpi-vault-token` → commit the vault →
    `nix run .#nixpi-provision -- --token` on a mounted card (or reflash), reboot.
 4. **Update Wi-Fi** → `nix run .#nixpi-provision -- --wifi` on a mounted card, reboot.
 

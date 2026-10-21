@@ -44,14 +44,20 @@
       apps.${system}.macos = {
         type = "app";
         # nix-darwin refuses an unprivileged `switch` ("system activation must
-        # now be run as root"), so re-exec under sudo like the engine's own app.
-        program = "${pkgs.writeShellScript "activate-macos" ''
-          rebuild=${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild
-          if [ "$(id -u)" -eq 0 ]; then
-            exec "$rebuild" switch --flake "${self}#macos" "$@"
-          fi
-          exec /usr/bin/sudo -H "$rebuild" switch --flake "${self}#macos" "$@"
-        ''}";
+        # now be run as root"), so re-exec under sudo like the engine's own app
+        # (writeShellApplication, as there, for ShellCheck).
+        program = pkgs.lib.getExe (
+          pkgs.writeShellApplication {
+            name = "activate-macos";
+            text = ''
+              rebuild=${self.darwinConfigurations.macos.config.system.build.darwin-rebuild}/bin/darwin-rebuild
+              if [ "$(id -u)" -eq 0 ]; then
+                exec "$rebuild" switch --flake "${self}#macos" "$@"
+              fi
+              exec /usr/bin/sudo -H "$rebuild" switch --flake "${self}#macos" "$@"
+            '';
+          }
+        );
         meta.description = "First activation of this Mac from the flake (after Determinate Nix)";
       };
     };

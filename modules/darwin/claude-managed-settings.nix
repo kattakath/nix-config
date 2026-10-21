@@ -44,8 +44,8 @@
 #  options.environment on the live macos config — no option writes an arbitrary
 #  /Library file → custom, because both file-placing surfaces are hard-coded to
 #  /etc and /Library/Launch*.`
-# Read, not recalled, against the PINNED nix-darwin (flake.lock →
-# /nix/store/8ggr67sci43hlp8ba6rhjrdhhj5490am-source):
+# Read, not recalled, against the pinned nix-darwin of the time (re-grep after a
+# bump; line numbers below are as-of that read):
 #   · environment.etc — modules/system/etc.nix:19. `system.build.etc` is
 #     literally `mkdir -p $out/etc; cd $out/etc; ln -s …`. /etc only, and there
 #     is no target-prefix option to redirect it.

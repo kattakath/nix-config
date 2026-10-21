@@ -286,9 +286,9 @@ in
 
     # ...and re-apply whenever Desktop rewrites the file out from under us.
     #
-    # UPSTREAM FIRST: home-manager (pinned 87c391f) declares WatchPaths itself,
-    # modules/launchd/launchd.nix:367, and uses it upstream in
-    # modules/services/git-sync.nix:115 — so this is launchd's own file-watch
+    # UPSTREAM FIRST: home-manager declares WatchPaths itself (the `WatchPaths`
+    # option in modules/launchd/launchd.nix) and uses it upstream in
+    # modules/services/git-sync.nix — so this is launchd's own file-watch
     # primitive, not a polling loop of ours. arg0 becomes
     # nix-claude-desktop-mcp-sync via modules/home/launchd-launcher.nix, which
     # is what .claude/rules/launchd-naming.md requires.
