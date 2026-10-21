@@ -42,7 +42,7 @@ history.
 | **Spawn-test the exact spec against the PATH runtime BEFORE declaring.** The plugin lane gets whatever `npx` resolves to — measured fnm's **Node 20.20.2**, which lacks `node:sqlite` (arrived 22.5). `mcpfinder` was declared, died with `CONNECTION_CLOSED`, and had to be reverted across two PRs. | § Spawn-test against the PATH runtime | The plugin lane is now the ONLY lane, so this trap is no longer one lane's weakness — it is the whole surface's |
 | **A server whose runtime arrives via a nix-config package is not spawn-testable until ACTIVATED.** Merged is not enough. | same § | Unchanged, and it is exactly how `local.gmailMcp`'s launchers now reach PATH |
 | **To add a marketplace under an allowed owner, use `owner/repo`, NOT the https URL.** The shorthand creates a `github:` source that the managed `strictKnownMarketplaces` wildcard matches; the full URL creates a `git:` source and is refused as *"blocked by enterprise policy"* — an error that blames policy for a syntax problem. | § Adding a marketplace under an allowed owner | The managed allowlist is untouched by the purge |
-| **The recipe for proving a plugin-owned server actually answers** — confirm the plugin SHA refreshed, `claude mcp list` in a **fresh** process, then invoke a tool with the **plugin-lane** `--allowedTools` spelling. Judge against a criterion written *before* the test; an empty result is often the pass. | § How to verify a plugin-owned server actually answers | **This is now the ONLY verification there is.** No `nix flake check` leg can see a plugin's `.mcp.json`, so this runtime procedure replaces the parity check outright |
+| **The recipe for proving a plugin-owned server actually answers** — confirm the plugin SHA refreshed, `claude mcp list` in a **fresh** process, then invoke a tool with the **plugin-lane** `--allowedTools` spelling. Judge against a criterion written *before* the test; an empty result is often the pass. | § How to verify a plugin-owned server actually answers | **This is now the ONLY proof a server ANSWERS.** The one check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) is a name join over the pinned public tree, so this runtime procedure replaces the parity check outright |
 | **A plugin `.mcp.json` cannot run a Keychain read** — it interpolates `${VAR}`/`${VAR:-default}`, `${user_config.KEY}` with `sensitive: true`, and `headersHelper` for remote servers, and that is all. | § Counting convention, § Which lane | It is the whole reason `packages/gmail-mcp.nix` exists |
 | **Identity-bearing rosters are not a plugin's business.** Four real Google/Workspace addresses, one process and one OAuth session each, tokens from the login Keychain. | § Which lane → the three stuck groups | Resolved by splitting it: the ADDRESSES stay in `hosts/macos.nix` (`local.gmailMcp.accounts`), the DECLARATION moved to the plugin |
 | **Call-volume measurement, 2026-09-23** (every MCP tool call across 21 days of transcripts): gateway **~3,200 / 94%**, nine claude.ai connectors **218 / 6%**, marketplace plugins **76** (Neon alone 70). | § Which lane | The baseline against which the purge's cost gets judged. It says plainly that the **94% lane is the one that was removed** — so if the plugin lane proves worse, this is the number that proves it, and nothing else measures it |
@@ -515,8 +515,9 @@ Imperative installer CLIs and config-writing install tools are **never** used �
 and friends stay denied at user and managed scope. What the purge changed is only *where* the
 declaration lands, never that adoption is a declaration.
 
-**And accept the structural consequence before you start:** nothing in this repo can see your
-declaration, so nothing can gate it. The only proof a server works is invoking one of its tools
+**And accept the structural consequence before you start:** the only check that reads your
+declaration (`checks.*.mcp-launcher-parity`) is a name join over the pinned public tree — it cannot
+see whether the server answers. The only proof a server works is invoking one of its tools
 in a fresh session.
 
 ## Related

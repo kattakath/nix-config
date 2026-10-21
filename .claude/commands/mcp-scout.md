@@ -11,9 +11,9 @@ against the PATH runtime** → declare in the **owning plugin's `.mcp.json`** in
 read → `.claude/settings.json` permissions → fresh session → **call one of its tools**.
 
 **There is no gateway lane.** `modules/shared/mcp.nix`, `local.mcpGateway.*`,
-`fleet.publicMcpServers` and the Cloudflare portal were all destroyed/deleted 2026-10-02. Nothing
-in this repo can see a plugin's `.mcp.json`, so no `nix flake check` leg gates the result —
-invoking a tool is the only proof. No server counts to update anywhere.
+`fleet.publicMcpServers` and the Cloudflare portal were all destroyed/deleted 2026-10-02. The only
+check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) is a name join over the
+pinned public tree and cannot see whether a server answers — invoking a tool is the only proof. No server counts to update anywhere.
 
 **Never install imperatively** — no installer CLIs, no `claude mcp add` (denied at user *and*
 managed scope), no mcpfinder write tools — it ships none today, and only its four read-only tools
