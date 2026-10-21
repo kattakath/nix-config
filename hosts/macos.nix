@@ -213,7 +213,7 @@ in
   # The base clone AND the SSH host-key pin are content-keyed by oci@digest, so
   # bumping the digest below renames both — one elected instance re-pulls and
   # re-pins itself on its next cycle; the other two share that image/base/pin.
-  # `tart-runner-setup-kattakath [image|pin|all]` pre-warms a bump by hand.
+  # `tart-runner-setup-dontsell-vm [image|pin|all]` pre-warms a bump by hand.
   # Slots, pins and both lanes' logs live in local.tart.runnerStateDir
   # (~/.local/state/tart-runner) — durable by assertion, never /tmp.
   age.secrets."gh-app-fleet-key" = {
