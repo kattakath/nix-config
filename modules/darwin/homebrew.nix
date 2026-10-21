@@ -73,10 +73,9 @@ _:
     #     The upstream fix, viarotel-org/homebrew-escrcpy#61, was CLOSED unmerged
     #     (2026-10-10), so the cask stays ours. Cost: no upstream version bumps —
     #     bump `version` + `sha256` in the tap when escrcpy releases.
-    #   - civitai-live-wallpaper (DMGs from its project's public package registry).
     #
-    # Both apps are ad-hoc signed / unsigned and not notarized, so Gatekeeper never
-    # evaluates them: a quarantined copy will not launch. Each cask entry therefore
+    # The app is unsigned and not notarized, so Gatekeeper never evaluates it: a
+    # quarantined copy will not launch. Each such cask entry therefore
     # carries a `postinstall` that strips the quarantine flag (hosts/macos.nix) —
     # load-bearing, not polish. The measurement, the rejected `args.no_quarantine`
     # alternative, and the security tradeoff are recorded at the escrcpy cask entry;
