@@ -251,8 +251,9 @@ let
   # Note `name` is "Family" and is NOT `orgName` ("kattakath", the GitHub org) —
   # two different namespaces that happen to describe the same person.
   #
-  # WHY THE BRANDING MATTERS AT ALL: the login page is the ONLY surface in the
-  # connector flow that carries the operator's mark. Claude renders a generic
+  # WHY THE BRANDING MATTERS AT ALL (since 2026-10-02 it fronts only nixpi's SSH
+  # Access login): while the MCP portal lived, the login page was the ONLY surface
+  # in the connector flow that carried the operator's mark. Claude renders a generic
   # globe for every custom connector — `serverInfo.icons` exists in MCP spec
   # 2025-11-25 but Claude does not read it (anthropics/claude-ai-mcp#152, open
   # since 2026-04-06), and Cloudflare's portal object has no icon field to put one

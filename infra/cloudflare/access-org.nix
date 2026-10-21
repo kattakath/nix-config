@@ -8,8 +8,9 @@
 # It shares no failure mode with a tunnel or with a DNS record, and it must not
 # ride in a plan whose other half is either of those.
 #
-# WHAT IT IS FOR, concretely: the login page's branding. That page is the only
-# surface in the whole connector flow that carries the operator's mark — Claude
+# WHAT IT IS FOR, concretely: the login page's branding — since 2026-10-02 the
+# page in front of nixpi's SSH Access login only. While the MCP portal lived, it
+# was the only surface in the whole connector flow carrying the operator's mark — Claude
 # renders a generic globe for every custom connector, and neither MCP nor
 # Cloudflare gives us a way to change it (see `accessOrg` in
 # modules/parts/identity.nix for the measured detail).

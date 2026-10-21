@@ -182,7 +182,7 @@ export/unset/reload) backed by a **PATH binary** *and* a **`nix run .#secret -- 
 is function-only). `set-secret <KEY> [VALUE]` and `remove-secret <KEY>` remain as back-compat
 **aliases** for `secret set` / `secret rm`. The mutating verbs forward to `set-secret` so the
 Keychain/index logic lives once, and the Keychain index (`__set_secret_index__`) is
-authoritative — so **no secret names live in `.nix`**.
+authoritative — so **secret names sit in `.nix` only where a launcher needs one**.
 
 ### The threat model — ambient by design, and what that costs
 
