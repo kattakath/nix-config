@@ -139,8 +139,8 @@ the calling session has.
 > **Is this server the tool half of a skill this fleet already ships?**
 
 Precedents: `chrome-devtools` + `kapture` → `page-lab`; `mobile-mcp` → `android-phone`;
-`macos-automator` → `mac-app-send`; `nixos` → `claude-code-nix`; the four Gmail accounts →
-`gmail`.
+`macos-automator` → `mac-app-send`; `nixos` → `claude-code-nix`; the Gmail accounts →
+`gmail` / `gmail-private`.
 
 **If no plugin owns it, there is no ownerless home any more.** The honest options are to give it
 to the plugin whose work it serves, or **not to adopt it** — and say which, out loud, to the

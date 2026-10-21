@@ -116,7 +116,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   exchange. A green build means "the config still declares the posture it is supposed to", and
   nothing more. Reachability is not checkable from a derivation (a network probe would be
   fixed-output cached, non-hermetic, and would fail CI for every unrelated change during a router
-  outage); runtime health belongs to a monitor, and **there is none today**. What that outage DID
+  outage); runtime health belongs to a monitor (`service-heartbeat.nix`, below). What that outage DID
   buy is the second-ingress legs above: the config now has to keep declaring a non-tunnel path,
   so the next edit that restores the single point of failure fails the build instead of waiting
   for the next outage to announce itself.
@@ -266,13 +266,6 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     stranded the host. Blaming the module is blaming code that was not on the machine — and the
     general rule is the one in [`false-success-signals.md`](../false-success-signals.md): confirm a
     change is DEPLOYED before attributing a symptom to it.
-
-## NixOS modules that are not in `modules/nixos/`
-
-Both are in-tree capsules (`modules/features/`), and both are threaded into
-`hosts/nixpi.nix` through `mkNixos` specialArgs as an already-resolved MODULE — never as a
-flake, and never imported by path from the host.
-
 - **`modules/nixos/service-heartbeat.nix`** — `local.serviceHeartbeat`, on `nixpi` only: a
   **dead man's switch** for "still SERVING", not "powered". A systemd timer pings an external
   check (URL read at runtime from `urlFile`, so no endpoint reaches the store) only after a
@@ -282,6 +275,13 @@ flake, and never imported by path from the host.
   outage (userspace dead, kernel up, ICMP answering): with userspace dead the timer cannot
   fire. Every failure of the pinger fails toward alerting. It complements Cloudflare's tunnel
   alert, covering what leaves the tunnel up.
+
+## NixOS modules that are not in `modules/nixos/`
+
+Both are in-tree capsules (`modules/features/`), and both are threaded into
+`hosts/nixpi.nix` through `mkNixos` specialArgs as an already-resolved MODULE — never as a
+flake, and never imported by path from the host.
+
 - **`modules/features/cloudflared-connector/`** (an IN-TREE CAPSULE, not an input — it was
   the `nix-cloudflared-connector` flake until ADR-002 wave 3 absorbed it) — opt-in
   `local.cloudflaredConnector.enable`

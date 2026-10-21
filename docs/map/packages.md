@@ -137,9 +137,9 @@ Smaller, single-purpose CLIs:
 - **`android-phone.nix`** — macOS-only: deterministic wired/wireless ADB operator
   (`list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor`) plus scrcpy mirroring
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
-  staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
-  skill — `android-phone` in the pinned
-  [`kattakath/ai`](https://github.com/kattakath/ai).
+  staleness and duplicate-transport device listings. Its operator knowledge is also the
+  `android-phone` plugin in
+  [`kattakath/skills`](https://github.com/kattakath/skills).
 - **The media packages are NOT here — they are in the `media-cli` capsule.**
   `media-quick-actions.nix`, `media-queue.nix`, `media-toolkit.nix`, `media-describe.nix`,
   `media.nix`, `media-fix.nix`, `media-fix-extension.nix`, `media-extract-audio.nix` and
@@ -255,7 +255,7 @@ keeps the seam available if a script ever has to be fleet-pinned again (a privat
 must not go to a public fork).
 
 **The authoring METHOD is unchanged and lives in the plugin.** The portable
-[`page-lab` plugin](https://github.com/kattakath/ai/tree/main/plugins/page-lab)
+[`page-lab` plugin](https://github.com/kattakath/skills/tree/main/plugins/page-lab)
 owns the probes, the patterns, the Greasy Fork rulebook and the metadata linter; it **measures
 the live page** before it writes a selector, routing on the diff between the state the site
 already gives you and the state you want:

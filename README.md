@@ -56,7 +56,7 @@ Prefer not to trust the raw URL? Clone the repo first and run the on-disk copy,
 
 ### Fork this for your own fleet
 
-This is personal config with `loginName = "ismail"` baked into `flake.nix` (it is
+This is personal config with `loginName = "ismail"` baked into `modules/parts/identity.nix` (it is
 your POSIX account — `/Users/<loginName>` and `home-manager.users.<loginName>`).
 
 **The quick way — no fork at all.** Scaffold a tiny consumer flake that uses this
@@ -74,7 +74,7 @@ edit the identity, `git init && git add -A`, `nix run .#macos`.
 `bootstrap.sh` against your own copy):
 
 1. **Fork** the repo on GitHub.
-2. In `flake.nix`, set `loginName` to **your macOS login** (`id -un`), and set `orgName` /
+2. In `modules/parts/identity.nix`, set `loginName` to **your macOS login** (`id -un`), and set `orgName` /
    `userName` / `domainName` to your own. Commit and push. (Running the offline copy? Also
    set `FLAKE_DEFAULT` in `bootstrap.sh`.)
 3. On your fresh Mac, run **pointing at your fork**:

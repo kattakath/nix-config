@@ -60,8 +60,8 @@ measurements that outlived it: the Node-20 `node:sqlite` spawn-test trap, the
 
 ### `claude/` — the GLOBAL agent context (not `.claude/`)
 
-Two top-level directories that are easy to mistake for the project-scoped `.claude/` tree.
-They hold the **all-projects, machine-wide** context this repo installs on `macos`:
+One top-level directory that is easy to mistake for the project-scoped `.claude/` tree.
+It holds the **all-projects, machine-wide** context this repo installs on `macos`:
 
 - **`claude/CLAUDE.md`** → `~/.claude/CLAUDE.md`, via `programs.claude-code.context` in
   `modules/home/default.nix`. That option **replaced a hand-written `home.file` shim** — the
@@ -147,14 +147,13 @@ file's `paths:` frontmatter is the source of truth.
 
 ### `.claude/hooks/`
 
-Every hook below is **project-scoped** (`.claude/settings.json`): it guards sessions rooted in
-this repo only. Two wider tiers carry the fleet-wide floor: user-scope
+The two gates (`stop-gate.js`, `pretooluse-bash-guard.js`) guard sessions rooted in this repo only. Two wider tiers carry the fleet-wide floor: user-scope
 `modules/home/claude-guardrails.nix` ([`modules-home.md`](modules-home.md) § `modules/home/`)
 and, above it on `macos`, root-owned managed scope in
 `modules/darwin/claude-managed-settings.nix`
 ([`modules-darwin.md`](modules-darwin.md) § `modules/darwin/`).
 
-- **`stop-gate.js`** — Stop gate: blocks until configs evaluate clean.
+- **`stop-gate.js`** — Stop gate: blocks until configs evaluate clean, among other conditions listed in its header.
 - **`pretooluse-bash-guard.js`** — `PreToolUse:Bash`: deterministic port of the
   Cloudflare-API-call / Cloudflare-docs / approved-CLI policy that
   used to live as a `type: "prompt"` LLM-judged hook; see the file header for the 2026-08-19
@@ -175,7 +174,7 @@ and, above it on `macos`, root-owned managed scope in
   activation while a private layer existed — was RETIRED 2026-09-15 with that layer.
 - **`.claude/hooks/tests/*.sh`** — the case suites for BOTH hooks: four guard-rule suites
   (`rule1-terranix-apply-vs-destroy.sh`, `rule1c-secret-egress.sh`,
-  `rule1d-no-build-on-nixpi.sh`, `rule2-cloudflare-docs.sh` — every live guard rule now has one)
+  `rule1d-no-build-on-nixpi.sh`, `rule2-cloudflare-docs.sh`)
   plus `stop-gate-fail-closed.sh`, **gated by
   `claude-config-lint.yml`** as the REQUIRED `Lint .claude config` status check — it BLOCKS a
   merge, it does not merely run. Each asserts BOTH
@@ -377,12 +376,6 @@ at load for a directory source — and the `repin` option plus its whole teardow
 The pinned-era record stands as written; see [`modules-home.md`](modules-home.md)
 § `claude-plugins.nix` for what replaced it
 (one `plugin marketplace add`, which only removes a first-session lag).
-
-`repin` here is **`false`** — it derives from `hasPrefix "/" source`, and the source is an https
-URL. That matters because `repin` is now the ONLY predicate deciding what activation touches. The
-flag's rationale belongs to **`xai-grok-build`**, the one store-path marketplace: its store path
-moves on every content bump and `plugin install` COPIES into `~/.claude/plugins/cache`, so without
-the re-pin a bump would serve a previous generation's content forever.
 
 Its plugins are the live list at `local.claudePlugins.marketplaces.kattakath.plugins`
 (`modules/home/default.nix`) — read it rather than any count in prose here.

@@ -108,7 +108,7 @@ worked. Mechanics: [`map/ci.md`](map/ci.md).
 event, 13 were merged directly by the arm step, and 1 was hand-merged. **2 of the 13 direct
 merges were preceded by a #683 skip**: arming FAILED on their first ready transition, both
 on 2026-09-30, before #750. Since #750, **6 of 6** ready transitions armed cleanly (below).
-Lever #1 rests on those 6 samples; #683 is still open, so it is **not** declared unblocked.
+Lever #1 rests on those 6 samples, so it is **not** declared unblocked.
 
 **Why no arm event exists.** `gh pr merge --auto` does not arm a PR that is already
 mergeable. gh's `pkg/cmd/pr/merge/merge.go` sets `autoMerge` only when

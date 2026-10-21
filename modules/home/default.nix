@@ -33,7 +33,7 @@
   # The fleet's DNS zone (identityArgs in modules/parts/identity.nix). Used to build nixpi's
   # tunnelled SSH hostname below, so the domain is never re-typed.
   domainName,
-  # SOURCE PATH of the tart-vms capsule's packages/gitlab-tart.nix — the five
+  # SOURCE PATH of the tart-vms capsule's packages/gitlab-tart.nix — the
   # gitlab-tart slot shims below. A path, not a derivation, deliberately: they
   # are `callPackage`d with THIS host's pkgs (modules/darwin/core.nix's
   # `nixpkgs.config.allowUnfree = true`), not with the flake's perSystem pkgs.
@@ -1492,7 +1492,7 @@ in
     ]
     ++ lib.optionals isMacosHost [
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
-      nixosVm # `nixos-vm create|start|stop|status|ssh|destroy --yes` — the long-lived nixos UTM guest (packages/nixos-vm.nix); on PATH so the "NixOS VM" Spotlight launcher can run `nixos-vm start`
+      nixosVm # `nixos-vm <verb>` (verbs: the case in packages/nixos-vm.nix) — the long-lived nixos UTM guest (packages/nixos-vm.nix); on PATH so the "NixOS VM" Spotlight launcher can run `nixos-vm start`
       pkgs.scrcpy # mirror/control a PHYSICAL Android phone. Was the `scrcpy` BREW until 2026-09-29 (hosts/macos.nix records the move). Its nixpkgs wrapper prepends its OWN android-tools adb to PATH for its own process only — so it drives adb 37.0.0 while mobile-mcp/android-phone use the cask's 37.0.1. Harmless: both speak protocol 1.0.41, so they share one adb server instead of killing each other's. `adb` itself stays on the cask
     ]
     # GitLab-CI slot shims (the tart-vms capsule's gitlab-tart): on PATH so the
