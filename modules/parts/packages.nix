@@ -68,7 +68,7 @@ in
         name = "nixvm-run";
         runtimeInputs = [ pkgs.coreutils ];
         text = ''
-          # 0700 because this image holds the guest's logged-in browser session.
+          # 0700 because this image is the guest's persistent root disk (its /home).
           state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nixvm"
           mkdir -p "$state_dir"
           chmod 700 "$state_dir"
@@ -120,7 +120,7 @@ in
 
           # Runtime health check for every launchd unit this fleet installs:
           # declared-but-not-loaded (incl. non-zero exits), loaded-but-not-declared
-          # orphan plists, unrotated log growth, disabled-DB orphans, orphan logs.
+          # orphan plists, unrotated log growth, disabled fleet labels, orphan logs.
           # None of the five can be a flake check — they are properties of the
           # running machine, not the config.
           launchd-doctor = pkgs.callPackage ../../packages/launchd-doctor.nix { };
@@ -313,7 +313,7 @@ in
         launchd-doctor = {
           type = "app";
           program = "${config.packages.launchd-doctor}/bin/launchd-doctor";
-          meta.description = "Check every fleet launchd unit: loaded, exit codes, orphaned plists, log growth, disabled-DB and log orphans";
+          meta.description = "Check every fleet launchd unit: loaded, exit codes, orphaned plists, log growth, disabled fleet labels and log orphans";
         };
 
         # Ask the household gateway a question without clicking its GUI. Needs the

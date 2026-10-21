@@ -24,11 +24,11 @@ in the repo can catch that; see that fixture file's header for the measurement.
   darwin-only ssh/vscode blocks gated `lib.mkIf pkgs.stdenv.isDarwin`. The ssh block owns
   `Host nixpi.<domain>` with the `cloudflared access ssh` `ProxyCommand` (store path, not
   `/opt/homebrew`) — the *only* remote path to the Pi, and what makes both deploy-rs legs work
-  (`ssh` for activation + `nix copy` for the closure); see `deploy.nodes` above. Host-gated: RAG
-  (ollama/pgvector) only when `networking.hostName == "macos"`. **The public-MCP-tunnel half of
+  (`ssh` for activation + `nix copy` for the closure); see [`entry-points.md`](entry-points.md) § `deploy.nodes`. Host-gated: RAG
+  (ollama/pgvector) only on the operator's Mac (`isMacosHost`). **The public-MCP-tunnel half of
   that gate is gone** — it went with the gateway on 2026-10-02
   ([`claude.md`](claude.md) § MCP after the gateway).
-  `home.packages` also carries `pandoc`/`poppler` (nixpkgs, darwin-only) — together with
+  `home.packages` also carries `pandoc`/`poppler-utils` (nixpkgs, darwin-only) — together with
   macos's `libreoffice` cask, these satisfy the docx/pptx/xlsx/pdf skills' stated runtime deps
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
   wired. Also declares a Spotlight-visible, focus-or-launch `.app` bundle for the Android
@@ -83,8 +83,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   a cask — only its stdio MCP server is gone; [`open-design.md`](../open-design.md)).
   **DELETED 2026-10-02 (#734)** — 1,181 lines, gone with the Cloudflare stack. The paragraph
   above is kept as the record of what it did, not as a description of a file that exists. It
-  remains the SOURCE OF RECORD for every server's real command, version pins and Keychain
-  service id, which is where `gmail-mcp.nix` and `plugin-mcp.nix` read theirs from rather than
+  remains the SOURCE OF RECORD for every server's real command and version pins, which is where `gmail-mcp.nix` and `plugin-mcp.nix` read theirs from rather than
   re-deriving them off an upstream README — recover it with
   `git show 4f9ea50^:modules/shared/mcp.nix`, never from an upstream default.
 - **`gmail-mcp.nix` + `plugin-mcp.nix`** — the LIVE MCP lane, and the whole pattern in two
@@ -179,10 +178,10 @@ in the repo can catch that; see that fixture file's header for the measurement.
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
   cask; this module contributes only the files Chromium reads out of its user-data dir, via
-  upstream HM `programs.chromium` (no custom shell), plus two recommended-level policies. The
+  upstream HM `programs.chromium`, plus one recommended-level policy (`BookmarkBarEnabled`). The
   LaunchServices default-browser claim is NOT here any more — it left with `local.defaultBrowser`
-  when Chromium stopped being the default (`chromium.nix`'s header). Five surfaces, five sideloaded
-  extensions:
+  when Chromium stopped being the default (`chromium.nix`'s header). Surfaces (the sideload toggles
+  are `options.local.ungoogledChromium`):
   - **`External Extensions/<id>.json`** — pinned `fetchurl` CRXes installed as
     `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
     (ungoogled's `disable-webstore-urls.patch`), so a local CRX is the only path; the official
@@ -298,8 +297,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
     - **Adding an engine hits the same wall**: `SiteSearchSettings` and
       `EnterpriseSearchAggregatorSettings` are mandatory-only too, and engines they create can
       never be promoted to default (`CreatedByNonDefaultSearchProviderPolicy`).
-  - **`makeDefaultBrowser`** — the one surface that is neither a user-data-dir file nor a policy:
-    it claims LaunchServices' `http`/`https` handler for Chromium with nixpkgs'
+  - **`makeDefaultBrowser`** — MOVED to `local.defaultBrowser` (`default-browser.nix` below, which
+    now holds `chrome`); this bullet is that module's measured record. It claimed LaunchServices'
+    `http`/`https` handler for Chromium with nixpkgs'
     **`defaultbrowser`** (darwin-only, substitutable from cache), run from a Home Manager
     activation step. The argument is the **short name `chromium`**, not the bundle id —
     `org.chromium.Chromium` is rejected as "not available as an HTTP handler". The `defaultbrowser`
@@ -327,8 +327,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `NTPSharepointCardVisible`, `NTPContentSuggestionsEnabled` and both `NTPFooter*` all **omit**
     `can_be_recommended` in their upstream `policy_definitions/**.yaml`, which defaults it to
     false. Absence is the answer, not a metadata gap — the flag is written explicitly when true,
-    and both policies this repo *does* ship (`BookmarkBarEnabled`,
-    `DefaultSearchProviderSearchURL`) carry `can_be_recommended: true`. `NewTabPageLocation`'s own
+    and the one policy this repo *does* ship (`BookmarkBarEnabled`) carries
+    `can_be_recommended: true`. `NewTabPageLocation`'s own
     `desc` says it outright: "configures the default New Tab page URL **and prevents users from
     changing it**". A padlocked new-tab page is worse than a click, so it stays unset. Nor is
     there any policy that hides just the **shortcut tiles**: the one shortcut-shaped policy,
@@ -413,12 +413,11 @@ in the repo can catch that; see that fixture file's header for the measurement.
   Übersicht widget SAYS. Split from `ubersicht.nix` so that module stays "render whatever HTML is
   at this path" and remains reusable; `local.ubersicht.htmlWidget` is single-sourced from
   `outputPath` here so writer and reader cannot drift. A `launchd.agents.next-right-thing`
-  (`StartInterval`, default 20 min, `nix-next-right-thing` arg0 via `launchd-launcher.nix`) runs
+  (`StartCalendarInterval` on `startMinutes`, `nix-next-right-thing` arg0 via `launchd-launcher.nix`) runs
   six scripts from `packages/next-right-thing/`: `probe.sh` is cheap change-detection that decides
   whether a run earns a model call at all, `gather.sh` collects candidate signal as plain text
   using no MCP and no model, `art.sh` caches a fallback wallpaper, `decide.sh` calls `claude -p`
-  under an enumerated read-only tool allowlist (never `tg_send`, and never `tg_read` — despite the
-  name it MARKS MESSAGES READ), `render.sh` emits one self-contained Duochrome card, and `run.sh`
+  with no tools and no MCP (its header says why), `render.sh` emits one self-contained Duochrome card, and `run.sh`
   publishes atomically via a same-filesystem rename. The `probe`/`gather` pair is the cost control:
   the expensive step is reached only when something actually changed. It shows exactly ONE
   action: a dashboard forgives a bad ranking because the eye finds the real item among nine, but
@@ -503,8 +502,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   a Nix-owned floor re-asserted every rebuild, merged over a real, writable file the app and
   the operator can change. Exists because of an UPSTREAM design, not a local mistake: the
   pinned home-manager's `programs.claude-code` `install -Dm444`s settings.json into the store
-  and symlinks it, so the app cannot persist what its UI writes and a rebuild reverts it — and
-  reading `options.nix` in full turns up **no** mutability option. The operator meets this as
+  and symlinks it, so the app cannot persist what its UI writes and a rebuild reverts it. (Upstream's
+  `mutableSettings` exists at the pin but is not used — the module header says why.) The operator meets this as
   "I cannot change the Bedrock model", with the chicken-and-egg that the agent needed to
   diagnose it is the one that just lost its model. **Why a merge and not
   `mkOutOfStoreSymlink`:** out-of-store hands over the whole file, floor included, and there
@@ -661,24 +660,20 @@ in the repo can catch that; see that fixture file's header for the measurement.
     Mac's first session has the plugin absent, and the first session after each content bump
     serves the previous generation behind a "Plugins changed" notice. Activation runs before
     any session, so the lag becomes zero. `programs.claude-code.marketplaces` (upstream) is
-    still unusable for the same two reasons as before: it writes a Nix-managed
-    `known_marketplaces.json` symlink where both the CLI and that reconcile need a mutable
-    file, and the reserved `claude-plugins-official` rejects directory pins as untrusted.
+    still unusable; the reasons are the header's "WHY NOT `programs.claude-code.marketplaces`"
+    block in `modules/home/claude-plugins.nix`.
 - **Git SSH signing principals** — no module of its own any more. `git-allowed-signers.nix`
   and its custom `kattakath.git.extraAllowedSignersPrincipals` option were **deleted**
   2026-09-13 in favour of upstream's own `programs.git.signing` (pinned home-manager
   `programs/git.nix:63-116`; impl `:470-506` writes `$XDG_CONFIG_HOME/git/allowed_signers` and
-  points `gpg.ssh.allowedSignersFile` at it). `modules/home/default.nix` sets the fleet default
-  principal (`userEmail`); because `allowedSigners` is a `lines` option, extra identities
-  simply **append** — which is how the retired nix-personal layer's principals came across
-  with no custom seam. (Since ADR-004 the file itself is hand-placed, so no further mailbox is
-  listed in Nix.)
+  points `gpg.ssh.allowedSignersFile` at it). Since ADR-004 `allowedSigners` is left empty and the file itself is hand-placed
+  (`gpg.ssh.allowedSignersFile` points at it), so no mailbox is listed in Nix.
 - **`wallpaper/wallpaper.png`** — the vendored desktop wallpaper `desktop-aesthetics.nix`
   installs. It is copied to `~/.local/share/nix-desktop-wallpaper.png` via `home.file` and
   pointed at from there, **not** referenced as a store path directly: `settings.picture` set
   to a store path leaves the wallpaper out of the generation's closure, so
   `nix-collect-garbage` would delete the file out from under the desktop.
-- **`hm-launchd/`** — replaces stock HM launchd so every agent's `ProgramArguments[0]`
+- **`launchd-launcher.nix`** — makes every HM agent's `ProgramArguments[0]`
   basename is `nix-<activity>` (macOS BTM rule — tags nix-config origin; **never** a bare
   interpreter like `sh`/`python3`). It is upstream's own `waitForNixStore = false` trade
   (pinned HM `modules/launchd/default.nix:47-52`): a named launcher instead of a
@@ -687,22 +682,20 @@ in the repo can catch that; see that fixture file's header for the measurement.
   itself lives in `/nix/store` could never run one. This is **mandatory
   for every launchd unit this repo authors**: HM user agents are auto-wrapped here, and any
   hand-written `launchd.daemons`/`launchd.agents` MUST point `arg0` at a
-  `writeShellScriptBin "nix-<activity>"` wrapper (canonical today: `nix-tart-vm-<name>` and
-  `nix-tart-runner-<name>` in the `tart-vms` capsule, `nix-file-rotation-<suffix>` in
-  `modules/home/macos-user-agents.nix` — the trio this line used to name, `telegramMcp`/`wpMcp`/`apifyMcp`,
-  lived in `mcp.nix` and went with it on 2026-10-02) — codified as the always-applied
+  `nix-<activity>` wrapper (the last hand-rolled one is `nix-tart-vm-<name>` in the `tart-vms`
+  capsule; boot-time daemons use the rule's boot-ordering exception) — codified as the path-scoped
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.
   **The fork is GONE (2026-09-14).** It shrank to one file, then to none: the pinned
   home-manager grew the three options it existed for, so `modules/home/launchd-launcher.nix`
-  (53 lines) now just sets them — `waitForNixStore = false`, `launcher.name`, `launcher.shell`
+  now just sets them — `waitForNixStore = false`, `launcher.name`, `launcher.shell`
   — and upstream's own `mutateConfig` rewrites both `Program` and `ProgramArguments`. The
   drift check that guarded the fork (`hm-launchd-drift`, which pinned the sha256 of upstream's
   `default.nix`) went with it; there is nothing left to drift against. This is the repo's
   worked example of the [`upstream-first`](../../.claude/rules/upstream-first.md) rule paying
   off: a 560-line vendored copy deleted the moment the input owned the behaviour.
 
-- **`macos-user-agents.nix`** (macos only, gated on `osConfig.networking.hostName`) — the
+- **`macos-user-agents.nix`** (macos only, gated on `isMacosHost`) — the
   Maccy login opener and the two inbox Trash sweeps: **`~/Desktop`**, the capture inbox
   (⇧⌘4/⇧⌘5 land there by macOS's own default; the real Mac sets no
   `screencapture.location`) swept whole after **1 day**; **`~/Downloads`**, the
@@ -756,16 +749,18 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `launchd-launcher.nix` already renames arg0 to `nix-<agent>`, so the old spelling produced
   two store paths with one name.
 
-## Home-Manager modules that are not in `modules/home/`
-
-Whole features reach the Mac's Home Manager profile from outside this directory, each
-behind **one** `enable` — all of them in-tree capsules under `modules/features/` now.
-
-- **`tor-browser-backup-exclusion.nix`** (in `modules/home/` itself, despite this heading; macos only, since 2026-10-06) — keeps the Tor Browser
+- **`tor-browser-backup-exclusion.nix`** (macos only, since 2026-10-06) — keeps the Tor Browser
   profile out of Time Machine with Apple's own `tmutil addexclusion`, re-applied each activation.
   **Pre-emptive, not a fix**: measured that day, the Mac had no Time Machine destination at all,
   so nothing had ever been backed up. The header records the upstream-first grep (neither
   nix-darwin nor home-manager models Time Machine exclusions).
+
+## Home-Manager modules that are not in `modules/home/`
+
+Whole features reach the Mac's Home Manager profile from outside this directory, each
+behind **one** `enable` — all of them in-tree capsules under `modules/features/` now.
+`cloud-cli` (AWS CLI + `~/.aws/config.example`) is one of them; [`engine.md`](engine.md) documents it.
+
 - **`modules/features/keychain-secrets/`** (an IN-TREE CAPSULE — it was extracted from this
   repo into the standalone MIT `nix-keychain-secrets` flake, then absorbed back by ADR-002
   wave 4) — `local.keychainSecrets`: the macOS login-Keychain `secret` CLI
@@ -806,7 +801,7 @@ behind **one** `enable` — all of them in-tree capsules under `modules/features
 
   The seam that matters is `local.rag.pgvector.databaseUri`, and it has **TWO consumers, both
   in this repo**: `modules/home/plugin-mcp.nix`'s `plainEnv.DATABASE_URI` hands it to the plugin-lane `postgres` MCP
-  launcher as `plainEnv.DATABASE_URI`, and since 2026-10-02 (#796) the capsule also exports it
+  launcher, and since 2026-10-02 (#796) the capsule also exports it
   as the `RAGDB_URI` session variable (`modules/features/local-rag/pgvector-local.nix`), for
   a plain SHELL consumer that cannot read a Nix option. What changed on 2026-10-02 is **which**
   module consumes it — not that the Nix half went away: `modules/shared/mcp.nix` used to hand it
@@ -850,10 +845,10 @@ behind **one** `enable` — all of them in-tree capsules under `modules/features
   than part of the absorption diff.
 - **`modules/features/media-cli/`** (an IN-TREE CAPSULE — it was extracted from this repo to
   `kattakath/nix-media-cli` on 2026-09-05 and absorbed back by ADR-002 wave 5) —
-  `local.mediaCli`, the eleven media CLIs + the launchd work queue + the Finder Services,
+  `local.mediaCli`, the media CLIs + the launchd work queue + the Finder Services,
   `macos`-only because of closure size. Threaded in as `mediaCliModule` through the RAW
   `capsuleModules` seam rather than `flake.modules` — see [`engine.md`](engine.md)
-  § `modules/features/` for the measurement. Its eleven packages are deliberately **not** re-published as flake outputs
+  § `modules/features/` for the measurement. Its packages are deliberately **not** re-published as flake outputs
   (nix-config never carried one); `checks.<system>.media-cli-packages` builds all of them, so
   the shellcheck coverage the satellite's CI had is kept.
 

@@ -250,6 +250,9 @@ codesign --verify --strict <artifact>   # exit 0
 Authority=Developer ID Application: X.AI Corporation (5Y6N3AJ54S) → Apple Root CA
 ```
 
+> **Retired 2026-10-21:** this repo now uses nixpkgs' `antigravity-cli` instead of a hand pin
+> (measured to keep the Developer ID signature). The bump procedure below is the record.
+
 `antigravity-cli` gets a **better** check than grok, because Google publishes one. The build
 id in its URL (`1.2.13-6662628811079680`) is not derivable from the version and must be read
 from the vendor manifest, whose endpoint comes from `DOWNLOAD_BASE_URL` in

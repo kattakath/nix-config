@@ -153,6 +153,8 @@ in
   imports = [
     # The local.folders inbox-path seam (unset = macOS system defaults).
     ./user-folders.nix
+    # local.operatorHost — the operator-only gate, false unless hosts/macos.nix sets it.
+    ./operator-host.nix
     # Declarative Homebrew (taps/brews/casks) for the Mac.
     ./homebrew.nix
     # Install Homebrew itself at the arch-correct prefix (nix-homebrew).

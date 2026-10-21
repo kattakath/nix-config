@@ -5,6 +5,8 @@
 # moved OFF brew 2026-09-05).
 # Home Manager and the nix-vscode-extensions overlay are wired centrally by
 # mkDarwin in modules/parts/compose.nix — this file only provides host-specific settings.
+# OPERATOR-ONLY as a whole: mkDarwin loads it only for hostname "macos" (`hostModule`
+# default); the template passes "generic-darwin", so a consumer never imports it.
 #
 # First activation (after Determinate Nix is installed, before darwin-rebuild is
 # on PATH) — a single line straight from the flake (the darwin analog of nixpi's
@@ -40,6 +42,10 @@ in
     ../modules/darwin/ollama-daemon.nix
     ../modules/darwin/clat-guard.nix
   ];
+
+  # The operator's own Mac: opens every operator-only gate
+  # (modules/darwin/operator-host.nix says why this is a flag, not the hostname).
+  local.operatorHost = true;
 
   # Root-owned Claude Code policy at /Library/Application Support/ClaudeCode/
   # managed-settings.json — the tier that outranks user, project and `--settings`
@@ -163,7 +169,6 @@ in
   # rotates. Use `age -R` directly, NOT `agenix -e` (which silently encrypts
   # empty stdin when non-interactive), and verify the recipient tags match the
   # file being replaced.
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.macosGithubRunner = {
     enable = true;
     org = "dontsell-ai";
@@ -232,7 +237,6 @@ in
     owner = loginName;
     mode = "0400";
   };
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   local.tart =
     let
       fleetApp = {
@@ -334,7 +338,6 @@ in
   # A FUNCTION, not a bare attrset, matching modules/home/default.nix's own
   # signature: home-manager passes module args here (none read today).
   home-manager.users.${loginName} = _: {
-    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     # The generic Gmail launcher; Claude Code spawns one stdio server per account per
     # session — nothing shared, nothing listening.
     local.gmailMcp.enable = true;
@@ -859,7 +862,6 @@ in
       # Cask because it is a signed .app with no nixpkgs/home-manager packaging;
       # the ONE widget the fleet declares (a full-screen HTML file) is placed by
       # modules/home/ubersicht.nix (local.ubersicht.htmlWidget).
-      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       "ubersicht"
       # ungoogled-chromium — Chromium without the Google integration. Cask because
       # nixpkgs' chromium/ungoogled-chromium are *-linux only (no darwin build), and
@@ -945,7 +947,6 @@ in
       # (Brewfile installs brews before masApps — without that, formulae fail with
       # "You have not agreed to the Xcode license" on first activation).
       Xcode = 497799835;
-      # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
       # Plash — put a website on your desktop as the wallpaper. App Store–only
       # (no Homebrew cask). https://apps.apple.com/ca/app/plash/id1494023538
       Plash = 1494023538;
