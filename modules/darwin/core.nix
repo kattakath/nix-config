@@ -231,7 +231,8 @@ in
         FXDefaultSearchScope = "SCcf";
         # No nag dialog when changing a file's extension.
         FXEnableExtensionChangeWarning = false;
-        # Second half of the Downloads rotation: the hourly agent below only
+        # Second half of the Downloads rotation: the hourly sweep agent
+        # (`file-rotation-downloads`, modules/home/macos-user-agents.nix) only
         # MOVES stale items into ~/.Trash (still on disk, still recoverable);
         # this makes Finder itself erase Trash items after 30 days, so space is
         # actually reclaimed without a manual "Empty Trash".
