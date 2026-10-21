@@ -65,7 +65,7 @@ branch@rev before it builds. Step F below already runs it.
 |---|---|
 | `git fetch --prune` (read-only) | Merging any PR, for any reason |
 | Reporting host disk usage (`df -h /nix`) — collection is automatic now, see step E | Deleting a branch/worktree with commits not on its remote/default branch |
-| `nix flake lock --update-input <sibling>` + `nix flake check`, commit + push **only if check passes** | Committing/pushing anything that isn't this skill's own mechanical fix (stray WIP is reported, never committed) |
+| — | Committing/pushing anything that isn't this skill's own mechanical fix (stray WIP is reported, never committed) |
 | Deleting a **local-only branch already merged into the repo's default branch** | Force-push, `git reset --hard`, `git clean -f`, any destructive git op |
 | Re-running `nix fmt` / the repo's own format-fix on a repo already being touched | Reactivating a host when the guest/host is unreachable — report as skipped, don't retry-loop |
 | Re-activating macos (`activate`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
@@ -201,7 +201,7 @@ section column, not the row count:
 | `--- loaded ---` | `EXIT <n>` | investigate — loaded but failing every spawn | read the unit's log; `exit 78` is the boot/mount race, not a crash |
 | `--- orphaned plists ---` | `ORPHANED` | **act now after any rename/removal** — a plist installed that NO current generation declares | `launchctl bootout <domain>/<label> ; rm <plist>`. nix-darwin's removal loop is **single-transition** (pinned `modules/system/launchd.nix:150-161`), so an orphan it missed at that one generation boundary stays orphaned **permanently** and keeps running — re-activating never clears it. Check it on the first `activate` after a rename — e.g. `metube`/`yt-dlp-web-ui` moving to Home Manager on 2026-09-22 renamed `org.nixos.*` → `org.nix-community.home.*`. An orphan that exits 0 is invisible everywhere else |
 | `--- log size ---` | a log over `LAUNCHD_DOCTOR_WARN_KB` | **investigate — NOT routine since 2026-09-22** | every declared launchd log now reaches a rotator (`modules/darwin/logging.nix`): `system.newsyslog` rename+create for the jobs that re-exec, hourly `logrotate --copytruncate` for the long-lived `KeepAlive` ones, which newsyslog by design can never reclaim. An oversized log therefore means a **broken rotator**, not physics — check the two ticks are in their domains (`launchctl print gui/$UID/org.nix-community.home.file-rotation-logs`, `sudo launchctl print system/org.nixos.file-rotation-logs-system`), then their own logs and state files (`~/.local/state/logrotate/agents.state`, `/var/lib/logrotate/daemons.state`) |
-| `--- launchd disabled-DB orphans ---` | a disabled-DB key with no plist | cosmetic **only while it reads `enabled`** | a stale `disabled` key makes a later `bootstrap` of that label fail with **error 119** — clear it before blaming the plist |
+| `--- launchd disabled-DB (fleet labels reading 'disabled') ---` | a fleet label launchd has DISABLED | **not** cosmetic: its `bootstrap` fails with **error 119** | run the `remedy: launchctl enable …` line the doctor prints, before blaming the plist |
 | `--- orphan logs in ~/Library/Logs ---` | a log no installed unit writes | cosmetic | litter from a removed feature; delete only when sure the feature is gone |
 | `--- unbounded power assertions ---` | `UNBOUNDED` — a `caffeinate` with no utility, `-t` or `-w` | **act now** — on a `pmset sleep 1` host the Mac never sleeps again | kill that pid, then give its caller a `-w`/`-t`/utility. Not a launchd unit; it lives here since #760 made the CI runners hold a wake assertion per job (the `-w` form, deliberately not flagged) |
 
@@ -249,7 +249,7 @@ deleted 2026-09-30), so what activation touches is a strict subset of what is de
 | Case | What activation does | Absent plugin means |
 |---|---|---|
 | **store-path** marketplace (today only `xai-grok-build`) | runs one `plugin marketplace add` (no install) — see `home.activation.claudeCodePlugins` | the **tree was stale**, OR activation failed |
-| **https** marketplace (`kattakath`, `claude-plugins-official`, `context7-marketplace`) | **nothing** — no `marketplace add`, no `plugin install` | **normal** until the next session start; Claude Code clones and downloads it itself |
+| **https** marketplace | **nothing** — no `marketplace add`, no `plugin install` | **normal** until the next session start; Claude Code clones and downloads it itself |
 | marketplace missing from `extraKnownMarketplaces` | n/a — the declaration never reached settings | this, and only this, **proves a stale tree** |
 
 So check the marketplace ENTRY before the plugin. And do not expect activation to

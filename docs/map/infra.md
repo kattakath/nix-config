@@ -54,7 +54,7 @@ encrypted at rest with the same Keychain passphrase.)
 
 ### `infra/cloudflare/zones.nix` + `infra/cloudflare/kattakath-dns.nix`
 
-`kattakath.com`'s 22 DNS records — the module renders, the sibling file is the data. Only this
+`kattakath.com`'s DNS records — the module renders, the sibling file is the data. Only this
 zone is declared, and the line is drawn by **ownership, not secrecy**: DNS is a public query, so
 publishing the operator's own zone discloses nothing `dig` does not, while the other six zones
 belong to businesses that are not only his.
@@ -116,7 +116,7 @@ Enabled APIs, the automation service account, its IAM bindings, and the OpenTofu
 **Its state is LOCAL but not plaintext.** It cannot live in the bucket it declares, so it sits
 `0600` under `$XDG_STATE_HOME/nix-config-gcp-foundation` — and it still runs
 `tofuRemoteStatePrelude`, so the same Keychain passphrase encrypts it via `TF_ENCRYPTION`. Lose
-`tofu:state:passphrase` and this state is unreadable exactly like the other five.
+`tofu:state:passphrase` and this state is unreadable exactly like every other stack's.
 
 **Runs as the OPERATOR, not the service account it declares.** Running it as that account would
 need `serviceUsageAdmin` + `iam.serviceAccountAdmin` + `projectIamAdmin` — the power to re-grant

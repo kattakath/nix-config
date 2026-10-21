@@ -56,7 +56,7 @@ Prefer not to trust the raw URL? Clone the repo first and run the on-disk copy,
 
 ### Fork this for your own fleet
 
-This is personal config with `loginName = "ismail"` baked into `flake.nix` (it is
+This is personal config with `loginName = "ismail"` baked into `modules/parts/identity.nix` (it is
 your POSIX account — `/Users/<loginName>` and `home-manager.users.<loginName>`).
 
 **The quick way — no fork at all.** Scaffold a tiny consumer flake that uses this
@@ -74,7 +74,7 @@ edit the identity, `git init && git add -A`, `nix run .#macos`.
 `bootstrap.sh` against your own copy):
 
 1. **Fork** the repo on GitHub.
-2. In `flake.nix`, set `loginName` to **your macOS login** (`id -un`), and set `orgName` /
+2. In `modules/parts/identity.nix`, set `loginName` to **your macOS login** (`id -un`), and set `orgName` /
    `userName` / `domainName` to your own. Commit and push. (Running the offline copy? Also
    set `FLAKE_DEFAULT` in `bootstrap.sh`.)
 3. On your fresh Mac, run **pointing at your fork**:
@@ -172,7 +172,7 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 ```
 bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off to the flake
 flake.nix       Entry point: inputs/pins and ONE `flake-parts.lib.mkFlake` call — every output itself lives in modules/parts/
-flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 52 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
+flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); its node count is held down by a deliberate `follows` diet plus ADR-002's capsule absorption
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles: macos.nix, nixpi.nix, nixvm.nix, nixos.nix — plus identity-free generic-darwin.nix / generic-linux.nix, which `checks.<system>.template-consumer` builds on
 modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each, each owning its own module + packages + checks), and the reusable modules split by platform (darwin/ nixos/ home/), plus _lib/ (shared data)

@@ -66,9 +66,8 @@ In rough order of preference:
 3. **mcp-servers-nix module list** — still worth checking, with a caveat: a `programs.<name>`
    module gave a pinned store path and no runtime fetch, which was the gateway's advantage and is
    **not available to a plugin `.mcp.json`** (it may only name a bare command on PATH). It is
-   relevant now only if you are building a PATH package anyway (§2.6):
-   `nix eval --impure --expr 'builtins.attrNames (import <flake:mcp-servers-nix> {}).lib or {}'`
-   or grep the input's `modules/` in the store.
+   relevant now only if you are building a PATH package anyway (§2.6). It is no longer an input
+   of this flake, so browse `modules/` in `github:natsukium/mcp-servers-nix` directly.
 4. Manual browse (user-facing): registry.modelcontextprotocol.io, Glama,
    Smithery, PulseMCP.
 
@@ -140,8 +139,8 @@ the calling session has.
 > **Is this server the tool half of a skill this fleet already ships?**
 
 Precedents: `chrome-devtools` + `kapture` → `page-lab`; `mobile-mcp` → `android-phone`;
-`macos-automator` → `mac-app-send`; `nixos` → `claude-code-nix`; the four Gmail accounts →
-`gmail`.
+`macos-automator` → `mac-app-send`; `nixos` → `claude-code-nix`; the Gmail accounts →
+`gmail` / `gmail-private`.
 
 **If no plugin owns it, there is no ownerless home any more.** The honest options are to give it
 to the plugin whose work it serves, or **not to adopt it** — and say which, out loud, to the

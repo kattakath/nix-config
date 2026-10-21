@@ -33,7 +33,7 @@
   # The fleet's DNS zone (identityArgs in modules/parts/identity.nix). Used to build nixpi's
   # tunnelled SSH hostname below, so the domain is never re-typed.
   domainName,
-  # SOURCE PATH of the tart-vms capsule's packages/gitlab-tart.nix — the five
+  # SOURCE PATH of the tart-vms capsule's packages/gitlab-tart.nix — the
   # gitlab-tart slot shims below. A path, not a derivation, deliberately: they
   # are `callPackage`d with THIS host's pkgs (modules/darwin/core.nix's
   # `nixpkgs.config.allowUnfree = true`), not with the flake's perSystem pkgs.
@@ -292,7 +292,7 @@ let
   # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
   # npm resume CLI. jsonResumeUrl (from modules/parts/identity.nix) is baked in as its default --url,
   # so there is no ambient env var. See packages/jsonresume.nix.
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
   jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
     defaultUrl = jsonResumeUrl;
   };
@@ -301,7 +301,7 @@ let
   # (jsonResumeUrl baked as its default --url) plus the logo.svg fetched from the same gist
   # (logoUrl), rasterized via librsvg. Also run on activation (home.activation.emailSignature)
   # and `nix run .#email-signature`. See packages/email-signature/ (default.nix).
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
   email-signature = pkgs.callPackage ../../packages/email-signature {
     defaultUrl = jsonResumeUrl;
     inherit logoUrl tokensUrl;
@@ -489,7 +489,6 @@ in
     # now has a leg for.
     ./claude-desktop.nix
     ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
-    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
@@ -508,9 +507,9 @@ in
     ./spotlight-actions.nix
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
-    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+    # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
     ./ubersicht.nix # local.ubersicht — the one full-screen HTML Übersicht widget (cask in hosts/macos.nix)
-    # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+    # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
     ./next-right-thing.nix # local.nextRightThing — decides what that widget says
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
     # The two loopback download servers. They were nix-darwin `launchd.user.agents`
@@ -571,7 +570,7 @@ in
   # MEASURED, the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP model) is too
   # much for a Tart guest's disk, so a sandbox gets neither the CLIs nor the menu.
   # This one gate is now the entire "which hosts get the media stack" decision.
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
   local.mediaCli = {
     enable = isMacosHost;
     # `auge` is Apple's Vision framework from the shell — photo-describe already
@@ -696,11 +695,11 @@ in
   # Single-sourced from the generator so the writer and the reader cannot drift:
   # a path typed twice is a path that eventually disagrees, and the failure mode
   # is a widget silently rendering a file nothing updates any more.
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
   local.ubersicht.htmlWidget = lib.mkIf isMacosHost config.local.nextRightThing.outputPath;
 
   # The generator: scan, rank, publish ONE action (module: ./next-right-thing.nix).
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
   local.nextRightThing.enable = isMacosHost;
 
   # The userscript set. Keying it is what lets a layer composed in through
@@ -1431,9 +1430,15 @@ in
       buku
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
       fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
+    ]
+    # OPERATOR-ONLY: the three gist-fed tools (jsonResumeUrl / logoUrl / tokensUrl)
+    # are installed only on the macos host, never on a template consumer's Mac.
+    ++ lib.optionals isMacosHost [
       jsonresume # `jsonresume download|print|validate|markdown|text` — fetch a JSON Resume (default URL from jsonResumeUrl, or --url) + render PDF via resumed (fallback resume-cli); md/text via resume-cli (packages/jsonresume.nix)
       email-signature # `email-signature [--url URL] [--logo-url URL] [--out DIR]` — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
+    ]
+    ++ lib.optionals stdenv.hostPlatform.isDarwin [
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       # PREREQUISITE for the MCP ownership split (#657): the `nixos` server moves
       # out of the gateway into the claude-code-nix plugin, and a plugin's
@@ -1487,7 +1492,7 @@ in
     ]
     ++ lib.optionals isMacosHost [
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
-      nixosVm # `nixos-vm create|start|stop|status|ssh|destroy --yes` — the long-lived nixos UTM guest (packages/nixos-vm.nix); on PATH so the "NixOS VM" Spotlight launcher can run `nixos-vm start`
+      nixosVm # `nixos-vm <verb>` (verbs: the case in packages/nixos-vm.nix) — the long-lived nixos UTM guest (packages/nixos-vm.nix); on PATH so the "NixOS VM" Spotlight launcher can run `nixos-vm start`
       pkgs.scrcpy # mirror/control a PHYSICAL Android phone. Was the `scrcpy` BREW until 2026-09-29 (hosts/macos.nix records the move). Its nixpkgs wrapper prepends its OWN android-tools adb to PATH for its own process only — so it drives adb 37.0.0 while mobile-mcp/android-phone use the cask's 37.0.1. Harmless: both speak protocol 1.0.41, so they share one adb server instead of killing each other's. `adb` itself stays on the cask
     ]
     # GitLab-CI slot shims (the tart-vms capsule's gitlab-tart): on PATH so the
@@ -1943,12 +1948,9 @@ in
       };
       settings.gpg.ssh.allowedSignersFile = "${config.home.homeDirectory}/.config/git/allowed_signers";
 
-      # Per-namespace identity. Work and client identities (their includeIf
-      # conditions AND addresses) live in ONE hand-placed file,
-      # ~/.config/git/local.inc — not in this public repo; a missing include is a
-      # silent no-op. Template: the operator's private overlay repo README, and
-      # docs/new-mac-runbook.md. Unconditional, so local.inc's own nested
-      # `[includeIf …]` blocks decide. Paths absolute under $HOME.
+      # Per-namespace identity: see § Git identity include files above.
+      # Unconditional, so local.inc's own nested `[includeIf …]` blocks decide.
+      # Paths absolute under $HOME.
       # Route by remote URL AND gitdir in local.inc: hasconfig cannot fire between
       # `git init` and `git remote add`.
       includes = [ { path = "${config.xdg.configHome}/git/local.inc"; } ];
@@ -2558,9 +2560,11 @@ in
     # offline, and `|| true` ensures a failed fetch never aborts a switch — it self-heals on
     # the next activation. Same "let the tool own its fetched, mutable state" pattern as
     # claudeCodePlugins.
-    emailSignature = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      run ${email-signature}/bin/email-signature || true
-    '';
+    emailSignature = lib.mkIf isMacosHost (
+      lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        run ${email-signature}/bin/email-signature || true
+      ''
+    );
   };
 
 }

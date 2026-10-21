@@ -40,9 +40,8 @@ let
   #
   # NOT in identityArgs: that attrset is what a template consumer REPLACES with a
   # documented four-field identity, and a fifth required field there is the exact
-  # breakage `publicMcpPort` caused on 2026-09-16 (modules/parts/compose.nix).
-  # Fleet code reads it as config.fleet.googleAccount; the home profile gets it
-  # through mkHomeManagerModule's fleet-constants inherit list.
+  # breakage `publicMcpPort` caused on 2026-09-16.
+  # Fleet code reads it as config.fleet.googleAccount.
   googleAccount = "${loginName}@${domainName}";
 
   # Git identity. Its own binding rather than "${loginName}@${domainName}",
@@ -127,27 +126,6 @@ let
     "BELL044" # the household Rogers CGM4981 AP -- normal operation
     "aloshy.🅰🅸" # emergency phone hotspot, hand-started
   ];
-
-  # ---- nixpi Wi-Fi fallback ladder, ORDERED, most-preferred FIRST ---------------
-  # The SSIDs nixpi should know about, in preference order. `nixpi-wifi-creds` turns
-  # this into one `network={}` block per entry with a DESCENDING `priority=`, so the
-  # first is the house AP and the rest are fallbacks.
-  #
-  # WHY THIS LIST HAS TO LIVE HERE. The generator could always emit multiple blocks
-  # (packages/nixpi-provision.nix ranks them), but with no declared roster its
-  # default was "whatever Wi-Fi THIS MAC happens to be on right now". So the fallback
-  # ladder existed only as whatever arguments a human typed, and the 2026-10-01 reflash
-  # erased it — the two-network config on the old card had only ever been HAND-EDITED
-  # over SSH, which is also why its priorities ended up INVERTED and stranded the host.
-  # Declaring the roster is what makes the ladder survive a reflash.
-  #
-  # SSIDs ONLY, never the PSKs: an SSID is broadcast in the clear and names nothing
-  # secret, while the pre-shared keys stay in the macOS Keychain and are read at
-  # generation time. That split is why this can be committed at all.
-  #
-  # The second entry is a phone hotspot brought up BY HAND, so it is absent from the
-  # scan most of the time. That costs nothing: wpa_supplicant iterates priority groups
-  # against the SCAN RESULTS, so an absent network is simply skipped.
 
   cachixKey = "${orgName}.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=";
 
@@ -374,11 +352,7 @@ in
       inherit
         loginName
         domainName
-        fullName
-        userName
-        userEmail
         googleAccount
-        jsonResumeGistId
         jsonResumeUrl
         logoUrl
         tokensUrl
