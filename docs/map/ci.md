@@ -36,7 +36,7 @@ the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cach
 `nix-fast-build` was dropped 2026-09-22, its own closure was half the darwin leg) and
 *evaluates* (no build) host toplevels — this workflow builds none (its own header says so).
 nixpi's toplevel is built by `warm-nixpi-cache.yml` instead (below; why:
-[`hosts.md`](hosts.md)). Check-run names are `build (<system>) / leg`.
+[`hosts.md`](hosts.md)), and its flashable sdImage by `build-installers.yml`. Check-run names are `build (<system>) / leg`.
 
 **Who waits on what** (2026-10-18, [`pr-wait-research.md`](../pr-wait-research.md) levers
 #3 + #4):

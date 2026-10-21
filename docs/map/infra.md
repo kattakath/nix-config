@@ -135,7 +135,7 @@ billing account, and the currency must match the account's own or the API reject
 
 ### `infra/cloudflare/nixpi-tunnel.nix`
 
-Declares `nixpi`'s **remotely-managed** Cloudflare Tunnel itself:
+Declares `nixpi`'s **remotely-managed** Cloudflare Tunnel itself (the file is the full list):
 
 - a `cloudflare_zero_trust_tunnel_cloudflared` (`config_src = "cloudflare"`),
 - its ingress (`cloudflare_zero_trust_tunnel_cloudflared_config`: SSH → `ssh://localhost:22`,

@@ -1,12 +1,12 @@
 # Reading Claude Code hook messages in this repo
 
-The hooks in [`.claude/settings.json`](../.claude/settings.json) surface messages that the
-Claude Code harness labels with error-adjacent words even when nothing is broken. This is
+This repo's hooks (where each one is wired: [`map/claude.md`](map/claude.md) § `.claude/hooks/`)
+surface messages that the Claude Code harness labels with error-adjacent words even when nothing is broken. This is
 the decoder: **scan the first keywords of the message, not the harness label.**
 
 | You see | It actually is | Action |
 |---|---|---|
-| *(silence at turn end)* | Stop-gate ran and approved — configs evaluate clean. The normal case. | None |
+| *(silence at turn end)* | Stop-gate approved **without evaluating any Nix** — one of its no-op exits (each bare `approve()` call, and the message-less `finishOk()` at the end of `.claude/hooks/stop-gate.js`). A Nix check that ran always says so (next row). | None |
 | `✔︎ stop-gate: …passed…` / `⚠︎ stop-gate: …syntax only…` | Approve, with provenance (host check ran / degraded advisory). | None (⚠︎: rely on CI for full eval) |
 | `⚠︎ stop-gate: …could not COMPLETE — the ENVIRONMENT failed…` | **Nothing is wrong with your tree.** `nix` ran but the *machine* failed under it — EPERM on a `~/.cache/nix` lock, disk full, fd exhaustion. No edit can clear it, so the gate approves with provenance instead of trapping the agent. | Re-run the check by hand; CI is authoritative |
 | `✘ stop-gate BLOCKED — <category>: …` | **Not a malfunction.** The gate refusing to end the turn — git purity, a `.nix` syntax error and `nix flake check` failing among others; the full list is the header of `.claude/hooks/stop-gate.js`. Addressed to the agent, which must fix the repo before stopping. | Let the agent fix; it self-resolves |
