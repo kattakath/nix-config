@@ -68,9 +68,10 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
    release artifact is safe.) **On the live capped card, redo the cap before boot** (runbook
    §4c) — a reflash restores the image's partition table, and first boot would grow root back
    into the card's bad region.
-3. **Re-plant the tunnel token**: it is a FULL apply, so run `nix run .#cf-tunnel-plan`
-   first and STOP on any `+ create`, `-/+ replace` or `- destroy` of the Access policy, or
-   any change to its `include` (infra/cloudflare/nixpi-tunnel.nix § ADOPTION IS
+3. **Re-plant the tunnel token**: it is a FULL apply, so run
+   `CLOUDFLARE_API_TOKEN=… nix run .#cf-tunnel-plan` first (same handle as the apply) and STOP
+   on any `+ create`, `-/+ replace` or `- destroy` of the Access policy, any change to its
+   `include`, or any change to `nixpi_ssh` itself (infra/cloudflare/nixpi-tunnel.nix § ADOPTION IS
    IMPORT-FIRST). Then `CLOUDFLARE_API_TOKEN=… nix run .#cf-tunnel-apply` prints the
    tunnel's CURRENT token (a data source; no new token — a real rotation means replacing
    the tunnel resource) → pipe it to `nix run .#nixpi-vault-token` → commit the vault →
