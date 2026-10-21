@@ -201,7 +201,8 @@ let
       # between "the router got reset" and that trip to the shelf. Measured
       # 2026-09-22: a two-block config failed over to the backup AP in ~6 s.
       #
-      # Prints to stdout (pipe into nixpi-provision --wifi-conf, or a file).
+      # Prints to stdout. nixpi-provision takes it as a FILE, not a pipe: see its
+      # usage line (`--wifi-conf FILE`).
       ssids=()
       psks=()
       country=""

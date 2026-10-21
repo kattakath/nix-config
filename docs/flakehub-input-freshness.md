@@ -9,9 +9,11 @@ two cooperating pieces:
   (a weekly snapshot of nixos-unstable), a tarball: the branch/owner checks no-op,
   but the **30-day staleness** check still fires on `lastModified` — so it remains
   the alarm if the weekly bump below stalls.
-- **`.github/workflows/update-flake-lock.yml`.** Scheduled every Monday: runs
-  `nix flake update` and opens a PR with the regenerated `flake.lock`. The
-  automated counterpart to the manual `/update-input` command.
+- **`.github/workflows/update-flake-lock.yml`.** Scheduled every Monday: updates the
+  root inputs its `updatable-inputs` step lists and opens a PR with the regenerated
+  `flake.lock`. That step holds some inputs back, so a bare `/update-input` (which bumps
+  everything) is NOT its manual twin — see the "kernel is HELD" paragraph of
+  [`nixpi-nixos-hardware-migration.md`](nixpi-nixos-hardware-migration.md).
 
 Dependabot (`.github/dependabot.yml`) keeps the **GitHub Actions** pins fresh but
 has no Nix ecosystem, so it never touches flake inputs — that is what these two
@@ -28,8 +30,8 @@ Two different edits regenerate `flake.lock`, and only one of them is a bump:
 | New/changed **`follows`** (the input diet — see [`map/entry-points.md`](map/entry-points.md) § `flake.lock`) | `nix flake lock` | Graph **shape** only. Nodes collapse or disappear; **no rev changes.** |
 | Freshness | `nix flake update` (all) / `nix flake update <name>` (one) | **Revisions.** |
 
-A bare `nix flake update` after a `follows` edit buries the shape change in 31 inputs' worth of
-unrelated churn — always `nix flake lock` for the former.
+A bare `nix flake update` after a `follows` edit buries the shape change in unrelated churn
+across every input — always `nix flake lock` for the former.
 
 **Do not review a shape change by eyeballing `git diff flake.lock`.** `nix flake lock`
 *renumbers* nodes when duplicates collapse, so the diff shows what look like rev bumps that are
@@ -54,7 +56,7 @@ comm -23 /tmp/A /tmp/B   # DROPPED — the diet
 
 Node count is the other measurable: `python3 -c "import json;print(len(json.load(open('flake.lock'))['nodes']))"`.
 
-**Two checks are `self`-source-hashed, so their drvPath moves on *any* `flake.nix` byte** —
+**These checks are `self`-source-hashed, so their drvPath moves on *any* `flake.nix` byte** —
 `checks.<sys>.formatting`, `checks.<sys>.pre-commit`, and `checks.<sys>.ast-grep` all take the
 flake tree as `src`. A changed hash there is **not** evidence that a shape change altered
 anything; the meaningful invariants are the host `toplevel`s and the devShell, which stay

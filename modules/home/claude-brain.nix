@@ -15,7 +15,7 @@
 #
 # EXTENDABLE, DELIBERATELY. `rules` is `attrsOf (either lines path)` and merges
 # per key, so a private layer ADDS its own rule and this one survives. Never
-# route extra global prose through `context` (options.nix:134): modules/home/
+# route extra global prose through `context` (options.nix): modules/home/
 # default.nix already defines it as a PATH, and a second path definition is a hard
 # eval error, not a merge.
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {

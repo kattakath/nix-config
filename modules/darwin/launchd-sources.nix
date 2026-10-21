@@ -75,8 +75,9 @@
 #
 # `checks.<system>.launchd-selfheal-lane` gates the LANE'S EMPTINESS as its first
 # leg, not just the five Labels — every per-unit leg names a unit, which is how
-# five of them accumulated here unnoticed. A new unit declared on this row now
-# fails the build.
+# five of them accumulated here unnoticed. That leg (modules/parts/checks.nix,
+# `strandedGui`) reads `launchd.user.agents` only: a new unit there fails the
+# build, one in nix-darwin's `launchd.agents` does not.
 #
 # The last `launchd.user.agents` text left in the tree is in
 # modules/features/tart-vms/darwin.nix (`local.tart.vms.*`), and it reaches no

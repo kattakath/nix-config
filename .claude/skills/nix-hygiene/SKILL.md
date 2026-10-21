@@ -101,7 +101,8 @@ This table only adds the **output** column. The full path list (`modules/_lib/`,
       modules, no path whose one-liner and map section disagree).
 - [ ] Flake apps (`modules/parts/packages.nix` + `modules/parts/terranix.nix`) and `nix run`-able
       capsule packages have matching sources and runbook mentions if user-facing; the
-      authoritative list is `nix flake show --json --all-systems`.
+      authoritative list is `nix eval .#apps.<system> --apply builtins.attrNames` (`flake show
+      --json` nests outputs under `.inventory`).
 - [ ] Reverse: runbooks mention only apps/paths that still exist.
 
 ### B. LEAN / abandoned
@@ -120,7 +121,7 @@ This table only adds the **output** column. The full path list (`modules/_lib/`,
 - [ ] No host-specific lists in shared modules without `mkIf` on `isMacosHost` or a `local.*` flag (never the hostname).
 - [ ] Launchd BTM basenames: `nix-<activity>` via `modules/home/launchd-launcher.nix` for HM
       agents, or a hand-written `writeShellScriptBin "nix-<activity>"` arg0 for nix-darwin units
-      (the `tart-vms` capsule's runners) — never bare `sh`/`open`. (`mkNixAgent` is gone; see
+      (`launchd-naming.md` item 2 names the one left) — never bare `sh`/`open`. (`mkNixAgent` is gone; see
       `.claude/rules/launchd-naming.md`.)
 - [ ] Secrets: never plaintext in `.nix`; agenix vault vs Keychain rules unchanged.
 

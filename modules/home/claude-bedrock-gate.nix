@@ -85,8 +85,8 @@ let
   # `writeShellApplication`, not `writeShellScriptBin`: this is a ~130-line program
   # with jq parsing and several exit paths, and only this builder runs shellcheck
   # at build time (upstream option nixpkgs `writeShellApplication` exists -> using
-  # it; pkgs/build-support/trivial-builders/default.nix:268 `name`, :277
-  # `excludeShellChecks`, :279 `bashOptions`). `name` keeps the exact basename.
+  # it; pkgs/build-support/trivial-builders/default.nix, its `name`,
+  # `excludeShellChecks` and `bashOptions` arguments). `name` keeps the exact basename.
   #
   # It is NOT a launchd unit, so the `nix-*` arg0 carve-out in
   # .claude/rules/launchd-naming.md does not apply — the `nix-` prefix here is

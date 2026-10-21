@@ -47,7 +47,8 @@
 #                                                              now describes
 #                                                              in-tree use)
 #   SECURITY.md                          -> MERGED into docs/secrets-and-keychain.md
-#     § The ambient-secrets threat model. It was a repo-level policy file for
+#     § The threat model — ambient by design, and what that costs. It was a
+#     repo-level policy file for
 #     strangers (half of it a GitHub "report a vulnerability" pointer); the half
 #     that is real — "any process in the tree, including an AI agent, can read
 #     every exported value via `env`" — belongs with this fleet's one secrets

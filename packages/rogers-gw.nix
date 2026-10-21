@@ -30,7 +30,7 @@
 # from the environment, which the caller populates with `secret exec`, so the
 # value never reaches argv, the store, or a transcript:
 #
-#   secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- rogers-gw status
+#   secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- nix run .#rogers-gw -- status
 #
 # UPSTREAM-FIRST NOTE: pkgs.resholve would verify at BUILD time that every command
 # this script calls resolves — the exact class of bug that broke an activation in
@@ -102,7 +102,7 @@ writeShellApplication {
 
     env:
       ROGERS_GW_PASSWORD  required for everything but `ports`. Inject it, never inline it:
-                            secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- rogers-gw status
+                            secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- nix run .#rogers-gw -- status
       ROGERS_GW_HOST      default: the default route's gateway
       ROGERS_GW_USER      default: admin
       ROGERS_GW_JSON      set to emit raw JSON from `logs` instead of TSV
@@ -117,7 +117,7 @@ writeShellApplication {
     need_password() {
       if [ -z "''${ROGERS_GW_PASSWORD:-}" ]; then
         echo "rogers-gw: ROGERS_GW_PASSWORD is unset." >&2
-        echo "  secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- rogers-gw $*" >&2
+        echo "  secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- nix run .#rogers-gw -- $*" >&2
         exit 2
       fi
     }

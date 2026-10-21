@@ -63,7 +63,7 @@ let
         exit 0
       fi
 
-      if [ -f "$STAMP" ] && [ $(( $(date +%s) - $(stat -f %m "$STAMP") )) -lt "$COOLDOWN" ]; then
+      if [ -f "$STAMP" ] && [ $(( $(date +%s) - $(/usr/bin/stat -f %m "$STAMP") )) -lt "$COOLDOWN" ]; then
         log "CLAT46 on $dev with no NAT64 prefix, but within cooldown; not acting"
         exit 0
       fi

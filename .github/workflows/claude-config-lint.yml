@@ -51,7 +51,7 @@ jobs:
           npx --yes @carlrannaberg/cclint@0.2.10 commands --fail-on error
           npx --yes @carlrannaberg/cclint@0.2.10 context  --fail-on error
 
-      # The case suites for BOTH hooks — the PreToolUse bash guard (rule1*) and the
+      # The case suites for BOTH hooks — the PreToolUse bash guard and the
       # Stop gate (stop-gate-fail-closed). The guard's were ORPHANED until
       # 2026-09-15 — written, committed, and run by nothing — which is how the
       # guard came to throw ReferenceError on every call and fail OPEN (a

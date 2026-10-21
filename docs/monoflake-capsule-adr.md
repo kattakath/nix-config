@@ -1,7 +1,7 @@
 # ADR-002: collapse the satellite flakes into nix-config, on flake-parts, as capsules
 
 **Status:** **Decided and IMPLEMENTED**, 2026-09-12 — waves 0-7 shipped the same day; wave 8
-(`nixosOptionsDoc`) is reported on in §9 and deliberately left at `warningsAreErrors = false`.
+(`nixosOptionsDoc`) was measured and deliberately not landed (§9.5).
 **Supersedes decision #2 of** [`flake-architecture-strategy-adr.md`](flake-architecture-strategy-adr.md)
 (ADR-001), which said *"do not migrate nix-config's core engine to flake-parts"*. ADR-001 is not
 deleted — §6 below answers its three objections one by one, and one of them still stands; its own

@@ -8,7 +8,7 @@
 #                        transposed by flake-parts — packages, apps, checks,
 #                        devShells, formatter — is generated for exactly these.
 #   devcontainerSystems  fleet linux + x86_64-linux, for the IMAGE only.
-#   devToolingSystems    fleet + x86_64-linux, for the devShell + its treefmt eval.
+#   devToolingSystems    fleet + x86_64-linux. UNREAD — see its binding below.
 #
 # ⚠ DO NOT add "x86_64-linux" to `systems` to serve the last two. flake-parts
 # transposes every perSystem output over `systems` (pinned flake-parts
@@ -44,14 +44,9 @@ let
   # actual hosts rely on.
   devcontainerSystems = linuxSystems ++ [ "x86_64-linux" ];
 
-  # Dev-tooling outputs (devShell + its treefmt eval) must cover every arch a
-  # human might DEVELOP on: the fleet arches PLUS the devcontainer's x86_64.
-  # `devcontainer.json` runs `nix develop .#default` as its terminal, so a
-  # Codespaces user on x86_64 needs devShells.x86_64-linux.default to exist —
-  # without it the container's shell errors out (and the CI smoke test does
-  # too). This is NOT the fleet: no host/check/config is generated for x86_64,
-  # only the dev environment. CI builds .#checks.<system> (aarch64 only), never
-  # a full `nix flake check`, so no aarch64 runner tries to build this.
+  # NO module reads this binding. The x86_64 devShell it was written for comes
+  # from `withSystem` in modules/parts/devcontainer.nix (whose comment carries
+  # the why), and treefmt runs over `systems` (modules/parts/devshell.nix header).
   devToolingSystems = allSystems ++ [ "x86_64-linux" ];
 in
 {

@@ -47,8 +47,8 @@
 #                incomplete, so any verdict drawn from them is wrong.
 #   AppleDouble — `._name` resource-fork siblings, which are metadata, not media.
 #
-# `--only` and `--print0` exist for ONE caller, media-fix, and are what let it
-# compose this with a repair step instead of reimplementing the sniffing:
+# `--only` and `--print0` exist for callers such as media-fix, and are what let
+# them compose this with a repair step instead of reimplementing the sniffing:
 #
 #   --only  restricts the run to one media class, so "fix the videos in this
 #           folder" does not quietly rename the photos next to them. A file
@@ -298,9 +298,7 @@ writeShellApplication {
       # nothing here to verify or roll back.
       if ! mv "$f" "$target"; then
         # Reported, not fatal: one unwritable file must not abandon the rest of
-        # a folder. `failed` makes the run exit non-zero anyway, which is what
-        # tells the Finder Service wrapper to show the error rather than
-        # "nothing to do".
+        # a folder. `failed` makes the run exit non-zero anyway.
         info "error: could not rename '$f'"
         failed=1
         emit "$f"

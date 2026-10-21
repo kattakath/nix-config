@@ -424,9 +424,8 @@ Fork it and change loginName in modules/parts/identity.nix (see the README's
     --flake=github:<you>/nix-config"
   fi
 
-  # `sudo -H`, not a bare run: nix-darwin dropped darwin-rebuild's sudo
-  # self-elevation in its 2025-01-30 root migration, so the #macos app exits 1
-  # as a normal user. -H because nix warns when $HOME is not owned by root.
+  # `sudo -H`: why the first switch needs root, and why `-H`, is the `macos`
+  # app's own comment in modules/parts/packages.nix.
   #
   # This is the ONLY time the long form is needed. It plants
   # /etc/nix-darwin/flake.nix and puts `activate` on PATH, so every later rebuild

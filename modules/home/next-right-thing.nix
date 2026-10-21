@@ -143,7 +143,9 @@ in
       type = lib.types.bool;
       default = true;
       description = ''
-        Force `artRating = "None"` while a call or screen-capture app is running.
+        Force `artRating = "None"` for an art fetch made while a call or
+        screen-capture app is running. An image already cached is not
+        re-checked: it stays up until `artTtlHours` expires.
         The widget renders behind every window, so it lands in screen shares.
       '';
     };

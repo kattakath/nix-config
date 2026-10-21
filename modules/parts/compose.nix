@@ -96,9 +96,8 @@ let
         useGlobalPkgs = true;
         useUserPackages = true;
         # Back up (don't abort on) any pre-existing UNMANAGED file that a newly
-        # Nix-managed home.file would clobber — e.g. ~/.claude/settings.json and
-        # ~/.claude/plugins/known_marketplaces.json, now owned by the
-        # programs.claude-code marketplaces/settings options. Without this, HM
+        # Nix-managed home.file would clobber — e.g. ~/.claude/settings.json, now
+        # owned by the programs.claude-code settings option. Without this, HM
         # activation hard-fails on the first such collision.
         backupFileExtension = "hm-bak";
         extraSpecialArgs = idArgs // {
@@ -121,7 +120,7 @@ let
             # `modules/shared/mcp.nix`'s `mcpCatalog`, which was DELETED with that
             # module the same day. The pin is still live and still load-bearing —
             # modules/parts/packages.nix (page-lab-pick) and modules/parts/checks.nix
-            # (page-lab, mcp-launcher-parity) — but every one of those reads
+            # (mcp-launcher-parity) — but every one of those reads
             # `inputs.kattakath-skills` directly in the FLAKE ENGINE, where `inputs`
             # is already in scope. None is a home-manager module, so nothing reached
             # through here; an extraSpecialArg no module declares is dead weight that
@@ -450,9 +449,8 @@ let
           # failure mode the runbook records, which a login check would miss.
           #
           # upstream-first: `system.activationScripts.postActivation` is
-          # nix-darwin's own last-phase hook (verified against the pinned module:
-          # it sits alongside extraActivation/extraPostActivation/
-          # extraUserPostActivation), so this adds no scheduling of ours.
+          # nix-darwin's own last-phase hook (verified against the pinned
+          # modules/system/activation-scripts.nix), so this adds no scheduling of ours.
           system.activationScripts.postActivation.text = lib.mkAfter ''
             if [ -x /usr/local/bin/determinate-nixd ] \
               && dnd_version="$(/usr/local/bin/determinate-nixd version 2>/dev/null)"; then

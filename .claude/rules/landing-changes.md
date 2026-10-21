@@ -54,7 +54,7 @@ below fails that test:
 
 | Path | Why it needs a PR |
 |---|---|
-| `claude/**` | the global CLAUDE.md and rules go into the home closure (`programs.claude-code.context` in `modules/home/default.nix`) |
+| `claude/**` | the global CLAUDE.md and rules go into the home closure (`programs.claude-code.context` in `modules/home/default.nix`; the rule via `programs.claude-code.rules` in `claude-brain.nix`) |
 | `sites/**` | a directory literal, copied into nixpi's LIVE closure |
 | `.github/**` | a workflow is proven only by the run it changes |
 | `flake.lock`, `*.nix`, `packages/`, `scripts/`, `ast-grep/`, `secrets/` | these are the build itself |
