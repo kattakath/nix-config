@@ -22,7 +22,9 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
 
 - **Claude Code only.** Claude Desktop loads no plugins, so **no plugin server reaches Desktop**
   or the Cowork bridge behind it. Desktop's only lane is `local.claudeDesktop.extraServers`
-  (`REDACTED`, `github`, `REDACTED` since 2026-10-16; see `claude-desktop.nix`).
+  (`github`) plus the operator's hand-placed Desktop overlay; see `claude-desktop.nix`.
+- **Client plugins live in a PRIVATE overlay marketplace** (`<your-handle>/skills`), never in
+  `kattakath/skills` or this repo — see `docs/agent-resource-externalization.md`.
 - **A launcher that needs a Keychain read is a PATH package in this repo.** A plugin's
   `.mcp.json` can set `env` to literals and passthroughs but cannot run
   `security find-generic-password`, so the credential work stays in a Nix-installed wrapper the

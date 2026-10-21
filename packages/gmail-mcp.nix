@@ -1,9 +1,11 @@
-# ONE per-account Gmail MCP launcher.
+# The Gmail MCP launcher, `nix-mcp-gmail <address>`.
 #
 # The ONE copy of this credential-handling logic: built by `local.gmailMcp`
-# (modules/home/gmail-mcp.nix), which puts one launcher per account on PATH for the
-# `gmail` plugin. Extracted 2026-10-01 from the gateway, whose inline twin went with
-# modules/shared/mcp.nix on 2026-10-02.
+# (modules/home/gmail-mcp.nix). A plugin names it with the account in its own
+# `.mcp.json` `args`, so which mailboxes the operator holds never has to be written
+# into this public repo (the per-account `nix-mcp-gmail-<alias>` binaries were retired
+# 2026-10-20 for exactly that reason). Extracted 2026-10-01 from the gateway, whose
+# inline twin went with modules/shared/mcp.nix on 2026-10-02.
 #
 # WHAT IT DOES, and why none of it can live in the plugin instead:
 #   * reads GMAIL_OAUTH_CLIENT_ID / GMAIL_OAUTH_CLIENT_SECRET from the login Keychain at
@@ -16,7 +18,9 @@
 #     has no env-var form for the client id/secret.
 #   * gives each account its OWN credentials file and its OWN `--tool-prefix`, because
 #     the upstream server keys its token cache by file path and its tools by prefix —
-#     without both, four accounts collapse into one and overwrite each other's tokens.
+#     without both, several accounts collapse into one and overwrite each other's tokens.
+#     The alias is `@ . +` -> `_`, lower-cased: the same mapping the retired per-account
+#     launchers derived in Nix, so existing credentials files and tool prefixes carry over.
 #
 # `npx` is baked as an absolute store path, so the launcher is immune to whatever Node
 # the calling session has on PATH. That matters here: the plugin lane gets fnm's Node,
@@ -28,44 +32,13 @@
   nodejs,
 }:
 {
-  # The real Google/Workspace address. The sanitised alias is derived, never passed in,
-  # so the caller cannot desynchronise the tool prefix from the credentials filename.
-  #
-  # null builds the GENERIC launcher instead: `nix-mcp-gmail <address>`, the address
-  # taken from argv at launch. That is the form a PRIVATE plugin names, so which
-  # mailboxes the operator holds never has to be written into this public repo. Its
-  # runtime alias is the same `@ . +` -> `_`, lower-cased mapping as below, so an
-  # account's credentials file and tool prefix are identical under either launcher.
-  email ? null,
   # Passed in rather than read from a module: a package may not reach into Home Manager
   # config, and a hardcoded /Users/<name> in a .nix VALUE is what
   # ast-grep/rules/no-hardcoded-home-paths.yml exists to reject.
   homeDirectory,
 }:
 let
-  # `--tool-prefix` cannot contain "@" or "." — the upstream server rejects it — so the
-  # address is sanitised once here and reused for the prefix, the credentials filename
-  # and the binary name. One derivation, so they cannot drift apart.
-  generic = email == null;
-  alias =
-    if generic then
-      null
-    else
-      lib.toLower (
-        lib.replaceStrings
-          [
-            "@"
-            "."
-            "+"
-          ]
-          [
-            "_"
-            "_"
-            "_"
-          ]
-          email
-      );
-  binName = if generic then "nix-mcp-gmail" else "nix-mcp-gmail-${alias}";
+  binName = "nix-mcp-gmail";
   npx = lib.getExe' nodejs "npx";
 in
 # writeShellApplication for the build-time shellcheck; `bashOptions` keeps the exact `set -u`
@@ -80,24 +53,16 @@ writeShellApplication {
     # OAuth client secret is readable by anyone on the box. Narrow, but free to close.
     umask 077
 
-    ${
-      if generic then
-        ''
-          # The alias names a FILE and a tool prefix, so the address is validated and
-          # the result must be [a-z0-9_-] only: no `/`, no shell metacharacters.
-          # 64 = EX_USAGE.
-          email="''${1:-}"
-          alias="$(printf '%s' "$email" | tr '@.+' '___' | tr '[:upper:]' '[:lower:]')"
-          if ! [[ "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+$ ]] || ! [[ "$alias" =~ ^[a-z0-9_-]+$ ]]; then
-            echo "usage: ${binName} <address>   (letters, digits, - _ . + @ only)" >&2
-            exit 64
-          fi
-        ''
-      else
-        ''
-          alias=${alias}
-        ''
-    }
+    # `--tool-prefix` cannot contain "@" or "." (upstream rejects it), and the alias
+    # names a FILE, so the address is validated and the result must be [a-z0-9_-] only:
+    # no `/`, no shell metacharacters. 64 = EX_USAGE.
+    email="''${1:-}"
+    alias="$(printf '%s' "$email" | tr '@.+' '___' | tr '[:upper:]' '[:lower:]')"
+    if ! [[ "$email" =~ ^[^@[:space:]]+@[^@[:space:]]+$ ]] || ! [[ "$alias" =~ ^[a-z0-9_-]+$ ]]; then
+      echo "usage: ${binName} <address>   (letters, digits, - _ . + @ only)" >&2
+      exit 64
+    fi
+
     dir="${homeDirectory}/.gmail-mcp"
     mkdir -p "$dir"
 
