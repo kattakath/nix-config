@@ -79,9 +79,9 @@
 # was. `capsuleModules` is chosen anyway, for two reasons that are not
 # "it measured different":
 #
-#   1. CONSISTENCY. It is the seam the other two home-manager capsules use, and
+#   1. CONSISTENCY. It is the seam the other home-manager capsules use, and
 #      the one line in compose.nix that reads them (`inherit
-#      (config.capsuleModules.homeManager) …`) then carries all three.
+#      (config.capsuleModules.homeManager) …`) then carries them all.
 #   2. IT KEEPS BEING TRUE. Order-insensitivity here is a property of what this
 #      capsule happens to install today, not of the class. The day someone adds
 #      a `home.packages` entry to ./pgvector-local.nix, `flake.modules` would

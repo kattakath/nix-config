@@ -45,7 +45,7 @@ Note `hook`/`config` volume in one line beneath the table — those are **alread
 For each group where `source` is `user_temporary` or `user_permanent` with **count >= 2**: this is the hardening backlog — a routing decision still requiring a human in the loop, repeatedly. For each such group:
 
 - Identify the concrete pattern (same tool + same command shape, same MCP server, same skill).
-- Propose a specific fix: a new/extended `PreToolUse` matcher rule in `.claude/settings.json`, or a config-level permission addition — whichever matches how existing deterministic rules in this repo are expressed (see `.claude/hooks/pretooluse-bash-guard.js` and its registration in `.claude/settings.json` for the current pattern).
+- Propose a specific fix: a new/extended `PreToolUse` matcher rule in `.claude/settings.json`, or a config-level permission addition — whichever matches how existing deterministic rules in this repo are expressed (see `.claude/hooks/pretooluse-bash-guard.js`, which arrives as a `superhook` PLUGIN hook — never register it in `.claude/settings.json`, or it fires twice).
 
 Also surface, separately, the top `skill.name`/`mcp_tool.name` values by overall frequency across all decisions (not just `user_*`) — heavily-used skills/connectors are candidates worth a dedicated slash command if they're being reasoning-routed every time rather than invoked directly.
 

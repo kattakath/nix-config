@@ -7,7 +7,7 @@
 # `home.packages`. This module turns that on and adds the one thing upstream
 # has no opinion about — making sure an EMBED model is actually present, since
 # nothing in a pgvector store can generate embeddings on its own and
-# `local.rag.pgvector` (modules/pgvector-local.nix) calls Ollama over
+# `local.rag.pgvector` (./pgvector-local.nix) calls Ollama over
 # loopback HTTP from an in-DB `embed()` function.
 #
 #   upstream option home-manager.services.ollama exists -> using it

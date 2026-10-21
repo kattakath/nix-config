@@ -305,8 +305,8 @@
       flake = false;
     };
     agent-skills-superpowers = {
-      # obra/superpowers (MIT): ONLY the systematic-debugging skill is pinned (cherry-picked subpath, NOT the
-      # whole 14-skill plugin) — a hypothesis-driven debugging methodology. Keeps the always-loaded set lean.
+      # obra/superpowers (MIT): only systematic-debugging + verification-before-completion are pinned
+      # (cherry-picked subpaths, NOT the whole 14-skill plugin) — a hypothesis-driven debugging methodology. Keeps the always-loaded set lean.
       url = "github:obra/superpowers";
       flake = false;
     };

@@ -4,7 +4,7 @@
 #
 # WHY: a real pgvector store for vector-similarity / RAG work, bootstrapped
 # with a plain-SQL RAG interface — a `docs` table plus an in-DB `embed(text)`
-# function that calls `local.rag.ollama` (modules/ollama-local.nix) over
+# function that calls `local.rag.ollama` (./ollama-local.nix) over
 # loopback HTTP. Same shape as any other Home Manager `launchd.agents` unit —
 # bound to 127.0.0.1, started at login (RunAtLoad), kept alive (KeepAlive).
 # Nothing listens off-box.
