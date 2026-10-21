@@ -25,7 +25,7 @@ nix-darwin module (`local.tart.vms.<name>`) for the host side.
 cirruslabs' [packer plugin](https://github.com/cirruslabs/packer-plugin-tart)
 and [image templates](https://github.com/cirruslabs/macos-image-templates),
 the [guest agent](https://github.com/cirruslabs/tart-guest-agent) — but **no
-Nix flake stitches them into a lifecycle**: nixpkgs packages only the `tart`
+Nix flake stitches them into a lifecycle**: nixpkgs packages the `tart`
 binary, the guest agent is packaged nowhere, and "clone image → wait for SSH →
 create user → install Nix → activate flake → rotate password" is a runbook
 people re-type by hand. This flake is that runbook, mechanized and idempotent.

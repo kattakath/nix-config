@@ -19,6 +19,12 @@
 # was already dead, so it would have reported healthy in the exact state needing
 # detection. A monitor must fail in the same direction as the thing it watches.
 #
+# UPSTREAM-FIRST: the pinned nixpkgs `nixos/modules` has no push-style dead man's
+# switch (`services/logging/heartbeat.nix` is Elastic Heartbeat, which probes
+# OUTWARD; `services/web-apps/healthchecks.nix` is the healthchecks SERVER). Tool
+# axis: nixpkgs ships `runitor` (a command runner with healthchecks.io pings). It
+# has NOT been compared against this self-test yet — unmeasured, so no verdict.
+#
 # WHY A SELF-TEST AND NOT A BARE PING. A bare `curl` on a timer is VACUOUS here:
 # every failure that kills userspace also kills `cloudflared`, which the Cloudflare
 # `tunnel_health_event` alert already catches from the edge (infra/cloudflare/

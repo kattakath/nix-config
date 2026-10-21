@@ -498,8 +498,8 @@ in
     #     are load-bearing rather than cosmetic.
     #
     # `force = true` is deliberate and needed. UPSTREAM FIRST: `home.file.<n>.force`
-    # is a real option in the PINNED home-manager (f53f326,
-    # modules/lib/file-type.nix:135), documented as unconditionally replacing the
+    # is a real option in the PINNED home-manager
+    # (home-manager/modules/lib/file-type.nix:135), documented as unconditionally replacing the
     # target and "silently delete[ing] the target regardless of whether it is a file
     # or link". Without it activation ABORTS here, because this Mac already carries
     # a REAL config.json at that path — desktop-commander ran outside Nix until the

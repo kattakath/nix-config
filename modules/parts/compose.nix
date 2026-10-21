@@ -26,20 +26,16 @@ let
     nix-plist-manager
     determinate
     agenix
-    mcp-servers-nix
     nixos-hardware
     agent-skills-vercel
     agent-skills-cloudflare
-    agent-skills-anthropic-official
     agent-skills-jeffallan
     agent-skills-mac-automation
     agent-skills-excalidraw
-    agent-skills-trailofbits
     agent-skills-superpowers
     agent-skills-jsonresume
     agent-skills-vercel-agent
     agent-skills-vercel-workflow
-    agent-skills-litellm
     claude-plugins-official
     grok-build-plugin-cc
     ;
@@ -70,11 +66,9 @@ let
     identityArgs
     cachixUrl
     cachixKey
-    operatorSshKey
     jsonResumeUrl
     logoUrl
     tokensUrl
-    googleAccount
     ;
 
   # The Home-Manager sub-module embedded in every host, built from an identity
@@ -84,7 +78,7 @@ let
   # that override
   # (mkDarwin's `identity` arg) pass their own. The home-manager profile keys on
   # idArgs.loginName, and extraSpecialArgs threads that same identity into
-  # modules/home/default.nix. extraSpecialArgs also adds mcp-servers-nix etc.
+  # modules/home/default.nix.
   #
   # `extraHomeModules` is the public COMPOSITION HOOK for private (or third-party)
   # home-manager modules — the private layer's entrypoint: this
@@ -109,19 +103,15 @@ let
         backupFileExtension = "hm-bak";
         extraSpecialArgs = idArgs // {
           inherit
-            mcp-servers-nix
             agent-skills-vercel
             agent-skills-cloudflare
-            agent-skills-anthropic-official
             agent-skills-jeffallan
             agent-skills-mac-automation
             agent-skills-excalidraw
-            agent-skills-trailofbits
             agent-skills-superpowers
             agent-skills-jsonresume
             agent-skills-vercel-agent
             agent-skills-vercel-workflow
-            agent-skills-litellm
             claude-plugins-official
             grok-build-plugin-cc
             # kattakath-skills is DELIBERATELY ABSENT from this seam, and that is
@@ -148,28 +138,6 @@ let
             # (or null), baked into the email-signature package as its default
             # --tokens-url (darwin only; inert on the NixOS hosts).
             tokensUrl
-            # operatorSshKey: fleet operator public key (secrets/operator-key.nix). No
-            # Home Manager module reads it today — allowed_signers is hand-placed since
-            # 2026-09-20 (modules/home/default.nix's git signing comment).
-            operatorSshKey
-            # googleAccount: the canonical identity (identity.nix). A FLEET constant,
-            # so it rides HERE, not in identityArgs, and the distinction is the whole
-            # point: identityArgs is what a consumer OVERRIDES through mkDarwin's
-            # `identity`, so anything routed through it is ABSENT the moment they pass
-            # their own. This list is fleet constants, supplied whatever identity the
-            # caller brings.
-            #
-            # `publicMcpPort` went into identityArgs on 2026-09-16 and broke exactly
-            # that way: a template consumer's documented four-field identity turned a
-            # gateway option into "attribute 'publicMcpPort' missing", naming a symbol
-            # that appeared nowhere in the template, its README or the option
-            # description — and only once they enabled the feature. That field is gone
-            # with the gateway (2026-10-02), but the trap it proved is not; it is why
-            # `fleet.identityArgs` is a CLOSED submodule (identity.nix).
-            #
-            # No Home Manager module reads it today; like operatorSshKey above, it
-            # stays a fleet constant rather than a per-consumer one.
-            googleAccount
             ;
           # MODULE, not a flake — hence the name. It was the `keychain-secrets`
           # flake INPUT, consumed as `.homeManagerModules.default`, until ADR-002
