@@ -49,13 +49,15 @@ let
   # mailbox) without dragging the POSIX account name along with it.
   userEmail = "8927166+${userName}@users.noreply.github.com";
 
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   # ---- Optional: JSON Resume gist ----------------------------------------
   # The GitHub Gist ID hosting resume.json (jsonresume.org). OPTIONAL — set to
   # null to disable. When non-null it composes jsonResumeUrl below (the raw
   # resume.json URL), which is BAKED into the `jsonresume` package as its default
   # --url (packages/jsonresume.nix) — no ambient env var, since that package is
   # its only consumer. Owner is the GitHub handle (userName), not the POSIX loginName.
+  # OPERATOR-ONLY: the URLs built from it reach every home profile as extraSpecialArgs
+  # (compose.nix), but only the operator's Mac installs their consumers (isMacosHost);
+  # the public `packages.*` outputs bake them in as their default `--url`.
   jsonResumeGistId = "5fc44006a632f8466f09b61749129a88";
 
   # The raw resume.json URL, derived from the gist id + handle (null when the id is
@@ -129,7 +131,6 @@ let
 
   cachixKey = "${orgName}.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=";
 
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   # ---- Single source of truth for the operator SSH public key ------------
   # The sole network login credential on every NixOS host AND the agenix
   # "keep editable" recipient. Public, so the secret-free sdImage embeds it
@@ -137,7 +138,6 @@ let
   # secrets/secrets.nix — one file to edit on rotation (see secrets/operator-key.nix).
   operatorSshKey = import ../../secrets/operator-key.nix;
 
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   # ---- Single source of truth for the Cloudflare account/zone ------------
   # Threaded (with domainName) into the cfTunnelConfig terranix stack via
   # `_module.args`, so the account/zone ids and the domain live in ONE place
@@ -146,7 +146,6 @@ let
   cloudflareAccountId = "726e0b2aa2bc2c6944f96a042e3c461b";
   cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
 
-  # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
   # ---- Sites served on nixpi ------------------------------------------------
   # nixpi's Caddy vhosts are driven ENTIRELY by mkNixos's `hostedSites`
   # parameter (see modules/parts/compose.nix): hosts/nixpi.nix generates one

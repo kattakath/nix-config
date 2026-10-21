@@ -292,7 +292,7 @@ let
   # `jsonresume <download|print>` — fetch a JSON Resume and render it to PDF via the
   # npm resume CLI. jsonResumeUrl (from modules/parts/identity.nix) is baked in as its default --url,
   # so there is no ambient env var. See packages/jsonresume.nix.
-  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
+  # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
   jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
     defaultUrl = jsonResumeUrl;
   };
@@ -301,7 +301,7 @@ let
   # (jsonResumeUrl baked as its default --url) plus the logo.svg fetched from the same gist
   # (logoUrl), rasterized via librsvg. Also run on activation (home.activation.emailSignature)
   # and `nix run .#email-signature`. See packages/email-signature/ (default.nix).
-  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
+  # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
   email-signature = pkgs.callPackage ../../packages/email-signature {
     defaultUrl = jsonResumeUrl;
     inherit logoUrl tokensUrl;
@@ -464,8 +464,8 @@ in
     # state the two NixOS hosts are in.
     mediaCliModule
     # Keeps the Tor Browser profile out of Time Machine (the cask lives in
-    # hosts/macos.nix). Internally gated on hostName == "macos" — tmutil exists
-    # on no Linux host. PRE-EMPTIVE: there is no TM destination configured today;
+    # hosts/macos.nix). Internally gated on isMacosHost (local.operatorHost) — tmutil
+    # exists on no Linux host. PRE-EMPTIVE: there is no TM destination configured today;
     # see the file's header for what it does and does NOT cover.
     ./tor-browser-backup-exclusion.nix
     # THESE TWO MODULES BUILD MCP LAUNCHERS (other plugin-named MCP binaries sit in
@@ -507,9 +507,9 @@ in
     ./spotlight-actions.nix
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
-    # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
+    # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
     ./ubersicht.nix # local.ubersicht — the one full-screen HTML Übersicht widget (cask in hosts/macos.nix)
-    # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
+    # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
     ./next-right-thing.nix # local.nextRightThing — decides what that widget says
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
     # The two loopback download servers. They were nix-darwin `launchd.user.agents`
@@ -570,7 +570,7 @@ in
   # MEASURED, the closure (ffmpeg, exiftool, auge, rclip's OpenCLIP model) is too
   # much for a Tart guest's disk, so a sandbox gets neither the CLIs nor the menu.
   # This one gate is now the entire "which hosts get the media stack" decision.
-  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
+  # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
   local.mediaCli = {
     enable = isMacosHost;
     # `auge` is Apple's Vision framework from the shell — photo-describe already
@@ -695,11 +695,11 @@ in
   # Single-sourced from the generator so the writer and the reader cannot drift:
   # a path typed twice is a path that eventually disagrees, and the failure mode
   # is a widget silently rendering a file nothing updates any more.
-  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
+  # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
   local.ubersicht.htmlWidget = lib.mkIf isMacosHost config.local.nextRightThing.outputPath;
 
   # The generator: scan, rank, publish ONE action (module: ./next-right-thing.nix).
-  # OPERATOR-ONLY — gated on isMacosHost (hostName == "macos"), so a template consumer gets none of it.
+  # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
   local.nextRightThing.enable = isMacosHost;
 
   # The userscript set. Keying it is what lets a layer composed in through

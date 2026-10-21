@@ -1,4 +1,5 @@
-# OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
+# OPERATOR-ONLY: installed only on the operator's Mac (isMacosHost, modules/home/default.nix);
+# the flake's `packages` output bakes the operator's gist URL in as the default `--url`.
 # `jsonresume <download|print|validate|markdown|text>` — fetch a JSON Resume
 # (jsonresume.org) and render/validate it. A thin, self-contained wrapper that is
 # DUAL-ENGINE over the JSON Resume CLIs:
