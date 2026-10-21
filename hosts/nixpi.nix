@@ -142,6 +142,19 @@
   # config that reintroduces systemd-initrd will not reboot on this hardware.
   boot.initrd.systemd.enable = lib.mkForce false;
 
+  # C23 FIX for the frozen linux-rpi 6.6.51. glibc's C23 `strchr` returns `const
+  # char *` for a const argument, so tools/lib/bpf/libbpf.c (built by HOSTCC for
+  # resolve_btfids, under its own `-Werror`) fails with -Wdiscarded-qualifiers —
+  # broke warm-nixpi-cache after the #891 nixpkgs bump. Upstream-first: this is
+  # nixpkgs' OWN patch (pkgs/top-level/linux-kernels.nix applies it to linux_6_1;
+  # linux_6_6 gets the fix from its newer stable tree), reused rather than a
+  # `-Wno-error` flag that would also mute the next real warning. No newer
+  # raspberry-pi-nix exists (archived; `nix flake update` leaves 3e8100d5) and its
+  # 6.6.78 / 6.12.17 sources carry the same non-const `next_path`.
+  # RETIRE when the kernel source declares `const char *next_path` in libbpf.c —
+  # i.e. at the nixos-hardware migration (flake.nix, raspberry-pi-nix comment).
+  boot.kernelPatches = [ pkgs.kernelPatches.libbpf_C23_compat ];
+
   networking.useDHCP = true;
 
   # NO IPv6 TEMPORARY ADDRESSES. Privacy extensions (RFC 4941) hide a CLIENT from
