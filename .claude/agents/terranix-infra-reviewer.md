@@ -47,7 +47,7 @@ come from an enabled plugin's `.mcp.json`, nothing shared.
 
 **Cross-stack coupling to hold in your head — and it is now the sharpest lesson this file has.**
 The reusable account policy `mcp_allow_operator` (`b3bd8c38-e231-4203-ba6b-69fe16e498b3`) was
-declared by `mcp-public`, while `nixpi-tunnel` references that same object **by literal id**
+declared by `mcp-public`, while `nixpi-tunnel` referenced that same object **by literal id**
 because one tofu stack cannot reference another's resource. **It SURVIVED `mcp-public`'s
 destruction**: Cloudflare refused the delete with
 `409 code 12132 "policy is being used by at least one app"` — that app being nixpi's SSH
@@ -59,9 +59,11 @@ Three things follow, and apply them to every review:
 1. **Never delete that policy, and never treat its survival as leftover debt to tidy up.** It
    allows by `email_domain` (whole Workspace domain) since 2026-09-22 — a widening, not the
    operator's single mailbox.
-2. **It is now UN-MANAGED by any stack.** The module that declared it is deleted, so
-   `nixpi-tunnel`'s literal id is the only reference. If domain-gating is to stay declarative, it
-   is `cf-tunnel`'s to declare — flag that gap rather than assuming it is covered.
+2. **`cf-tunnel` now DECLARES it, as `nixpi_ssh_operator`** (infra/cloudflare/nixpi-tunnel.nix),
+   adopting the live object — and **ADOPTION IS IMPORT-FIRST**. Until `nix run .#cf-tunnel-import`
+   has run, a bare `cf-tunnel-apply` plans `+ create` on the policy and mints a DUPLICATE. Any
+   plan showing `+ create`, `-/+ replace` or `- destroy` on it is a **no-go**; follow that file's
+   ADOPTION block step by step, and do not assume the import has happened.
 3. **"A stack is a blast radius" holds for resources a stack DECLARES, never for objects it
    SHARES.** A shared Access policy means one stack's destroy can reach into another's blast
    radius. Before approving any destroy, enumerate which objects are shared.
@@ -85,7 +87,8 @@ A heading that says "verified" is not evidence it still is. Check with
 `nix eval --json '.#apps.<system>' --apply builtins.attrNames`, which is one command
 and is how the error below was found.
 
-- `cf-tunnel-plan`, `cf-tunnel-apply`, `cf-tunnel-destroy`.
+- `cf-tunnel-import` (run FIRST when adopting the Access policy), `cf-tunnel-plan`,
+  `cf-tunnel-apply`, `cf-tunnel-destroy`.
 - ~~`mcp-public-plan`, `mcp-public-apply`, `mcp-public-destroy`, `mcp-public-sync`,
   `mcp-public-token`~~ — **all five DELETED 2026-10-02**, along with
   `packages.mcp-worker-probe`. If a task asks you to plan or apply any of them, the correct
@@ -170,8 +173,8 @@ state dir — never invent a plan app that does not exist.
 2. A safe apply plan — exact command, which stack it touches, what it will
    change, expected `tofu plan` summary — and a rollback path. Say plainly where
    there is none: a tofu apply has no undo, and `cf-zones` and `cf-access-org` have
-   no destroy app. **A shared object is the other place rollback runs out**: the
-   `mcp_allow_operator` policy is referenced by `nixpi_ssh` by literal id and declared by no
-   stack, so a change to it cannot be reverted by re-applying anything — say so rather than
-   implying a `tofu` command would undo it.
+   no destroy app. **The Access policy is the other place rollback runs out**: a destroy or
+   replace of `nixpi_ssh_operator` locks the Pi's SSH gate, and a duplicate created by a
+   pre-import apply is a second live object — neither is undone by re-applying anything, so say
+   so rather than implying a `tofu` command would undo it.
 3. An explicit go / no-go recommendation. When in doubt, withhold go.

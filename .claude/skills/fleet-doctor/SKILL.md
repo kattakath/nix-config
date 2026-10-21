@@ -120,8 +120,8 @@ Findings are: a PR whose title doesn't follow
 [`pr-title.md`](../../rules/pr-title.md), a stale PR with no activity, one
 sitting on red CI, or one **never armed** — `autoMergeRequest == null` on a
 non-draft PR means `auto-merge.yml` did not arm it and it will sit open
-forever. A DRAFT with `autoMergeRequest` set is fine: arming survives the draft
-state and releases on `ready_for_review` (observed on #559, 2026-09-22).
+forever. How drafting interacts with arming (it DROPS it; `ready_for_review` re-arms): see
+[`pr-title.md`](../../rules/pr-title.md) § CORRECTED 2026-10-02.
 
 Read `autoMergeRequest.enabledBy.login`, not just the field's presence: it must
 be `app/ismailkattakath-ci`. Anything armed by `github-actions` means something
@@ -243,12 +243,12 @@ the built config is what enables it, so read the activated state back — the
 
 **An absent plugin is a THREE-way split, not a stale tree by default.** Since
 2026-09-30 `home.activation.claudeCodePlugins` is narrowed to store-path
-marketplaces (`repin = true`, derived from `hasPrefix "/" source`), so what
-activation touches is a strict subset of what is declared:
+marketplaces (`isStorePath`, i.e. `hasPrefix "/nix/store/"` — the `repin` option was
+deleted 2026-09-30), so what activation touches is a strict subset of what is declared:
 
 | Case | What activation does | Absent plugin means |
 |---|---|---|
-| **store-path** marketplace (`repin = true` — today only `xai-grok-build`) | re-pins the marketplace and installs its ids | the **tree was stale**, OR activation failed |
+| **store-path** marketplace (today only `xai-grok-build`) | runs one `plugin marketplace add` (no install) — see `home.activation.claudeCodePlugins` | the **tree was stale**, OR activation failed |
 | **https** marketplace (`kattakath`, `claude-plugins-official`, `context7-marketplace`) | **nothing** — no `marketplace add`, no `plugin install` | **normal** until the next session start; Claude Code clones and downloads it itself |
 | marketplace missing from `extraKnownMarketplaces` | n/a — the declaration never reached settings | this, and only this, **proves a stale tree** |
 
