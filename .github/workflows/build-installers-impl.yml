@@ -83,10 +83,11 @@ jobs:
         run: nix build .#packages.aarch64-linux.nixpi-sd-image --out-link result --print-build-logs
 
       # ---- NAME THE ASSET AFTER THE nix-config COMMIT THAT BUILT IT ---------------
-      # NOTHING in the image's own filename comes from this repo. `sdImage.imageName`
-      # is `"${imageBaseName}-${system.nixos.label}-${system}.img"` (the pinned
-      # raspberry-pi-nix `sd-image/sd-image.nix:38-40` — NOT nixpkgs' newer
-      # `image.fileName`), and that label is nixpkgs' own `.version` plus the PINNED
+      # NOTHING in the image's own filename comes from this repo. nixpkgs'
+      # `image.fileName` is `"${image.baseName}.img.zst"`, and hosts/nixpi.nix sets
+      # `image.baseName = "nixos-sd-image-${system.nixos.label}-${system}"` (keeping
+      # the prefix raspberry-pi-nix used, which the asset regexes below and nixpi-flash
+      # match), and that label is nixpkgs' own `.version` plus the PINNED
       # NIXPKGS commit date and short rev. Measured on revisions ec834e4 and a37c7e05:
       # same flake.lock, DIFFERENT drvPaths, IDENTICAL imageName. Since installer-latest
       # is a rolling slot whose "Retire stale" step below deletes the previous asset,

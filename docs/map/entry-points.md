@@ -107,11 +107,6 @@ What the current lock drops, and the evidence for each:
 
 **Deliberately left duplicated.** Not everything that looks like a duplicate is one:
 
-- **`raspberrypi/linux` ×3** — three *different* revs; a deliberate kernel-branch matrix that
-  raspberry-pi-nix selects from at eval time. A `follows` between them silently swaps the LIVE
-  Pi's kernel. raspberry-pi-nix itself is archived upstream; its migration triggers, and the
-  one that fired 2026-10-21 (patched in `hosts/nixpi.nix`), are recorded on its input in
-  `flake.nix`.
 - **nix-src's `nixpkgs` trees** (its own `nixpkgs-weekly` pin, `nixpkgs-23-11`,
   `nixpkgs-regression`) — the build/regression pins of `determinate → nix`. Not ours to
   re-point: that tree builds the Determinate Nix package, and re-basing it turns a cache HIT on

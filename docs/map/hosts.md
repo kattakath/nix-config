@@ -147,8 +147,9 @@ they bite any future second account:
   - **Audiobookshelf, LAN-only** (2026-10-18): loopback `:8000`, served as `http://nixpi.local`
     by a Caddy vhost on the already-open `:80` (no new port). Database on the SD card; books,
     metadata, logs and backups on the `/mnt/storage` USB volume (f3-verified, **no
-    redundancy**). The `--metadata` flag / `BACKUP_PATH` / `libcamera-overlay` whys are
-    commented in `hosts/nixpi.nix`.
+    redundancy**). The `--metadata` flag / `BACKUP_PATH` whys are commented in
+    `hosts/nixpi.nix`. (The `libcamera-overlay` workaround left with raspberry-pi-nix:
+    nixos-hardware applies no libcamera fork, so stock libcamera is what builds.)
   - **No IPv6 temporary addresses** (`networking.tempAddresses = "disabled"`, since 2026-10-17).
     dhcpcd hands SLAAC to the kernel with `mngtmpaddr`, so link churn kept minting temporaries
     (on re-add and on pre-expiry regeneration), and each one outlived its base for its full
@@ -357,6 +358,42 @@ at all. Heavy multi-core builds (the Pi SD image) go to GitHub CI / Cachix for t
   `nix copy --to ssh://<user>@nixpi.local <path>`, then call `<path>/bin/<tool>` on the Pi
   (in a `systemd-run` unit if it outlives the ssh session). Used for the 2026-10-18 f3 test of
   the `/mnt/storage` USB sticks.
+
+### Leaving raspberry-pi-nix: in-place switch vs reflash
+
+`nixpi`'s hardware moved from the archived `raspberry-pi-nix` to nixos-hardware's
+`raspberry-pi/4` (kernel 6.6.51 → linux-rpi 6.18.50). The **boot chain** changed, not just the
+kernel:
+
+| | raspberry-pi-nix (old) | nixos-hardware + nixpkgs sd-image (new) |
+|---|---|---|
+| GPU firmware loads | `kernel.img` + `initrd` + `cmdline.txt` off FIRMWARE | `u-boot.bin` off FIRMWARE |
+| Generation chosen by | `/sbin/init` on root (`boot.loader.initScript`) | `/boot/extlinux/extlinux.conf` on root |
+| FIRMWARE refreshed by | `raspberry-pi-firmware-migrate.service`, at boot | activation script, at every switch |
+| Card layout | MBR, `FIRMWARE` 128 MB + `NIXOS_SD` (bootable) | **same** — labels, id `0x2178694e`, bootable p2; size pinned to 128 |
+
+**Verdict: an in-place switch is POSSIBLE, but its first reboot has NO remote undo.**
+
+- **Why possible.** The layout is identical, so nothing needs repartitioning. FIRMWARE stays
+  at `/boot/firmware` with label `FIRMWARE`, so the `firmware-secrets` token and Wi-Fi keep
+  working. The switch rewrites `config.txt` to `kernel=u-boot.bin`, adds `u-boot.bin` and
+  writes extlinux.conf. It leaves `kernel.img`/`initrd`/`cmdline.txt` in place (the installer
+  prunes only `*.dtb` and `overlays/*`).
+- **Why no undo.** `magicRollback` guards the ACTIVATION, not the next boot. And a rollback
+  does not undo the boot chain. The old generation's migrate service skips `config.txt` (its
+  state file still matches), and its init-script loader never touches extlinux.conf. So a
+  rolled-back Pi still reboots through U-Boot into the NEW generation.
+- **Pre-flight (read-only, on the Pi):** `sfdisk -d /dev/mmcblk0` must show p2 `bootable`.
+  §4c's MBR rewrite should keep the flag, but nobody has checked it. Without the flag, U-Boot's
+  distro boot scans only p1. Then copy `/boot/firmware` to `/var/lib/firmware-pre-nixos-hardware`.
+- **If the reboot hangs:** move the card to the Mac and restore `config.txt` from that copy
+  (`kernel=kernel.img`, `ramfsfile=initrd`). The old 6.6 kernel then boots against the NEW
+  `start4.elf` and dtbs. That is probably fine, but it is untested.
+
+**Recommended instead: reflash a NEW, f3-tested card** (the live one is counterfeit, §3c of the
+runbook). Keep the old card untouched as a two-minute physical rollback. A reflash loses the
+SD-resident state: the Audiobookshelf database (its backups are on `/mnt/storage`), the
+persistent journal, and the SSH host key.
 
 ### What magic rollback actually buys
 
