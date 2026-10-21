@@ -100,8 +100,8 @@ native Linux builder on the Mac. The ruleset's required checks:
 
 Do **not** read that as "the Mac has no runners": `macos` hosts **six** runner lanes — two
 bare-metal ephemeral runners on the **`dontsell-ai`** org
-(`modules/darwin/github-runner.nix` above), three ephemeral Tart-VM-per-job runners
-(`local.tart.githubRunners.*` — `kattakath`, `REDACTED`, `dontsell-vm`), and one GitLab runner
+(`modules/darwin/github-runner.nix` above), two ephemeral Tart-VM-per-job runners
+(`local.tart.githubRunners.*` — `kattakath`, `dontsell-vm`), and one GitLab runner
 (`local.tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
 
 Also in `.github/workflows/`: `auto-merge.yml`, `build-devcontainer.yml`,

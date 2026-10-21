@@ -136,7 +136,7 @@ of these has been moved**.
 |---|---|---|---|
 | 1 | `hosts/macos.nix:301-314` | AWS SSO start-URL id `d-…`, two 12-digit account ids, role names, regions — written into `~/.aws/config` by `programs.awscli.settings` | **Move** → local `~/.aws/config` (already the rule ADR-003 §10.3 and `map/modules-home.md` § bedrock-gate *claim* holds — the code contradicts the docs since the 2026-09-15 fold-in). The new `local.cloudCli.aws` capsule ships `config.example` with placeholders. |
 | 2 | `hosts/macos.nix` | four personal Gmail addresses (**`local.gmailMcp.accounts`** since 2026-10-01; was `local.mcpGateway.gmail.accounts`) | **Ask.** The comment argues they are already public elsewhere in the tree. They are still personal emails outside `identity.nix`. Options: leave (marked OPERATOR-ONLY, done), or move the list to a Keychain item / local file the module reads at launch. |
-| 3 | `modules/home/default.nix:997-1010, 1265-1280` | three git-identity emails in `*.inc` files and in `allowedSigners` | **Ask.** Same shape as #2. The `REDACTED` work identity is already hand-placed outside the repo (home.nix:990) — the same treatment would fit `REDACTED` / `izzykatt.inc`. |
+| 3 | `modules/home/default.nix:997-1010, 1265-1280` | three git-identity emails in `*.inc` files and in `allowedSigners` | **Ask.** Same shape as #2. The work identity is already hand-placed outside the repo — the same treatment would fit the other two. |
 | 4 | `modules/parts/identity.nix:40` | JSON Resume gist id | **Leave** — inside `identity.nix`, now marked OPERATOR-ONLY. |
 | 5 | `modules/parts/identity.nix:100-101, 115` | Cloudflare account id, two zone ids | **Leave** — identifiers, inside `identity.nix`, marked. |
 | 6 | `infra/cloudflare/nixpi-tunnel.nix` (`mcp-public.nix` **deleted 2026-10-02**) | Access IdP UUID, reusable policy UUID | **Leave** — resource ids, not tenant ids; they are how terranix references existing account objects. (§8.4 is about the policy's *content*, not its id.) |
@@ -260,8 +260,9 @@ a run.
   `aws-sso-util` and writes `~/.aws/config.example`. The operator's live `~/.aws/config` was a
   store symlink; `adoptAwsConfig` (already in `claude-bedrock-gate.nix`) turns it into a real
   `0600` file on the first activation, so nothing is lost.
-- **Git identities (inventory #3): moved, with the same adoption trick.** `REDACTED`,
-  `izzykatt.inc` and `allowed_signers` are hand-placed now (`adoptGitIdentityFiles` in
+- **Git identities (inventory #3): moved, with the same adoption trick.** The client/persona
+  `.inc` files and `allowed_signers` are hand-placed now (and since 2026-10-20 routed by ONE
+  hand-placed `local.inc`) (`adoptGitIdentityFiles` in
   `modules/home/default.nix` copies the existing symlinks out before orphan cleanup). `gitlab.inc` STAYS in
   Nix, derived from `config.fleet.googleAccount` — no literal mailbox left in `modules/home/default.nix`.
 - **Gmail account list (inventory #2): NOT moved — blocked by ADR-003, reported rather than

@@ -95,7 +95,7 @@ world-readable by design: anyone can query `kattakath.com` and get every record 
 commit. Publishing the operator's own zone discloses approximately nothing that `dig` does not.
 
 What a public commit *does* disclose is **aggregation across domains that are not only the
-operator's** — `REDACTED`, `dontsell.ai`, `aloshy.ai`, `snoringirl.com`, `etuper.com`,
+operator's** — a client's zone, `dontsell.ai`, `aloshy.ai`, `snoringirl.com`, `etuper.com`,
 `izzykatt.ca`. Publishing another business's zone in a personal public repo is someone else's
 disclosure to make.
 
@@ -249,7 +249,7 @@ declared secret would put its value in state.
 
 **Blocked:** the survey could not run — `gcloud` returned `Reauthentication failed. cannot prompt
 during non-interactive execution`. Active accounts are `ismail@kattakath.com` (project
-`kattakath-family`) and `REDACTED`. An operator `gcloud auth login` gates phase 3.
+`kattakath-family`) and a client-tenant account. An operator `gcloud auth login` gates phase 3.
 
 ---
 

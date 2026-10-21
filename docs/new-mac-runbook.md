@@ -251,9 +251,10 @@ written by hand (or restored from your own backup) — a missing one degrades si
 | File | Why it is not in Nix | Shape |
 |---|---|---|
 | `~/.aws/config` | account ids / start-URL ids are reconnaissance; every user's differs | copy `~/.aws/config.example` (written by `local.cloudCli.aws`) or `aws configure sso` |
-| `~/.config/git/REDACTED`, `~/.config/git/izzykatt.inc` | personal mailboxes and a persona | `[user]` + `email` (+ `name` for the persona) — the `includes` in `modules/home/default.nix` name them |
+| `~/.config/git/local.inc` | which org/folder authors as which identity is the operator's alone | the ONE include `modules/home/default.nix` names unconditionally; holds `[includeIf "gitdir:…"]` / `[includeIf "hasconfig:remote.*.url:…"]` blocks, each `path = <identity>.inc`. Template: the private overlay repo's README |
+| `~/.config/git/<identity>.inc` (each one `local.inc` routes to, plus `izzykatt.inc`) | personal/work/client mailboxes and a persona | `[user]` + `email` (+ `name` for the persona) |
 | `~/.config/git/allowed_signers` | lists every mailbox you author as | `<mailbox> namespaces="git" <your ssh public key>`, one line per address; signing works without it, only VERIFYING needs it |
-| `~/.config/git/REDACTED` | the work identity (always was hand-placed) | `[user]` + `email` |
+| `~/.config/nix-config/claude-settings.overlay.json`, `claude-desktop.overlay.json` | client plugins/servers are the operator's alone | copy (or symlink) from the private overlay repo's `overlay/` and `desktop/`, then `activate` |
 | the login Keychain's secrets | never in Nix | `macos` runs `local.keychainSecrets.backend.type = "gcp"` (since 2026-10-17): `gcloud auth login` → `secrets-rehydrate`, both under `CLOUDSDK_CONFIG=~/.config/gcloud-nix-config`. Or `secret set …` by hand |
 | the PGP secret key (GnuPG keyring) | a private key; it travels as a Keychain entry instead | AFTER `secrets-rehydrate`: `secret exec V=<pgp-key-entry> -- sh -c 'printf %s "$V" \| base64 -d \| gpg --import'` (find the entry with `secret ls`; swap `--import` for `--show-keys` to check the entry without importing — that is the form tested 2026-10-17; the `pgp-ops` plugin's skill carries the full procedure). `~/.gnupg/gpg-agent.conf` is DECLARED (`hosts/macos.nix`) and comes back by itself |
 | `~/.gnupg/gpg.conf` | names the key id, and the public repo must not | `encrypt-to <your fingerprint>` + `default-key <your fingerprint>` — `encrypt-to` makes every message also readable by you later |

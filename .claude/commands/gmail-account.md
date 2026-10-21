@@ -6,16 +6,18 @@ Use the **gmail-mcp-accounts** skill and `docs/gmail-mcp-multi-account-runbook.m
 
 Default flow when the user is vague ("add a gmail account for X"):
 
-1. Check the address may be listed at all: only an identity the operator has
-   already named publicly in this tree goes into `hosts/<host>.nix`. There is no
-   private flake any more (nix-personal was retired 2026-09-15) — if unsure, ask.
+1. Decide where the address goes: the operator's own already-public address
+   goes in the public `gmail` plugin (`github:kattakath/skills`); every other
+   address goes in the PRIVATE overlay marketplace's `gmail-private` plugin. No
+   address is ever written into this repo. If unsure, ask.
 2. Add the email as a Console test user (Audience → Add users) — required
    before anything else works.
-3. Add the email to `local.gmailMcp.accounts` in `hosts/<host>.nix`, evaluate,
-   commit, push. If the target file has unrelated uncommitted changes, use the
-   base+`hash-object`+`update-index` isolation technique in the runbook —
-   never `git add -A`.
-4. Activate (`activate`).
+3. Add a server to that plugin's `.mcp.json`:
+   `{"command":"nix-mcp-gmail","args":["<address>"]}` (server name = a short
+   stable label; it becomes the tool prefix's plugin half). Commit and push in
+   THAT repo. `local.gmailMcp.enable = true` already installs the launcher.
+4. Start a fresh Claude Code session (the marketplace auto-updates; a running
+   session never sees a new server).
 5. Run the one-time interactive auth with `GMAIL_OAUTH_PATH`/
    `GMAIL_CREDENTIALS_PATH` set for that account's sanitized alias.
 6. **Verify with a direct Gmail API call** — never trust the CLI's success

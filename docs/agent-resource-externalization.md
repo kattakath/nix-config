@@ -266,3 +266,38 @@ PATH package and its check alone (`superhook` became a plugin hook 2026-09-30; `
 through the pin at all any more (the marketplace is an https git source), so an
 override cannot test a plugin edit. Test that by **pushing to `kattakath/skills`
 `main` and starting a new session** — the background refresh is the delivery path.
+
+## The private overlay marketplace (2026-10-20)
+
+**Two marketplaces, one rule:** `github:kattakath/skills` is the GENERIC default that anyone
+reusing `github:kattakath/nix-config` gets. Anything that names a client, an employer, a
+workspace, an account id or a mailbox that is not already public goes in a PRIVATE overlay
+marketplace under the operator's own handle, `<your-handle>/skills` (the operator's is
+`ismailkattakath/skills`). This repo ships the shape and names none of that content.
+
+| Piece | Where | Why there |
+|---|---|---|
+| Client plugins (Slack, AWS, Stripe, Gmail accounts) | private `<your-handle>/skills` | their names, URLs and `args` ARE the client data |
+| Folder-routing hooks + org context | `hooks/hooks.json` in those private plugins | a plugin hook fires only while its plugin is enabled, so routing is scoped for free |
+| Which private plugins are on, and the marketplace source | `~/.config/nix-config/claude-settings.overlay.json` (hand-placed) | merged by `claude-code-settings.nix` as `.[0] * $overlay * $nix`, so Nix always wins and an overlay can never retract a `permissions.deny` |
+| Client Desktop servers | `~/.config/nix-config/claude-desktop.overlay.json` (hand-placed) | merged by `claude-desktop.nix` at activation; eval never sees it |
+| Trusting the overlay's owner | `local.claudeManagedSettings.trustedMarketplaceOwners` (per host) | the managed `strictKnownMarketplaces` allowlist refuses any other owner by design |
+| Generic launchers the private plugins name | `nix-mcp-slack <host>`, `nix-mcp-gmail <address>` | the account arrives in argv, so no account is written here |
+| Git identity routing | `~/.config/git/local.inc` (hand-placed) | `includeIf` conditions name client orgs and folders |
+
+**Upstream-first:** a plugin's `settings.json` cannot enable plugins and a plugin cannot carry
+`CLAUDE.md` (code.claude.com plugin reference), and `programs.claude-code` has no overlay option
+(grepped home-manager `programs/claude-code/options.nix`) — so the overlay extends the existing
+settings merge rather than adding a mechanism. Rejected: opaque plugin names in public (renaming
+re-keys every OAuth sign-in and still leaks the count and shape), and per-project settings in
+the client repos (the stock Slack plugin binds ONE workspace per credential —
+anthropics/claude-code#39952, closed not planned — and client repos are team-shared).
+
+**What CI cannot see:** `checks.<system>.mcp-launcher-parity` reads only the pinned PUBLIC tree,
+so `nix-mcp-slack` (named only by private plugins) is exempted by generic name. The completion
+gate that no client literal is left in either public repo lives in the PRIVATE repo
+(`public-scan.yml`), because a public lint would have to contain the literals it hunts.
+
+**Reusing this repo:** create `<your-handle>/skills` (private), set
+`local.claudeManagedSettings.trustedMarketplaceOwners = [ "<your-handle>" ]`, hand-place the two
+overlay files and `local.inc`, then `activate`.
