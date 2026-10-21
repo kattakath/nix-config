@@ -7,7 +7,7 @@
  *   0. Background grok-build runs — none of THIS session's runs died unreported.
  *   1. Git purity — no untracked `.nix` files (flakes ignore untracked files).
  *   2. Syntax validity — every tracked `.nix` file parses.
- *   3. Flake evaluation — `nix flake check` passes if `nix` is available;
+ *   3. Flake evaluation — `nix flake check --no-build` evaluates (runs no check derivation; host system only) if `nix` is available;
  *      otherwise the gate degrades to syntax-only and says so explicitly.
  *
  * Check 0 is collected early but only ACTED ON at the terminal approve paths
@@ -299,7 +299,7 @@ if (nixFiles && has("nix-instantiate")) {
 //    prebuilt devcontainer; else degrade to the syntax-only advisory.
 if (nixFiles && has("nix")) {
   // Host has nix — evaluate directly. Budget matches superhook Stop timeout (10m).
-  // Note: this only fully evaluates/builds checks for the *host* system; other
+  // Note: this only fully evaluates checks for the *host* system; other
   // systems are omitted unless --all-systems (CI covers aarch64-linux).
   try {
     runLong("nix flake check --no-build 2>&1", 600_000);

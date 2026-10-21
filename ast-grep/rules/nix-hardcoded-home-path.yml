@@ -1,6 +1,7 @@
 # Mechanises the RUNTIME half of CLAUDE.md § Conventions "Paths — two axes".
 #
-# The advisory version of this already exists as .claude/hooks/nix-home-path-lint.js,
+# The advisory version of this already exists as the claude-code-nix plugin's
+# `nix-home-path-lint` hook,
 # but that is a PostToolUse hook: it only ever fires on Claude's OWN .nix writes.
 # A human commit, a `git revert`, or a Dependabot/flake-bump PR carrying a
 # hardcoded home dir sails straight through CI. This rule is the gate half — the
@@ -19,7 +20,7 @@ severity: error
 # /Users/Shared, a bare /home, and `${config.home.homeDirectory}` / "/Users/$USER"
 # are all correctly ignored.
 #
-# ---- THE THREE NON-OPERATOR USERS, and why exempting them is a SCOPE fix ----
+# ---- THE NON-OPERATOR USERS, and why exempting them is a SCOPE fix ----------
 #
 # This rule's own stated harm is "not reproducible and breaks on any other
 # operator/host" — i.e. it governs paths on THIS fleet's machines. Three literal
@@ -39,7 +40,8 @@ severity: error
 #           examples are documentation; the rule cannot distinguish `example =`
 #           from a value, so the placeholder is named here instead.
 #
-# This NARROWS the rule by three literal names; it does not loosen what it
+# (The regex below also exempts a fourth, `stranger`; its rationale is not
+# recorded here.) This NARROWS the rule by literal names; it does not loosen what it
 # catches. `/Users/ismail/`, `/home/ismail/` and every other operator home stay
 # errors, and ast-grep/rule-tests/nix-hardcoded-home-path-test.yml proves both
 # halves — the exemptions are in `valid`, the real homes still in `invalid`.

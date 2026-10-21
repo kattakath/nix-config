@@ -37,7 +37,7 @@
 }:
 let
   # A Terraform resource name may hold letters, digits, underscore and dash, and
-  # may not start with a digit. `key` is already sanitised by dns.nix; this is the
+  # may not start with a digit. `key` is hand-written in kattakath-dns.nix; this is the
   # assertion that it stayed that way, not a second sanitiser — two sanitisers
   # disagreeing is worse than one that is checked.
   badKeys = builtins.filter (r: !(builtins.match "[a-z][a-z0-9_]*" r.key != null)) dnsRecords;

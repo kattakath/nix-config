@@ -5,9 +5,10 @@ allowed-tools: Read, Edit, Bash(cat:*), Bash(node:*), Bash(jq:*)
 
 # pretooluse-review
 
-Claude Code's `PreToolUse` gates for `Bash` and `Write|Edit` in this repo are `type: "prompt"`
-hooks — evaluated internally by the harness, invisible to any sibling hook (all hooks under a
-matcher run in parallel). This command runs the "fix the hook" loop over their **actual
+Claude Code's `PreToolUse` gate for `Write|Edit` in this repo is a `type: "prompt"` hook —
+evaluated internally by the harness, invisible to any sibling hook (all hooks under a matcher
+run in parallel). The `Bash` gate is a command hook (`.claude/hooks/pretooluse-bash-guard.js`,
+wrapped by the `superhook` plugin), whose reasons also land in `superhook.log`. This command runs the "fix the hook" loop over their **actual
 verdicts**.
 
 Those verdicts come from the harness's own OTel `tool_decision` event, not from a hook. A
