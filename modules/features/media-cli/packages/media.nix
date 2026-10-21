@@ -50,7 +50,7 @@
 # dispatcher REPLACES the arg0 launchd execs and the TCC grant dies with it.
 # The confusion had a concrete cost: `media-describe <dir>` and the Describe
 # Image(s) Quick Action run the same work through the same binary
-# (packages/media-queue.nix:782), and only the Quick Action's copy ever
+# (media-worker's `setsid` dispatch in packages/media-queue.nix), and only the Quick Action's copy ever
 # appeared in `media queue` — a shell-started pass could not be put into the
 # list the operator was already watching, pausing and resuming.
 #

@@ -251,7 +251,7 @@ let
       #
       # IDLE COST, measured in requests per poll:
       #   repo scope : 2  (queued + in_progress run listings)
-      #   org  scope : 2xR, plus 1 every TR_REPO_TTL to re-list the repos
+      #   org  scope : 2xR, plus the repo re-list on every poll
       # A queued or in-progress RUN costs one extra jobs listing each; in the
       # steady idle state there are none, so the cost above is the whole cost.
       # At the default 60s interval and R=10 repos that is ~1200 requests/hour
@@ -409,7 +409,7 @@ let
       # guest, not to bound job runtime.
       TR_JOB_TIMEOUT="''${TR_JOB_TIMEOUT:-21600}"
       # Ceiling for the linear backoff applied after consecutive idle guests.
-      # 15 min matches the slot-wait cap; long enough that a permanently
+      # 15 min matches ensure_image's 900s heal cap; long enough that a permanently
       # undispatchable queued job costs one guest per quarter hour instead of
       # one per poll, short enough that real work is not left waiting.
       TR_IDLE_BACKOFF_MAX="''${TR_IDLE_BACKOFF_MAX:-900}"
