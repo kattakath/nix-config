@@ -345,7 +345,11 @@ at all. Heavy multi-core builds (the Pi SD image) go to GitHub CI / Cachix for t
   is the tunnel name, whose ssh needs a browser Cloudflare Access login. From the same LAN,
   `nix develop -c deploy --targets .#nixpi --hostname nixpi.local` keeps magic rollback and
   needs no login (the `local.lanRecovery` ingress). Used for the 2026-10-18 Audiobookshelf
-  deploy.
+  deploy. If `nixpi.local` does not resolve, pass the Pi's LAN IP (`arp -an`, OUI `e4:5f:01`).
+- **Deploy over the LAN whenever it restarts `cloudflared`** (any nixpkgs bump). 2026-10-21,
+  over the tunnel: activation STOPPED `cloudflared-connector` + `caddy`, cutting its own ssh
+  (`exit status 255`); magic rollback restored the old generation but left both units stopped —
+  tunnel down ~13 min until started by hand over the LAN. The LAN retry confirmed cleanly.
 - **Run an ad-hoc tool on the Pi without building there.** Rule 1d blocks every
   `ssh <pi> nix build`/`nix shell` shape — even a substitute-only one. Realise the
   `aarch64-linux` package on the Mac and push the closure instead:
@@ -371,5 +375,6 @@ with no safety net. `remoteBuild = false` keeps the build off the Pi either way.
 **Anecdote:** it is the climber's rope. It does not stop the fall; it stops the fall from being
 the end of the trip. *(Where it breaks down: the rope is anchored to the deployer's second ssh
 session — lose your own connectivity mid-deploy and the Pi rolls back a change that was
-perfectly fine.)*
+perfectly fine. And it restores the GENERATION, not the running state — see the 2026-10-21
+outage above.)*
 
