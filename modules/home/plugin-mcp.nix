@@ -288,7 +288,8 @@ let
   # `catalogArgOverrides` (the pins) and `requiredEnvToPasswordCommand` (the Keychain
   # service ids) — rather than from an upstream README. The pins are the measured part:
   # the gateway spawned every server at startup and ONE failing import darked all of
-  # them, which is why each `-y <pkg>@<version>` and each `--python` is here.
+  # them, which is why the `-y <pkg>@<version>` pins and each `--python` are here.
+  # `apify` is the one npx entry left UNPINNED.
   servers = {
     # docdyhr/mcp-wordpress, ~59 tools over the WP REST API. `@3.3.30` pins the client
     # library. Three Keychain reads, not one: the SITE URL is stored too, so the live
@@ -386,7 +387,7 @@ let
     #
     # `@0.2.52` is the current stable, read off the registry 2026-10-07 (published
     # 2026-09-29; `0.3.1-alpha.0` carries the `alpha` tag and is deliberately not
-    # taken). Pinned for the same reason as every other entry here: an unpinned
+    # taken). Pinned for the same reason as the other pinned entries here: an unpinned
     # `-y` resolves to whatever is newest at first spawn.
     #
     # No Keychain entry and no `plainEnv`: it needs no credential of its own. The

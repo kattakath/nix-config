@@ -689,7 +689,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   hand-written `launchd.daemons`/`launchd.agents` MUST point `arg0` at a
   `writeShellScriptBin "nix-<activity>"` wrapper (canonical today: `nix-tart-vm-<name>` and
   `nix-tart-runner-<name>` in the `tart-vms` capsule, `nix-file-rotation-<suffix>` in
-  `modules/home/macos-user-agents.nix` (plus `nix-file-rotation-logs-system` in `modules/darwin/logging.nix`) — the trio this line used to name, `telegramMcp`/`wpMcp`/`apifyMcp`,
+  `modules/home/macos-user-agents.nix` — the trio this line used to name, `telegramMcp`/`wpMcp`/`apifyMcp`,
   lived in `mcp.nix` and went with it on 2026-10-02) — codified as the always-applied
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.

@@ -471,10 +471,11 @@ in
     # on no Linux host. PRE-EMPTIVE: there is no TM destination configured today;
     # see the file's header for what it does and does NOT cover.
     ./tor-browser-backup-exclusion.nix
-    # THESE TWO ARE THE LIVE MCP LANE. The gateway (`mcp.nix`) was deleted in #734;
+    # THESE TWO MODULES ARE THE LIVE MCP LANE (with the `mcpfinderMcp` package in
+    # home.packages below). The gateway (modules/shared/mcp.nix) was deleted in #734;
     # these launchers are how the servers that had no plugin owner survived it. Each
     # puts a binary on PATH that a plugin's `.mcp.json` names as its `command` (in
-    # github:kattakath/skills, or the private overlay for slack), because that file can
+    # github:kattakath/skills, or the operator's private overlay), because that file can
     # set `env` only to literals or passthroughs and cannot run a Keychain read or a
     # `sandbox-exec` fence. See each module's header.
     ./gmail-mcp.nix # the generic nix-mcp-gmail <address> launcher
@@ -484,9 +485,9 @@ in
     # silently inert — `local.gmailMcp` was, until it was added.
     # Client side D: the writer for Claude Desktop's stateful
     # claude_desktop_config.json — it merges ONE key, `mcpServers`, and what it
-    # renders there today is EMPTY. Desktop loads no plugins, so the plugin lane
-    # above cannot reach it; the module stays enabled because "Desktop has no MCP
-    # servers" is a state something must WRITE. NOT gated on any gateway option —
+    # renders there today is `local.claudeDesktop.extraServers` (`github` only, set
+    # below). Desktop loads no plugins, so the plugin lane above cannot reach it; the
+    # module stays enabled because Desktop's server set is a state something must WRITE. NOT gated on any gateway option —
     # that gating was the 2026-10-01 regression `checks.*.claude-desktop-config-shape`
     # now has a leg for.
     ./claude-desktop.nix
