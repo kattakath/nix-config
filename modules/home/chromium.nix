@@ -514,6 +514,12 @@ in
     home.packages = lib.mkIf cfg.debugLauncher [
       (pkgs.writeShellApplication {
         name = "nix-chromium-debug";
+        runtimeInputs = [
+          pkgs.coreutils
+          pkgs.curl
+          pkgs.gnused
+          pkgs.jq
+        ];
         text = ''
           # 9222 is the de-facto default every CDP client assumes. Bound to 127.0.0.1
           # only — never expose or forward it; that turns a local-only debugging
@@ -540,7 +546,30 @@ in
           # `-j`, which hides it outright), it just does not jump to the front.
           # A debug session driven by an agent should not fight the operator for
           # the foreground on every new tab it opens.
-          exec /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port"
+          /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port"
+
+          # Rewrite DevToolsActivePort from the live endpoint. Chromium writes that file
+          # only in chrome://inspect consent mode, NEVER for --remote-debugging-port
+          # (measured 2026-10-21: mtime and browser UUID unchanged across a flag-mode
+          # launch). A file left by an earlier consent session therefore names a dead
+          # UUID, and any client in `--autoConnect` mode — page-lab's attach probe falls
+          # back to it when no browser answered at MCP start — gets a 404 until the
+          # file is fixed by hand. Same two-line format Chromium writes.
+          active="$HOME/Library/Application Support/Chromium/DevToolsActivePort"
+          path=""
+          for _ in $(seq 1 30); do
+            path="$(curl -fsS --max-time 1 "http://127.0.0.1:$port/json/version" 2>/dev/null \
+              | jq -r '.webSocketDebuggerUrl // empty' | sed 's|^ws://[^/]*||')" || path=""
+            [ -n "$path" ] && break
+            sleep 0.5
+          done
+          if [ -z "$path" ]; then
+            echo "nix-chromium-debug: Chromium launched, but CDP never answered on 127.0.0.1:$port" >&2
+            echo "  within 15s — DevToolsActivePort was NOT refreshed." >&2
+            exit 1
+          fi
+          printf '%s\n%s' "$port" "$path" >"$active.tmp"
+          mv -f "$active.tmp" "$active"
         '';
       })
     ];
