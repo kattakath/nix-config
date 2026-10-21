@@ -4,8 +4,8 @@
 # WHY THIS CANNOT BE A FLAKE CHECK OR AN ACTIVATION STEP, which is the same reason
 # launchd-doctor exists: every byte here is a property of the RUNNING machine, written
 # by Claude Code at runtime, and nothing in a generation describes it. `nix flake
-# check` cannot see it and activation must not delete it — `ast-grep` already forbids
-# activation touching state it does not own, and silently removing an operator's
+# check` cannot see it and activation must not delete it — it is state activation does
+# not own (ast-grep's activation-must-not-touch-secrets guards one such case), and silently removing an operator's
 # transcripts on a rebuild is exactly the class of surprise that rule exists to stop.
 #
 # So this is an operator-invoked tool, DRY RUN BY DEFAULT. `--prune` is the opt-in.

@@ -17,10 +17,9 @@ name: update-flake-lock
 # (create-github-app-token below); PRs it opens trigger nix-ci normally, and
 # nothing long-lived or personal is stored (matches the repo's OIDC posture).
 #
-# One-time owner setup (register the App, then wire its credentials into the
-# repo's Actions settings) is documented in docs/flakehub-input-freshness.md.
-# Until it is done the token step fails fast and no PR is cut — the scheduled
-# run simply no-ops.
+# The App is the ONE org-wide CI App (org variable + org secret, see
+# docs/flakehub-input-freshness.md § Setup). If either is missing the token step
+# fails fast and no PR is cut — the scheduled run simply no-ops.
 
 on:
   schedule:
@@ -51,7 +50,7 @@ jobs:
     timeout-minutes: 15
     steps:
       # Mint a short-lived installation token from the GitHub App. Its client id lives
-      # in a repo Variable, its signing key in a repo Secret (see the header
+      # in an org Variable, its signing key in an org Secret (see the header
       # comment / docs). Outputs `token`, used by checkout + update-flake-lock so
       # the resulting PR is authored by the App and DOES trigger nix-ci.
       - id: app-token

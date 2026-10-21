@@ -9,8 +9,8 @@
 # treefmt-nix / git-hooks.nix flakeModules in modules/parts/devshell.nix,
 # `checks.deploy-schema` from modules/parts/deploy.nix, and
 # `checks.access-service-token-duration` from modules/parts/terranix.nix — that
-# last one cannot live here, because `flake.lib` exports only two of the six
-# terranix renderers and the check reads four. flake-parts declares `checks` as
+# last one cannot live here, because `flake.lib` exports only `cfTunnelConfig`
+# and the check reads the other renderers in scope there. flake-parts declares `checks` as
 # `lazyAttrsOf types.package` (pinned modules/checks.nix:14), so all five files
 # merge into one per-system attrset — and every entry must be a derivation,
 # which is why none of these are a bare `runCommand` argument set.
@@ -920,8 +920,8 @@ in
           # provisioned before the rename — the units are already on disk. It only
           # bites on the NEXT FLASH, when the ordering edge silently no longer
           # exists: the connector starts before its token is copied, or the Wi-Fi
-          # supplicant before its conf. On a headless Pi reachable ONLY through
-          # that connector, that is a ~40-minute trip to the shelf and a full
+          # supplicant before its conf. On a headless Pi reachable REMOTELY only
+          # through that connector, that is a ~40-minute trip to the shelf and a full
           # verified re-flash (docs/nixpi-sd-flashing-runbook.md).
           #
           # Values measured against the live config on 2026-09-12, before the
@@ -1673,8 +1673,8 @@ in
           # actually keeps 22 shut, and why the TCP allow-list stays tiny. A
           # comment cannot fail a build. Every one of those lines is a one-token
           # edit away from reopening the LAN path that the Cloudflare Access
-          # application in front of nixpi.<domain> is meant to be the only way
-          # through — and Access enforces at the EDGE, so a LAN connection to
+          # application in front of nixpi.<domain> is meant to be the only REMOTE
+          # way through (the LAN path is local.lanRecovery's, scoped per interface) — and Access enforces at the EDGE, so a LAN connection to
           # port 22 is not merely unauthenticated, it produces NO ACCESS LOG AT
           # ALL. There is nothing to notice afterwards. That is what makes this
           # worth an eval-time gate rather than a comment.
@@ -1684,7 +1684,7 @@ in
           #   openFirewall — upstream's default is TRUE (pinned nixpkgs
           #     nixos/modules/services/networking/ssh/sshd.nix:312, and :874 feeds
           #     cfg.ports straight into allowedTCPPorts). It is false ONLY because
-          #     core.nix:55 says so, so deleting that one line reopens 22 on the
+          #     core.nix's `openFirewall = false` says so, so deleting that one line reopens 22 on the
           #     LAN with no other file changing.
           #   listenAddresses NON-EMPTY is its own leg, and deliberately comes
           #     before the all-loopback leg: an EMPTY list emits no ListenAddress
@@ -1715,7 +1715,7 @@ in
           #     that as the address ::0.1.0.34, the v6 bind fails EADDRNOTAVAIL,
           #     and sshd SURVIVES (a failed bind is fatal only if EVERY bind
           #     fails) — so v6 loopback silently vanishes. Measured with
-          #     `sshd -G`; the transcript is at core.nix:65-74.
+          #     `sshd -G`; the transcript is in core.nix's listenAddresses comment.
           #   the firewall allow-list is SEVERAL legs, not one. nixpi runs the
           #     IPTABLES backend (networking.nftables.enable is false, measured),
           #     and firewall-iptables.nix renders the same `-j nixos-fw-accept`
@@ -1751,7 +1751,7 @@ in
           #
           # The TCP leg pins [ 80 ] rather than [ ], because that is the truth:
           # hosts/nixpi.nix's allowedTCPPorts opens the Caddy ORIGIN port (443 omitted — TLS
-          # terminates at Cloudflare's edge) and core.nix:100's [ ] MERGES with
+          # terminates at Cloudflare's edge) and core.nix's `allowedTCPPorts = [ ]` MERGES with
           # it. Port 80 is therefore genuinely reachable on the LAN today; this
           # check's job is to make WIDENING that list loud, not to bless its
           # current width. A legitimate new port means editing this literal on
@@ -1832,7 +1832,7 @@ in
           #   UDP, ports and ranges both. The failure this check exists to catch
           #     is an unauthenticated, unlogged path to sshd, and sshd is TCP.
           #   the rest of sshd_config. A `Port` smuggled through extraConfig is
-          #     harmless here — the binds stay loopback and the allow-list is
+          #     harmless here — the binds are pinned and the allow-list is
           #     pinned — but nothing above reads, say, a `Match` block that
           #     relaxes one of the auth settings.
           #
@@ -2423,9 +2423,8 @@ in
           # split, rather than raising the number reflexively.
           #
           # NO `self`: every row is a path LITERAL, so the derivation is
-          # content-addressed per file and stays a meaningful drv-snapshot row
-          # (the two docs checks above take `self` and had to be excluded from
-          # --compare for exactly that reason — scripts/drv-snapshot.sh's EXCLUDE_RE).
+          # content-addressed per file (it is still listed in scripts/drv-snapshot.sh's
+          # EXCLUDE_RE, like the two `self`-taking docs checks above).
           #
           # COVERAGE IS ASSERTED IN BOTH DIRECTIONS, because a budget gate that
           # silently ignores a new file is worse than no gate — the lesson

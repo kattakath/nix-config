@@ -51,10 +51,8 @@ let
   cfTunnelConfig =
     {
       system,
-      # Same hostedSites shape/default as mkNixos — public callers (the
-      # cf-tunnel-apply/destroy apps below) pass nothing, rendering an
-      # ingress/DNS config with zero sites. A private composition flake
-      # calls this directly with its own real site list.
+      # Same hostedSites shape/default as mkNixos. cf-tunnel-plan/-apply below pass
+      # config.fleet.hostedSites; cf-tunnel-destroy passes nothing (zero sites).
       hostedSites ? [ ],
     }:
     terranix.lib.terranixConfiguration {
@@ -972,7 +970,8 @@ let
     };
 
   # No API token to check here: the google provider authenticates via ADC, which
-  # the devShell scopes to this repo (CLOUDSDK_CONFIG, modules/parts/devshell.nix).
+  # the devShell scopes to this repo (GOOGLE_APPLICATION_CREDENTIALS, set from its
+  # CLOUDSDK_CONFIG — modules/parts/devshell.nix).
   # That is exactly why the guard below checks for ADC rather than an env var — an
   # unset CLOUDFLARE_API_TOKEN fails loudly, but a MISSING ADC file makes the
   # provider fall back to whatever other credential it can find, which is how you

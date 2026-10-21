@@ -295,7 +295,7 @@ dockerTools.streamLayeredImage {
     ];
 
     Env = [
-      # /bin holds the /bin/sh symlink (created in fakeRootCommands); the FHS
+      # /bin holds the /bin/sh symlink (from dockerTools.binSh); the FHS
       # /usr/local/bin:/usr/bin dirs are never created in this distroless Nix
       # image, so they were dead PATH entries and are omitted.
       "PATH=${lib.makeBinPath basePackages}:/bin"

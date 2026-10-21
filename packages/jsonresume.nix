@@ -47,8 +47,8 @@
 #
 # WHY NOT pkgs.resumed, which DOES exist (nixpkgs by-name/re/resumed, 4.1.0):
 # adoption fails on both of this CLI's paths. (1) PDF: the buildNpmPackage
-# vendors no puppeteer peer, which is exactly why the fleet installs
-# `resumed puppeteer` as TWO npm globals (modules/home/default.nix ~:741) — a
+# vendors no puppeteer peer, which is exactly why it needs
+# `resumed puppeteer` as TWO npm globals — a
 # store-resident `resumed` could not render `--out resume.pdf`. (2) THEMES: a
 # theme is npm-installed into a throwaway workdir at runtime, and a store
 # `resumed` cannot resolve a module from a directory outside its own closure.

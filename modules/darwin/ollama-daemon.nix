@@ -52,8 +52,8 @@ let
 
       [ -r "$LOG" ] || exit 0
 
-      # Bounded read: this log is append-only and never rotated, so grepping the
-      # whole file every interval would grow without limit. The last few hundred
+      # Bounded read: this log is append-only between rotations (logging.nix's root
+      # tick copytruncates it), so a whole-file grep every interval is unbounded. The last few hundred
       # lines always contain the most recent startup banner.
       last=$(tail -n 2000 "$LOG" | grep 'inference compute' | tail -1 || true)
       [ -n "$last" ] || exit 0

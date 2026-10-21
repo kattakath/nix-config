@@ -168,7 +168,7 @@ let
   ];
 
   # Built ONCE and shared by every command bundle — same bytes, same store path,
-  # three .app bundles pointing at one .icns.
+  # every command bundle pointing at one .icns.
   fleetMarkIcns = mkIcns "fleet-mark" fleetMarkSvg;
 
   # Assemble one .app bundle from a name, a bundle id, an .icns and a launcher
@@ -287,8 +287,8 @@ let
   # visible session) and every nix command here prints a build log worth
   # reading. Ghostty's OWN `--wait-after-command` holds the window open after
   # the command exits — upstream's option, not a hand-rolled trailing `read`
-  # (.claude/rules/upstream-first.md). `terminal = false` is for the two whose
-  # target has its own window (the editor, the browser).
+  # (.claude/rules/upstream-first.md). `shape = "quiet"` is for a bundle whose
+  # target has its own window.
   #
   # `open -na Ghostty.app --args … -e CMD ARGS…` is the ONLY supported way in:
   # `ghostty --help` says launching the emulator from the CLI is unsupported on
@@ -321,7 +321,7 @@ let
       #   "quiet"    — `command` straight from the launcher, no window of ours
       shape ? "terminal",
       # Resolve the working tree and pass it as "$1". Off for the operations
-      # that never touch the repo (rollback, the doctors, the web search).
+      # that never touch the repo.
       usesFlakeDir ? true,
     }:
     assert lib.assertOneOf "shape" shape [
@@ -470,7 +470,7 @@ in
     iconSvg = androidIconSvg;
   };
 
-  # THREE fleet operations, each a Spotlight-findable bundle. Every name starts
+  # The fleet operations, each a Spotlight-findable bundle. Every name starts
   # "Nix " so one `nix` query lists the set, and every one wears the same gold
   # mark — they are told apart by NAME in the results row, not by icon.
   #
@@ -506,7 +506,7 @@ in
       bundleId = "com.kattakath.ghostty-terminal";
       # `-n` because this is a terminal LAUNCHER: clicking it should hand you a
       # window, not merely focus one that is already open. No --background or
-      # watermark here — those belong to the three fleet operations; this is an
+      # watermark here — those belong to the fleet operations; this is an
       # ordinary terminal and wears local.terminalTheme like every other window.
       launchCommand = "/usr/bin/open -na Ghostty.app";
     };
