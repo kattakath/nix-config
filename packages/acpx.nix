@@ -89,7 +89,7 @@ stdenv.mkDerivation (finalAttrs: {
     (fetchPnpmDeps {
       inherit (finalAttrs) pname version src;
       fetcherVersion = 4;
-      hash = "sha256-NS2ZPj+Aj1OIP4+Ekcphd7Yy1Q1s1zvU3vILnYPOGAc=";
+      hash = "sha256-2cTpSPR7GbB6gqEF7ga3W0/gib/XiOXZVv2DixvhAf4=";
     }).overrideAttrs
       (_: {
         preFixup = ''
