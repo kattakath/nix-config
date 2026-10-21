@@ -110,7 +110,7 @@ in
     # acpx's >=22.13 floor never depends on the fleet default.
     (pkgs.callPackage ../packages/acpx.nix { })
     # Claude Code — re-exposed from the HM module, not re-packaged: `finalPackage`
-    # is the MCP-wrapped binary programs.claude-code already builds, so this is the
+    # is the binary programs.claude-code already builds, so this is the
     # same store path HM installs, just ALSO linked into /run/current-system/sw/bin.
     # Why: GUI agent hosts (Open Design) probe a hardcoded dir list that includes
     # /run/current-system/sw/bin and ~/.nix-profile/bin but NOT
@@ -216,10 +216,10 @@ in
   # image carries none of that toolchain) — dontsell workflows opt into VM
   # isolation with `runs-on: [self-hosted, tart, dontsell-vm]`. Apple caps
   # concurrent macOS guests at TWO; the module's slot semaphore shares that
-  # budget across all three instances (asserted at eval).
+  # budget across every instance (asserted at eval).
   # The base clone AND the SSH host-key pin are content-keyed by oci@digest, so
   # bumping the digest below renames both — one elected instance re-pulls and
-  # re-pins itself on its next cycle; the other two share that image/base/pin.
+  # re-pins itself on its next cycle; the others share that image/base/pin.
   # `tart-runner-setup-dontsell-vm [image|pin|all]` pre-warms a bump by hand.
   # Slots, pins and both lanes' logs live in local.tart.runnerStateDir
   # (~/.local/state/tart-runner) — durable by assertion, never /tmp.
@@ -315,8 +315,7 @@ in
       };
     };
 
-  # Stable identity for host-gated modules (login openers, RAG launchd, …) AND the
-  # machine's declared name, so it's config-owned rather than manual scutil drift.
+  # The machine's declared name, so it's config-owned rather than manual scutil drift.
   # computerName is the Settings ▸ About ▸ Name; localHostName (the `.local` name)
   # defaults from hostName, so these two cover all three scutil names.
   networking.hostName = "macos";
@@ -401,8 +400,8 @@ in
     local.keychainSecrets.backend.type = "gcp";
 
     # gpg-agent: the GUI pinentry, and NO "Save in Keychain". Written the way
-    # home-manager's own services.gpg-agent writes it (home.file at
-    # modules/services/gpg-agent.nix:352) WITHOUT adopting that module — its agent
+    # home-manager's own services.gpg-agent writes it (its gpg-agent.conf home.file
+    # in modules/services/gpg-agent.nix) WITHOUT adopting that module — its agent
     # is the second stack the gnupg brew comment forbids. No key id here, so this
     # is safe in a public repo (unlike gpg.conf's encrypt-to, which stays local).
     #   no-allow-external-cache: pinentry-mac's Keychain checkbox would let every
@@ -661,7 +660,7 @@ in
       # name is NOT it: brew keys an installed cask to the tap it came from, refuses to
       # untap while it is installed, and under brew 7 could not even parse the old cask
       # to uninstall it — so `brew uninstall --cask escrcpy` (bare token, resolves the
-      # INSTALLED record) then `brew untap viarotel-org/escrcpy`, and let the next
+      # INSTALLED record) then `brew untap` the old tap, and let the next
       # activation reinstall from the new tap. Nothing declarative can do this; brew's
       # `cleanup` untaps only AFTER the install that was already aborting.
       {
@@ -918,8 +917,6 @@ in
     ];
 
     # ---- Mac App Store apps (masApps) ----------------------------------------
-    # macos only — a sandbox host cannot sign into an App Store login, so any
-    # masApps entry fails brew bundle there.
     # `mas` itself comes from programs.mas (modules/darwin/xcode-license.nix); anything listed here is also
     # protected from onActivation.cleanup = "uninstall" (undeclared MAS apps
     # get removed — that is how Xcode was wiped before this entry).

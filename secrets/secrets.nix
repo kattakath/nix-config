@@ -13,8 +13,8 @@
 # inside `nix develop`; a bare `agenix -e secrets/<name>.age` fails).
 let
   # operator (ismail) — ~/.ssh/id_ed25519.pub; backed up off-machine, kept
-  # editable. Single-sourced in ./operator-key.nix (also the fleet's authorizedKeys
-  # via flake.nix → core.nix), so a key rotation is one edit there, not four.
+  # editable. Single-sourced in ./operator-key.nix (also the fleet's authorizedKeys;
+  # that file's header lists every consumer), so a key rotation is one edit there.
   operator = import ./operator-key.nix;
   # macos host key (/etc/ssh/ssh_host_ed25519_key.pub) — re-checked 2026-08-23
   # (revived github-runner module) since the last pinned value here predated a

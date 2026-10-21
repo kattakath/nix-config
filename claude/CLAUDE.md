@@ -159,11 +159,12 @@ diagram code is a non-answer.
   check; boxes can be closed and arrows connected and the thing still wraps:
 
   ```bash
-  … | mermaid-ascii -p 0 -x 1 -y 2 | wc -L      # true display columns
+  … | mermaid-ascii -p 0 -x 1 -y 2 | LC_ALL=en_US.UTF-8 wc -L   # true display columns
   ```
 
   Use `wc -L`, **not** `awk length()` — awk counts *bytes*, so every box-drawing glyph counts 3
-  and a 17-column diagram reports 51.
+  and a 17-column diagram reports 51. Keep the `LC_ALL`: the agent's Bash tool runs with no
+  locale, where `wc -L` counts every box glyph as 0 and the gate can never go red (measured).
 
   Over 80: shorten labels, switch to `TD`, or split into two diagrams. Never widen the terminal
   in your head and call it done.

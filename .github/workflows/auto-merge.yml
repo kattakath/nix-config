@@ -1,8 +1,8 @@
 name: auto-merge
 
 # Arm GitHub's native auto-merge ("merge when ready") on pull requests authored by
-# the operator: the PR merges itself the moment `required-checks` + `Scan for
-# secrets` report green ON THE PR. Nothing here bypasses a gate — it only removes
+# the operator: the PR merges itself the moment the `protect-main` ruleset's
+# required checks report green ON THE PR. Nothing here bypasses a gate — it only removes
 # the manual click.
 #
 # NO MERGE QUEUE (removed 2026-09-22). A queue cannot reduce a pipeline to one CI

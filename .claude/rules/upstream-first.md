@@ -90,7 +90,7 @@ in the answer; it is the artifact that proves the step ran.
 
 ## Why a rule and not a preference
 
-The preference is already stated in the global `CLAUDE.md` (§ Reuse over rebuild, ~2x weight)
+The preference is already stated in the global `CLAUDE.md` (§ Motto — evidence-backed reuse, ~2x weight)
 and in `.claude/skills/nix-hygiene/SKILL.md`. It still failed, because both are **passive**:
 they say *prefer* upstream, which presumes you already know the option exists. And
 `nix-hygiene` only runs at audit time — after the custom code is written.

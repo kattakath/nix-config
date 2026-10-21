@@ -30,10 +30,11 @@
  *
  * RULE NUMBERING — the "4 rules" above are the ORIGIN SET, not the current one.
  * Rules 1-4 are what the retired prompt gate carried and what this file first
- * ported; every number since is an addition made here. The code implements FIVE
+ * ported; every number since is an addition made here. The code implements SIX
  * rules today: Rule 1 (Cloudflare API — terranix apply/destroy, wrangler,
  * api.cloudflare.com), Rule 1c (printing a secret VALUE), Rule 1d (building ON
- * nixpi), Rule 2 (Cloudflare docs fetches) and Rule 4 (default approve + the
+ * nixpi), Rule 1e (dumping the environment, which holds the ambient Keychain
+ * secrets), Rule 2 (Cloudflare docs fetches) and Rule 4 (default approve + the
  * approved-CLI allowlist). Rule 3 was REMOVED 2026-10-07 (see below); its number
  * is left unused so the removal stays legible. Rule 1b was added after
  * the port and retired 2026-09-15 (see below). Numbers and letters are frozen
@@ -338,6 +339,115 @@ const SECRET_REVEAL = new RegExp(CMD_POS + String.raw`(?:\S*/)?secret\s+reveal\b
 const SECURITY_PRINTS_VALUE = new RegExp(
   CMD_POS + String.raw`(?:\S*/)?security\b[^\n|;&]*\bfind-(?:generic|internet)-password\b[^\n|;&]*(?:\s-w\b|\s-g\b)`,
 );
+// ---- Rule 1e: dumping the environment (2026-10-21) --------------------------
+// The keychain-secrets loader exports every BOUND secret into every shell —
+// zsh's .zshenv, bash's $BASH_ENV — and so into this Bash tool too. That is
+// ambient ON PURPOSE (docs/secrets-and-keychain.md § The threat model), so any
+// command that prints the whole environment is a Rule 1c leak with no `secret`
+// in it anywhere.
+//
+// THE INCIDENT. A read-only /hygiene auditor checked the locale with
+// `env | grep -E '^(LANG|LC_)'`. `^LANG` is a PREFIX: it matched
+// LANGCHAIN_API_KEY, LANGFUSE_SECRET_KEY and LANGFUSE_PUBLIC_KEY, three values
+// landed in a subagent transcript, and the operator rotated them. That is why a
+// FILTER downstream does not rescue a dump here. Whether a pattern can match a
+// secret's NAME is exactly the judgement that failed, and this hook cannot make
+// it either: the names live in the Keychain index, and a verdict that read this
+// process's own environment would not be testable.
+//
+// Matched PER-SEGMENT, after the same unwrap() peel the other rules use, on the
+// segment's own words — never a substring of the whole command — so text that
+// merely MENTIONS `env` (a commit message, a grep pattern) stays approved.
+// The verbs and their dumping shapes were MEASURED, not recalled: each ran in
+// `env -i` with one dummy exported variable, under /bin/bash 3.2 and `zsh -f`,
+// and the output was searched for its value:
+//   dumps     env, env -u X, env FOO=1 (no command), printenv, set, export,
+//             export -p, export -n, declare/typeset bare or -x -p -px,
+//             bash `declare +x`, zsh `typeset -m PATTERN`
+//   does not  env -i, printenv NAME, export -p NAME, export -f, set -o, set +,
+//             declare -f / -F, zsh `typeset +x`, readonly, local, compgen -e
+// `typeset +x` is blocked anyway: it is quiet in zsh but dumps in bash, and
+// one rule for both shells beats a shell-sniffing branch for a rare shape.
+//
+// WHAT THIS DOES NOT CLAIM — measured gaps, listed the way Rule 1c lists its own:
+//   - a dump inside a COMMAND SUBSTITUTION (`echo $(env)` or the backtick form).
+//     Rule 1c's whole-command CMD_POS view would see it, but a backtick is a
+//     CMD_POS opener, so a markdown-quoted `env` in a commit message would block
+//     that commit — Rule 1c's own carrier-commit failure. Capturing a dump into a
+//     variable is not a habit shape; a commit message about this rule is.
+//   - an UNQUOTED `sh -c env`: segments() unwraps a QUOTED payload only.
+//   - a program that reads the environment itself: `python3 -c` with os.environ,
+//     `node -p process.env`, `jq -n env`, `ps -E`. Enumeration cannot finish.
+//   - ONE named variable that happens to be a secret (`printenv SOME_API_KEY`,
+//     `echo "$SOME_API_KEY"`). Naming it is a deliberate act, and telling it
+//     from LANG needs the Keychain index this hook cannot read.
+// And one known FALSE POSITIVE, on the side this file fails toward: a heredoc
+// body is split into lines like any other text (see splitTopLevel), so a body
+// line that IS a bare `env` blocks even under `cat <<'EOF'`. The block message
+// says to write such a file with the Write tool.
+const ENV_DUMP_VERBS = new Set(["printenv", "set", "export", "declare", "typeset"]);
+// A redirection is not an operand: `env > f` and `env 2>/dev/null` are still a
+// bare `env`. A bare operator owns the next token as its target, and
+// splitTopLevel splits on `&`, so `2>&1` arrives here as a dangling `2>`.
+const REDIRECT_TOK = /^\d*(?:>>?|<|>\||<>|>&|<&)/;
+const REDIRECT_OP_ONLY = /^\d*(?:>>?|<|>\||<>|>&|<&)$/;
+function operandWords(s) {
+  const out = [];
+  const toks = s.split(/\s+/).filter(Boolean);
+  for (let i = 0; i < toks.length; i++) {
+    if (REDIRECT_TOK.test(toks[i])) {
+      if (REDIRECT_OP_ONLY.test(toks[i])) i++;
+      continue;
+    }
+    out.push(toks[i]);
+  }
+  return out;
+}
+// Returns the dumping verb, or null. `--help`/`--version` print usage, not the env.
+const asksUsage = (w) => w === "--help" || w === "--version";
+function envDump(segment) {
+  // A subshell or group is not a command: `(env | grep X)` splits to `(env`.
+  const s = segment.replace(/^[({\s]+/, "").replace(/[\s)}]+$/, "");
+  const { tail } = unwrap(s);
+  const prefix = s
+    .slice(0, s.length - tail.length)
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((t) => t.split("/").pop().toLowerCase());
+  // `command -v env` LOOKS UP a name. unwrap() peels `command` and eats `-v` as a
+  // wrapper flag, which would leave the bare `env` this rule blocks.
+  if (prefix.some((t, i) => t === "command" && /^-[a-z]*v/i.test(prefix[i + 1] || ""))) return null;
+  const words = operandWords(tail);
+  // `env` is a TRANSPARENT_WRAPPER, so unwrap() has already peeled it and argv0
+  // can never be "env". It dumps when NOTHING is left to run — unless -i (or a
+  // lone `-`) emptied the environment first.
+  const envAt = prefix.lastIndexOf("env");
+  if (envAt >= 0 && !words.length) {
+    const after = prefix.slice(envAt + 1);
+    const emptied = after.some((t) => t === "-" || t === "--ignore-environment" || /^-[a-z0-9]*i/i.test(t));
+    return emptied || after.some(asksUsage) ? null : "env";
+  }
+  if (!words.length) return null;
+  const verb = words[0].split("/").pop().toLowerCase();
+  if (!ENV_DUMP_VERBS.has(verb)) return null;
+  const args = words.slice(1);
+  if (args.some(asksUsage)) return null;
+  const flags = args.filter((a) => /^[-+]/.test(a));
+  const named = args.length > flags.length;
+  switch (verb) {
+    case "set": // `set -e`, `set -o pipefail` and `set +` print no values
+      return args.length ? null : verb;
+    case "printenv": // `printenv -0` (GNU, which is first on PATH here) still dumps
+    case "export":
+      return named ? null : verb;
+    default: // declare, typeset
+      // -m takes a PATTERN, which is a filter over every name — the incident's shape.
+      if (flags.some((f) => /^-[a-z]*m/i.test(f))) return verb;
+      if (named) return null;
+      return flags.length && flags.every((f) => /^-[fF]+$/.test(f)) ? null : verb;
+  }
+}
+
 // `switch` vs `build`/`check`/`--dry-run` — only `switch` actually activates.
 // Matched per-SEGMENT alongside an `argv0 === "darwin-rebuild"` test rather
 // than as one big regex over the whole command, so flag ORDER is irrelevant.
@@ -389,8 +499,7 @@ const BUILDERS_PI = new RegExp(String.raw`--(?:builders|store)[=\s]+["']?ssh(?:-
 // token in ~/.aws/sso/cache that expires every few hours. Any of those can be
 // absent while the Keychain flag still says "use Bedrock": Bedrock stays selected
 // with no region and no profile, Claude Code can reach no model, and the agent
-// needed to fix it is the thing that just died. settings.json is a read-only
-// /nix store symlink, so it cannot be hand repaired either.
+// needed to fix it is the thing that just died.
 // What CLOSES that trap is modules/home/claude-bedrock-gate.nix, which unsets
 // the flag for a shell where no identity resolves. All this hook carries is the
 // inverse heads-up below — identity live, flag off — and it is a nudge, never a
@@ -739,7 +848,7 @@ function main() {
       emit(
         "block",
         "This builds ON nixpi (a Pi 4 on an SD card). A build there is slow, and a power cut mid-build corrupts the card — which then needs a physical reflash (~40 min, docs/nixpi-sd-flashing-runbook.md) and defeats the remotely-managed design.",
-        "The Pi should only SUBSTITUTE. CI warms the whole nixpi closure into Cachix on every closure change (.github/workflows/warm-nixpi-cache.yml), so after that lands use `nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo` (builds HERE, activates there) or `deploy --targets .#nixpi`. If the Mac still wants to BUILD instead of fetch, the cache is merely not warm yet — or Nix negatively cached an earlier 404 for up to an hour; retry with `--narinfo-cache-negative-ttl 0` rather than moving the build onto the Pi.",
+        "The Pi should only SUBSTITUTE. CI warms the whole nixpi closure into Cachix on every closure change (.github/workflows/warm-nixpi-cache.yml), so after that lands use `nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo` (builds HERE, activates there) or `nix develop -c deploy --targets .#nixpi` — over the LAN (`--hostname <pi-lan-ip>`) when it restarts cloudflared, per docs/map/hosts.md. If the Mac still wants to BUILD instead of fetch, the cache is merely not warm yet — or Nix negatively cached an earlier 404 for up to an hour; retry with `--narinfo-cache-negative-ttl 0` rather than moving the build onto the Pi.",
       );
     }
   }
@@ -777,6 +886,21 @@ function main() {
       "Use the verb that fits: `secret copy KEY` hands it to the human via a concealed pasteboard; `secret exec KEY -- CMD` puts it only in the child's env; `secret fp KEY` proves which value it is (digest + length + mdat) without disclosing it. If you genuinely need it printed, run it yourself.",
     );
   }
+  // ---- Rule 1e: dumping the environment --------------------------------------
+  // Ranked with Rule 1c, for the same reason: it succeeds, and the damage is a
+  // value in a transcript. Same caveat too — a habit guard, not a boundary. Any
+  // process in the tree can still read the environment; what this stops is the
+  // reflexive `env | grep …` that did it on 2026-10-21. See the constants.
+  {
+    const verb = rawSegs.map(envDump).find(Boolean);
+    if (verb) {
+      emit(
+        "block",
+        `\`${verb}\` prints the WHOLE environment, and the keychain-secrets loader exports every bound secret into every shell — this Bash tool included — so each value lands verbatim in this session's transcript. A filter does not make it safe: on 2026-10-21 \`env | grep -E '^(LANG|LC_)'\` printed LANGCHAIN_API_KEY and LANGFUSE_SECRET_KEY.`,
+        "Read ONE variable by name: `printenv NAME` (or `echo \"$NAME\"`); for the locale, `locale`. To test a variable is set without printing it: `[ -n \"${NAME+x}\" ] && echo set`. To see which secrets are ambient: `secret ls --long` (names and their env bindings, never values). If this is text rather than a command — a heredoc body, a file you are writing — write it with the Write tool. Why: docs/secrets-and-keychain.md § The threat model. If you genuinely need the dump, run it yourself.",
+      );
+    }
+  }
   // A legitimate activation (`darwin-rebuild switch`, `home-manager switch`)
   // is approved — but if the AWS identity vars are live while the Keychain switch
   // is currently OFF, the trap is merely disarmed, not gone: restoring that one
@@ -796,7 +920,7 @@ function main() {
     emit(
       "block",
       "Direct `wrangler` invocation — a Cloudflare API call (Workers/Pages/D1/KV/R2/Queues).",
-      "Use mcp__claude_ai_cloudflare__execute (or __search) for Cloudflare API operations instead of raw wrangler.",
+      "Use the Cloudflare MCP server's API tools for Cloudflare API operations instead of raw wrangler (read the live tool name from the session: plugin `cloudflare` or a claude.ai connector).",
     );
   }
   {
@@ -808,17 +932,17 @@ function main() {
       if (host.toLowerCase() === "api.cloudflare.com") {
         const reason = `Direct HTTP request to ${host} — a Cloudflare API endpoint.`;
         if (RULE1_API_HOST_BLOCKING) {
-          emit("block", reason, "Use mcp__claude_ai_cloudflare__execute (or __search) instead of a raw request to api.cloudflare.com.");
+          emit("block", reason, "Use the Cloudflare MCP server's API tools instead of a raw request to api.cloudflare.com (read the live tool name from the session).");
         }
         // Non-blocking by default (see 2026-08-19 POLICY CHANGE in file header).
-        nudges.push(`${reason} (mcp__claude_ai_cloudflare__execute lacks Rulesets/Page-Rules write scope — raw call allowed.)`);
+        nudges.push(`${reason} (the Cloudflare MCP server lacks Rulesets/Page-Rules write scope — raw call allowed.)`);
       }
       // ---- Rule 2: Cloudflare docs lookups ----
       if (isCloudflareDocsHost(host)) {
         emit(
           "block",
           `Direct HTTP request to ${host} — a Cloudflare docs lookup.`,
-          "Use mcp__claude_ai_cloudflare__docs instead of fetching developers.cloudflare.com directly.",
+          "Use the Cloudflare MCP server's docs tool instead of fetching developers.cloudflare.com directly (read the live tool name from the session).",
         );
       }
     }

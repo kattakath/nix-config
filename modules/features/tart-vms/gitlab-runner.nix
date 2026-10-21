@@ -234,10 +234,11 @@ in
     # modules/home/launchd-launcher.nix's `mkDefault`s: that module is part of
     # THIS fleet's home profile, and a capsule may not assume its consumer loads
     # it. Upstream's default would wrap the command in
-    # `/bin/sh -c "/bin/wait4path /nix/store && exec …"` (:112-117), i.e. a bare
+    # `/bin/sh -c "/bin/wait4path /nix/store && exec …"` (`mutateConfig`), i.e. a bare
     # `sh` arg0 — what .claude/rules/launchd-naming.md forbids. With
     # `waitForNixStore = false` the arg0 becomes a store-resident launcher named
-    # `nix-gitlab-runner` (:99-104, :119), which is the SAME basename launchd and
+    # `nix-gitlab-runner` (`launcherName` in `mutateConfig`), which is the SAME
+    # basename launchd and
     # BTM saw before this move.
     home-manager.users.${config.system.primaryUser}.launchd.agents.gitlab-runner = {
       enable = true;
@@ -256,7 +257,7 @@ in
         # Waiting for the runtime token file is launchd's job, not a shell
         # poll's: upstream option
         # home-manager.launchd.agents.<name>.config.KeepAlive.PathState exists
-        # (pinned home-manager modules/launchd/launchd.nix:227 — nullOr
+        # (pinned home-manager modules/launchd/launchd.nix `KeepAlive.PathState` — nullOr
         # (attrsOf bool), "the job will be kept alive as long as the path
         # exists ... the intent of this feature is that two or more jobs may
         # create semaphores in the file-system namespace") → using it. Before

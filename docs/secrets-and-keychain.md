@@ -207,6 +207,14 @@ Two properties bound the blast radius, and neither softens the sentence above:
   `=SERVICE` index form). Unbound secrets are never exported and are reached on demand with
   `copy`/`exec`/`fp`/`reveal` — which is exactly what the three Cloudflare tokens above do.
 
+**An agent's own `env` is the leak this costs in practice.** On 2026-10-21 a read-only audit
+subagent checked the locale with `env | grep -E '^(LANG|LC_)'`; the prefix match printed three
+API keys into its transcript, and they were rotated. In this repo the PreToolUse guard's
+**Rule 1e** now blocks a whole-environment dump, piped or not
+(`.claude/hooks/pretooluse-bash-guard.js`, where its gaps are listed). It is a habit guard,
+not a boundary: it changes nothing in the paragraph above. Read one variable with
+`printenv NAME`; list what is ambient with `secret ls --long`.
+
 The upstream repo's "report a vulnerability" section did **not** come along: the flake is
 archived, and this fleet's disclosure path is `SECURITY.md` at the repo root.
 

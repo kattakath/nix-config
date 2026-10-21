@@ -88,8 +88,8 @@
 # is NOTHING ANY MORE: `modules/shared/mcp.nix` was DELETED 2026-10-02 along with
 # the gateway and its Cloudflare portal, and `modules/shared/` itself became
 # `modules/home/` (#775). MCP servers now come from an enabled plugin's own
-# `.mcp.json`, with a PATH launcher where one needs a Keychain read. ADR-003 §5
-# still holds: MCP servers may not overlay. One file, one owner, no MCP.
+# `.mcp.json`, with a PATH launcher where one needs a Keychain read. One file,
+# one owner, no MCP.
 #
 # ── WHY `merge` ALSO GUARDS THE FLOOR AGAINST BEING HOLLOWED OUT ─────────────
 # `managedSourcesBehavior = "merge"` below was set to stop a higher-ranked managed
@@ -126,8 +126,8 @@
 # Each would be a foot-gun at this strength: `allowManagedPermissionRulesOnly`
 # (makes managed the ONLY source of permission rules, silently disabling this
 # repo's .claude/settings.json AND the user-scope floor),
-# `allowManagedHooksOnly` (this repo's superhook guard and stop-gate are PROJECT
-# hooks), `allowManagedMcpServersOnly`, `disableSideloadFlags` (rejects
+# `allowManagedHooksOnly` (this repo's guard and stop-gate are NOT managed hooks;
+# they arrive as superhook plugin hooks, CLAUDE.md § Hooks), `allowManagedMcpServersOnly`, `disableSideloadFlags` (rejects
 # --mcp-config / --plugin-dir / --agents), `permissions.defaultMode`,
 # `managedMcpServers`, `availableModels`. All verified present in the 2.1.260
 # binary — they are unset on purpose, not for lack of a spelling.
@@ -262,7 +262,7 @@ let
     # guardrail floor wants — an org policy can only ever ADD to the denies here,
     # never replace them wholesale.
     #
-    # Needs Claude Code >= v2.1.242; the fleet runs 2.1.268. It is one of the two
+    # Needs Claude Code >= v2.1.242. It is one of the two
     # CONTROL keys (with wslInheritsWindowsSettings), not a policy key — so a file
     # containing only control keys does not count as "present" and Claude Code
     # moves to the next source. That is harmless here: this file carries plenty of

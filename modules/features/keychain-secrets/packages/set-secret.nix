@@ -1,9 +1,8 @@
 # `set-secret <SERVICE> [VALUE]` — store a secret in the macOS login Keychain
 # (encrypted at rest) and register it so every shell exports it. The inverse is
 # `set-secret --remove <SERVICE>` (delete the item + unregister from the index).
-# macOS-ONLY:
-# the Keychain is the single source of truth — nothing secret (not even the key
-# NAMES) is ever written to disk in plaintext.
+# macOS-ONLY. What never reaches the Nix store or git: this capsule's module.nix
+# header.
 #
 # A companion shell FUNCTION the home-manager module wraps this binary so a
 # `set-secret KEY VALUE` at the prompt ALSO exports the value into the CURRENT
@@ -16,9 +15,8 @@
 #   service = __set_secret_index__  -> space-separated INDEX, read by the loader
 #
 # ===========================================================================
-# THE INDEX GRAMMAR — canonical definition. The loader
-# (this capsule's module.nix) and `secret` (packages/secret.nix) both parse
-# this; all three MUST agree or the store silently mis-reads.
+# THE INDEX GRAMMAR — canonical definition. Every file citing this block
+# parses it; they MUST agree or the store silently mis-reads.
 #
 #   index := token (" " token)*
 #   token := ENV "=" SERVICE    exported into every shell as $ENV

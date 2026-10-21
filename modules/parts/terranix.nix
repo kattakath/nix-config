@@ -150,9 +150,9 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  Use the least-privilege token, not the broad one:" >&2
-          echo "    secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- ${name}" >&2
-          echo "  Its scopes (SIX — the two Account ones below are easy to miss):" >&2
+          echo "  Pick the handle from docs/secrets-and-keychain.md § Cloudflare tokens:" >&2
+          echo "    secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:<handle> -- nix run .#${name}" >&2
+          echo "  The token needs SIX scopes (the two Account ones below are easy to miss):" >&2
           echo "    Account > Cloudflare Tunnel:Edit          (Personal account only)" >&2
           echo "    Account > Access: Apps and Policies:Edit  the SSH gate + its policy (#737)" >&2
           echo "    Account > Notifications:Edit              the tunnel-health alert policy" >&2
@@ -161,7 +161,7 @@ let
           echo "    Zone    > Dynamic URL Redirects:Edit     on the same zones (www->apex rulesets)" >&2
           echo "  Without the Access group this stack 403s on the POLICY, not on the" >&2
           echo "  tunnel — the token reads the tunnel token data source fine first." >&2
-          echo "  See cf-tunnel-import for the measured request and response." >&2
+          echo "  See cf-tunnel-import for the MEASURED 403: the handle, request and response." >&2
           exit 1
         fi
         # DURABLE STATE DIR — the root cause of losing state twice was running
@@ -211,7 +211,7 @@ let
           echo "  Applying it would blank the live tunnel's ingress and delete" >&2
           echo "  every site CNAME + www->apex ruleset that is in state." >&2
           echo "  Override only if you genuinely mean a site-free tunnel:" >&2
-          echo "    CF_TUNNEL_ALLOW_SITE_FREE=1 ${name}" >&2
+          echo "    CF_TUNNEL_ALLOW_SITE_FREE=1 nix run .#${name}" >&2
           [ "''${CF_TUNNEL_ALLOW_SITE_FREE:-}" = "1" ] || exit 1
           echo "WARNING: CF_TUNNEL_ALLOW_SITE_FREE=1 set — proceeding site-free." >&2
         fi
@@ -292,7 +292,7 @@ let
           echo "  Most likely you are running as a DIFFERENT USER than the one whose" >&2
           echo "  state holds the live stack — tofu state here is per-user." >&2
           echo "  If this really is the first apply for this account, say so:" >&2
-          echo "    CF_TUNNEL_ALLOW_CREATE=1 ${name}" >&2
+          echo "    CF_TUNNEL_ALLOW_CREATE=1 nix run .#${name}" >&2
           [ "''${CF_TUNNEL_ALLOW_CREATE:-}" = "1" ] || exit 1
           echo "WARNING: CF_TUNNEL_ALLOW_CREATE=1 set — proceeding against empty state." >&2
         fi
@@ -305,7 +305,7 @@ let
           echo "  apply has NO rollback — not a generation, not magicRollback." >&2
           echo "  Usually this means hostedSites lost an entry it should still have." >&2
           echo "  Override only if you genuinely mean to delete them:" >&2
-          echo "    CF_TUNNEL_ALLOW_DROPS=1 ${name}" >&2
+          echo "    CF_TUNNEL_ALLOW_DROPS=1 nix run .#${name}" >&2
           # Its OWN variable. Sharing CF_TUNNEL_ALLOW_SITE_FREE would mean an
           # operator standing down the floor for a legitimate site removal also
           # silently stood down this check on the same run.
@@ -361,7 +361,7 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- cf-tunnel-import" >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#cf-tunnel-import" >&2
           echo "" >&2
           echo "  NOT cf:cloudflare.com:nixpi-tunnel. MEASURED 2026-10-02: that handle" >&2
           echo "  reads the tunnel token data source fine, then 403s on the POLICY:" >&2
@@ -481,7 +481,7 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- ${name}" >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#${name}" >&2
           echo "  (needs Account > Access: Organizations:Edit — the scoped" >&2
           echo "   cf:cloudflare.com:mcp-public handle 403s on /access/organizations)" >&2
           exit 1
@@ -532,7 +532,7 @@ let
           echo "  2026-07-03, so the correct first move is an IMPORT, never a" >&2
           echo "  create:" >&2
           echo "    nix run .#cf-access-org-import" >&2
-          echo "  then re-run ${name} and read the plan: it must show NO changes" >&2
+          echo "  then re-run nix run .#${name} and read the plan: it must show NO changes" >&2
           echo "  before any apply." >&2
           exit 1
         fi
@@ -613,7 +613,7 @@ let
           echo "  Access app) in the same apply. If this is a typo in" >&2
           echo "  modules/parts/identity.nix (fleet.accessOrg.authDomain), fix it." >&2
           echo "  If you genuinely mean to move the sign-in host:" >&2
-          echo "    CF_ACCESS_ORG_ALLOW_AUTH_DOMAIN_CHANGE=1 ${name}" >&2
+          echo "    CF_ACCESS_ORG_ALLOW_AUTH_DOMAIN_CHANGE=1 nix run .#${name}" >&2
           [ "''${CF_ACCESS_ORG_ALLOW_AUTH_DOMAIN_CHANGE:-}" = "1" ] || exit 1
           echo "WARNING: proceeding with an auth_domain change." >&2
         fi
@@ -659,7 +659,7 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- cf-access-org-import" >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#cf-access-org-import" >&2
           exit 1
         fi
 
@@ -718,7 +718,7 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- ${name}" >&2
+          echo "  secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#${name}" >&2
           echo "  (needs Zone > DNS:Edit on ${domainName})" >&2
           exit 1
         fi
@@ -749,7 +749,7 @@ let
           echo "REFUSING: render declares ''${rendered} records, under the ${toString minRecords} floor." >&2
           echo "  infra/cloudflare/kattakath-dns.nix has probably lost entries. Applying this" >&2
           echo "  would DELETE the missing ones — including mail records." >&2
-          echo "    CF_ZONES_ALLOW_SHRINK=1 ${name}   # only if you truly mean it" >&2
+          echo "    CF_ZONES_ALLOW_SHRINK=1 nix run .#${name}   # only if you truly mean it" >&2
           [ "''${CF_ZONES_ALLOW_SHRINK:-}" = "1" ] || exit 1
           echo "WARNING: CF_ZONES_ALLOW_SHRINK=1 — proceeding under the floor." >&2
         fi
@@ -786,7 +786,7 @@ let
           echo "  For THIS stack that is the expected shape of a first IMPORT, and" >&2
           echo "  applying instead of importing would try to CREATE records that" >&2
           echo "  already exist at Cloudflare. Import first (ADR-005 phase 2)." >&2
-          echo "    CF_ZONES_ALLOW_CREATE=1 ${name}" >&2
+          echo "    CF_ZONES_ALLOW_CREATE=1 nix run .#${name}" >&2
           [ "''${CF_ZONES_ALLOW_CREATE:-}" = "1" ] || exit 1
           echo "WARNING: CF_ZONES_ALLOW_CREATE=1 set — proceeding against empty state." >&2
         fi
@@ -798,7 +798,7 @@ let
           echo "  Applying it would DELETE each record at Cloudflare, and a tofu" >&2
           echo "  apply has NO rollback. If one of these is mail, the failure is" >&2
           echo "  silent until a message bounces." >&2
-          echo "    CF_ZONES_ALLOW_DROPS=1 ${name}" >&2
+          echo "    CF_ZONES_ALLOW_DROPS=1 nix run .#${name}" >&2
           [ "''${CF_ZONES_ALLOW_DROPS:-}" = "1" ] || exit 1
           echo "WARNING: CF_ZONES_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
         fi
@@ -1233,7 +1233,8 @@ in
               echo "" >&2
               echo "  The default is 8760h and it is SILENT, so an undeclared window" >&2
               echo "  lapses a year from now with no partial failure first." >&2
-              echo "  Declare duration in infra/cloudflare/<stack>.nix. Changing it later is" >&2
+              echo "  Declare duration in the infra/cloudflare/ module that stack's renderer" >&2
+              echo "  imports (modules/parts/terranix.nix). Changing it later is" >&2
               echo "  an in-place update, not a replacement, so it cannot rotate the secret." >&2
               exit 1
             ''

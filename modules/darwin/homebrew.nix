@@ -107,7 +107,5 @@ _:
 
     # ---- brews / casks / masApps ------------------------------------------
     # Set per host in hosts/<host>.nix (e.g. hosts/macos.nix).
-    # masApps: **macos only** — a GUI-less/sandbox host has no App Store login, so any
-    # MAS install fails activation there.
   };
 }

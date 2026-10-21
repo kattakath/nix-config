@@ -122,8 +122,7 @@
   # `config = { … }` is MANDATORY here, not style: this file declares a top-level
   # `options`, and the module system then refuses a bare sibling attribute
   # ("unsupported attribute `perSystem'. This is caused by introducing a
-  # top-level `config' or `options' attribute"). Every other modules/parts/*.nix
-  # is options-free and so may use the shorthand.
+  # top-level `config' or `options' attribute").
   config.perSystem =
     { pkgs, ... }:
     {

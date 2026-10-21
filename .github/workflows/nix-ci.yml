@@ -2,8 +2,8 @@ name: nix-ci
 
 # Self-owned, native multi-system Nix CI.
 #
-# LEAN MERGE CI: this workflow does NOT build the host system toplevels
-# (macos / nixpi / nixvm). Building them — especially the cold linux-rpi
+# LEAN MERGE CI: this workflow does NOT build the host system toplevels.
+# Building them — especially the cold linux-rpi
 # kernel — is a RELEASE-time concern handled later against
 # `nixosConfigurations.*` / `darwinConfigurations.*` directly. Per PR, we:
 #
@@ -41,10 +41,9 @@ name: nix-ci
 # § Testing). Only CI's enforcement differs by author.
 #
 # ALL-HOSTED BY CHOICE. No leg of THIS repo's CI targets a self-hosted runner —
-# a statement about this workflow, NOT about the fleet. `macos` runs five
-# self-hosted lanes for OTHER consumers: 2 bare-metal (`local.macosGithubRunner`,
-# dontsell-ai), 2 ephemeral Tart-VM-per-job (`local.tart.githubRunners.*` — kattakath,
-# dontsell-vm), and 1 GitLab (`local.tart.gitlabRunner`); see hosts/macos.nix.
+# a statement about this workflow, NOT about the fleet. `macos` runs self-hosted
+# lanes for OTHER consumers (`local.macosGithubRunner`, `local.tart.githubRunners.*`,
+# `local.tart.gitlabRunner`); hosts/macos.nix declares which are enabled.
 # We stay hosted because hosted native-ARM + macOS STANDARD runners are free &
 # unlimited for public repos, Cachix serves the warmed closure so cold builds stay
 # fast, and hosted removes both the availability SPOF AND the public-repo fork-PR RCE
@@ -60,8 +59,8 @@ name: nix-ci
 # reads a SEPARATE secret store this token is not in. Restricting it to `push` on
 # top of that bought no safety and cost a rebuild — measured on PR #550, the PR
 # leg built /nix/store/kln8kjyq…-pre-commit-run, was refused (403), and the
-# push-to-main leg rebuilt the IDENTICAL path minutes later. The four
-# tree-dependent checks (ast-grep, formatting, pre-commit, page-lab) take `self`,
+# push-to-main leg rebuilt the IDENTICAL path minutes later. The tree-dependent
+# checks take `self`,
 # so every commit re-derives them under a new rev; the PR leg's push is what lets
 # the post-merge `push: main` leg substitute the unchanged rest. The REQUIRED
 # darwin PR leg builds only darwin-only checks, so it no longer pushes the shared

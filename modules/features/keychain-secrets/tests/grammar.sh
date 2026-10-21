@@ -6,7 +6,7 @@
 # fail there for reasons unrelated to the code. Run it by hand, or from a CI
 # step that executes outside the sandbox on a real macOS session.
 #
-#   nix develop -c modules/features/keychain-secrets/tests/grammar.sh
+#   nix shell .#set-secret .#secret -c modules/features/keychain-secrets/tests/grammar.sh
 #   LOADER=/nix/store/…-hm_.configsecretsloader.sh \
 #     modules/features/keychain-secrets/tests/grammar.sh
 #
@@ -49,7 +49,7 @@ export SET_SECRET_KEYCHAIN="$KC"
 # in the new code rather than the wrong code being run.
 unset -f secret set-secret remove-secret 2>/dev/null || true
 
-command -v set-secret >/dev/null || { echo "set-secret not on PATH (nix develop?)" >&2; exit 1; }
+command -v set-secret >/dev/null || { echo "set-secret not on PATH (nix shell .#set-secret .#secret?)" >&2; exit 1; }
 
 security delete-keychain "$KC" >/dev/null 2>&1 || true
 security create-keychain -p testpw "$KC"
@@ -121,9 +121,9 @@ case " $(idx) " in *" TMP_TOKEN=app:example.com:api "*) r=yes ;; *) r=no ;; esac
 ck "re-bind restores the ENV half" "yes" "$r"
 secret unbind not-registered:x:y >/dev/null 2>&1
 ck "unbind on an unregistered SERVICE exits 1" "1" "$?"
-# The SHELL FUNCTION must pass every verb through. A verb missing from its
-# case arm falls to `*)` -> `secret reveal <verb>` -> exit 44, which looks like a
-# binary bug. Shipped exactly that for bind/unbind once; assert it here.
+# The SHELL FUNCTION must pass every verb through. What a verb missing from its
+# case arm costs: see the bind|unbind arm of module.nix's `secret()`.
+# Shipped exactly that for bind/unbind once; assert it here.
 fnwrap="$(sed -n '/^ *secret() {/,/^ *}$/p' "$LOADER")"
 for v in set get rm ls adopt load bind unbind; do
   case "$fnwrap" in

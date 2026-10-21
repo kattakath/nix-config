@@ -30,8 +30,8 @@
 #   * `maintainers = [ ]` in nixpkgs (package.nix:45), upstream pinned at v1.1.0.
 # Also grepped the pinned home-manager for an upstream option: no `envchain`
 # anywhere in home-manager/modules, and `programs.keychain` is a name lookalike —
-# the funtoo ssh-agent/gpg-agent wrapper (modules/programs/keychain.nix:28, keys
-# default `id_rsa`), unrelated to the macOS Keychain.
+# the funtoo ssh-agent/gpg-agent wrapper (modules/programs/keychain.nix
+# `options.programs.keychain.keys`, default `id_rsa`), unrelated to the macOS Keychain.
 {
   config,
   lib,
