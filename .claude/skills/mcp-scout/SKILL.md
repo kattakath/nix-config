@@ -144,8 +144,8 @@ Precedents: `chrome-devtools` + `kapture` → `page-lab`; `mobile-mcp` → `andr
 
 **If no plugin owns it, there is no ownerless home any more.** The honest options are to give it
 to the plugin whose work it serves, or **not to adopt it** — and say which, out loud, to the
-operator. The one exception already exists: the `mcp-utilities` plugin in kattakath/skills (#658, "DECISION
-REVERSED"). Extend it or a serving plugin; do not quietly create another wrapper.
+operator. The one exception already exists: the `mcp-utilities` plugin (kattakath/skills#51, after
+nix-config#658 had rejected skill-less plugins). Extend it or a serving plugin; do not quietly create another wrapper.
 
 **Consequences to state up front, before writing anything:**
 

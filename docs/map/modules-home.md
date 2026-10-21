@@ -541,7 +541,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     (which store-symlinked the file) stopped being evaluated — home-manager's orphan cleanup
     would otherwise have deleted the symlink and every profile with it.
   - **The trap it closes** is unchanged: the Keychain flag survives every activation, a
-    missing identity does not, and a read-only `settings.json` cannot be hand-repaired. It
+    missing identity does not. It
     degrades to Claude Code's default provider rather than erroring. Offline and CLI-free by
     design (local files only; no `aws sts` call per shell). Companion: the
     `.claude/hooks/pretooluse-bash-guard.js` block, which only covers activations the *agent*

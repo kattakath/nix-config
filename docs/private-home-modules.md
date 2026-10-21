@@ -87,7 +87,7 @@ nix develop -c deploy --targets .#nixpi              # magic rollback armed
 nix develop -c deploy --targets .#nixpi --dry-activate  # rehearse first
 ```
 
-**Before running either, read [`map/hosts.md`](map/hosts.md) § Two operator lanes the Access
+**Before running any deploy command here, read [`map/hosts.md`](map/hosts.md) § Two operator lanes the Access
 gate and Rule 1d leave open** — it says when to add `--hostname` and deploy over the LAN
 instead of the tunnel.
 
