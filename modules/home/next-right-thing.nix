@@ -145,7 +145,8 @@ in
       description = ''
         Force `artRating = "None"` for an art fetch made while a call or
         screen-capture app is running. An image already cached is not
-        re-checked: it stays up until `artTtlHours` expires.
+        re-checked: it stays up until a later fetch replaces it, no sooner
+        than `artTtlHours`.
         The widget renders behind every window, so it lands in screen shares.
       '';
     };

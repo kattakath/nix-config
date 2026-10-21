@@ -164,7 +164,8 @@ diagram code is a non-answer.
 
   Use `wc -L`, **not** `awk length()` — awk counts *bytes*, so every box-drawing glyph counts 3
   and a 17-column diagram reports 51. Keep the `LC_ALL`: the agent's Bash tool runs with no
-  locale, where `wc -L` counts every box glyph as 0 and the gate can never go red (measured).
+  locale, where `wc -L` counts box glyphs as 0 and UNDERCOUNTS (measured: 4 for a diagram 15
+  columns wide), so a too-wide diagram can pass.
 
   Over 80: shorten labels, switch to `TD`, or split into two diagrams. Never widen the terminal
   in your head and call it done.

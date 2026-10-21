@@ -4,7 +4,7 @@
 # standalone github:kattakath/nix-media-cli flake by PLAIN COPY — history stays
 # in the archived origin repo, per the operator's decision.
 #
-# The LARGEST capsule (~1,300 lines of it the queue alone) and the last
+# The LARGEST capsule and the last
 # of the seven satellites but one. Its live surface is narrow in nix-config's
 # terms — one option set in modules/home/default.nix — and was zero in the
 # since-retired nix-personal's, which is why a tree this big could move in one
@@ -36,7 +36,7 @@
 #    The `QueueDirectories` / `ProcessType` / `KeepAlive` / `RunAtLoad` /
 #    `StartInterval` table at the top of that file is the record that EVERY queue
 #    mechanism here is launchd's own — there is no scheduler, no polling loop and
-#    no supervision daemon of ours anywhere in 1,300 lines of queue. It is the
+#    no supervision daemon of ours anywhere in the queue. It is the
 #    motto's "Community Legos" half, measured and written down, and it is what
 #    answers "why did you hand-roll a job queue" with "we did not". It is carried
 #    over VERBATIM and must stay that way.

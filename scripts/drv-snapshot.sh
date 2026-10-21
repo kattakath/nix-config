@@ -76,7 +76,6 @@ done
 # Excluded here means "compared by NAME only": their presence and absence still
 # registers, only their hash is ignored.
 EXCLUDE_RE='^(formatting|ast-grep|page-lab|pre-commit|docs-indexed|docs-links-resolve|line-refs-cite-constructs|claude-md-budget|hosts-documented)$'
-EXCLUDE_PKG_RE='^macos$'
 
 emit() { # emit <label> <expr>  — prints "label<TAB>drvpath" or "label<TAB>ERROR"
   local label="$1" expr="$2" v
@@ -119,10 +118,10 @@ capture() {
         --apply 'builtins.mapAttrs (n: v: v.drvPath or "<not-a-drv>")' 2>/dev/null || echo '{}') \
       | python3 -c "
 import json,sys,re
-ex_c=re.compile('''$EXCLUDE_RE'''); ex_p=re.compile('''$EXCLUDE_PKG_RE''')
+ex_c=re.compile('''$EXCLUDE_RE''')
 d=json.load(sys.stdin)
 for k,v in sorted(d.items()):
-    skip = ex_c.search(k) or ex_p.search(k)
+    skip = ex_c.search(k)
     print('%s:%s:%s\t%s' % ('$cat','$sys',k,'<excluded-by-design>' if skip else v))
 " >> "$dir/outputs.tsv"
     done

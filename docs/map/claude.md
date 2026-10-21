@@ -49,8 +49,8 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
   - **anything in a marketplace this repo does not pin.** The join covers `kattakath/skills`
     only, and that pin lags the marketplace, which tracks HEAD.
 - **Adopting a server is still a declaration, never an imperative install.** `claude mcp add`
-  and config-writing installer tools stay denied at user and managed scope
-  (`claude-guardrails.nix`, `claude-managed-settings.nix`) — what changed is only *where* the
+  and config-writing installer tools stay denied at user scope
+  (`claude-guardrails.nix`; `claude-managed-settings.nix` says why they are NOT elevated) — what changed is only *where* the
   declaration lands: the owning plugin's repo, not this one.
 
 History, kept deliberately rather than deleted — [`mcp-gateway.md`](../mcp-gateway.md) is the

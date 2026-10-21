@@ -96,9 +96,8 @@ let
         useGlobalPkgs = true;
         useUserPackages = true;
         # Back up (don't abort on) any pre-existing UNMANAGED file that a newly
-        # Nix-managed home.file would clobber — e.g. ~/.claude/settings.json, now
-        # owned by the programs.claude-code settings option. Without this, HM
-        # activation hard-fails on the first such collision.
+        # Nix-managed home.file would clobber. Without this, HM activation
+        # hard-fails on the first such collision.
         backupFileExtension = "hm-bak";
         extraSpecialArgs = idArgs // {
           inherit
