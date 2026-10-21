@@ -3,7 +3,7 @@
 # window on macOS; SSH on 127.0.0.1:2222). There is no installed nixvm, no disk
 # layout to provision, no builder VM and no self-hosted runner — CI is GitHub-hosted and
 # local aarch64-linux builds use Determinate's native Linux builder (enabled on
-# the macos host, see flake.nix). Distinct from `nixpi`, which targets real
+# the macos host, see modules/parts/compose.nix). Distinct from `nixpi`, which targets real
 # Raspberry Pi 4 hardware via nixos-hardware's raspberry-pi/4.
 #
 # DISPOSABLE, NOT EPHEMERAL — only the Nix STORE is rebuilt per boot
@@ -17,7 +17,7 @@
 #   nix run .#nixvm                       # builds config.system.build.vm then boots it
 #   nixos-rebuild build-vm --flake .#nixvm    # equivalent; ./result/bin/run-nixvm-vm
 #
-# The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set in flake.nix);
+# The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set below from compose.nix's darwinPkgs);
 # the aarch64-linux guest closure builds on the native Linux builder or is
 # substituted from Cachix.
 #
@@ -76,8 +76,8 @@
   # ---- Headless `build-vm` variant ------------------------------------------
   # Everything under virtualisation.vmVariant applies ONLY when building the VM
   # runner (`nix run .#nixvm` / `nixos-rebuild build-vm`), never to the base
-  # toplevel. host.pkgs (the QEMU that RUNS the script) is set to aarch64-darwin in
-  # flake.nix so the runner is macOS-native.
+  # toplevel. host.pkgs (the QEMU that RUNS the script) is set to aarch64-darwin below
+  # (compose.nix's darwinPkgs) so the runner is macOS-native.
   # A module FUNCTION, for `lib` (the outer args no longer take it — see the ARGS
   # note above). `virtualisation.vmVariant`'s type comes from `extendModules`
   # (nixpkgs virtualisation/build-vm.nix), so a definition may be a function.
