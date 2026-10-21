@@ -212,7 +212,7 @@ Smaller, single-purpose CLIs:
   (create / switch / restart …); the `NixOS VM` Spotlight bundle runs `nixos-vm start`. Documented
   with the host in [`hosts.md`](hosts.md).
 - **`resend-cli.nix`** — the official Resend CLI, not yet in nixpkgs so `npx`-wrapped and
-  version-pinned same as `mcp-wordpress`/`telegram-mcp`; injects `RESEND_API_KEY` from the
+  version-pinned the same way as the `packages/keychain-mcp.nix` launchers; injects `RESEND_API_KEY` from the
   login Keychain at run time — wired only via `home.packages`, no matching flake app. The
   lookup is by Keychain **service** `resend.com:api`, not by the env name, so set it with
   `pbpaste | secret set --env RESEND_API_KEY resend.com:api`.

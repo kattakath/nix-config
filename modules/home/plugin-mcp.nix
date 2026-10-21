@@ -32,8 +32,9 @@
 # and `slack` (its own launcher, packages/slack-post-mcp.nix).
 #
 # This is NOT the gateway returning: no long-lived process, no listening socket, no
-# tunnel, no portal. Claude Desktop loads no plugins, so none of these reach it —
-# that capability is genuinely gone for Desktop and no declaration here changes it.
+# tunnel, no portal. Claude Desktop loads no plugins, so none of these reach it
+# through a plugin — the one exception is `github`, which Desktop gets separately
+# via `local.claudeDesktop.extraServers` (modules/home/default.nix).
 {
   config,
   lib,
