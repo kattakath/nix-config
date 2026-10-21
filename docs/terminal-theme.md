@@ -1,9 +1,9 @@
 # The terminal theme, held in one place
 
 Every terminal-ish surface on this fleet takes its colours and type from **one**
-module: [`modules/home/terminal-theme.nix`](../modules/home/terminal-theme.nix),
+module (exceptions: § What is deliberately NOT centralized): [`modules/home/terminal-theme.nix`](../modules/home/terminal-theme.nix),
 which declares `local.terminalTheme` and publishes a derived view at
-`config.lib.terminalTheme`. Nothing else states a hex value.
+`config.lib.terminalTheme`.
 
 This page is the *why*. The measured derivation of each colour lives beside the
 values in the module itself; what follows is the architecture, the coverage

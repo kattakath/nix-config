@@ -146,7 +146,8 @@ let
   cloudflareZoneId = "6e28971881e488941d052bbbf50d69cd"; # the domainName zone
 
   # ---- Sites served on nixpi ------------------------------------------------
-  # nixpi's Caddy vhosts are driven ENTIRELY by mkNixos's `hostedSites`
+  # nixpi's PUBLIC Caddy vhosts (the LAN-only `http://nixpi.local` one is
+  # hosts/nixpi.nix's own) are driven ENTIRELY by mkNixos's `hostedSites`
   # parameter (see modules/parts/compose.nix): hosts/nixpi.nix generates one
   # Caddy virtualHost per entry, and infra/cloudflare/nixpi-tunnel.nix's
   # `cfTunnelConfig` maps the SAME shape to tunnel ingress + DNS
@@ -263,7 +264,7 @@ let
   # Threaded into mkNixos + mkDarwin so system specialArgs and the embedded
   # Home-Manager block can never drift. Only args with a live module consumer
   # are carried: loginName (core/host), fullName+userEmail (modules/home/default.nix),
-  # domainName (nixpi's Caddy vhost + the darwin file-rotation launchd label).
+  # domainName (the `nixpi.<domain>` ssh host block + the darwin file-rotation launchd label).
   # userName only builds userEmail above, and orgName is consumed only by
   # PACKAGES (via callPackage, not specialArgs) — the Mac's runner lanes take
   # their org from their own options (local.macosGithubRunner.org,
@@ -323,7 +324,7 @@ in
             };
             domainName = lib.mkOption {
               type = lib.types.str;
-              description = "nixpi's Caddy vhosts and the darwin file-rotation launchd label.";
+              description = "The `nixpi.<domain>` ssh host block and the darwin file-rotation launchd label.";
             };
           };
         };

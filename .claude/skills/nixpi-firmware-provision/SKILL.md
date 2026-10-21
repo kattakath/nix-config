@@ -42,11 +42,11 @@ decrypts it on-device.
   (download the latest CI-built image off the `installer-latest` GitHub release — needs
   `gh` auth, but **no Nix build and no aarch64-linux builder**, so this is the Mac path);
   default = `nix build` the sdImage (Cachix-warms the kernel, but the final assembly still
-  needs an aarch64-linux builder). Wi-Fi is auto-detected unless you pass
-  `--ssid`/`--wifi-conf` (needed on a band-split network — see gotchas).
+  needs an aarch64-linux builder). Wi-Fi defaults to the declared `nixpiWifiNetworks` ladder
+  (`modules/parts/identity.nix`); `--ssid`/`--wifi-conf` REPLACE it — see gotchas.
 - `nix run .#nixpi-provision [--all|--token|--wifi]` — plant onto an already-mounted card.
 - `nix run .#nixpi-wifi-creds [--ssid S [--psk P]]... [--country CC]` — emit a
-  `wpa_supplicant.conf` from this Mac's current Wi-Fi (SSID + keychain PSK + locale country).
+  `wpa_supplicant.conf` from the declared ladder (or, with none declared, this Mac's current Wi-Fi).
   **`--ssid` is repeatable**: each one opens a `network={}` block, the `--psk` after it
   belongs to it, and the blocks are ranked by a descending `priority=` — first is the
   AP nixpi prefers, the rest are fallbacks it drops to when that one is gone. A
@@ -87,13 +87,9 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
 - **Never cap with `sdImage.expandOnBoot = false`** — the same `mkIf` gates
   `nix-store --load-db`, leaving the store unregistered. Cap with a fence partition (§4c).
 - **Wi-Fi needs `country=`** — the Pi 4 radio is rfkill-blocked without a regulatory domain.
-- **Band-split SSID** — if the Mac is joined to `<name>-5G` but the keychain stores the
-  base `<name>` PSK, Wi-Fi auto-detect (used by `nixpi-flash`/`nixpi-provision` with no
-  Wi-Fi args) fails ("no saved password"). Pin it:
-  `nix run .#nixpi-flash -- --disk /dev/diskN --ssid <name>` (the 2.4 GHz `<name>` also
-  gives a headless Pi better range), or plant separately —
-  `nix run .#nixpi-wifi-creds -- --ssid <name> > wpa.conf` then
-  `nix run .#nixpi-provision -- --wifi --wifi-conf wpa.conf`. Verified 2026-07-15 on `BELL044`.
+- **`--ssid` REPLACES the ladder** — a single pinned SSID plants a one-AP card, the single point
+  of failure `nixpi-wifi-creds`'s WHY FALLBACKS comment describes. Leave the Wi-Fi args off; to change networks, edit
+  `nixpiWifiNetworks` in `modules/parts/identity.nix`.
 - **The token is plaintext on the FAT partition at rest** — accepted tradeoff for
   unattended first-boot; mitigate with physical security + rotate on card loss. The
   `/run` copy is root-only (0600).

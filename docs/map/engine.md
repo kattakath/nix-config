@@ -31,7 +31,7 @@ nothing — hence one regex, not two calls.
 | `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `gcp-*` tofu builders. The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring: two hooks (treefmt, gitleaks), run by `checks.<system>.pre-commit` and never installed as git hooks. |
-| `deploy.nix` | `deploy.nodes.nixpi` (deploy-rs has **no** flakeModule — grepped; this stays hand-written in the freeform `flake` attr). |
+| `deploy.nix` | `deploy.nodes.nixpi` (deploy-rs has **no** flakeModule — grepped; this stays hand-written in the freeform `flake` attr) + `checks.<system>.deploy-schema`. |
 | `templates.nix` | `templates.default`. |
 | `devcontainer.nix` | The image, via `withSystem "x86_64-linux"`. |
 | `lib-option.nix` | The `mkOption { type = lazyAttrsOf raw; }` declaration for `flake.lib`, copied from flake-parts' own `nixosConfigurations.nix:11`. Without it the freeform `types.unique` default would force every seam back into ONE file — silently re-creating the monolith. |

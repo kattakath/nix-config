@@ -39,8 +39,8 @@ two stacks owning one object fight over it on alternate applies.
 **`mcp-public` is GONE — destroyed and deleted 2026-10-02.** It owned the published MCP gateway:
 its own tunnel + config, the `upstream` CNAME, the service token, both Access policies, every
 per-server registration and the portal. Two destroy runs removed **65** Cloudflare objects (27
-registrations → 0, 1 portal → 0, 1 tunnel → 0) and `https://mcp.kattakath.com/mcp` answers
-**403**. The module, the five `mcp-public-*` apps, `packages.mcp-worker-probe`, its GCS state
+registrations → 0, 1 portal → 0, 1 tunnel → 0) and `mcp.kattakath.com` has had
+no DNS record since (the `infra/cloudflare/kattakath-dns.nix` header). The module, the five `mcp-public-*` apps, `packages.mcp-worker-probe`, its GCS state
 object and `fleet.publicMcpServers`/`publicMcpPort` are all deleted. **Reject any change that
 re-creates a stack to publish MCP** unless the operator asks for one explicitly — MCP servers now
 come from an enabled plugin's `.mcp.json`, nothing shared.

@@ -123,7 +123,8 @@ load it" was unreachable advice — by the time you restarted, there was nothing
 
 The fix is `launchd.agents.claude-desktop-mcp-sync`:
 
-- **`WatchPaths = [ configFile ]`** — every Desktop write wakes the agent, which re-merges.
+- **`WatchPaths = [ configFile overlayFile ]`** — every Desktop write wakes the agent, which
+  re-merges; so does an overlay edit, which therefore lands without a rebuild.
   This is home-manager's own option (`modules/launchd/launchd.nix:367`, used upstream by
   `modules/services/git-sync.nix:115`), not a watcher or poll loop of ours.
 - **`RunAtLoad = true`** — repairs a file clobbered while logged out, before Desktop starts.

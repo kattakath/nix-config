@@ -2051,7 +2051,7 @@ in
       clean.enable = false;
     };
 
-    # A login shell is required for `home-manager switch` to wire session vars.
+    # A login shell is required for Home Manager to wire session vars into bash.
     bash = {
       enable = true;
       # macOS Keychain secret loader is wired into bash's profileExtra/bashrcExtra

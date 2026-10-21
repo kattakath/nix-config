@@ -51,7 +51,7 @@ is defined once in `modules/parts/identity.nix` (`identityArgs`) and threaded th
 (and `mkHomeManagerModule` is a function of it) so a host *could* run under a different
 persona, but nothing in the fleet uses it today — `macos` and `nixpi` both inherit
 the same global identity; per-host divergence (leanness, package sets) is
-achieved via `isMacosHost`-gated `lib.mkIf` (the `local.operatorHost` flag, not the hostname),
+achieved via an option flag gating `lib.mkIf` ([CLAUDE.md](../../CLAUDE.md) § Configuration),
 never via a separate identity.
 
 ### `flake.lock`
@@ -102,7 +102,7 @@ What the current lock drops, and the evidence for each:
 | `deploy-rs.inputs.flake-compat.follows = ""` | drop | Non-flake `import` shim only. |
 | `determinate.inputs.nixpkgs.follows = "nixpkgs"` | dedupe | Legit only since 2026-09-21, when the root `nixpkgs` moved onto FlakeHub's `DeterminateSystems/nixpkgs-weekly/0.1` — the **same flake URL** determinate declares, so this is one node fewer and not a re-point. It feeds only the `determinate-nixd` wrapper derivation (a `cp` of a prebuilt binary). Its `nix` input (nix-src) keeps its own tree on purpose — see the bullet below. |
 | `git-hooks.inputs.flake-compat.follows = ""` | drop | `outputs = { self, nixpkgs, ... }` never destructures it; `default.nix`/`shell.nix` read the rev from git-hooks' *own vendored* `flake.lock`, and we only ever call `lib.<system>.run`. |
-| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules left this row one by one — `vast-provision` at wave 4, `media-cli` at wave 5, and `local-rag` at wave 6 — so **no `follows = "flake-parts"` line survives**: this flake is the root flake-parts node's only consumer. The `nixpkgs-lib` half stays and is the whole row now. |
+| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules left this row one by one — `vast-provision` at wave 4, `media-cli` at wave 5, and `local-rag` at wave 6 — so **no `follows = "flake-parts"` line survives**: this flake is the root flake-parts node's only consumer. The `nixpkgs-lib` half stays and is the whole row now. |
 
 **Deliberately left duplicated.** Not everything that looks like a duplicate is one:
 
@@ -265,8 +265,8 @@ Entered with `nix develop` (in the devcontainer or on a nix host). There is **no
 `.envrc`/direnv auto-load — run `nix develop` explicitly. (`programs.direnv` + `nix-direnv` ARE
 enabled fleet-wide in `modules/home/default.nix`; this repo alone opts out, since `2fa73b9`.)
 
-**The shell sets `CLOUDSDK_CONFIG`** to `$XDG_CONFIG_HOME/gcloud-nix-config`, so `gcloud` and any
-`tofu` run here use an account and project scoped to this repo rather than whatever is globally
+**The shell sets `CLOUDSDK_CONFIG`** to `$XDG_CONFIG_HOME/gcloud-nix-config`, so `gcloud` run
+here uses an account and project scoped to this repo rather than whatever is globally
 active. It is **not** `CLOUDSDK_ACTIVE_CONFIG_NAME`, and the difference is load-bearing: measured
 2026-09-22, a named configuration is only `configurations/config_<name>` (account, project,
 region), while `credentials.db` and `application_default_credentials.json` sit at the TOP of the

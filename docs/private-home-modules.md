@@ -59,7 +59,7 @@ capacity; it is reached over the Cloudflare Tunnel's SSH ingress, or as `nixpi.l
 the LAN via `local.lanRecovery`):
 
 ```bash
-nixos-rebuild switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com
+nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo
 ```
 
 **Preferred in principle: deploy-rs with magic rollback** (`modules/parts/deploy.nix`
