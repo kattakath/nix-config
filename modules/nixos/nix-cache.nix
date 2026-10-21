@@ -15,7 +15,7 @@
 # only, never in Nix or git.
 #
 # `cachixUrl`/`cachixKey` are threaded in via mkNixos's specialArgs (defined once
-# in flake.nix's top-level let), so the URL/key literal is single-sourced across
+# in modules/parts/identity.nix), so the URL/key literal is single-sourced across
 # the NixOS hosts and the macOS Determinate customSettings.
 {
   cachixUrl,
