@@ -45,7 +45,7 @@
 # PATH (the fnm-managed Node + globally-installed CLIs — `npm i -g resumed puppeteer`
 # for the primary path, plus `npm i -g resume-cli` for markdown/text + fallback).
 #
-# WHY NOT pkgs.resumed, which DOES exist (nixpkgs by-name/re/resumed, 4.1.0):
+# WHY NOT pkgs.resumed, which DOES exist (nixpkgs by-name/re/resumed):
 # adoption fails on both of this CLI's paths. (1) PDF: the buildNpmPackage
 # vendors no puppeteer peer, which is exactly why it needs
 # `resumed puppeteer` as TWO npm globals — a

@@ -59,7 +59,7 @@ in
   # so it installs beyond its owning personal account) — ONE key serves every
   # install: kattakath + a client org + dontsell-ai and the personal
   # account. Powers local.tart.githubRunners.* — the ephemeral Tart-VM-per-job
-  # runners (nix-tart-vms darwinModules.github-runner, hosts/macos.nix). Same
+  # runners (modules/features/tart-vms/github-runner.nix). Same
   # model as the dontsell key above: HOST-decrypted at activation. Content is
   # the raw .pem.
   #
@@ -92,8 +92,8 @@ in
     macos
   ];
   # The macos GitLab runner's glrt- authentication token (runner
-  # named by gitlabRunner.runnerName in hosts/macos.nix), for local.tart.gitlabRunner (nix-tart-vms
-  # darwinModules.gitlab-runner, hosts/macos.nix): HOST-decrypted at
+  # named by gitlabRunner.runnerName in hosts/macos.nix), for local.tart.gitlabRunner
+  # (modules/features/tart-vms/gitlab-runner.nix): HOST-decrypted at
   # activation → the agent renders gitlab-runner's config.toml from it at
   # start, so the token lives only here and in the runner's 0600 runtime
   # config. Minted once via `gitlab-runner register`; rotating = re-register,

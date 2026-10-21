@@ -196,7 +196,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
   **fourth** unfree package arriving via a nixpkgs bump still fails the build. The darwin modules
   keep building against the HOST's pkgs.
 - **`capsuleSources.tart-vms.gitlab-tart`** — the one entry on that seam. `modules/home/default.nix`
-  `callPackage`s it with the **host's** pkgs to put five `nix-gitlab-tart-*` slot shims on `PATH`;
+  `callPackage`s it with the **host's** pkgs to put its `nix-gitlab-tart-*` slot shims on `PATH`;
   a derivation from this flake's perSystem pkgs would be a different drv.
 - **`darwinStubs` STAYS.** It is the OPTION layer of the capsule boundary (ADR-002 §2), not
   scaffolding — deleting it deletes the isolation test. Its rot cost is stated at the check.

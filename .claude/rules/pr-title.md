@@ -94,7 +94,7 @@ Both of the old claims are refuted at job level, not inferred:
 | a push drops the arming | **14/14** `synchronize` runs on non-draft operator PRs armed; #737 was force-pushed 3x while armed and `enabledAt` never moved |
 | `ready_for_review` does not restore it | **3 of the 4** armed-PR conversions re-armed on the ready transition (#559, #737, #757); only #723 did not, by the cancellation above. Of 5 `ready_for_review` runs with a recorded payload, 4 armed and 1 was cancelled — **zero skips** |
 
-**#683 is still open, so glance — do not re-arm.** Since #750 turned the cancellation off,
+**Glance — do not re-arm.** Since #750 turned the cancellation off,
 **6 of 6** draft→ready transitions met its acceptance criterion (exactly one non-skipped arm
 run per transition; census in [`pr-wait-research.md`](../../docs/pr-wait-research.md) § The
 14 "unarmed" PRs). A green PR shows a `merged` event and **no** `auto_squash_enabled`: `gh pr

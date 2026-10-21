@@ -107,7 +107,7 @@ This table only adds the **output** column. The full path list (`modules/_lib/`,
 ### B. LEAN / abandoned
 
 - [ ] Experimental dual paths (e.g. old and new sshd) collapsed to one.
-- [ ] Commented-out blocks with no near-term intent removed or ticketed in `memory/` (gitignored).
+- [ ] Commented-out blocks with no near-term intent removed or recorded via `/remember-nix`.
 - [ ] Dead options, unused `let` bindings (deadnix/statix will catch some — don't rely only on them).
 - [ ] Vendor copies justified with a one-line "why not upstream" comment — and re-checked
       each pass, because the justification expires. The last one, `hm-launchd` (560 lines of

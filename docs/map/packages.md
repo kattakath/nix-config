@@ -16,10 +16,10 @@ Core package set:
   deliberately defeated (read-only store, and the `$HOME/.grok/bin` PATH entry is gone) —
   updating is a version+hash bump. Per-user state still lives in `~/.grok`, which is what
   makes one shared binary correct rather than a conflict.
-- **`antigravity-cli.nix`** — Google's `agy` CLI, pinned from the Darwin ARM64 archive named
-  by the vendor's release manifest. It replaces the moving `curl -fsSL
-  https://antigravity.google/cli/install.sh | bash` bootstrapper, so the binary is shared
-  through `environment.systemPackages` and updates are reviewed as a version + hash bump.
+- **Antigravity (`agy`) is NOT a file here** — it is nixpkgs' `antigravity-cli`, shared
+  through `environment.systemPackages`. The hand-pinned `antigravity-cli.nix` was retired
+  2026-10-21 once the nixpkgs build was measured to keep Google's Developer ID signature
+  (`modules/parts/packages.nix` records the measurement).
 - **`acpx.nix`** — the headless client for **ACP** (Zed's Agent *Client* Protocol), which is
   the rail `claude`, `grok` and `agy` already share; it drives one from another with a real
   permission policy (`--permission-policy`, `--deny-all`, `--allowed-tools`, `--max-turns`,
@@ -137,9 +137,9 @@ Smaller, single-purpose CLIs:
 - **`android-phone.nix`** — macOS-only: deterministic wired/wireless ADB operator
   (`list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor`) plus scrcpy mirroring
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
-  staleness and duplicate-transport device listings. Its operator knowledge is also a GLOBAL
-  skill — `android-phone` in the pinned
-  [`kattakath/ai`](https://github.com/kattakath/ai).
+  staleness and duplicate-transport device listings. Its operator knowledge is also the
+  `android-phone` plugin in
+  [`kattakath/skills`](https://github.com/kattakath/skills).
 - **The media packages are NOT here — they are in the `media-cli` capsule.**
   `media-quick-actions.nix`, `media-queue.nix`, `media-toolkit.nix`, `media-describe.nix`,
   `media.nix`, `media-fix.nix`, `media-fix-extension.nix`, `media-extract-audio.nix` and
@@ -255,7 +255,7 @@ keeps the seam available if a script ever has to be fleet-pinned again (a privat
 must not go to a public fork).
 
 **The authoring METHOD is unchanged and lives in the plugin.** The portable
-[`page-lab` plugin](https://github.com/kattakath/ai/tree/main/plugins/page-lab)
+[`page-lab` plugin](https://github.com/kattakath/skills/tree/main/plugins/page-lab)
 owns the probes, the patterns, the Greasy Fork rulebook and the metadata linter; it **measures
 the live page** before it writes a selector, routing on the diff between the state the site
 already gives you and the state you want:
