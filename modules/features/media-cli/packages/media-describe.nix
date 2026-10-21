@@ -250,7 +250,7 @@ writeShellApplication {
           echo "$usage" >&2
           echo "  writes XMP:Description + XMP:Subject + XMP:Rating into each image" >&2
           echo "  --no-caption   labels and rating only; never calls the vision model" >&2
-          echo "  --min-score N  only caption photos scoring above N (0-1)" >&2
+          echo "  --min-score N  only caption photos whose aesthetics score is >= N (can be negative)" >&2
           echo "  --overwrite    re-describe files that already have a description" >&2
           echo "  directories are walked recursively" >&2
           exit 0 ;;
@@ -453,7 +453,7 @@ writeShellApplication {
         continue
       fi
 
-      # Apple's 0-1 aesthetics score onto XMP's 0-5 stars, for Lightroom/Bridge.
+      # Apple's aesthetics score onto XMP's 0-5 stars, for Lightroom/Bridge.
       rating=""
       [ -n "$score" ] && rating=$(awk -v s="$score" 'BEGIN{ r=int(s*5+0.5); if(r>5)r=5; if(r<0)r=0; print r }')
 
@@ -722,7 +722,7 @@ writeShellApplication {
           # that got labels but no sentence is the tool's PARTIAL result, and
           # reporting it as done made a whole batch run with Ollama stopped look
           # like complete success. It is now visible in the grammar the queue
-          # parses, so the notification can say what actually happened, and a
+          # parses, so the queue's log can say what actually happened, and a
           # later run still picks the file up (idempotence keys on Description).
           described=$((described - 1))
           skipped=$((skipped + 1))

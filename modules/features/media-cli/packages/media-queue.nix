@@ -1005,7 +1005,7 @@ symlinkJoin {
           # Dispatch by class rather than always calling media-fix: `describe`
           # is an ENRICHMENT, not a repair, so it has its own CLI. Both speak
           # the same done:/skip:/OK: grammar, so everything downstream — the
-          # counters, the reason extraction, the notification — is unchanged.
+          # counters and the reason extraction — is unchanged.
           case "$class" in
             describe) setsid media-describe "$path" > "$scratch" 2>&1 & ;;
             *)        setsid media-fix "--$class" "$path" > "$scratch" 2>&1 & ;;
