@@ -8,7 +8,7 @@
 > arrive through the hand-placed Desktop overlay (`claude-desktop.nix`, merged at activation, so
 > this public repo names none). A `url` overlay entry goes through the `mcp-remote` shim.
 > `checks.aarch64-darwin.claude-desktop-config-shape` asserts the module is enabled and that
-> exactly `github` is rendered from Nix.
+> no server but `github` is rendered from Nix.
 >
 > **The module stays ENABLED. Do not "clean it up" by switching it off.** The set Desktop should
 > see is a state something must **write**. A disabled module writes nothing, which leaves
@@ -77,8 +77,8 @@ programs.mcp.servers (hub)
 - **Shims, not servers.** The gateway hosted one instance of each; Desktop launched
   one thin `mcp-remote` bridge per server. ~27 node processes at launch; first launch after
   a pin bump fetched `mcp-remote@<pin>` into `~/.npm/_npx` (a runtime fetch, the same trade
-  the gateway's npx/uvx launchers made). **Zero such processes today** — which is the one
-  unambiguous win of the empty render.
+  the gateway's npx/uvx launchers made). **Zero such processes from Nix today** — the one server
+  it renders, `github`, is stdio (a `url` overlay entry would add one).
 - **The marker is an env var** (`NIX_CONFIG_MANAGED`) because it is the one extra field
   Desktop's stdio schema tolerates and every server ignores. It is how the merge tells
   *ours* (rewrite, prune when stale) from *theirs* (a server added in Desktop's UI — never
@@ -94,18 +94,16 @@ is the clearest statement of what was given up on 2026-10-02 — all three rows 
 
 | Surface | Path | Includes telegram / gmail-* / wordpress? |
 |---|---|---|
-| Desktop app | this file | ~~yes~~ → **no** (empty render) |
+| Desktop app | this file | ~~yes~~ → **no** (not rendered) |
 | Cowork, Mac linked | Desktop bridge → `mcp__remote-devices__<name>__*` | ~~yes — without publishing them~~ → **no** (nothing to bridge) |
 | Cowork, Mac **not** linked (phone, closed laptop) | remote connector = the same portal (`config.fleet.publicMcpServers`, behind Cloudflare Access) | ~~yes since 2026-09-22~~ → **no** — the portal is destroyed and `publicMcpServers` deleted |
 
 **Say this plainly, because no check can:** `gmail` survives the purge for **Claude Code only**
-(`local.gmailMcp` + the `gmail` plugin). Desktop and Cowork lost it, along with every other
-server, and nothing in this repo detects that.
+(`local.gmailMcp` + the `gmail` plugin). Desktop and Cowork lost it, and nothing in this repo detects that.
 
 Skills and plugins are **not** in scope here: in Desktop/Cowork they are account state
-(Settings → Capabilities, the claude.ai plugin catalog), not files. The plan for those is
-the capability-broker skill fed by a gateway-hosted `skills` server — same hub, one more
-renderer — tracked separately.
+(Settings → Capabilities, the claude.ai plugin catalog), not files. The gateway-hosted `skills`
+server once planned for them died with the gateway; nothing replaces it here.
 
 ## The clobber, and why activation alone was not enough (2026-09-15)
 
