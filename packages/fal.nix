@@ -30,7 +30,7 @@
 # comes from the login Keychain via the `secret` loader — the value never
 # reaches argv, a dotfile, or the store. Neither binary prints it.
 #
-# THIS IS CLOUD INFERENCE, unlike the rest of the media stack. photo-describe
+# THIS IS CLOUD INFERENCE, unlike the rest of the media stack. media-describe
 # and the queue run against the LOCAL ollama daemon; anything sent through
 # fal-gen leaves the machine and is billed. That is a deliberate difference in
 # posture, not a drop-in substitute.
