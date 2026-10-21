@@ -13,7 +13,8 @@
 # THE SPLIT, identical to `local.gmailMcp`'s and for the same reason:
 #   HERE          the launcher binaries, because they read the login Keychain (or a
 #                 fleet-internal coordinate) and must not be duplicated into a plugin repo.
-#   THE PLUGIN    a `.mcp.json` in github:kattakath/skills naming each launcher by BINARY
+#   THE PLUGIN    a `.mcp.json` in github:kattakath/skills (`slack`: the operator's private
+#                 overlay marketplace) naming each launcher by BINARY
 #                 NAME, so Claude Code spawns one stdio server per session with no proxy
 #                 and nothing shared between clients.
 #
@@ -26,6 +27,9 @@
 # `sandbox-exec -f <profile>`, and that fence is the only thing making the server safe
 # to re-adopt. Same split, same cause: the launcher does what a JSON file cannot. Its
 # own entry below carries the why, the risk it does NOT cover, and the measurements.
+#
+# TWO MORE, each with its own entry below: `github` (gh's own token via `ghTokenEnv`)
+# and `slack` (its own launcher, packages/slack-post-mcp.nix).
 #
 # This is NOT the gateway returning: no long-lived process, no listening socket, no
 # tunnel, no portal. Claude Desktop loads no plugins, so none of these reach it —
@@ -439,7 +443,8 @@ in
       `nix-mcp-<name>`. An enum rather than free strings, so a typo fails here instead of
       shipping a plugin that names a binary nobody builds.
 
-      Each one is claimed by a plugin in github:kattakath/skills that declares a server
+      Each one is claimed by a plugin in github:kattakath/skills (or, for `slack`, the
+      operator's private overlay marketplace) that declares a server
       whose `command` is that binary name. Enabling a name here without the plugin
       installed just leaves an unused binary on PATH; installing the plugin without the
       name here leaves a server that cannot start.
