@@ -28,7 +28,7 @@
 # own entry below carries the why, the risk it does NOT cover, and the measurements.
 #
 # This is NOT the gateway returning: no long-lived process, no listening socket, no
-# tunnel, no portal. Claude Desktop loads no plugins, so none of these four reach it —
+# tunnel, no portal. Claude Desktop loads no plugins, so none of these reach it —
 # that capability is genuinely gone for Desktop and no declaration here changes it.
 {
   config,
