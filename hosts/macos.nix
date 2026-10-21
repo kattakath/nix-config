@@ -6,7 +6,7 @@
 # Home Manager and the nix-vscode-extensions overlay are wired centrally by
 # mkDarwin in modules/parts/compose.nix — this file only provides host-specific settings.
 # OPERATOR-ONLY as a whole: mkDarwin loads it only for hostname "macos" (`hostModule`
-# default); the template passes "generic-darwin", so a consumer never imports it.
+# default); the template passes "generic-darwin", so a consumer following it never imports it.
 #
 # First activation (after Determinate Nix is installed, before darwin-rebuild is
 # on PATH) — a single line straight from the flake (the darwin analog of nixpi's
@@ -106,8 +106,8 @@ in
     # rather than as separate terminals. Machine-wide for the same reason they
     # are: it is a client, all per-session state is in its arguments, and the
     # alternative (`npm i -g acpx`) is a per-user install outside the store.
-    # Node floor matters here — see packages/acpx.nix; it pins nodejs_22 itself
-    # because the fleet default is 20.x and acpx requires >=22.13.
+    # Node floor matters here — see packages/acpx.nix; it pins nodejs_22 itself so
+    # acpx's >=22.13 floor never depends on the fleet default.
     (pkgs.callPackage ../packages/acpx.nix { })
     # Claude Code — re-exposed from the HM module, not re-packaged: `finalPackage`
     # is the MCP-wrapped binary programs.claude-code already builds, so this is the

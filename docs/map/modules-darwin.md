@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/darwin/`
 
-`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,claude-managed-settings.nix,launchd-sources.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,claude-managed-settings.nix,launchd-sources.nix,operator-host.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
@@ -251,8 +251,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 - **`operator-host.nix`** (`local.operatorHost`, default false; set only in `hosts/macos.nix`) —
   the operator-only gate that `modules/_lib/is-macos-host.nix` reads. A flag rather than
   `hostName == "macos"` because a template consumer may legitimately name its Mac "macos";
-  `checks.*.template-consumer` builds such a consumer and fails if any operator-only item
-  turns on. Imported by `core.nix`, so every Mac has it (off).
+  `checks.*.template-consumer` builds such a consumer and fails if the flag, or either of the two
+  operator-only items it tests, turns on. Imported by `core.nix`, so every Mac has it (off).
 - **`metube.nix`** / **`yt-dlp-web-ui.nix`** (Home Manager modules since 2026-09-22, now in `modules/home/`; this is their design record) — `local.meTube` and `local.ytDlpWebUi`, the two
   local download web UIs, each ONE launchd **user agent** bound to **127.0.0.1** and each
   built from source in `packages/` (neither is in nixpkgs). Both are on in `hosts/macos.nix`.

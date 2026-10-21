@@ -1466,7 +1466,7 @@ in
       # PREREQUISITE shape, one extra reason: its npm package imports `node:sqlite`, which
       # arrived in Node 22.5, and a plugin's bare `npx` gets fnm's 20.x. Measured
       # 2026-10-02 — `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite` on v20.20.2, clean start
-      # under this flake's `pkgs.nodejs` (24.20.0). The wrapper exists only to put that
+      # under this flake's `pkgs.nodejs`. The wrapper exists only to put that
       # Node in front of `npx`; the full argument, and the three rejected alternatives,
       # are in packages/mcpfinder-mcp.nix.
       mcpfinderMcp # `nix-mcp-mcpfinder` — cross-registry MCP-server DISCOVERY, pinned @1.1.0 (the pin is a security control); named by the mcp-utilities plugin (packages/mcpfinder-mcp.nix)
