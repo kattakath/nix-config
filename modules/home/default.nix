@@ -58,7 +58,6 @@
   # Threaded in by modules/parts/compose.nix.
   localRagModule,
   cloudCliModule,
-  googleAccount,
   # The ABSORBED keychain-secrets capsule (macOS `secret` CLI + every-shell
   # loader) — a MODULE, not a flake, since ADR-002 wave 4 brought it in-tree as
   # modules/features/keychain-secrets/. Threaded in by modules/parts/compose.nix.
@@ -1588,10 +1587,6 @@ in
   # a separate private composition flake was retired with that flake 2026-09-15.
 
   # ---- Git identity include files -----------------------------------------------
-  # The ADDRESSES that programs.git.includes (below) route to. gitlab.inc is
-  # DERIVED — its address is the canonical Google account (config.fleet.googleAccount,
-  # identity.nix), so no literal mailbox is written here.
-  #
   # Every per-namespace identity (work, client, persona) and allowed_signers left
   # Nix (ADR-004 §7, inventory #3; client routing too, 2026-10-20): they name
   # mailboxes, orgs and folders that are the operator's alone, in a public repo.
@@ -1601,10 +1596,6 @@ in
   # fresh bootstrap, write it before authoring (docs/new-mac-runbook.md).
   # `adoptGitIdentityFiles` below keeps the EXISTING copies across the activation
   # that stops managing them.
-  home.file.".config/git/gitlab.inc".text = ''
-    [user]
-    	email = ${googleAccount}
-  '';
 
   # ---- Claude Desktop: extra servers ------------------------------------------
   # Desktop loads no plugins (./claude-desktop.nix says why that is the only lane).
@@ -1958,28 +1949,9 @@ in
       # silent no-op. Template: the operator's private overlay repo README, and
       # docs/new-mac-runbook.md. Unconditional, so local.inc's own nested
       # `[includeIf …]` blocks decide. Paths absolute under $HOME.
-      includes = [
-        # GitLab personal namespace (ismailkattakath). gitlab.com-specific so
-        # github.com/ismailkattakath keeps the GitHub noreply. Address lives in
-        # ~/.config/git/gitlab.inc, written in § Git identity include files above.
-        {
-          condition = "hasconfig:remote.*.url:**/gitlab.com/ismailkattakath/**";
-          path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
-        }
-        {
-          condition = "hasconfig:remote.*.url:**:gitlab.com:ismailkattakath/**";
-          path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
-        }
-        {
-          condition = "gitdir:${config.home.homeDirectory}/Developer/gitlab.com/ismailkattakath/";
-          path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
-        }
-        # LAST, on purpose: git applies includes in order and the last match wins, so
-        # local.inc's own `[includeIf …]` blocks override the gitlab.com block above
-        # for any repo they also match. Route by remote URL AND gitdir there:
-        # hasconfig cannot fire between `git init` and `git remote add`.
-        { path = "${config.xdg.configHome}/git/local.inc"; }
-      ];
+      # Route by remote URL AND gitdir in local.inc: hasconfig cannot fire between
+      # `git init` and `git remote add`.
+      includes = [ { path = "${config.xdg.configHome}/git/local.inc"; } ];
     };
 
     ssh = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
@@ -1993,6 +1965,11 @@ in
       # and move the per-host blocks to `settings` so both deprecation warnings stay
       # silenced.
       enableDefaultConfig = false;
+
+      # Hand-placed per-host routes (keys and hosts that are the operator's alone,
+      # like ~/.config/git/local.inc). Rendered ABOVE every Host block, so a route
+      # there wins over `*` below; a glob that matches nothing is a silent no-op.
+      includes = [ "~/.ssh/config.d/*" ];
 
       settings = {
         # Keychain-backed agent for git SSH signing / non-interactive SSH. Only the

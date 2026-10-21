@@ -263,8 +263,8 @@ a run.
 - **Git identities (inventory #3): moved, with the same adoption trick.** The client/persona
   `.inc` files and `allowed_signers` are hand-placed now (and since 2026-10-20 routed by ONE
   hand-placed `local.inc`) (`adoptGitIdentityFiles` in
-  `modules/home/default.nix` copies the existing symlinks out before orphan cleanup). `gitlab.inc` STAYS in
-  Nix, derived from `config.fleet.googleAccount` — no literal mailbox left in `modules/home/default.nix`.
+  `modules/home/default.nix` copies the existing symlinks out before orphan cleanup). `gitlab.inc` stayed in
+  Nix, derived from `config.fleet.googleAccount`, until its gitlab.com route was dropped on 2026-10-21.
 - **Gmail account list (inventory #2): NOT moved — blocked by ADR-003, reported rather than
   forced.** It was `local.mcpGateway.gmail.accounts`, consumed at EVAL time (one launchd agent per
   address), so it could not be read from a local file without moving gateway-config generation to
