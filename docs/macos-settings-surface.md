@@ -403,7 +403,7 @@ already an activation no-op: its target still exists and already holds
    infrastructure survived a full day after the 2026-10-02 purge, because the writer had been
    switched off instead of made to render an empty set.
 6. **The default web browser — settable, but consent-gated, never silent.** It *is*
-   automatable (`local.ungoogledChromium.makeDefaultBrowser` drives nixpkgs'
+   automatable (`local.defaultBrowser` in `modules/home/default-browser.nix` drives nixpkgs'
    `defaultbrowser`), yet macOS reserves the final say for the human: the macOS 26
    `AppKit/NSWorkspace.h` says of the modern API that *"Some URL schemes require user
    consent before you can change their handlers. If a change requires user consent, the

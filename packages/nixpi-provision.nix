@@ -6,7 +6,7 @@
 #   nix run .#nixpi-flash       — acquire image (--release download / --image / build)
 #                                 + verified dd + auto-plant (fresh reflash)
 #   nix run .#nixpi-provision   — plant token/wifi onto a mounted card (update either)
-#   nix run .#nixpi-wifi-creds  — emit a wpa_supplicant.conf from the Mac's Wi-Fi
+#   nix run .#nixpi-wifi-creds  — emit a wpa_supplicant.conf for the declared Wi-Fi list
 #                                 (--ssid is repeatable: first = preferred AP, the
 #                                  rest are ranked fallbacks)
 #   nix run .#nixpi-vault-token — re-encrypt a new connector token into the vault (rotate)
@@ -183,8 +183,8 @@ let
       gawk
     ];
     text = ''
-      # Emit a wpa_supplicant.conf for nixpi. With no arguments it reads the SSID +
-      # keychain PSK of the network this Mac is on.
+      # Emit a wpa_supplicant.conf for nixpi. With no arguments it emits the declared
+      # nixpiWifiNetworks list; with nothing declared, the SSID + keychain PSK this Mac is on.
       #
       # --ssid is REPEATABLE. Each one opens a new network={} block and the --psk
       # that FOLLOWS it belongs to it; blocks are emitted in the order given and
@@ -192,9 +192,9 @@ let
       # prefers and the rest are fallbacks. One --ssid emits exactly what this
       # tool always emitted, priority line included (there is nothing to rank).
       #
-      # WHY FALLBACKS ARE WORTH THE COMPLEXITY: nixpi is headless, its sshd binds
-      # loopback only (modules/nixos/core.nix) and the sole route in is the
-      # Cloudflare tunnel — which needs WORKING INTERNET, not merely a LAN. One
+      # WHY FALLBACKS ARE WORTH THE COMPLEXITY: nixpi is headless, and its only REMOTE
+      # route in is the Cloudflare tunnel (local.lanRecovery is LAN-only) — which needs
+      # WORKING INTERNET, not merely a LAN. One
       # network={} therefore makes its single AP a single point of failure whose
       # recovery is a physical SD-card pull (~40 min,
       # docs/nixpi-sd-flashing-runbook.md). A second block is the difference
@@ -408,7 +408,7 @@ let
             #   (default)             `nix build` the sdImage. With the kattakath Cachix
             #                         warm this substitutes the kernel/intermediates, but
             #                         the final image assembly still needs an aarch64-linux
-            #                         builder — so on the builder-less Mac, prefer --release.
+            #                         builder — so on the Mac, prefer --release (CI-prebuilt).
             ${firmwareMountFn}
 
             disk=""

@@ -4,10 +4,8 @@
 # bootstrap) — this wrapper just gives their scattered primitives one
 # consistent CLI surface instead of remembering which of six adb subcommands
 # to reach for. Deliberately does NOT vendor a third-party pairing tool
-# (adb-qr, adb-wifi, escrcpy, …): those add an untrusted dependency for
-# something adb's own `mdns`/`pair`/`connect` already do — see the escrcpy
-# tap removal (2026-07-08, modules/darwin/homebrew.nix) for why this repo
-# avoids that. `adb` comes from the `android-platform-tools` Homebrew CASK
+# (adb-qr, adb-wifi, …): those add an untrusted dependency for something adb's
+# own `mdns`/`pair`/`connect` already do. `adb` comes from the `android-platform-tools` Homebrew CASK
 # (hosts/macos.nix) — mobile-mcp resolves that same one — so it has no store path
 # to bake in and cannot be a `runtimeInput`; it is resolved at RUNTIME instead,
 # which also keeps this derivation free of a nixpkgs android-tools dependency

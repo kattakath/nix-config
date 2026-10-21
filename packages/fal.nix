@@ -93,7 +93,7 @@ let
             # Name it, never read it back out for display.
             print(
                 "fal-gen: FAL_KEY is not set. It lives in the login Keychain — "
-                "`secret set fal:fal.ai:key` once, then start a new shell.",
+                "`secret set --env FAL_KEY fal:fal.ai:key` once, then start a new shell.",
                 file=sys.stderr,
             )
             return 2

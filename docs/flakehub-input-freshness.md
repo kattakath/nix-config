@@ -72,37 +72,16 @@ installation token** at run time (via `actions/create-github-app-token`), and a
 PR opened with that token triggers `nix-ci` normally. It also fits this repo's
 posture — no long-lived *personal* credential is stored, mirroring the OIDC model
 used for FlakeHub publishing. The only persisted material is the App's own
-identity, scoped to this single repo.
+identity.
 
-## One-time setup (owner, browser)
+## Setup — already done, org-wide
 
-This is done **once**. Until it is complete, the token step in
-`update-flake-lock.yml` fails fast with a clear "input required" error and no PR
-is cut — the scheduled run simply no-ops, so leaving it unconfigured is safe.
-
-1. **Register the App.** Go to <https://github.com/settings/apps> → **New GitHub
-   App**.
-   - Name it anything (e.g. `nix-config-lockfile-bot`).
-   - **Repository permissions:** `Contents` → *Read and write*, `Pull requests`
-     → *Read and write*. Leave everything else *No access*.
-   - Uncheck **Active** under *Webhook* (no webhook needed).
-   - Create the App, then note its **Client ID**.
-2. **Generate the App's private signing key** (the "Generate a private key"
-   button on the App's page). A `.pem` downloads — this is the only copy, so
-   handle it like any credential and delete the local file once step 4 is done.
-3. **Install the App** on `kattakath/nix-config`: the App's *Install App*
-   tab → install on **Only select repositories** → this repo.
-4. **Wire the two values into the repo's Actions settings** — repo **Settings →
-   Secrets and variables → Actions**:
-
-   | Kind         | Name                 | Value                                    |
-   | ------------ | -------------------- | ---------------------------------------- |
-   | **Variable** | `CI_BOT_CLIENT_ID`  | the App's Client ID from step 1           |
-   | **Secret**   | `CI_BOT_APP_PRIVATE_KEY` | the full contents of the `.pem` from step 2 |
-
-   The Client ID is not sensitive, so it is a **Variable**; the signing key is, so it
-   is a **Secret** — injected into the workflow only via `${{ secrets.* }}` at run
-   time, never committed to git or the Nix store.
+There is nothing to register. The token comes from the ONE org-wide CI App,
+`ismailkattakath-ci` (installed on the `kattakath` org with `repository_selection: all`),
+via the org variable `CI_BOT_CLIENT_ID` and org secret `CI_BOT_APP_PRIVATE_KEY` — see
+[`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md) §1 and `secrets/secrets.nix`.
+**Do not register a second App or add a repo-level secret**: a repo-level value would
+shadow the org one, and `auto-merge.yml` uses the same key.
 
 ## Verify
 
@@ -121,10 +100,9 @@ receive `token: ${{ steps.app-token.outputs.token }}`.
 
 ## Rotation / teardown
 
-- **Rotate the key:** generate a new private key on the App, replace the
-  `CI_BOT_APP_PRIVATE_KEY` secret, delete the old key from the App. No workflow edit
-  needed.
-- **Disable the automation entirely:** uninstall the App from the repo (or delete
-  the `CI_BOT_CLIENT_ID` variable). The scheduled run then no-ops on the
-  fail-fast token step; `flake-checker` and the manual `/update-input` path are
+- **Rotate the key:** it is the shared org key — follow `secrets/secrets.nix`, never a
+  repo-level replacement.
+- **Disable the automation entirely:** remove the `schedule:` trigger from
+  `update-flake-lock.yml` — NOT the App or the org variable, which `auto-merge.yml`
+  and the other repos share. `flake-checker` and the manual `/update-input` path are
   unaffected.

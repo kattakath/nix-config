@@ -42,7 +42,6 @@ kernel:
 SD-resident state: the Audiobookshelf database (its backups are on `/mnt/storage`), the
 persistent journal, and the SSH host key.
 
-**The kernel now FLOATS.** `update-flake-lock.yml` builds its input allowlist from `flake.lock`,
-so every weekly bump can move the LIVE Pi's kernel and cost a cold kernel build in
-`warm-nixpi-cache` (120 min cap). Excluding `nixos-hardware` there, as `grok-build-plugin-cc`
-is, would pin it. That is the operator's call, and it is not made here.
+**The kernel is HELD.** `update-flake-lock.yml` excludes `nixos-hardware` from its weekly
+allowlist (as it does `grok-build-plugin-cc`), so a bump never moves the LIVE Pi's kernel
+unannounced; move it deliberately with `/update-input nixos-hardware`.

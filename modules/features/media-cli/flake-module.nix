@@ -80,8 +80,8 @@
 #
 #   * nix-config has NEVER carried a media package or app. Every one of these
 #     CLIs reaches the Mac through ./module.nix's `home.packages`, built with
-#     the HOST's pkgs — publishing a second, perSystem-pkgs copy would add 11
-#     rows to `nix flake show` that nothing in the fleet consumes.
+#     the HOST's pkgs — publishing a second, perSystem-pkgs copy would add one
+#     `nix flake show` row per package that nothing in the fleet consumes.
 #   * The shellcheck coverage the satellite's CI got from BUILDING them is NOT
 #     lost — `media-cli-packages` below builds all of them in one derivation.
 #     That is the same call keychain-secrets made, for the reason ADR-002 §7.4

@@ -1,4 +1,4 @@
-# The macOS user-folder seam — mkOption'd so a host (or the private layer)
+# The macOS user-folder seam — mkOption'd so a host
 # can relocate an inbox, while an UNSET option is exactly the macOS system
 # default. Only folders with a real consumer are declared (LEAN): desktop and
 # downloads feed the file-rotation sweeps, which live in the HOME-MANAGER layer
@@ -13,12 +13,12 @@
 # string — instead of silently falling back to the default: a declarative
 # option that ignores what was written is worse than one that refuses it.
 # Forgiving "warn and fall back" semantics belong at runtime, in CLIs
-# (cf. social-kit's --out in nix-personal). Whether the directory exists is a
+# Whether the directory exists is a
 # runtime fact no eval can check; consumers mkdir -p where it matters.
 #
 # upstream-first: grepped home-manager's modules/misc/xdg/user-dirs.nix —
 # xdg.userDirs models the freedesktop user-dirs.dirs file, which nothing on
-# macOS reads (and these consumers are nix-darwin SYSTEM modules, not HM);
+# macOS reads (and the consumers read it through `osConfig`, so it stays a system option);
 # grepped nix-darwin's modules/system/defaults for a folder-location surface —
 # none (dock.nix merely uses ~/Downloads in examples). No upstream option
 # exists → custom.

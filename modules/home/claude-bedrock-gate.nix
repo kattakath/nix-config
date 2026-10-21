@@ -47,8 +47,7 @@
 # Any of those can be missing — a fresh Mac before `aws configure sso`, an
 # expired session, a profile renamed — while the Keychain flag sits there
 # saying "use Bedrock". Bedrock then stays selected with no usable identity,
-# Claude Code can reach no model, and `settings.json` is read-only under /nix so
-# it cannot be hand-repaired. The agent needed to diagnose it is the thing that
+# Claude Code can reach no model. The agent needed to diagnose it is the thing that
 # just lost its model: chicken-and-egg, and the operator has hit it repeatedly.
 #
 # The `.claude/hooks/pretooluse-bash-guard.js` block only covers activations the
@@ -306,7 +305,7 @@ in
   # deprecated when the AWS identity became runtime-owned, and DELETED
   # 2026-09-15 once nix-personal — the only thing that ever set them — was
   # retired. Do not reintroduce them: a value there pins `AWS_*` into the
-  # read-only `settings.json` and overrides the runtime `~/.aws/config` in every
+  # Nix floor of `settings.json` (re-asserted every activation) and overrides the runtime `~/.aws/config` in every
   # session, which is exactly the failure this module exists to prevent.
   #
   # There is deliberately no `enable` option either. CLAUDE_CODE_USE_BEDROCK
