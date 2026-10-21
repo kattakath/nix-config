@@ -40,8 +40,8 @@ proof a server works is invoking one of its tools.
 ## Hard rules
 
 - **Never install imperatively.** No `npx add-mcp`, no `@getmcp/cli`, no
-  `claude mcp add`, no mcpfinder write tool (it ships none; only its four
-  read-only tools are pre-approved, so a new one prompts), no
+  `claude mcp add`, no mcpfinder write tool (it ships none; none of its tools
+  is pre-approved, so every call prompts), no
   edits to `~/.claude.json` / client config files. `claude mcp add` is **denied** at user and
   managed scope and a managed deny cannot be retracted. If asked to "install" a server, do this
   pipeline instead and say why.
@@ -54,13 +54,12 @@ proof a server works is invoking one of its tools.
 
 In rough order of preference:
 
-1. **`mcpfinder`, if the session has it** (discovery-only — only its four read-only tools are
-   pre-approved): `search_mcp_servers` / `get_server_details`, cross-registry over the Official
-   MCP Registry + Glama + Smithery. **Not available by default any more**: it was a gateway
-   server, and it could not follow the others into the plugin lane because
-   `@mcpfinder/server@1.1.0` imports `node:sqlite`, absent from the Node 20 that `npx` resolves to
-   there. **Do not bump that pin to escape the error** — the pin is a security control holding
-   back `add_mcp_server_config`, which writes client config imperatively.
+1. **`mcpfinder`, if the session has it** (discovery-only; none of its tools is pre-approved):
+   `search_mcp_servers` / `get_server_details`, cross-registry over the Official MCP Registry +
+   Glama + Smithery. It reaches sessions through the plugin lane via `nix-mcp-mcpfinder`
+   (`packages/mcpfinder-mcp.nix`), which runs `@mcpfinder/server@1.1.0` under the flake's Node 24
+   because the pin imports `node:sqlite`, absent from Node 20. **Do not bump that pin** — it is a
+   security control holding back `add_mcp_server_config`, which writes client config imperatively.
 2. **Official MCP Registry REST API** — via `WebFetch`, or a `fetch` server if the session has
    one: `https://registry.modelcontextprotocol.io/v0/servers?search=<term>`. **This is the
    reliable route now**, because it depends on no fleet-provided server existing.
