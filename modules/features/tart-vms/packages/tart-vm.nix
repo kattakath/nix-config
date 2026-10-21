@@ -1,7 +1,7 @@
 # tart-vm — declarative lifecycle + plug-and-play provisioning for Tart macOS
 # guest VMs on Apple Silicon (host-side CLI).
 #
-#   tart-vm create|pull|bake|start|stop|ip|ssh|list|doctor|bootstrap <vm> [flags]
+#   tart-vm <subcommand> <vm> [flags]    (subcommands: its `usage()`)
 #
 # Design principle: the IMAGE is operator-neutral (a generic `admin`/`admin`
 # setup user with SSH on — either pulled from a registry by digest, or baked

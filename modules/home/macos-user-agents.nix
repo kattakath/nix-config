@@ -20,7 +20,7 @@
 # still asks `agentIsLoaded` (:326-330, a `launchctl print <domain>/<agentName>`),
 # falling through to bootout + install + bootstrap on "up-to-date but not
 # loaded". That probe keys off the LABEL, not the attribute name — `:165` names
-# each plist `"${v.config.Label}.plist"` and `:426` derives
+# each plist `"${v.config.Label}.plist"` and `processAgent` derives
 # `agentName="''${agentFile%.plist}"` straight back out of that filename — which
 # is what makes the Label override below safe.
 #

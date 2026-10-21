@@ -75,7 +75,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   satellites onto flake-parts + `import-tree` as capsules — **read §9 first**, the record of what
   execution found the design got wrong); [`ADR-003`](../externalization-boundary-adr.md)
   (decided, **NOT implemented**: Nix is the **harness**, governance never leaves; skills MAY
-  overlay from `$HOME`, **MCP servers may not**).
+  overlay from `$HOME`; its MCP rule is retracted, §10.8).
   [`ADR-004`](../secrets-recovery-and-identity-adr.md) (status: its own header; GCP Secret Manager durable, Keychain as cache, Workspace
   canonical);
   [`ADR-005`](../iac-coverage-adr.md) (decided and **IMPLEMENTED**: Cloudflare + GCP under

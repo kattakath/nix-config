@@ -45,8 +45,9 @@ let
     }
   ];
 
-  # The module imported but NEITHER switch set — the state the two NixOS hosts
-  # are in, since modules/home/default.nix imports it unconditionally.
+  # The module imported but NEITHER switch set — the state every NixOS host
+  # (`flake.nixosConfigurations` in modules/parts/hosts.nix) is in, since
+  # modules/home/default.nix imports it unconditionally.
   hmOff = mkHm [ module ];
 
   # The same configuration WITHOUT the module at all, to compare against.
@@ -109,7 +110,8 @@ in
 
   # THE KILL-SWITCH GATE. modules/home/default.nix imports this capsule
   # UNCONDITIONALLY and enables it only on `macos`, so "enable unset contributes
-  # nothing" is load-bearing for nixpi and nixvm, not a nicety.
+  # nothing" is load-bearing for every NixOS host (`flake.nixosConfigurations`
+  # in modules/parts/hosts.nix), not a nicety.
   #
   # It is also the gate that keeps ADR-002 §4's "two-switch regression" refusal
   # honest. The ADR forbids wrapping these two modules in a third

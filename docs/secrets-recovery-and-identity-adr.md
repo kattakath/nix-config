@@ -5,7 +5,8 @@ markers; Phase 2 the `keychain-secrets` extension; Phase 3 the `cloud-cli` capsu
 `googleAccount` binding, the inventory moves, the template, and the Access-policy DRAFT). §9 is
 the execution record. `backend.type` is `"gcp"` on `macos` since 2026-10-17, once the Secret
 Manager API was declared in `infra/gcp/foundation.nix` (§9.3). One thing is deliberately still the
-operator's: the Access-policy change is declared but **not applied** (§9.10).
+operator's: importing the live Access policy into `cf-tunnel` state — the "ADOPTION IS
+IMPORT-FIRST" block in `infra/cloudflare/nixpi-tunnel.nix` (history in §9.10).
 
 **Read §9 before trusting §§1-8.** It records what Phase 2's execution found the design (and
 the brief it came from) got wrong. Where §9 and an earlier section disagree, §9 is what the

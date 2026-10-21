@@ -5,7 +5,8 @@
 > **§12 is the teardown record; read it before anything else here.** Two destroy runs removed
 > **65** Cloudflare objects: MCP server registrations **27 → 0**, portals **1 → 0**, the
 > `mcp-public` tunnel **1 → 0**, mcp + upstream Access applications **→ 0**.
-> `https://mcp.kattakath.com/mcp` answers **403**. `infra/cloudflare/mcp-public.nix`, the five
+> `https://mcp.kattakath.com/mcp` answered **403**; its DNS record was deleted the same day (the
+> `infra/cloudflare/kattakath-dns.nix` header). `infra/cloudflare/mcp-public.nix`, the five
 > `mcp-public-*` apps, `packages.mcp-worker-probe`, `modules/shared/mcp.nix` and
 > `fleet.publicMcpServers`/`publicMcpPort` are all **deleted**. Nothing in §§1-11 can be flipped
 > on, applied, or planned.
@@ -18,7 +19,7 @@
 **Status:** **RETIRED 2026-10-02.** Was **BUILT and live** from 2026-09-12. v2 rewrote a v1 that answered the wrong question
 (see §9); §7/§7a were revised again the same day, when `character-mcp` migrated off its own OAuth
 onto the shared service token — and again on **2026-09-14**, when `character-mcp` was
-decommissioned. **§7's external-Worker shape is still fully supported and has zero users**:
+decommissioned. **§7's external-Worker shape has zero users**:
 `character` was its only one, so it now reads as the *retired worked example*.
 
 > **⚠ READ §10 FIRST.** On **2026-09-22** the published list went from two servers to **all 26**,

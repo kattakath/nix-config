@@ -34,7 +34,7 @@
 # its own state" trade this repo makes elsewhere.
 #
 # AND WHY NOT THE SIBLING OPTION, `programs.claude-code.plugins` (same file,
-# options.nix:150) — the half this note used to leave unexamined. It is an
+# options.nix) — the half this note used to leave unexamined. It is an
 # attrsOf (package|path) that SYMLINKS each plugin into configDir/skills/ and
 # loads it as a personal plugin: fully declarative, no activation script, no CLI
 # call, no mutable ~/.claude, and still an attrset, so a private layer would keep
@@ -45,7 +45,7 @@
 # It is NOT adopted, and the reason is scope, not preference: it installs plugin
 # DIRECTORIES and has no concept of a marketplace. The operator's plugins
 # (github:kattakath/skills since 2026-09-12) are a marketplace on purpose — a publishable artifact others can add by URL — and
-# `plugins` would silently drop that, turning a shareable marketplace into three
+# `plugins` would silently drop that, turning a shareable marketplace into
 # private symlinks. Re-open this if either becomes true: upstream teaches
 # `marketplaces` to accept a git/https source (which would retire this module
 # outright), or the fleet stops caring about publishing plugins/ (which would
@@ -109,7 +109,7 @@ in
 {
   # Declared UNCONDITIONALLY — an option declaration may never sit inside a
   # mkIf, and a Linux host declaring the option while contributing no config is
-  # exactly the inert shape the two NixOS hosts want.
+  # exactly the inert shape the NixOS hosts want.
   options.local.claudePlugins.marketplaces = lib.mkOption {
     type = lib.types.attrsOf (
       # A plain attrset module — no `{ config, ... }` head: the last option that
@@ -215,8 +215,8 @@ in
       name a plugin in that marketplace's `plugins` list, asserted below.
 
       NOT THE `assured` LANE. ADR-008 also proposes a root-owned managed-settings
-      tier that no lower scope can retract; that is NOT implemented, and its §7
-      measurements are still open. Everything here is user scope.
+      tier that no lower scope can retract; that is NOT implemented. Everything
+      here is user scope.
     '';
   };
 
@@ -360,7 +360,7 @@ in
     #
     # MEMBERSHIP RULE: what this repo structurally BREAKS without, not what is merely
     # useful. Widening the bar was considered and declined (#648).
-    #   claude-code-nix  the `autostage-nix` + `nix-home-path-lint` PreToolUse hooks.
+    #   claude-code-nix  the `autostage-nix` + `nix-home-path-lint` hooks.
     #                    Without it a `.nix` edit can reach an eval unstaged, which is
     #                    the failure git-purity exists to prevent.
     #   superhook        the `Stop` + `PreToolUse:Bash` wrappers and the SessionStart
@@ -391,7 +391,7 @@ in
     #   Nix may write an `enabledPlugins` key ONLY for an id a human named ON PURPOSE.
     #   For every other id — including every id in `marketplaces.*.plugins` — the
     #   rendered attrset must have NO key at all, so the jq merge in
-    #   ./claude-code-settings.nix (`.[0] * $nix[0]`, right operand wins per key)
+    #   ./claude-code-settings.nix (`mergeScript`, right operand wins per key)
     #   leaves the operator's value, `false` included, exactly as the UI wrote it.
     #
     # `declared` holds that invariant: it is an operator-written map of LITERAL ids, so

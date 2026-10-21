@@ -21,7 +21,7 @@ is not the reading — it is that the swap *appears to work*.
 ```bash
 src=$(nix eval --raw --impure --expr \
   'builtins.toString (builtins.getFlake "'"$PWD"'").inputs.nix-darwin.outPath')
-# → /nix/store/8ggr67sci43hlp8ba6rhjrdhhj5490am-source   (the rev in flake.lock)
+# → /nix/store/…-source   (the pinned nix-darwin source — flake.lock's node)
 
 grep -rn "postgres" "$src/modules/"
 # → modules/services/postgresql/default.nix   (370 lines, read in full)
@@ -84,22 +84,17 @@ there is no logged-in user, so `gui/<uid>` does not exist and it cannot reach a 
 even in principle.
 
 A `selfHeals = false; domain = "gui"` unit is therefore covered by **neither** mechanism.
-That file also records the fleet's standing remedy and its direction of travel:
-
-> The fleet's standing remedy for that is MIGRATION to the home-manager lane, where upstream
-> already owns the probe (metube and yt-dlp-web-ui moved 2026-09-22 for exactly this […]).
-> Do not "fix" it by widening the reconciler.
+That file's header also records the fleet's direction of travel.
 
 Adopting `services.postgresql` walks a **live database** the opposite way down that path,
-ten days after two services were moved off it. Measured on the host: `launchd.user.agents`
-holds exactly five units today (two log rotators, two CI runner agents and a clipboard
-helper), matching `launchd-sources.nix`'s own count — and Postgres is correctly not among
-them.
+ten days after two services were moved off it. What `launchd.user.agents` holds today is in
+`launchd-sources.nix`'s header, gated by `checks.<system>.launchd-selfheal-lane` — and
+Postgres is correctly not there.
 
 ### 2. arg0 would become `/bin/sh`
 
 Upstream uses the `script` option, and nix-darwin renders that to
-(`modules/launchd/default.nix:88-93`):
+(`modules/launchd/default.nix`, its `serviceConfig.ProgramArguments` construct):
 
 ```nix
 serviceConfig.ProgramArguments = mkIf (config.command != "") [
@@ -255,12 +250,12 @@ generated wrapper.
 | `services.postgresql` exists and is reachable on `macos` | **measured** (`config.services ? postgresql` → `true`) |
 | `authentication` is `mkAfter` | **quoted**, :318 |
 | `initialScript` / `ensureDatabases` / `ensureUsers` are declared but inert | **quoted**, :118-198 declaration + :283-295 warning |
-| Upstream renders `launchd.user.agents`, arg0 `/bin/sh` | **quoted**, :335 + `modules/launchd/default.nix:88-93` |
+| Upstream renders `launchd.user.agents`, arg0 `/bin/sh` | **quoted**, :335 + `modules/launchd/default.nix`'s `serviceConfig.ProgramArguments` |
 | That lane self-heals under neither mechanism | **cited** to `modules/darwin/launchd-sources.nix` (which cites the pinned sources `file:line`) |
 | The capsule's arg0 is `nix-postgres-pgvector` | **measured** on the host |
 | `dataDir` default differs and triggers `initdb` | **quoted**, :316 + :340-350 |
 | **Not tested:** that adoption actually loses the live cluster at runtime | **deliberately not run.** Proving blocker 5 empirically means pointing a fresh `initdb` at a live RAG store. The code path is quoted instead. |
-| **Not tested:** whether macOS in practice drops this agent often enough for `selfHeals` to matter | **unmeasured.** Blocker 1 rests on the mechanism's absence, not on an observed restart failure. This is the **weakest assumption** here; a count of `launchctl print` misses across the five gui units would settle it. |
+| **Not tested:** whether macOS in practice drops this agent often enough for `selfHeals` to matter | **unmeasured.** Blocker 1 rests on the mechanism's absence, not on an observed restart failure. This is the **weakest assumption** here; a count of `launchctl print` misses across the gui units would settle it. |
 
 ## Mechanised, not just written down
 

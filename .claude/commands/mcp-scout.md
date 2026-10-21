@@ -15,6 +15,6 @@ read → `.claude/settings.json` permissions → fresh session → **call one of
 check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) is a name join over the
 pinned public tree and cannot see whether a server answers — invoking a tool is the only proof. No server counts to update anywhere.
 
-**Never install imperatively** — no installer CLIs, no `claude mcp add` (denied at user *and*
-managed scope), no mcpfinder write tools — it ships none today, and none of its tools is
+**Never install imperatively** — no installer CLIs, no `claude mcp add` (denied at user scope,
+`claude-guardrails.nix`), no mcpfinder write tools — it ships none today, and none of its tools is
 pre-approved (`claude-guardrails.nix`), so every call prompts. Adoption is a declaration.

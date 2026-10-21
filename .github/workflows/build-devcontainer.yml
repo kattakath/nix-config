@@ -7,11 +7,11 @@ name: build-devcontainer
 # heavyweight toolchain (a working nix + the warm devShell closure + node +
 # claude-code + gh) is baked in, so create-time setup is near-zero.
 #
-# WHY MULTI-ARCH. The FLEET is aarch64-only (macos/nixpi/nixvm), but the
+# WHY MULTI-ARCH. The FLEET is aarch64-only, but the
 # devcontainer is a dev tool, not a fleet host. GitHub Codespaces is x86_64-only,
 # and an arm64-only image qemu-emulates there (which breaks the nix-daemon
 # container), so the image is published for BOTH arches and :latest is a manifest
-# list. flake.nix keeps x86_64-linux OUT of the fleet's linuxSystems and adds it
+# list. modules/parts/systems.nix keeps x86_64-linux OUT of the fleet's linuxSystems and adds it
 # ONLY for the image (devcontainerSystems), so the single-arch host invariant is
 # intact — see the devcontainerSystems comment in modules/parts/systems.nix.
 #
@@ -112,8 +112,8 @@ jobs:
   #   cache HIT  ⇒ this exact pair was already published ⇒ changed=false ⇒ SKIP.
   #   cache MISS ⇒ new/changed content (or first-ever run)  ⇒ changed=true  ⇒ PUBLISH.
   # The key is SAVED (by the `manifest` job) only after a SUCCESSFUL publish, so a
-  # failed push never poisons the baseline. First run (no cache), workflow_dispatch,
-  # and any non-main ref all force changed=true.
+  # failed push never poisons the baseline. First run (no cache) and workflow_dispatch
+  # force changed=true.
   #
   # Bias is conservative: drvPath can occasionally flip without the output bytes
   # changing (a harmless re-publish), but it can NEVER stay the same when the output

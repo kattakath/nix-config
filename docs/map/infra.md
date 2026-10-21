@@ -16,7 +16,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 > published MCP gateway's Cloudflare side — tunnel, portal, per-server registrations, Access
 > apps, service token. Two destroy runs removed **65 objects**; the API then reported **0** MCP
 > server registrations (was 27), **0** portals (was 1), **0** `mcp-public` tunnel, **0**
-> mcp/upstream Access applications, and `https://mcp.kattakath.com/mcp` answers **403**. Its
+> mcp/upstream Access applications, and `https://mcp.kattakath.com/mcp` answered **403**; its DNS
+> record was deleted the same day (the `infra/cloudflare/kattakath-dns.nix` header). Its
 > state object, the `mcp-public-{plan,apply,destroy,sync,token}` apps, the
 > `packages.mcp-worker-probe` helper and `fleet.publicMcpServers`/`publicMcpPort` went with it.
 > **Do not re-add a stack to publish MCP** — [`claude.md`](claude.md) § MCP after the gateway
@@ -35,8 +36,13 @@ outcome; the shape to fear is an ambient credential that *does* have access and 
 wrong place silently. Canonical invocation:
 
 ```bash
-nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#<app>'
+nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=<handle> -- nix run .#<app>'
 ```
+
+`<handle>` is a Cloudflare Keychain entry from the token table in
+[`secrets-and-keychain.md`](../secrets-and-keychain.md) § Cloudflare tokens. A stack's own file
+may name the handle it needs, with the reason — `nixpi-tunnel.nix`'s "ADOPTION IS IMPORT-FIRST"
+block does.
 
 State is the shared, versioned bucket `kattakath-tofu-state` (named once, as
 `fleet.gcpStateBucket`), **encrypted** with a passphrase

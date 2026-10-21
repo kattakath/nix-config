@@ -1,6 +1,6 @@
 # The WRITE / RECOVERY side of the Keychain store (ADR-004, Phase 2): four operator-invoked
 # CLIs that make GCP Secret Manager the durable source of truth and the login Keychain a
-# fast local cache. Nothing about the READ side changes — the loader, `secret exec`, Touch ID
+# fast local cache. Nothing about the READ side changes — `secret exec`, Touch ID
 # prompts and the index grammar are untouched.
 #
 #   secrets-status     table: in Keychain? ref? mode? drift vs. latest remote version (hashes)
@@ -36,7 +36,7 @@
 #   * gcloud comes from PATH, not runtimeInputs: the Mac installs the `gcloud-cli` Homebrew
 #     cask (hosts/macos.nix) so `gcloud components` works; nixpkgs' google-cloud-sdk is a
 #     ~1 GB second copy. A missing gcloud is a clear error, not a silent skip.
-#   * The Keychain writer is `set-secret` — the index's SINGLE WRITER — so rehydrate never
+#   * The Keychain writer is `set-secret`, so rehydrate never
 #     touches `__set_secret_index__` itself and `-U` already updates an item in place; there
 #     is no delete-then-add here because the capsule's writer already solved that.
 #   * Community tools considered: `teller` (tellerops) syncs Secret Manager → env/files but
@@ -219,8 +219,8 @@ in
       printf '%s\n' \
         "usage: secrets-rehydrate [--dry-run]" \
         "  Repopulate the login Keychain from Secret Manager: every secret under the prefix" \
-        "  that carries this store's annotations is written back through set-secret (the" \
-        "  index's single writer), so bindings and the index are restored too. Idempotent:" \
+        "  that carries this store's annotations is written back through set-secret, so" \
+        "  bindings and the index are restored too. Idempotent:" \
         "  an item whose Keychain value already matches is skipped. reference-mode secrets" \
         "  are NOT cached — only their ref lands in the manifest. Needs an active gcloud SSO" \
         "  session; fails loudly without one. Never run by activation." >&2

@@ -7,13 +7,13 @@
 # plist therefore means the body never runs, so a daemon that is no longer in the
 # domain is NEVER re-bootstrapped. Home Manager does not have this hole — it
 # probes with `launchctl print` and re-bootstraps (pinned home-manager
-# modules/launchd/default.nix:411-419) — which is exactly why 22 user agents
+# modules/launchd/default.nix, `agentIsLoaded`) — which is exactly why 22 user agents
 # stayed healthy through the outage below while the system tier did not.
 #
 # 2026-09-22: activate-agenix and both github-runner daemons sat outside the
 # system domain for ~21h. /run is wiped at boot and on darwin agenix repopulates
 # /run/agenix ONLY from launchd.daemons.activate-agenix (pinned agenix
-# modules/age.nix:339-354; its activationScripts path at :303 is Linux-only), so
+# modules/age.nix; its `system.activationScripts` path is Linux-only), so
 # all three host-decrypted secrets were gone and five CI lanes with them. The
 # preserved launchd ring (/var/log/com.apple.xpc.launchd/launchd.log) holds 24k
 # org.nix lines across four activations that day and, for those three labels,
