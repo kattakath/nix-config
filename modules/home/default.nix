@@ -793,6 +793,11 @@ in
         "aws-core"
         "aws-serverless"
         "databases-on-aws"
+        # GitLab's OFFICIAL plugin (in-repo, source "./external_plugins/gitlab"): only an
+        # `.mcp.json` naming the hosted gitlab.com/api/v4/mcp server (type=http, one-time
+        # in-client OAuth via `/mcp`, same shape as stripe/resend). The GitHub twin is
+        # `github-gh@kattakath`, which rides gh's token instead.
+        "gitlab"
         # Anthropic first-party skill-creator: drafts a skill, runs with/without-skill evals
         # and optimizes its description so it triggers. kattakath/skills' `harvest` hands its
         # drafting and testing step to it (kattakath/skills#10) and keeps triage, stripping
@@ -1284,6 +1289,9 @@ in
     # from the operator's private overlay marketplace, never from this file.
     # GitHub over MCP with gh's token and scopes (operator decision 2026-10-16).
     "github-gh@kattakath" = true;
+    # GitLab over MCP, gitlab.com's hosted server with its own OAuth (operator request
+    # 2026-10-21). No glab token is reused — the first `/mcp` connect asks for approval.
+    "gitlab@claude-plugins-official" = true;
     "aws-core@claude-plugins-official" = true;
     "aws-serverless@claude-plugins-official" = true;
     # OFF, 2026-10-16, the same day it went on. Its `.mcp.json` ships `aurora-dsql` and
