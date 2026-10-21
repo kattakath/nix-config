@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://ismail.kattakath.com/sitemap.xml
