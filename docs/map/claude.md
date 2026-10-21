@@ -428,8 +428,10 @@ Two of them carry write-ups worth keeping:
   `--browser-url` cannot attach; one started with `--remote-debugging-port` serves `/json/*`
   but leaves a **stale** `DevToolsActivePort` whose WebSocket UUID is dead, so `--autoConnect`
   cannot. The wrapper probes `/json/version` first — authoritative when it answers, since it
-  carries the live `webSocketDebuggerUrl` — and falls back to the file only when nothing
-  answers, which is precisely when the file is fresh. Hence **both** a `port` (probe hint) and
+  carries the live `webSocketDebuggerUrl` — and falls back to the file when nothing
+  answers. That fallback is NOT proof the file is fresh: the probe runs once, at spawn, so a
+  flag-mode browser started AFTER spawn met a dead UUID (2026-10-21). `nix-chromium-debug`
+  now rewrites the file after launch; why is in its comment in `modules/home/chromium.nix`. Hence **both** a `port` (probe hint) and
   a `userDataDir` option — and hence the one thing the plugin lane structurally cannot reproduce:
   a `.mcp.json` names a bare command and cannot decide a flag by probing first, so whatever
   replaces that wrapper has to make the probe part of the command it names.
