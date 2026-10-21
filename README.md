@@ -172,7 +172,7 @@ Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontaine
 ```
 bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off to the flake
 flake.nix       Entry point: inputs/pins and ONE `flake-parts.lib.mkFlake` call — every output itself lives in modules/parts/
-flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); 52 nodes, held down by a deliberate `follows` diet plus ADR-002's capsule absorption
+flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); its node count is held down by a deliberate `follows` diet plus ADR-002's capsule absorption
 treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
 hosts/          Per-host entry profiles: macos.nix, nixpi.nix, nixvm.nix, nixos.nix — plus identity-free generic-darwin.nix / generic-linux.nix, which `checks.<system>.template-consumer` builds on
 modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each, each owning its own module + packages + checks), and the reusable modules split by platform (darwin/ nixos/ home/), plus _lib/ (shared data)

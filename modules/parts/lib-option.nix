@@ -5,7 +5,7 @@
 # modules/flake.nix:14-28). `unique` means ONE definition, in ONE file, or the
 # merge fails with "No option has been declared for this flake output
 # attribute". That is fine for a genuinely single-owner output (`deploy`,
-# `identity`, `templates`) and WRONG for these two:
+# `identity`, `templates`) and WRONG for this one:
 #
 #   flake.lib                   modules/parts/compose.nix contributes the
 #                               builders; modules/parts/terranix.nix contributes
@@ -20,7 +20,7 @@
 # is its only definer. A second declaration
 # here was a duplicate — removed 2026-09-13.
 #
-# Leaving these undeclared is the single most expensive mistake available in a
+# Leaving it undeclared is the single most expensive mistake available in a
 # modular flake-parts design: it silently re-creates today's monolith by making
 # one file the only legal home for every seam.
 { lib, ... }:

@@ -429,12 +429,13 @@ Two of them carry write-ups worth keeping:
   but leaves a **stale** `DevToolsActivePort` whose WebSocket UUID is dead, so `--autoConnect`
   cannot. The wrapper probes `/json/version` first — authoritative when it answers, since it
   carries the live `webSocketDebuggerUrl` — and falls back to the file when nothing
-  answers. That fallback is NOT proof the file is fresh: the probe runs once, at spawn, so a
-  flag-mode browser started AFTER spawn met a dead UUID (2026-10-21). `nix-chromium-debug`
-  now rewrites the file after launch; why is in its comment in `modules/home/chromium.nix`. Hence **both** a `port` (probe hint) and
+  answers. Hence **both** a `port` (probe hint) and
   a `userDataDir` option — and hence the one thing the plugin lane structurally cannot reproduce:
   a `.mcp.json` names a bare command and cannot decide a flag by probing first, so whatever
-  replaces that wrapper has to make the probe part of the command it names.
+  replaces that wrapper has to make the probe part of the command it names. The file fallback is
+  NOT proof the file is fresh: the probe runs once, at spawn, so a flag-mode browser started
+  AFTER spawn met a dead UUID (2026-10-21). `nix-chromium-debug` now rewrites the file after
+  launch; why is in its comment in `modules/home/chromium.nix`.
 
 **`seargraph` was deleted, not moved into that repo (2026-09-12).** It was the
 `seargraph-langgraph` subagent (LangGraph pipeline design for the private SEARGraph project:
@@ -458,9 +459,7 @@ already-enabled plugin ships from a merge there. Validate with `claude plugin va
 **A SECOND source costs one input and its own entries — no new mechanism.**
 `local.claudePlugins.marketplaces` is `attrsOf` and `programs.claude-code.skills` is a
 plain attrset, so both already take N. The operator's `ismailkattakath/ai` is
-deliberately NOT pinned here: it aggregates experiments, and an
-experiment has no business being always-on global context on the working Mac. Add one
-when it has earned that, or scope it to a project instead. (The operator's PRIVATE client overlay,
+deliberately NOT pinned here. Add it as one more entry, or scope it to a project instead. (The operator's PRIVATE client overlay,
 `<handle>/skills`, is not one of these: it is enabled by a hand-placed settings overlay, never
 named here — [`agent-resource-externalization.md`](../agent-resource-externalization.md).)
 

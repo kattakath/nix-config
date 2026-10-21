@@ -253,9 +253,6 @@
     # also exports as the RAGDB_URI session variable, i.e. the whole career
     # RAG — is unchanged and pinned as a literal by the capsule's own check.)
 
-    mcp-servers-nix.url = "github:natsukium/mcp-servers-nix";
-    mcp-servers-nix.inputs.nixpkgs.follows = "nixpkgs";
-
     # ---- Agent skills for Claude Code (source-only, flake = false) -------------
     # Placed at ~/.claude/skills/<name>/ declaratively by programs.claude-code.skills
     # (modules/home/default.nix, darwin-gated). Pinned in flake.lock, bumped via
@@ -387,10 +384,8 @@
       # with no bump here (superhook left this pin 2026-09-30).
       #
       # THE ONLY agent-resource repo this PUBLIC fleet pins. The operator's
-      # personal `ismailkattakath/ai` is deliberately absent: it is an experiment
-      # aggregator, and an experiment has no business being always-on global
-      # context on the working Mac. It can join as one more
-      # `local.claudePlugins.marketplaces` entry, or be scoped to a project.
+      # personal `ismailkattakath/ai` is deliberately absent. It can join as one
+      # more `local.claudePlugins.marketplaces` entry, or be scoped to a project.
       url = "github:kattakath/skills";
       flake = false;
     };
