@@ -2992,9 +2992,9 @@ in
               # naming rule — especially gmail's address sanitisation, which lives in
               # packages/gmail-mcp.nix. A check that re-derived it would agree with a
               # broken rule by sharing it. Derivation name == binary name for all
-              # three builders, each `writeShellApplication` (packages/keychain-mcp.nix,
-              # packages/gmail-mcp.nix, packages/mcpfinder-mcp.nix) emitting exactly one
-              # `$out/bin/<name>`.
+              # four builders, each `writeShellApplication` (packages/keychain-mcp.nix,
+              # packages/gmail-mcp.nix, packages/mcpfinder-mcp.nix,
+              # packages/slack-post-mcp.nix) emitting exactly one `$out/bin/<name>`.
               built = lib.naturalSort (
                 lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") (map (p: p.name or "") hm.home.packages))
               );

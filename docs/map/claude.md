@@ -334,7 +334,8 @@ this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-ad
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
 > as `kattakath-skills`, for the `page-lab-pick` PATH package (plus its `checks.*.page-lab`
-> gate) — and, until 2026-10-02, `mcp.nix`'s `mcpCatalog`, which went with that module. A
+> gate) — and, until 2026-10-02, `mcp.nix`'s `mcpCatalog`, which went with that module (since
+> then also `checks.*.mcp-launcher-parity`). A
 > plugin's `bin/` reaches the Bash tool's PATH but **not**
 > a hook's (measured), which is why `page-lab-pick` is still a package. `superhook` WAS the
 > second such package until 2026-09-30, on the stronger claim that a hook wrapper cannot be a

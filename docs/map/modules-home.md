@@ -106,9 +106,10 @@ in the repo can catch that; see that fixture file's header for the measurement.
     - **The built side is read off the composed package list, not re-derived.** A check that
       re-applied gmail's address sanitisation would agree with a broken rule by sharing it.
       Derivation name == binary name for all four builders — every one `writeShellApplication`
-      since 2026-10-17 (`packages/keychain-mcp.nix`, `packages/gmail-mcp.nix`,
-      `packages/mcpfinder-mcp.nix`, `packages/slack-post-mcp.nix`), each emitting exactly one `$out/bin/<name>` and
-      shellchecked at build. The first two keep `bashOptions = [ "nounset" ]`, the `set -u`
+      (`packages/keychain-mcp.nix`, `packages/gmail-mcp.nix`, `packages/mcpfinder-mcp.nix` since
+      2026-10-17; `packages/slack-post-mcp.nix` since its 2026-10-20 birth), each emitting exactly
+      one `$out/bin/<name>` and shellchecked at build. All but mcpfinder keep
+      `bashOptions = [ "nounset" ]`, the `set -u`
       they always ran under, so a missing Keychain entry still warns rather than aborts.
     - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Of the 15 servers
       the plugins declare (pin `e3e48a9`, 2026-10-21), 8 are out of this lane: `memory` and `chrome-devtools` are
@@ -631,10 +632,10 @@ in the repo can catch that; see that fixture file's header for the measurement.
     must stay in the repo that owns the tree — which is why nix-personal kept its own
     `plugins/` directory and a 5-line module until it was retired 2026-09-15, rather than
     shipping the tree here. Nothing in this repo can trip the trap today: there is no
-    `plugins/` tree here either, so none of the four `source` values in
-    `modules/home/default.nix` is a repo-relative path literal — three are `https://` git URLs
-    (`kattakath` among them since 2026-09-23), and one is a store path (the patched
-    grok-build plugin).
+    `plugins/` tree here either, so none of the `source` values in
+    `modules/home/default.nix` is a repo-relative path literal — every one but one is an
+    `https://` git URL (`kattakath` among them since 2026-09-23), and that one is a store path
+    (the patched grok-build plugin).
   - **The activation script is now ONE `marketplace add` per store-path marketplace**
     (2026-09-30) — no install loop, no uninstall, no marketplace-remove, no two phases. The
     declarations do the work: `extraKnownMarketplaces` + `enabledPlugins`, and Claude Code's
