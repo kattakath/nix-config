@@ -124,9 +124,9 @@ in
 
   # THE KILL-SWITCH GATE (ADR-002 §2 anatomy). This module is imported
   # UNCONDITIONALLY by modules/home/default.nix — the profile every host in the
-  # fleet runs, `nixpi` and `nixvm` included — and only then gated to the real
-  # Mac by `local.mediaCli.enable = isMacosHost`. So "off" is the state two
-  # of three hosts are in, and anything this module leaks while off lands on
+  # fleet runs, the Linux hosts included — and only then gated to the real
+  # Mac by `local.mediaCli.enable = isMacosHost`. So "off" is the state every
+  # host but macos is in, and anything this module leaks while off lands on
   # them: a launchd agent on a Linux box, an `OLLAMA_HOST` in a server's
   # environment, an activation step that copies Finder Services onto NixOS.
   #

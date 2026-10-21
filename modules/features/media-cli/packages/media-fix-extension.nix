@@ -60,8 +60,8 @@
 #           rename. Diagnostics stay on stderr, so the two never mix.
 #
 # Output grammar (`done:` / `skip:` / `OK:` / `error:`) is shared with the other
-# media-toolkit CLIs so the Finder Service wrapper can summarise it into a
-# notification. See packages/media-quick-actions.nix.
+# media-toolkit CLIs so media-queue's worker can count and lift it.
+# (The Finder Service wrapper no longer summarises: see packages/media-quick-actions.nix.)
 {
   writeShellApplication,
   file,
