@@ -72,7 +72,7 @@
 #
 # So they live in this flake, behind their own opt-in module options, and stay
 # OUT of this bundle. Folding them in would put a uv/Python environment and a
-# Keychain read on the media queue worker's PATH for no reason, and would make
+# Keychain read on the Finder Services' PATH for no reason, and would make
 # "media-toolkit" mean only "vaguely about media", which is not a useful thing
 # for it to mean.
 #
