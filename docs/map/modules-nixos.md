@@ -20,7 +20,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   that day the host was unreachable by every route and recovery was a ~40-minute physical SD
   reflash. `nixvm`, and every `lib.mkNixos` consumer, keep the loopback-only default. The
   physical console is the break-glass path below both.
-  `nixvm` is only ever the local `nix run .#nixvm` desktop and has no networked login path
+  `nixvm` is only ever the local, HEADLESS `nix run .#nixvm` build-vm (SSH only via the host-loopback forward on `127.0.0.1:2222`) and has no networked login path
   either — but note it autologins with **no password** AND keeps a persistent `/home` in its
   qcow2 (see `nixvm.nix` above), so that image is durable unencrypted local state rather than
   a scratch buffer.
@@ -38,7 +38,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   Access enforces at the EDGE such a connection is not merely unauthenticated, it produces **no
   access log at all**. **Narrowing:** putting sshd back on loopback, or dropping the
   per-interface allow-list, silently restores the single point of failure that cost the
-  2026-10-01 reflash. 22 legs, each naming its own silent-failure mode:
+  2026-10-01 reflash. Its legs, each naming its own silent-failure mode:
   - `openFirewall = false` — upstream defaults it **true** and feeds `cfg.ports` straight into
     `allowedTCPPorts`, i.e. the GLOBAL list, so deleting that one line opens 22 on every
     interface the host has with no other file changing.
@@ -84,7 +84,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     (`firewall-iptables.nix:149`), and upstream sets that value itself (`firewall.nix:334`), so
     the leg pins it rather than emptiness. Plus password / keyboard-interactive / root-login
     denials.
-  - **the SECOND INGRESS, five legs, reading the per-interface path in the OPPOSITE direction.**
+  - **the SECOND INGRESS legs, reading the per-interface path in the OPPOSITE direction.**
     Since 2026-10-01 that path is not purely a widening risk — it is where `nixpi`'s LAN recovery
     ingress lives, so its ABSENCE is now a failure too: `local.lanRecovery.enable` is true; a
     per-interface allow-list exists at all; its keys are EXACTLY the interfaces
@@ -120,15 +120,13 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   buy is the second-ingress legs above: the config now has to keep declaring a non-tunnel path,
   so the next edit that restores the single point of failure fails the build instead of waiting
   for the next outage to announce itself.
-  Four further CONFIG paths are known and deliberately ungated: `networking.firewall.extraCommands`,
+  Three further CONFIG paths are known and deliberately ungated: `networking.firewall.extraCommands`,
   the iptables backend's raw escape hatch (`firewall-iptables.nix:235`), already NON-EMPTY on
   nixpi because the nat module contributes its own teardown preamble, so there is no empty
   baseline to assert against; `extraInputRules`, which is not a path on this host at all — it
   exists only in `firewall-nftables.nix` (`:24-26`, rendered at `:179`), so flipping
   `networking.nftables.enable` moves the whole rule set to a renderer none of these legs read
-  and needs NEW legs rather than an edit to these; **UDP**, ports and ranges both, since the
-  failure this check exists to catch is an unauthenticated unlogged path to sshd and sshd is
-  TCP; and the rest of `sshd_config` — a `Port` smuggled through `extraConfig` is harmless
+  and needs NEW legs rather than an edit to these; and the rest of `sshd_config` — a `Port` smuggled through `extraConfig` is harmless
   here (the allow-lists are pinned per interface) but a `Match` block relaxing an auth
   setting is invisible. Nothing here stops the Pi compiling locally either (`max-jobs` is
   still `auto`), and the Access application itself lives in Cloudflare's API, where its
@@ -188,7 +186,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     already-LAN-reachable web server and buys back the 40-minute reflash. It cannot reach a host
     that is off, whose card is corrupt, or whose radio and wired port are both down, and it is no
     help from off-segment; the physical console stays the last break-glass path.
-  - Gated by the five second-ingress legs of `checks.<system>.nixpi-security-posture` above,
+  - Gated by the second-ingress legs of `checks.<system>.nixpi-security-posture` above,
     which also join the interface list to the two other places those names are spelled.
 - **`modules/nixos/nix-cache.nix`** — the binary-cache substituters, as plain
   `nix.settings.extra-substituters`/`extra-trusted-public-keys`: the public `kattakath` Cachix
