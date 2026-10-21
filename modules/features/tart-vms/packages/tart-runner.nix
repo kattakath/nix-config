@@ -251,7 +251,7 @@ let
       #
       # IDLE COST, measured in requests per poll:
       #   repo scope : 2  (queued + in_progress run listings)
-      #   org  scope : 2xR, plus the repo re-list on every poll
+      #   org  scope : 2xR, plus the installation repo re-list on every poll (none when watchRepos is set)
       # A queued or in-progress RUN costs one extra jobs listing each; in the
       # steady idle state there are none, so the cost above is the whole cost.
       # At the default 60s interval and R=10 repos that is ~1200 requests/hour

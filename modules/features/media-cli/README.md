@@ -57,9 +57,9 @@ Every one takes `--help`. All of them stay on `PATH` under their own names;
 | `obs-fb-setup` | `obsFacebookSetup.enable` | writes an OBS "Facebook" profile with researched 1080p30 screencast settings. Inert until `FB_PERSISTENT_STREAM_KEY` is in your login Keychain |
 
 These ship here so the media story is **one repo you add or strip off**, but
-they stay out of the `media-toolkit` bundle: that bundle is what the queue
-worker and the Finder Services put on their `PATH`, so every member becomes a
-runtime dependency of the queue. A uv/Python environment and a Keychain read
+they stay out of the `media-toolkit` bundle: that bundle is what
+the Finder Services put on their `PATH`, so every member becomes a
+runtime dependency of the Finder Services. A uv/Python environment and a Keychain read
 have no business there.
 
 ## The queue is launchd's, not ours

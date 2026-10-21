@@ -292,9 +292,9 @@ let
               ;;
             bind | unbind)
               # MUST be listed explicitly. Anything not matched here falls to the
-              # `*)` arm below, which passes it to the binary — so a missing verb here makes
-              # the binary refuse it as an unknown command, which reads as a bug in
-              # the binary rather than a gap here.
+              # `*)` arm below, which passes it straight to the binary — so a missing verb here
+              # still binds/unbinds in the Keychain, but THIS shell never exports/unsets the
+              # var, which reads as a bug in the binary rather than a gap here.
               # Capture the binding BEFORE the call; afterwards the index no
               # longer says what it was.
               __ss_verb="$1"

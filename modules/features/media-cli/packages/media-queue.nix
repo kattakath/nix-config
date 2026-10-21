@@ -190,7 +190,7 @@ let
 
   # Named (not inlined in `paths` below) so media-queue-top can put it on
   # its own runtimeInputs and call it by name — the same explicit-dependency
-  # style media-worker already uses for media-toolkit, rather than relying
+  # style media-worker already uses for media-fix and media-describe, rather than relying
   # on it happening to already be on $PATH.
   media-queue-status = writeShellApplication {
     name = "media-queue-status";
