@@ -317,6 +317,20 @@ let
       "Bash(security find-generic-password * -w*)"
       "Bash(security find-internet-password -w*)"
       "Bash(security find-internet-password * -w*)"
+      # Environment dumps (2026-10-21). The keychain-secrets loader exports every
+      # bound secret into every shell, so a bare `env` prints them. EXACT match
+      # only: `Bash(env *)` would deny `env FOO=bar cmd`. The measurement that an
+      # exact entry still fires inside `env | grep X`, `true && env` and
+      # `echo $(env)` lives beside the twin list in claude-guardrails.nix.
+      "Bash(env)"
+      "Bash(printenv)"
+      "Bash(set)"
+      "Bash(export)"
+      "Bash(export -p)"
+      "Bash(declare -x)"
+      "Bash(declare -p)"
+      "Bash(typeset -x)"
+      "Bash(typeset -p)"
       # Host-decrypted agenix plaintext on macos, plus the two OpenTofu state
       # dirs holding a tunnel connector token (and an Access service-token
       # secret) in plaintext. A Read deny also blocks Edit/Write.
