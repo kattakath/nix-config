@@ -72,7 +72,9 @@ _:
     #     nix-homebrew sat rev-pinned to brew 6.0.22, kattakath/nix-config#613).
     #     The upstream fix, viarotel-org/homebrew-escrcpy#61, was CLOSED unmerged
     #     (2026-10-10), so the cask stays ours. Cost: no upstream version bumps —
-    #     bump `version` + `sha256` in the tap when escrcpy releases.
+    #     bump `version` + `sha256` in the tap when escrcpy releases, then `git pull`
+    #     the installed clone under /opt/homebrew/Library/Taps — `autoUpdate` is off
+    #     (above), so nothing else ever moves it and `activate` keeps the old cask.
     #
     # The app is unsigned and not notarized, so Gatekeeper never evaluates it: a
     # quarantined copy will not launch. Each such cask entry therefore
