@@ -74,9 +74,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   execution found the design got wrong); [`ADR-003`](../externalization-boundary-adr.md)
   (decided, **NOT implemented**: Nix is the **harness**, governance never leaves; skills MAY
   overlay from `$HOME`, **MCP servers may not**).
-  [`ADR-004`](../secrets-recovery-and-identity-adr.md) (decided, **Phase 1 of 3 shipped — docs
-  + `OPERATOR-ONLY` markers only**: GCP Secret Manager durable, Keychain as cache, Workspace
-  canonical; rename + repo split deferred; §7 awaits approval, §8 the conflicts);
+  [`ADR-004`](../secrets-recovery-and-identity-adr.md) (status: its own header; GCP Secret Manager durable, Keychain as cache, Workspace
+  canonical);
   [`ADR-005`](../iac-coverage-adr.md) (decided and **IMPLEMENTED**: Cloudflare + GCP under
   terranix, Workspace not — §8c is its doc-rot record);
   [`ADR-006`](../mcp-gateway-succession-adr.md) (**MOOT since 2026-10-02 — never implemented,

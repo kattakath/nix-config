@@ -23,8 +23,7 @@
 }:
 let
   inherit (config.fleet.identityArgs) loginName;
-  # The published-gateway port, for the template-consumer check below. Read from
-  # config.fleet — NOT identityArgs, which is the attrset a consumer replaces.
+  # Read from config.fleet — NOT identityArgs, which is the attrset a consumer replaces.
   inherit (config.fleet) domainName;
 
   # ---- the documentation INDEXES, in one place -----------------------------
@@ -632,6 +631,19 @@ in
               mac = config.flake.lib.mkDarwin captured;
               macHm = mac.config.home-manager.users.${templateLogin};
 
+              # The same consumer, but with its host NAMED "macos" — which
+              # hosts/generic-darwin.nix tells it to set for a bare darwin-rebuild.
+              # Operator-only gates read local.operatorHost
+              # (modules/darwin/operator-host.nix), never the hostname, so this
+              # must still get none of them.
+              namedMacos = config.flake.lib.mkDarwin (
+                captured
+                // {
+                  extraModules = (captured.extraModules or [ ]) ++ [ { networking.hostName = "macos"; } ];
+                }
+              );
+              namedHm = namedMacos.config.home-manager.users.${templateLogin};
+
               # mkNixos is the other half of the published API and the template does
               # NOT call it, so it rides the captured identity: these legs are the
               # 2026-09-16 operator-account leak, kept rather than dropped for want of
@@ -687,6 +699,14 @@ in
                     lib.optional (
                       macHm.launchd.agents ? mcp-gateway || macHm.launchd.agents ? mcp-tunnel-connector
                     ) "a template consumer inherited an MCP gateway agent — the gateway is purged"
+                  ++
+                    lib.optional
+                      (
+                        namedMacos.config.local.operatorHost
+                        || namedHm.home.activation ? emailSignature
+                        || namedHm.local.nextRightThing.enable
+                      )
+                      "a consumer whose host is NAMED 'macos' got operator-only behaviour — gate on local.operatorHost, never the hostname"
                   ++ lib.optional (
                     boxUsers ? ${loginName}
                   ) "mkNixos created the OPERATOR's account (${loginName}) on a consumer's host"

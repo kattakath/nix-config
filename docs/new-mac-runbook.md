@@ -75,6 +75,8 @@ secret is re-issuable by the vendor that minted it:
    value (`agenix -e secrets/<name>.age`). The old ciphertext is encrypted to the
    lost key and to the lost host key; it is not coming back, and does not need to.
 4. **Commit and push** `secrets/operator-key.nix` plus the re-encrypted `.age` files.
+5. **Finish the rotation by hand** — the steps that do NOT read `operator-key.nix` are listed in
+   its own header (`allowed_signers`, and re-adding the key on GitHub as a *signing* key).
 
 Until step 3, `/run/agenix/*` stays empty. That does **not** block activation —
 agenix decrypts from its own `org.nixos.activate-agenix` launchd daemon, not
