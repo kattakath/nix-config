@@ -107,7 +107,7 @@ they bite any future second account:
   module's section below) — nix-config's *own* CI is fully GitHub-hosted and uses no runner, but
   this Mac is not runner-free. Also configures **`local.tart.githubRunners.*`** (the `tart-vms` capsule's
   `darwinModules.github-runner`, in `mkDarwin`'s BASE module list): ephemeral **Tart-VM-per-job**
-  GitHub Actions runners for `kattakath`, `REDACTED`, and `dontsell-ai` (label
+  GitHub Actions runners for `kattakath` and `dontsell-ai` (label
   `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
   (`ismailkattakath-ci`, appId 4849830 — it replaced the retired `kattakath-fleet-ci` on
   2026-09-06; key = agenix `gh-app-fleet-key.age`, host-decrypted), digest-pinned

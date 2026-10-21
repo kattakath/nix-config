@@ -9,7 +9,7 @@
 # Verdict shape:
 #   {"found":true,"action":"...","source":"...","why":"...","urgency":"high"}
 #   {"found":false}                                  -> art mode
-#   optional on either: "degraded":["REDACTED: invalid_grant"]
+#   optional on either: "degraded":["you@example.com: invalid_grant"]
 #
 # Why a single self-contained file: Übersicht runs `cat` on it and injects the
 # result into `<iframe srcDoc>`. Relative URLs inside srcDoc resolve against the

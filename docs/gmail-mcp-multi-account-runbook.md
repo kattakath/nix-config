@@ -1,5 +1,14 @@
 # Gmail MCP — multi-account operator runbook
 
+> **ROSTER LEFT NIX 2026-10-20.** There is no `local.gmailMcp.accounts` any more. Nix
+> installs ONE generic launcher, `nix-mcp-gmail <address>` (`local.gmailMcp.enable`), and the
+> ACCOUNT lives in a plugin's `.mcp.json` as `{"command":"nix-mcp-gmail","args":["<address>"]}`:
+> the operator's own public address in `github:kattakath/skills`'s `gmail` plugin, every other
+> address in the PRIVATE overlay marketplace (`<your-handle>/skills`, `gmail-private`). Adding
+> or removing an account is a plugin `.mcp.json` edit, not a Nix edit. Alias, credentials file
+> and tool prefix are unchanged (same `@ . +` → `_` mapping), so existing sign-ins carry over.
+> Read every `local.gmailMcp.accounts` / `nix-mcp-gmail-<alias>` below with that substitution.
+
 TRUE simultaneous multi-account Gmail for Claude Code — the built-in Gmail/Google
 Workspace connector is single-account-per-connection by design (one OAuth grant,
 no way to hold two accounts open at once). This runs

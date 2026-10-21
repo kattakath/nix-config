@@ -6,7 +6,7 @@
 #
 # The manifest is exactly the fleet's COMPOSITION repos — today that is one line,
 # nix-config itself. It is NOT "every repo on disk" — client/personal repos with no
-# Nix/fleet relationship (REDACTED, dontsell-ai, REDACTED, deepjobseek,
+# Nix/fleet relationship (client orgs, dontsell-ai, deepjobseek,
 # etc.) are deliberately excluded; fleet-doctor is scoped to declarative-infra
 # hygiene, not general dev-repo housekeeping.
 #
