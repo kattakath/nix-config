@@ -64,7 +64,7 @@ branch@rev before it builds. Step F below already runs it.
 | Auto-fix (no per-repo prompt in `fix` mode) | Always confirm first |
 |---|---|
 | `git fetch --prune` (read-only) | Merging any PR, for any reason |
-| Reporting host disk usage (`df -h /nix`) — collection is automatic now, see step E | Deleting a branch/worktree with commits not on its remote/default branch |
+| Reporting host disk usage (per-volume, see step E) — collection is automatic now | Deleting a branch/worktree with commits not on its remote/default branch |
 | — | Committing/pushing anything that isn't this skill's own mechanical fix (stray WIP is reported, never committed) |
 | Deleting a **local-only branch already merged into the repo's default branch** | Force-push, `git reset --hard`, `git clean -f`, any destructive git op |
 | Re-running `nix fmt` / the repo's own format-fix on a repo already being touched | Reactivating a host when the guest/host is unreachable — report as skipped, don't retry-loop |
@@ -159,8 +159,11 @@ paths land. So this step is a **report**, and a hand-run collection is only for 
 space back now" — not routine upkeep.
 
 ```bash
-# host
-df -h /nix | tail -1
+# host — per VOLUME. NOT `df -h /nix`: on APFS, df's "Used" is the whole shared
+# container (measured 2026-10-21: df said 792G "used" on /nix while the Nix Store
+# volume held 34.9 GB; the Data volume held 782 GB, so a GC freed only 2.1 GiB).
+diskutil info /nix | grep -E 'Volume Used Space|Container Free Space'
+diskutil info /System/Volumes/Data | grep 'Volume Used Space'
 sudo nix-collect-garbage -d     # only on an explicit ask; the background collector
                                 # otherwise handles this, and `-d` drops EVERY old
                                 # generation, leaving no rollback target
