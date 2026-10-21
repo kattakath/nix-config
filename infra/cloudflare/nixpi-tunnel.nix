@@ -381,7 +381,7 @@ in
   # pinned to the old one. No wrapper guard catches it: mkCfTunnelTofu compares
   # state-minus-render and empty-state, and a create is in neither set.
   #
-  #   1-2. secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- \
+  #   1-2. nix develop -c secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- \
   #          nix run .#cf-tunnel-import
   #      The broad `:api` handle, as cf-tunnel-import's own error says: `:nixpi-tunnel`
   #      was MEASURED 403ing on this policy (2026-10-02) until it gains the Access scope.
@@ -394,7 +394,7 @@ in
   #      id from `cloudflareAccountId` and carries the policy id as the literal
   #      it has to be (state does not know it yet — that is what an import is for).
   #
-  #   3. secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- \
+  #   3. nix develop -c secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- \
   #        nix run .#cf-tunnel-plan   (same handle, same reason)
   #      ACCEPTABLE: "No changes", or `~ update in-place` on the POLICY ONLY whose
   #        every line is `exclude`/`require`/`session_duration` going `[] -> null`.
