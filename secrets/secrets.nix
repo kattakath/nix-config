@@ -92,7 +92,7 @@ in
     macos
   ];
   # The macos GitLab runner's glrt- authentication token (runner
-  # "macos-ismail-dev" on gitlab.com), for local.tart.gitlabRunner (nix-tart-vms
+  # named by gitlabRunner.runnerName in hosts/macos.nix), for local.tart.gitlabRunner (nix-tart-vms
   # darwinModules.gitlab-runner, hosts/macos.nix): HOST-decrypted at
   # activation → the agent renders gitlab-runner's config.toml from it at
   # start, so the token lives only here and in the runner's 0600 runtime
