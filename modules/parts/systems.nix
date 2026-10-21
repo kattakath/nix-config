@@ -1,16 +1,15 @@
-# ---- The THREE system folds, and why they are still three -------------------
+# ---- The system folds, and why they are not one ------------------------------
 #
 # Moved verbatim from flake.nix's `let` block (ADR-002 wave 2). The comment
-# below is the whole point of this file: flake-parts tempts you to collapse all
-# three into one `systems = [ … ]`, and that collapse is a REGRESSION.
+# below is the whole point of this file: flake-parts tempts you to collapse them
+# into one `systems = [ … ]`, and that collapse is a REGRESSION.
 #
 #   systems              (flake-parts' own option) = the FLEET arches. Everything
 #                        transposed by flake-parts — packages, apps, checks,
 #                        devShells, formatter — is generated for exactly these.
 #   devcontainerSystems  fleet linux + x86_64-linux, for the IMAGE only.
-#   devToolingSystems    fleet + x86_64-linux. UNREAD — see its binding below.
 #
-# ⚠ DO NOT add "x86_64-linux" to `systems` to serve the last two. flake-parts
+# ⚠ DO NOT add "x86_64-linux" to `systems` to serve the image. flake-parts
 # transposes every perSystem output over `systems` (pinned flake-parts
 # modules/transposition.nix:100-110), so one extra entry would silently spawn
 # x86_64 CHECKS, an x86_64 FORMATTER and x86_64 APPS that this flake permits
@@ -44,10 +43,6 @@ let
   # actual hosts rely on.
   devcontainerSystems = linuxSystems ++ [ "x86_64-linux" ];
 
-  # NO module reads this binding. The x86_64 devShell it was written for comes
-  # from `withSystem` in modules/parts/devcontainer.nix (whose comment carries
-  # the why), and treefmt runs over `systems` (modules/parts/devshell.nix header).
-  devToolingSystems = allSystems ++ [ "x86_64-linux" ];
 in
 {
   # flake-parts' own option. THE FLEET ARCHES ONLY — read the ⚠ above.
@@ -59,7 +54,6 @@ in
       darwinSystems
       allSystems
       devcontainerSystems
-      devToolingSystems
       ;
   };
 }
