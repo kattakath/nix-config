@@ -81,7 +81,7 @@ named act (`reveal`) rather than the path of least resistance — and with it th
   managed keys. The grammar — `ENV=SERVICE`, `=SERVICE` (stored but never exported), or a
   bare legacy `SERVICE` — is defined canonically in `packages/set-secret.nix`; `module.nix`'s
   loader and `packages/secret.nix` parse it, and **every file that parses it must agree**. Only the
-  `secret` CLI writes the index (`set`/`rm`, and `bind`/`unbind` through `rebind()`), so an item added out-of-band
+  writers named in `packages/secret.nix`'s header update the index, so an item added out-of-band
   (Keychain Access GUI, raw `security add-generic-password`) is found by a direct read but is
   invisible to `ls` and to the loader until `secret adopt <KEY>` — which registers it and, as
   a bonus, rewrites the item so the CLI is on its ACL (no more per-read auth prompts).
