@@ -384,7 +384,7 @@ in
         nixpi-wifi-creds = {
           type = "app";
           program = "${config.packages.nixpi-wifi-creds}/bin/nixpi-wifi-creds";
-          meta.description = "Emit a wpa_supplicant.conf from this Mac's current Wi-Fi network (SSID + keychain PSK + locale country)";
+          meta.description = "Emit a wpa_supplicant.conf for the declared nixpiWifiNetworks list (identity.nix), else --ssid, else this Mac's Wi-Fi (keychain PSK + locale country)";
         };
         nixpi-vault-token = {
           type = "app";

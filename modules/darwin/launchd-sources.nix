@@ -16,6 +16,8 @@
 #                                         unbounded (modules/parts/checks.nix)
 #   launchd-reconcile.nix                 a unit outside its domain is never
 #                                         re-bootstrapped (./launchd-reconcile.nix)
+#   logging.nix                           a unit's log is never rotated
+#                                         (./logging.nix, `sources`)
 #
 # A list typed twice is two lists; the drift between them is invisible precisely
 # because the failure mode of BOTH consumers is doing nothing. nix-darwin's

@@ -23,7 +23,7 @@ and deliberate, not an omission.
 | The app itself | `hosts/macos.nix` `homebrew.casks` | Cask `open-design`, `greedy = true`. `brew bundle` passes `--adopt` to fresh cask installs, so the pre-existing hand-dragged `/Applications` copy was adopted in place — no re-copy, no touch of the app's state. |
 | Its self-updater: **off** | `hosts/macos.nix` `launchd.user.envVariables.OD_UPDATE_ENABLED = "0"` | nix-darwin emits `launchctl setenv` at activation; Finder/Dock-launched GUI apps inherit it (same mechanism as the GUI PATH in `modules/darwin/core.nix`). Versioning belongs to brew: `greedy` opts the cask past `onActivation.upgrade = false`, and Homebrew's autobump keeps the cask current. |
 | MCP registration (**gone — see the header; `mcp.nix` was itself deleted 2026-10-02**) | `modules/shared/mcp.nix` (Client side A) | Per-client **stdio** entry in `programs.claude-code.mcpServers` — the home-manager module writes it into a managed plugin `.mcp.json`, never `~/.claude.json`. Not gateway-hosted: upstream is stdio-only and has a silent-death bug (#7273) that would dark all hosted servers. |
-| Tool permissions | `.claude/settings.json` | Only the read-only tools (`list_*`, `get_*`, `search_files`) are pre-allowed; anything that writes stays prompt-gated. |
+| Tool permissions | — | **None any more**: with the MCP entry gone, `.claude/settings.json` pre-allows no open-design tool. |
 
 ## Why the updater is disabled
 
@@ -69,7 +69,6 @@ runs, and updates land at activation under operator control.
 ## Verification
 
 ```bash
-claude mcp list                      # open-design must come from the managed plugin, not ~/.claude.json
 pgrep -fl "Open Design"              # after a cold-start tool call: daemon runs from /Applications, --headless
 launchctl getenv OD_UPDATE_ENABLED   # → 0 after activation
 brew list --cask | grep open-design  # cask owns the app

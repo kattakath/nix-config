@@ -336,7 +336,7 @@ in
     # Hourly, matching the Trash sweeps in modules/home/macos-user-agents.nix. This tick is
     # itself a re-exec job, so its own log lands in the newsyslog set above with
     # no special-casing — the classification sees it like any other agent, which
-    # is also why declaring it into `hmAgents` (read at the top of this file) is
+    # is also why declaring it into the composed agents (`sources`, at the top of this file) is
     # not a cycle: the split reads only KeepAlive and the two path keys, never
     # ProgramArguments.
     home-manager.users.${loginName}.launchd.agents.file-rotation-logs = {

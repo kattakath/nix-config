@@ -2038,8 +2038,8 @@ in
         # caller's environment, and a PATH miss is an opaque "Connection closed".
         #
         # This path ALSO needs a Cloudflare Zero Trust *Access Application* for the
-        # hostname — hand-created, not modelled in terranix, and it silently
-        # vanished once (2026-08-20). Symptom + fix: docs/private-home-modules.md.
+        # hostname — declared in infra/cloudflare/nixpi-tunnel.nix (`nixpi_ssh`) since
+        # it silently vanished once (2026-08-20). Symptom + fix: docs/private-home-modules.md.
         "nixpi.${domainName}" = {
           User = config.home.username;
           IdentityFile = operatorPrivateKey;
