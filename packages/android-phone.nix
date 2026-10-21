@@ -140,7 +140,7 @@ writeShellApplication {
       mirror [serial] [--] [scrcpy-args...]
                               start scrcpy; auto-picks the sole authorized
                               device if serial is omitted and only one exists
-                              (scrcpy-args need the serial before them)
+                              (scrcpy-args need a serial or `--` before them)
       doctor                  tool paths, which mDNS backend is live, adb's view
                               vs the SYSTEM's view (they disagree when adb goes
                               blind), and connected devices
