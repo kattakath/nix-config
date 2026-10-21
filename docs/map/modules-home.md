@@ -143,8 +143,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
     written here (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys
     FILE with `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
   - `local.pluginMcp.servers` → `nix-mcp-{wordpress,apify,postgres}`, the three CREDENTIALED
-    servers the purge left homeless, **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**.
-    One generic `packages/keychain-mcp.nix` builds all four —
+    servers the purge left homeless, **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**,
+    plus `github` (gh's token via `ghTokenEnv`) and `slack` (its own `packages/slack-post-mcp.nix`).
+    One generic `packages/keychain-mcp.nix` builds all but `slack` —
     it is the extracted form of the gateway's own `mkGeneratedStdio`, so there is no second copy
     of "export N variables, exec a pinned interpreter". It writes NO file, so it needs no umask;
     credentials reach the server through its environment, never argv.
@@ -632,7 +633,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     must stay in the repo that owns the tree — which is why nix-personal kept its own
     `plugins/` directory and a 5-line module until it was retired 2026-09-15, rather than
     shipping the tree here. Nothing in this repo can trip the trap today: there is no
-    `plugins/` tree here either, so none of the `source` values in
+    `plugins/` tree here either, so none of the marketplace `source` values in
     `modules/home/default.nix` is a repo-relative path literal — every one but one is an
     `https://` git URL (`kattakath` among them since 2026-09-23), and that one is a store path
     (the patched grok-build plugin).

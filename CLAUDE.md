@@ -320,7 +320,7 @@ How a host gets composed — change these knobs, not the hosts' internals:
   (1) `local.macosGithubRunner` (`modules/darwin/github-runner.nix`, `count = 2`): bare-metal
   ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `local.tart.githubRunners.*`
   (the `tart-vms` capsule's `github-runner.nix`, configured in `hosts/macos.nix`): **ephemeral
-  Tart-VM-per-job** runners for `kattakath` + `dontsell-ai` (label
+  Tart-VM-per-job** runners for `dontsell-ai` (`kattakath` declared, off; label
   `dontsell-vm`), sharing Apple's hard 2-concurrent-VM budget via a slot semaphore. Both mint ~1h
   tokens from GitHub App keys (agenix); since 2026-09-06 **both lanes share ONE App**,
   `ismailkattakath-ci` (appId 4849830, operator-owned + public), which replaced the retired
