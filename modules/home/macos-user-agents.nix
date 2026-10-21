@@ -178,7 +178,7 @@ in
   # no window to suppress, so `open -g -j` alone is the whole job.
   #
   # Host scope: all three are **macos only**, gated on `osConfig` because
-  # `networking.hostName` is a nix-darwin value and this is a home-manager
+  # `local.operatorHost` is a nix-darwin option and this is a home-manager
   # module. The gate keeps the sweeps off any other darwin host — a Tart guest
   # whose ~/Downloads is a VirtioFS symlink into the host's would be destroyed
   # by a guest-side rotation: mv(1) degrades to cp+rm across filesystems,

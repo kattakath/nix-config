@@ -92,7 +92,7 @@
   # (`perSystem.packages`). `tart-vms` needs a third shape, and it is worth one
   # option rather than a hole in the contract:
   #
-  #   modules/home/default.nix installs the five gitlab-tart slot shims with
+  #   modules/home/default.nix installs the gitlab-tart slot shims with
   #   `pkgs.callPackage <gitlab-tart.nix> { }` — using the HOST's pkgs (the
   #   darwinSystem's own nixpkgs instance, `nixpkgs.config.allowUnfree = true`
   #   from modules/darwin/core.nix), NOT this flake's perSystem pkgs. Handing it the

@@ -24,9 +24,8 @@
 # to mint a fresh, ~1-hour-lived installation access token on the spot (JWT →
 # `POST /app/installations/{id}/access_tokens`, GitHub's own documented flow) — the
 # thing that ever touches the runner's `--pat` is a short-lived derived token, never
-# the long-lived key itself. Narrower than a PAT's scope model too: the App is
-# granted ONLY "Organization permissions → Self-hosted runners: Read and write",
-# not `admin:org`'s much wider bundle (org members, teams, webhooks, ...).
+# the long-lived key itself. The App's permission set is the shared fleet App's,
+# recorded with its id in hosts/macos.nix (App-GLOBAL, wider than this lane needs).
 # OUTBOUND-only — the runner polls GitHub, opens no port.
 #
 # SECURITY: `--ephemeral` (one job per registration; launchd restarts + the script
