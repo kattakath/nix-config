@@ -191,16 +191,14 @@ is "almost anything `defaults`-backed," not "only the typed options."
 Manages the **entire** brew surface with `onActivation.cleanup = "uninstall"`
 (anything not listed is removed on activation):
 
-- **`casks`** — GUI apps (**34** today: browsers, editors, Slack, …). There is no Docker cask —
+- **`casks`** — GUI apps (browsers, editors, Slack, …). There is no Docker cask —
   containers are `local.containers` (per-user Colima), which replaced Docker Desktop.
-- **`brews`** — CLI formulae (**38**: cloudflared, kubernetes-cli, ffmpeg, pyenv, …)
-- **`masApps`** — Mac App Store apps: **four**, not none (Display My IP, Plash, WireGuard,
-  Xcode) · **`taps`** — **one** (`ismailkattakath/tap`, our shared tap holding the
-  escrcpy cask — `modules/darwin/homebrew.nix`)
-- Counts re-derived 2026-10-21 from the EVALUATED config, not from grepping `hosts/macos.nix` —
-  a grep of the source under-counted `brews` and over-counted `masApps` on the attempt that
-  produced this correction. `nix eval .#darwinConfigurations.macos.config.homebrew` is the
-  answer; the source list is a claim about it.
+- **`brews`** — CLI formulae (cloudflared, kubernetes-cli, ffmpeg, pyenv, …)
+- **`masApps`** — Mac App Store apps (not none: e.g. WireGuard, Xcode) · **`taps`** —
+  `ismailkattakath/tap`, our shared tap holding the escrcpy cask (`modules/darwin/homebrew.nix`)
+- For any count, evaluate rather than grep `hosts/macos.nix`: on 2026-10-21 a source grep
+  under-counted `brews` and over-counted `masApps`. `nix eval .#darwinConfigurations.macos.config.homebrew`
+  is the answer; the source list is a claim about it.
 - **`onActivation`** — `autoUpdate` / `upgrade` / `cleanup` policy
 
 `nix-homebrew` (`modules/darwin/nix-homebrew.nix`) installs brew *itself* at the

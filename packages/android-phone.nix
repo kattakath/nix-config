@@ -137,9 +137,9 @@ writeShellApplication {
       wireless [serial]       USB-connected device only: bootstrap to wireless
                               AND start mirroring in one step (delegates to
                               `scrcpy --tcpip`, which does its own IP discovery)
-      mirror [serial | --] [scrcpy-args...]
+      mirror [serial] [--] [scrcpy-args...]
                               start scrcpy; auto-picks the sole authorized
-                              device if serial is omitted (or `--`) and only one exists
+                              device if serial is omitted and only one exists
                               (scrcpy-args need the serial before them)
       doctor                  tool paths, which mDNS backend is live, adb's view
                               vs the SYSTEM's view (they disagree when adb goes
@@ -437,6 +437,8 @@ writeShellApplication {
       fi
       if [ -n "$serial" ]; then
         shift
+        # ...and a `--` after the serial, the form `mirror SERIAL -- args` documents.
+        if [ "''${1:-}" = "--" ]; then shift; fi
         "$SCRCPY" -s "$serial" "$@"
         return 0
       fi
