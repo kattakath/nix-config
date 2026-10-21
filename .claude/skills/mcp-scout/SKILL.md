@@ -33,8 +33,9 @@ Capability need
   → push → FRESH session → CALL one of its tools
 ```
 
-**Nothing in this repo can see the result, so nothing can gate it.** There is no `nix flake check`
-leg for MCP any more. The only proof a server works is invoking one of its tools.
+**No check here can prove a server works.** The only `nix flake check` leg that reads a plugin's
+`.mcp.json` (`checks.*.mcp-launcher-parity`) is a name join over the pinned public tree. The only
+proof a server works is invoking one of its tools.
 
 ## Hard rules
 
@@ -192,8 +193,9 @@ nix flake check
 ```
 
 PR per [pr-title](../../rules/pr-title.md); activation is the operator's move — `activate`, from
-any directory. **A green `nix flake check` says nothing about the server**: it cannot see the
-plugin's declaration.
+any directory. **A green `nix flake check` says little about the server**: its one MCP leg
+(`checks.*.mcp-launcher-parity`) only joins the pinned plugins' `nix-mcp-*` names against the
+launchers `macos` builds.
 
 Then verify, in this order. **A session already running cannot see a newly declared plugin
 server** — its tool namespace was fixed at session start.
