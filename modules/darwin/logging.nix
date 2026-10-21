@@ -18,18 +18,19 @@
 # nix-darwin module really does expose `pidFile`/`signal` (newsyslog.nix:130-160)
 # — the option grep returns a hit — but the option cannot do the job, and that
 # is the half of .claude/rules/upstream-first.md that matters here. newsyslog
-# only DELIVERS the signal; the program must reopen its own path. Measured:
-# `cloudflared --help` has zero sighup/reopen/rotate surface, and mcp-proxy is a
+# only DELIVERS the signal; the program must reopen its own path. Measured
+# 2026-09-22 on the long-lived agents of the time (both since gone from the Mac):
+# `cloudflared --help` had zero sighup/reopen/rotate surface, and mcp-proxy was a
 # Python process with no handler either. The only signal that would reclaim
 # anything is one that kills the process so KeepAlive respawns it — i.e.
-# rotation-by-restart, which drops the tunnel and any in-flight download. So the
+# rotation-by-restart, which drops any in-flight connection or download. So the
 # right move is a DIFFERENT off-the-shelf thing, not a pid-file seam bolted into
 # home-manager's launcher (which upstream has no hook for: pinned home-manager
 # modules/launchd/default.nix:140-143 emits exactly `#!<shell>` + `exec <args>`).
 #
 # WHAT ACTUALLY RECLAIMS: truncate-in-place, because launchd's inherited fd is
 # O_APPEND. MEASURED on this Mac 2026-09-22, not reasoned — `lsof +fg -p 61665`
-# on the live mcp-gateway prints file flags `R,W,AP` on fd 1u and 2u, and AP is
+# on the (since-deleted) mcp-gateway printed file flags `R,W,AP` on fd 1u and 2u, and AP is
 # O_APPEND. Every write therefore seeks to EOF, so truncating the file to zero
 # is reclaimed immediately and completely BY THE SAME RUNNING PROCESS: no
 # signal, no pid file, no restart, no cooperation from the program. (The trap
@@ -40,14 +41,14 @@
 # So: `pkgs.logrotate` with its own `copytruncate` directive, on a launchd
 # StartInterval tick. logrotate is THE Unix log rotator and copytruncate is its
 # named feature for exactly this case — its man page's rationale sentence
-# describes cloudflared verbatim: "It can be used when some program cannot be
+# describes this case verbatim: "It can be used when some program cannot be
 # told to close its logfile and thus might continue writing (appending) to the
 # previous log file forever." That buys size thresholds, N compressed
 # generations and a state file off the shelf. The custom surface is the config
 # + the two ticks; neither pinned input ships a logrotate module (grepped both,
 # zero hits), and that is the motto's required "why the off-the-shelf option
 # didn't fit" disclosure — it is a far smaller surface than a launcher fork that
-# would still reclaim nothing from cloudflared.
+# would still reclaim nothing from a program with no reopen handler.
 #
 # COST, stated rather than discovered during an incident: copytruncate's own man
 # page warns "there is a very small time slice between copying the file and

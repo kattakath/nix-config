@@ -34,7 +34,7 @@
 {
   # Passed in rather than read from a module: a package may not reach into Home Manager
   # config, and a hardcoded /Users/<name> in a .nix VALUE is what
-  # ast-grep/rules/no-hardcoded-home-paths.yml exists to reject.
+  # ast-grep/rules/nix-hardcoded-home-path.yml exists to reject.
   homeDirectory,
 }:
 let

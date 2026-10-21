@@ -149,8 +149,7 @@ in
         # or `qwen` mid-sweep, would otherwise put two inferences on one GPU.
         # Ollama queues rather than thrashes, so the failure mode is slow rather
         # than broken; this states the constraint where the resource actually
-        # is, instead of in one of its callers. Now that a SECOND account can
-        # reach this server, the argument is stronger, not weaker.
+        # is, instead of in one of its callers.
         OLLAMA_MAX_LOADED_MODELS = "1";
         # Read by `ollama serve`, never by clients, so it cannot be set through
         # a shell variable — a login shell's environment never reaches a

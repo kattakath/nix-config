@@ -490,7 +490,7 @@ in
     # (that server is page-lab's now — #657 batch 2).
     # A running browser CAN now be switched into debugging mode from
     # `chrome://inspect/#remote-debugging` (Chrome/Chromium M144+),
-    # which is how the browser this gateway attaches to is actually enabled — it
+    # which is how the browser page-lab's chrome-devtools server attaches to is enabled — it
     # picks its own port and writes it to `DevToolsActivePort` [F-NO-JSON-HTTP].
     # This wrapper stays for the flag route, which is still the only way to open a
     # port on a browser whose UI toggle you do not want to use, and the only way to

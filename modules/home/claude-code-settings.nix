@@ -7,13 +7,20 @@
 # Make Claude Code's USER-scope settings.json LAYERED: a Nix-owned floor that is
 # re-asserted every rebuild, over a real file the app and the operator can write.
 #
-# THE DEFECT, and it is UPSTREAM's design rather than a local mistake. The pinned
+# THE DEFECT, and it is UPSTREAM's default rather than a local mistake. The pinned
 # home-manager's `programs.claude-code` renders settings.json with
-# `install -Dm444` into the store and symlinks it (home-manager/modules/programs/claude-code/default.nix:295-316). Mode 444, in /nix/store: the app cannot persist anything
-# the UI writes, and a rebuild reverts it. Reading options.nix in full — enable,
-# finalPackage, enableMcpIntegration, configDir, settings, context, plugins,
-# marketplaces, skills, lspServers, mcpServers — there is NO mutability option,
-# so upstream-first comes back EMPTY and this module is warranted.
+# `install -Dm444` into the store and symlinks it (the `!cfg.mutableSettings`
+# branch of home-manager/modules/programs/claude-code/default.nix). Mode 444, in
+# /nix/store: the app cannot persist anything the UI writes, and a rebuild reverts it.
+#
+# upstream option home-manager.programs.claude-code.mutableSettings EXISTS at the
+# current pin (options.nix) — it merges the declared settings into a writable
+# file via lib.hm.generators.mkImpureConfigMerger, Nix winning. It is NOT used,
+# because it covers two operands where this module needs three: it has no slot
+# for the operator overlay (the merger takes exactly two inputs), no ordering
+# against `claudeCodePlugins` (the 2026-09-23 autoUpdate loss), and it FAILS
+# activation on a corrupt file where this module backs it up and resets to {}.
+# Retire this module when upstream takes extra merge inputs, or the overlay moves.
 #
 # The operator hits this as: they cannot change the Bedrock model.
 # claude-bedrock-gate.nix already records the chicken-and-egg — the agent

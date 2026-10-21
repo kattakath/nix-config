@@ -45,7 +45,7 @@
 }:
 let
   cfg = config.local.macosGithubRunner;
-  host = "macos";
+  host = config.networking.hostName;
   user = "_github-runner";
   # Upstream nixpkgs' `github-runner` bundles only `externals/node24` BY DEFAULT — Node 20
   # is EOL and omitted from the default `nodeRuntimes` (pinned pkgs/by-name/gi/github-runner/
