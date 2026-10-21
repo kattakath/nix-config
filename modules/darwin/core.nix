@@ -172,7 +172,7 @@ in
   nixpkgs.config.allowUnfree = true;
 
   # NOTE: no `nix.settings.experimental-features` here. This host runs Determinate
-  # Nix (determinateNix.enable in flake.nix → nix.enable = false), which enables
+  # Nix (determinateNix.enable in modules/parts/compose.nix → nix.enable = false), which enables
   # flakes + nix-command by default and OWNS /etc/nix/nix.conf — the `nix.*`
   # options are unavailable once Determinate manages the daemon.
 
