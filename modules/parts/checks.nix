@@ -2920,8 +2920,7 @@ in
           # The rulebook did not move. It is still page-lab's
           # `scripts/userscript-meta-lint.sh`, and it still runs on every push -
           # in the two repositories that now own the scripts
-          # (github:ismailkattakath/userscripts, github:izzykatt/userscripts),
-          # whose CI runs that same script plus eslint. One rulebook, run where
+          # (github:ismailkattakath/userscripts among them), whose CI runs that same script plus eslint. One rulebook, run where
           # the content is: the same principle that moved the gate here in the
           # first place, applied once more.
           #

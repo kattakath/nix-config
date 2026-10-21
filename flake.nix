@@ -386,11 +386,11 @@
       # arrive through the MARKETPLACE, so a merge there ships them immediately
       # with no bump here (superhook left this pin 2026-09-30).
       #
-      # THE ONLY agent-resource repo this PUBLIC fleet pins. The operator's two
-      # personal ones — `ismailkattakath/ai` and `izzykatt/ai` — are deliberately
-      # absent: they are experiment aggregators, and an experiment has no business
-      # being always-on global context on the working Mac. Either can join as one
-      # more `local.claudePlugins.marketplaces` entry, or be scoped to a project.
+      # THE ONLY agent-resource repo this PUBLIC fleet pins. The operator's
+      # personal `ismailkattakath/ai` is deliberately absent: it is an experiment
+      # aggregator, and an experiment has no business being always-on global
+      # context on the working Mac. It can join as one more
+      # `local.claudePlugins.marketplaces` entry, or be scoped to a project.
       url = "github:kattakath/skills";
       flake = false;
     };

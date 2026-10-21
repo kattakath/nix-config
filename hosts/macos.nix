@@ -1,8 +1,8 @@
 # macOS host config for "macos" (Apple Silicon, aarch64-darwin) — the fleet's
 # sole client Mac. No public tunnel / inbound SSH from the internet; the machine
 # may still run local agent services (MCP gateway) and a self-hosted GitLab CI
-# runner for private pipelines (civitai-live-wallpaper, now under the gitlab.com/izzykatt
-# group — see `local.tart.gitlabRunner` below; gitlab-runner moved OFF brew 2026-09-05).
+# runner for private pipelines (see `local.tart.gitlabRunner` below; gitlab-runner
+# moved OFF brew 2026-09-05).
 # Home Manager and the nix-vscode-extensions overlay are wired centrally by
 # mkDarwin in modules/parts/compose.nix — this file only provides host-specific settings.
 #
@@ -594,8 +594,8 @@ in
       "android-platform-tools"
       "blackhole-2ch"
       "bruno"
-      # CivitAI Live Wallpaper — our own menu-bar app (gitlab.com/izzykatt/civitai-live-wallpaper)
-      # that rotates CivitAI images/videos as live wallpapers. From our shared tap
+      # CivitAI Live Wallpaper — a menu-bar app that rotates CivitAI images/videos
+      # as live wallpapers. From our shared tap
       # (modules/darwin/homebrew.nix); the DMG comes from the project's public
       # package registry. Ad-hoc signed with the hardened runtime but NOT notarized
       # (a Developer ID is pending), so — exactly like escrcpy below — a quarantined
