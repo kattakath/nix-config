@@ -105,6 +105,9 @@
     #   1. a kernel CVE affecting the Pi 4 with no backport onto this frozen rev,
     #   2. a nixpkgs bump that breaks the modules-shrunk build against this kernel, or
     #   3. nixpkgs finishing the linux_rpi4 removal below — a clock we do not control.
+    # FIRED: #2, 2026-10-21 — glibc 2.44 / gcc 16 broke this kernel's bundled libbpf
+    # (`-Werror=discarded-qualifiers`); patched in hosts/nixpi.nix with nixpkgs' own
+    # `kernelPatches.libbpf_C23_compat`. Migration is the operator's call, not yet started.
     # EXIT PATH: nixos-hardware's raspberry-pi/4 for BOTH kernel and tuning, plus a
     # replacement for the sdImage half (the one piece it does not cover — unverified,
     # cost it before committing), re-testing both mkForce workarounds (they may become

@@ -37,6 +37,19 @@ nothing — hence one regex, not two calls.
 | `lib-option.nix` | The 4-line `mkOption { type = lazyAttrsOf raw; }` declarations for `flake.lib` and `flake.darwinConfigurations`, copied from flake-parts' own `nixosConfigurations.nix:11`. Without them the freeform `types.unique` default would force every seam back into ONE file — silently re-creating the monolith. |
 | `touchup.nix` | What the flake does **not** export. A bare `mkFlake` also emits `legacyPackages`, `nixosModules`, `overlays` and `modules`; this repo has never exported any of them, and the decision (plus the one-line path back) is recorded there. |
 
+### Where the operator's private content went
+
+`lib.mkDarwin { extraHomeModules }` / `mkNixos { hostedSites }` are generic, optional
+composition hooks (both default to `[ ]`). The private nix-personal flake that filled them was
+retired 2026-09-15: its values (AWS SSO profiles, extra gmail accounts, git identities, the
+OpenAI gateway, the real `hostedSites`) were folded into `hosts/macos.nix` and
+`modules/parts/identity.nix`. On 2026-09-20 (ADR-004) the AWS profiles and the git-identity
+files left Nix again for hand-placed local files (`~/.aws/config`, `~/.config/git/local.inc`,
+`allowed_signers`), and on 2026-10-20 every client identifier left the repo for a PRIVATE overlay
+marketplace plus two hand-placed settings overlays
+([`agent-resource-externalization.md`](../agent-resource-externalization.md)). The rule is the
+same each time: the repo ships shape, the operator's content stays on the Mac.
+
 ## `modules/features/` — the seven capsules
 
 **Seven capsules, but only six are absorbed satellites.** Seven satellite flakes were absorbed

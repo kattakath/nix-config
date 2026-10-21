@@ -16,45 +16,22 @@ description: >
 
 Canonical docs: [`docs/gmail-mcp-multi-account-runbook.md`](../../../docs/gmail-mcp-multi-account-runbook.md).
 
-> **ROSTER LEFT NIX 2026-10-20.** There is no `local.gmailMcp.accounts` any more. Nix
-> installs ONE generic launcher, `nix-mcp-gmail <address>` (`local.gmailMcp.enable`), and the
-> ACCOUNT lives in a plugin's `.mcp.json` as `{"command":"nix-mcp-gmail","args":["<address>"]}`:
-> the operator's own public address in `github:kattakath/skills`'s `gmail` plugin, every other
-> address in the PRIVATE overlay marketplace (`<your-handle>/skills`, `gmail-private`). Adding
-> or removing an account is a plugin `.mcp.json` edit, not a Nix edit. Alias, credentials file
-> and tool prefix are unchanged (same `@ . +` → `_` mapping), so existing sign-ins carry over.
-> Read every `local.gmailMcp.accounts` / `nix-mcp-gmail-<alias>` below with that substitution.
-
-> **LANE CHANGE 2026-10-01/02 — the capability is LIVE, the plumbing moved.** The central MCP
-> gateway and its Cloudflare portal are **destroyed** and `modules/shared/mcp.nix` is **deleted**.
-> Gmail was deliberately kept. Substitute as you read:
->
-> | Then | Now |
-> |---|---|
-> | `local.mcpGateway.gmail.accounts` | **`local.gmailMcp.accounts`** (`modules/home/gmail-mcp.nix`), set in `hosts/macos.nix` |
-> | `mkGmailMcp` inline in `mcp.nix` | **`packages/gmail-mcp.nix`** → one `nix-mcp-gmail-<alias>` launcher per account, on PATH |
-> | one long-lived process per account under a shared proxy | **one stdio child per account PER SESSION**, spawned by Claude Code from the `gmail` plugin's `.mcp.json` in `github:kattakath/skills` |
-> | reachable from Claude Code, Claude Desktop and Cowork | **Claude Code only** — Desktop loads no plugins and now has no MCP servers at all |
->
-> **Two steps are therefore NOT enough on their own.** Adding an address to
-> `local.gmailMcp.accounts` only puts a launcher on PATH; the `gmail` plugin's `.mcp.json` must
-> also name that binary, or nothing spawns it. And **an already-running session will never see a
-> new account** — its tool namespace was fixed at session start, so start a fresh one.
->
-> Everything about Google, OAuth, the test-user cap, the 7-day Testing expiry and the
-> wrong-account grab below is **unchanged** — none of it was ever about the gateway.
+**Where things live.** Nix installs ONE generic launcher, `nix-mcp-gmail <address>`
+(`local.gmailMcp.enable`). The ACCOUNT lives only in a plugin's `.mcp.json` as
+`{"command":"nix-mcp-gmail","args":["<address>"]}` — the operator's own public address in
+`github:kattakath/skills`'s `gmail` plugin, every other address in the PRIVATE overlay
+marketplace (`<your-handle>/skills`). Adding or removing an account is a plugin edit, never a
+Nix edit. Claude Code spawns one stdio child per account per session; **an already-running
+session never sees a new account**, so start a fresh one. Claude Desktop loads no plugins.
 
 ## Rules
 
 - **Never print a client secret, access token, or refresh token** — pipe
   values directly between Keychain/file/curl, report only success/failure.
-- **Which addresses may be listed at all**: only add an email to
-  `hosts/<host>.nix` if it is already public elsewhere in that same tree (an
-  identity the operator has already named). Anyone else's address does NOT go in
-  — and there is no longer a private flake to put it in: nix-personal was
-  retired 2026-09-15, and of the seven extra accounts it carried the operator
-  kept exactly two (#524) and dropped the rest rather than publish them. If
-  unsure, ask — do not add.
+- **Which addresses go where**: this repo holds NONE. Only the operator's own
+  already-public address may sit in the public `gmail` plugin; every other mailbox
+  goes in the private overlay. Anyone else's address never goes in a public plugin.
+  If unsure, ask — do not add.
 - **A Console test user MUST exist before auth is attempted** — Audience →
   Add users, or the flow rejects the account outright.
 - **A test user cannot rescue an INTERNAL client.** If the consent screen says
@@ -74,11 +51,6 @@ Canonical docs: [`docs/gmail-mcp-multi-account-runbook.md`](../../../docs/gmail-
   own "Authentication completed successfully" message is not sufficient
   evidence. There is a known failure mode (see below) where it silently
   authenticates the *wrong* account with no error and no visible prompt.
-- When editing a Nix file that already has unrelated uncommitted changes
-  (e.g. a private flake with other work in progress), never `git add -A` and
-  never hand-edit `git add -p` hunks — use the base+edit+`hash-object`+
-  `update-index` reconstruction in the runbook to isolate exactly your
-  change in the index, leaving the rest of the working tree untouched.
 
 ## Known failure mode (read before running auth on more than one account)
 
@@ -102,8 +74,8 @@ issue".
 secret set GMAIL_OAUTH_CLIENT_ID <client_id>
 secret set GMAIL_OAUTH_CLIENT_SECRET <client_secret>
 
-# Per-account: after adding as a Console test user AND to the right Nix list
-# (public/private) AND activating —
+# Per-account: after adding as a Console test user AND a server entry in the
+# right plugin's .mcp.json (public `gmail` or the private overlay) —
 GMAIL_OAUTH_PATH="$HOME/.gmail-mcp/gcp-oauth.keys.json" \
   GMAIL_CREDENTIALS_PATH="$HOME/.gmail-mcp/credentials-<alias>.json" \
   npx -y @artymclabin/gmail-mcp auth
@@ -115,10 +87,9 @@ curl -s -H "Authorization: Bearer $tok" \
 unset tok
 ```
 
-`<alias>` = the email, lowercased, with `@`/`.`/`+` replaced by `_` (matches
-`gmailAlias` in `packages/gmail-mcp.nix`, where it is **derived, never passed in** — e.g.
-`a@b.com` → `a_b_com`). Since 2026-10-20 it is computed at RUNTIME from argv by the one
-`nix-mcp-gmail` launcher; it names the per-account credentials file and the `--tool-prefix`.
+`<alias>` = the email, lowercased, with `@`/`.`/`+` replaced by `_` (e.g. `a@b.com` →
+`a_b_com`), computed at runtime from argv by `nix-mcp-gmail` (`packages/gmail-mcp.nix`); it
+names the per-account credentials file and the `--tool-prefix`.
 
 ## Failure modes
 
@@ -127,15 +98,15 @@ unset tok
 | `redirect_uri_mismatch` | Client is Web-app type — create a Desktop app client instead |
 | Auth rejects the account | Add it as a Console test user first — but if the screen says "can only be used within its organization", the client is Internal and a test user cannot fix it (Audience → Make external) |
 | Worked before, now `invalid_grant` | Testing-status 7-day refresh-token expiry — just re-auth that account |
-| Declared in the Nix list but never worked | Roster ≠ credentials on disk; nothing reconciles them. Compare against `ls ~/.gmail-mcp/credentials-*.json` (names only) |
+| Declared in a plugin `.mcp.json` but never worked | Roster ≠ credentials on disk; nothing reconciles them. Compare against `ls ~/.gmail-mcp/credentials-*.json` (names only) |
 | Verified email doesn't match target | Known failure mode above — check the default-path file before re-running |
 | One account's server exits immediately at spawn | No completed auth for that account yet — cannot affect the others, each is its own process and (since 2026-10-01) its own per-session child, so there is no shared proxy left to dark |
-| New account not visible after `activate` | Three distinct causes, check in this order: Nix file not staged (`git add`); the `gmail` plugin's `.mcp.json` doesn't name the new launcher; or the session **predates** the change — start a fresh one. **No `nix flake check` leg can see any of this** |
-| Launcher is on PATH and auth verified, but still no tools | The `gmail` plugin isn't enabled, or you are in a stale session. Prove it with `claude mcp list` in a fresh process, then invoke a tool with the plugin-lane `--allowedTools` spelling (see `docs/mcp-gateway.md` § How to verify a plugin-owned server actually answers) |
+| New account not visible | Check in this order: `local.gmailMcp.enable` not activated (no `nix-mcp-gmail` on PATH); the plugin's `.mcp.json` has no entry for the address, or its marketplace wasn't updated; or the session **predates** the change — start a fresh one. **No `nix flake check` leg can see any of this** |
+| Launcher is on PATH and auth verified, but still no tools | The plugin isn't enabled, or you are in a stale session. Prove it with `claude mcp list` in a fresh process, then invoke a tool with the plugin-lane `--allowedTools` spelling (see `docs/mcp-gateway.md` § How to verify a plugin-owned server actually answers) |
 
 ## Removing an account
 
-Remove its server from the owning plugin's `.mcp.json` (public `gmail` or private
-`gmail-private`), commit and push in that repo, then
+Remove its server from the owning plugin's `.mcp.json` (public `gmail` or the private
+overlay), commit and push in that repo, then
 `rm ~/.gmail-mcp/credentials-<alias>.json`. No Nix change. See runbook for full
 rotation/revocation steps.
