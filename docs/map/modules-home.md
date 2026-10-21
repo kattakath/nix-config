@@ -554,7 +554,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `mcpfinder` exposed its config-writing tool everywhere but here. Two halves:
   - `permissions.deny`. Entry rule: a fleet-wide policy already written down (imperative MCP
     adoption, secret values in the transcript — `secret reveal`, `security find-*-password
-    -w/-g`, and since 2026-09-21 `agenix -d` / `age -d` age decryption — `/run/agenix` and
+    -w/-g`, since 2026-09-21 `agenix -d` / `age -d` age decryption, and since 2026-10-21
+    exact-match environment dumps (`env`, `printenv`, `set`, `export`, … — the measured
+    matcher table is in the file) — `/run/agenix` and
     OpenTofu-state plaintext, `gh pr merge`, force-push) — never repo policy. Deny rules still
     apply in `bypassPermissions` (it skips prompts; a deny is not one), but they match the
     command text Claude writes, not `sh -c` or an absolute binary path — a floor, not a
