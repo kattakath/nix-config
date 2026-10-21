@@ -36,7 +36,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
     why the file is kept rather than deleted.
 - [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md) — **LIVE, unlike the three above.**
   Claude Desktop loads no plugins, so its only MCP lane is `local.claudeDesktop.extraServers`
-  (three servers, pinned by `checks.aarch64-darwin.claude-desktop-config-shape`). Read the
+  (`github` only, pinned by `checks.aarch64-darwin.claude-desktop-config-shape`; client servers
+  come from the operator's hand-placed Desktop overlay). Read the
   CURRENT STATE header first: the module stays ENABLED because a disabled one writes nothing
   and leaves stale entries on disk (#732); the body is the design record of the merge and the
   watch agent.

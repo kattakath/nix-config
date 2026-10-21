@@ -25,7 +25,7 @@ binary the plugin merely names.
 | Piece | Role | Lives |
 |---|---|---|
 | Google Cloud OAuth client (**Desktop app** type) | ONE shared client (`client_id`/`client_secret`) authenticates every account — Google allows the same Desktop client across arbitrary accounts | Your Google Cloud Console; secret in the login Keychain |
-| `gmailAlias` | Sanitizes an email (`lower`, `@`/`.`/`+` → `_`) into a tool-prefix/filename-safe token — internal only, never part of the config surface | `packages/gmail-mcp.nix` (derived there, never passed in) |
+| the alias | Sanitizes an email (`lower`, `@`/`.`/`+` → `_`) into a tool-prefix/filename-safe token — computed at runtime from argv, never part of the config surface | `packages/gmail-mcp.nix` (the launcher script) |
 | the launcher (`nix-mcp-gmail <address>`) | `writeShellApplication` wrapper (shellchecked at build; `set -u` only, so a missing Keychain entry warns instead of aborting): reads the shared client id/secret from Keychain at launch, materializes `~/.gmail-mcp/gcp-oauth.keys.json`, execs the server with `--tool-prefix=<alias>_`. `npx` is baked as an absolute store path so the launcher is immune to whatever Node the calling session has on PATH — which matters, because the plugin lane gets fnm's Node, not the fleet default | `packages/gmail-mcp.nix` |
 | `local.gmailMcp.enable` | installs the one launcher; holds **no** addresses | `modules/home/gmail-mcp.nix`; set in `hosts/macos.nix` |
 | a plugin's `.mcp.json` | one server entry per account, `nix-mcp-gmail` + the address in `args` — the ONLY place the roster lives | the public `gmail` plugin or the private overlay (**not this repo**) |
