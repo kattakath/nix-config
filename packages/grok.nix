@@ -42,7 +42,7 @@
 #
 # PER-USER STATE IS UNAFFECTED, which is what makes sharing one binary correct:
 # agent_id, active_sessions.json, sandbox.toml and installed-plugins all live in
-# ~/.grok, not next to the executable. Two accounts share the code and keep
+# ~/.grok, not next to the executable. Any accounts share the code and keep
 # separate identities.
 {
   lib,

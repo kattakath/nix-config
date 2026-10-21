@@ -161,7 +161,7 @@ in
           # tree. It replaces a `curl … | bash` install that put a
           # self-updating copy in each user's ~/.grok/bin, outside the store and
           # outside git. Shared via environment.systemPackages (hosts/macos.nix)
-          # so both accounts run one reviewed version; per-user state stays in
+          # so every account runs one reviewed version; per-user state stays in
           # ~/.grok. Darwin-only by meta.platforms, so it never evaluates into
           # the two NixOS hosts.
           # Built from a NARROWED unfree instance, not `pkgs`, and not
