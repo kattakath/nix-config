@@ -309,7 +309,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # auto-approve across the board — it trades one narrow leak for a
     # permanently noisier session everywhere, which is how a floor gets turned
     # off wholesale by an irritated operator. The seven narrow `Read(...)` path
-    # denies above are the shape that holds; a fifth broad one would undo them.
+    # denies above are the shape that holds; a broad one would undo them.
 
     # ── Irreversible remote actions an unattended agent must not take ──
     # A merge is a production trigger in more than one repo this Mac works on

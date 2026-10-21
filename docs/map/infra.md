@@ -155,9 +155,9 @@ Zones with no terranix module here (aloshy.ai, etuper.com, a client zone) are
 still configured out-of-band, so none of the above applies to them.
 
 A pure function of its `hostedSites`/`domainName`/`accountId`/`zoneId` module args (same
-shape/default as `mkNixos`); `cf-tunnel-apply`/`cf-tunnel-destroy` pass the fleet's real
-`hostedSites` (`config.fleet.hostedSites`), while their `*-destroy` counterparts deliberately
-keep the `[ ]` default so tearing the real stack down still needs the explicit
+shape/default as `mkNixos`); `cf-tunnel-plan`/`cf-tunnel-apply` pass the fleet's real
+`hostedSites` (`config.fleet.hostedSites`), while `cf-tunnel-destroy` deliberately
+keeps the `[ ]` default so tearing the real stack down still needs the explicit
 `CF_TUNNEL_ALLOW_SITE_FREE=1` override (`modules/parts/terranix.nix`). Applied/destroyed via the
 `cf-tunnel-apply`/`cf-tunnel-destroy`
 flake apps (an API credential must be exported first — never in Nix); `cf-tunnel-apply` prints
@@ -252,7 +252,7 @@ different mechanisms**, which is why its module is NixOS-only: `modules/nixos/ni
 (`nix.settings`, in `mkNixos`'s module list) for the NixOS hosts, and
 `determinateNix.customSettings` in `mkDarwin` for the Mac, where Determinate owns
 `/etc/nix/nix.conf` and `nix.*` is unavailable. The URL/key literal is single-sourced for both
-from `flake.nix` via `cachixUrl`/`cachixKey`. Read is public — only the substituter
+from `modules/parts/identity.nix` via `cachixUrl`/`cachixKey`. Read is public — only the substituter
 URL + public key, **NO token on any consumer**. The write credential `CACHIX_AUTH_TOKEN` lives
 in exactly two places: a **GitHub Actions secret** (used by `cachix/cachix-action` in
 `nix-ci.yml`, `build-devcontainer.yml`, and `build-installers.yml` to push build closures) and

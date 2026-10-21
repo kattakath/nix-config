@@ -33,8 +33,6 @@
   # The fleet's DNS zone (identityArgs in modules/parts/identity.nix). Used to build nixpi's
   # tunnelled SSH hostname below, so the domain is never re-typed.
   domainName,
-  # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source
-  # for authorizedKeys + agenix recipient + git SSH allowed_signers principal.
   # SOURCE PATH of the tart-vms capsule's packages/gitlab-tart.nix — the five
   # gitlab-tart slot shims below. A path, not a derivation, deliberately: they
   # are `callPackage`d with THIS host's pkgs (modules/darwin/core.nix's
@@ -491,7 +489,7 @@ in
     # that gating was the 2026-10-01 regression `checks.*.claude-desktop-config-shape`
     # now has a leg for.
     ./claude-desktop.nix
-    ./terminal-theme.nix # the fleet terminal palette + type, held once (no consumers yet)
+    ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
     # OPERATOR-ONLY — not part of the reusable engine; the template mkForce-disables or omits this.
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
     ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
@@ -504,11 +502,10 @@ in
     # upstream's home.file entry, so it has to be loaded at all — which this
     # explicit list, not auto-discovery, is what guarantees.
     ./claude-code-settings.nix
-    # Nine Spotlight-findable .app bundles, one per fleet operation (activate,
-    # flake check, deploy nixpi, …). Its own module rather than more
-    # `home.file."Applications/…"` lines here: the module system merges the
-    # two definitions, so the mapping stays one `mapAttrs'` instead of nine
-    # hand-written entries. macos-gated internally.
+    # The Spotlight-findable .app bundles (packages/spotlight-launchers.nix owns the
+    # set). Its own module rather than more `home.file."Applications/…"` lines here:
+    # the module system merges the two definitions, so the mapping stays one
+    # `mapAttrs'` instead of hand-written entries. macos-gated internally.
     ./spotlight-actions.nix
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
@@ -1077,7 +1074,7 @@ in
         "mac-app-send"
         "empire"
         # silent-instruments: the instrument layer under the verification gate pinned in
-        # programs.claude-code.skills above. That gate's step 3 is "READ: Full output, check
+        # programs.claude-code.skills below. That gate's step 3 is "READ: Full output, check
         # exit code"; this is the catalogue of commands for which that step LIES — a stale
         # ${PIPESTATUS[0]} (which in zsh is always empty, because the variable is `pipestatus`
         # and arrays are 1-indexed), a CI run green because its only job SKIPPED, ancestry after
@@ -1136,7 +1133,7 @@ in
     # ---- UPSTREAM marketplaces of repos this fleet ALREADY PINS as skill inputs
     # (added 2026-09-30, kattakath/nix-config#650) -----------------------------
     #
-    # Four of the twelve `agent-skills-*` inputs point at repos that publish their
+    # Four upstream repos (some of them also pinned as `agent-skills-*` inputs) publish their
     # OWN .claude-plugin/marketplace.json. Declaring those marketplaces is the
     # off-the-shelf route to the same content: the upstream owns the packaging, the
     # skill set, and the release discipline, and this repo stops cherry-picking
@@ -1197,9 +1194,7 @@ in
       plugins = [ ];
     };
 
-    # Trail of Bits (CC-BY-SA-4.0), input `agent-skills-trailofbits`. 44 plugins,
-    # including the two this repo cherry-picks below (`gh-cli`,
-    # `supply-chain-risk-auditor`). See the licence note above — share-alike is a
+    # Trail of Bits (CC-BY-SA-4.0), no flake input. 44 plugins. See the licence note above — share-alike is a
     # positive reason to consume this as a marketplace rather than vendor it.
     trailofbits = {
       source = lib.mkDefault "https://github.com/trailofbits/skills.git";
@@ -1208,8 +1203,8 @@ in
 
     # obra/superpowers (MIT), input `agent-skills-superpowers`. The marketplace
     # publishes as `superpowers-dev`; its single `superpowers` plugin is the whole
-    # skills library, of which this repo currently pins ONE skill
-    # (`systematic-debugging`) by subpath.
+    # skills library, of which this repo currently pins TWO skills
+    # (`systematic-debugging`, `verification-before-completion`) by subpath.
     superpowers-dev = {
       source = lib.mkDefault "https://github.com/obra/superpowers.git";
       plugins = [ ];
@@ -1450,9 +1445,7 @@ in
       #
       # WHY THE NIXPKGS BINARY RATHER THAN `pkgs.uv` + `uvx mcp-nixos`: a pinned
       # build beats a runtime PyPI fetch — same content every time, one source of
-      # truth, and no network at spawn. `pkgs.uv` is deliberately NOT added here;
-      # the only other server that would want it (`postgres`) is HELD, so adding
-      # `uv` now would be a package for nobody.
+      # truth, and no network at spawn.
       #
       # No `doCheck = false` needed. The deleted gateway carried one on its own
       # `nixos.package`, to repair 2.4.3's brittle `test_read_text_file` on
@@ -1888,10 +1881,6 @@ in
         workflow-init = "${agent-skills-vercel-workflow}/skills/workflow-init";
         migrating-to-workflow-sdk = "${agent-skills-vercel-workflow}/skills/migrating-to-workflow-sdk";
         # ---- Security / methodology skills (from the audit) ----
-        # Trail of Bits (CC-BY-SA-4.0): prefer authenticated `gh` over raw GitHub curl/WebFetch —
-        # fits the heavy gh/PR flow (PR open/review, release/issue triage).
-        # Trail of Bits: score dependencies for takeover/typosquat/bus-factor risk — matches the
-        # flake-pin provenance discipline (every input is pinned + provenance-checked).
         # obra/superpowers (MIT): the SINGLE systematic-debugging skill (cherry-picked subpath, NOT
         # the whole 14-skill plugin) — a hypothesis-driven debugging methodology.
         systematic-debugging = "${agent-skills-superpowers}/skills/systematic-debugging";
@@ -2074,9 +2063,7 @@ in
     # NH_SHOW_ACTIVATION_LOGS puts them back for a run.
     #
     # ONLY the package + env here — deliberately NO `flake`/`darwinFlake`
-    # pointer. Whatever that names is what a bare `nh darwin switch` activates,
-    # which makes it the same footgun as `darwin-rebuild --flake .#macos`: point
-    # it at this repo and the command silently drops the private layer. Leaving
+    # pointer. Whatever that names is what a bare `nh darwin switch` activates. Leaving
     # it unset means `nh darwin switch` needs an explicit path, and `activate`
     # (the only sanctioned entry point) already passes one. It gates on a tty:
     # nh's own progress ticker repaints ~15x/s with NO off switch (measured:
@@ -2221,15 +2208,7 @@ in
 
         # ---- Splits: the FOCUSED pane is the darker one ------------------------
         # Ghostty only ever modifies the UNFOCUSED split — there is no
-        # "focused-background" key — so "focused darker, unfocused unchanged" has
-        # to be built inside out: `background` becomes the darker shade, which
-        # every pane starts from, and `unfocused-split-fill` lifts the unfocused
-        # ones back to true aubergine.
-        #
-        # Which is why the fill is NOT omitted. Leaving it unset defaults it to
-        # `background`, so the unfocused panes would sit on the darker shade too
-        # and the whole effect collapses. Setting it to #24081B is precisely what
-        # "leave the unfocused ones unchanged" means here.
+        # "focused-background" key.
         # 0.5: a lighter dim than the 0.35 previously set here. The floor is
         # 0.15, which Ghostty itself calls weird-looking.
         unfocused-split-opacity = 0.5;
@@ -2606,7 +2585,7 @@ in
     # resume.json over the network and self-skips (keeping any existing artifact) when
     # offline, and `|| true` ensures a failed fetch never aborts a switch — it self-heals on
     # the next activation. Same "let the tool own its fetched, mutable state" pattern as
-    # claudeCodePlugins / grokMcp.
+    # claudeCodePlugins.
     emailSignature = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
       run ${email-signature}/bin/email-signature || true
     '';

@@ -257,7 +257,7 @@ they bite any future second account:
 
   **Verified 2026-10-17 (operator-tested):** seed boot, SSH via mDNS, first switch, root grown to
   62 G, Wayland at 1440×900 @ 100% (UTM hands over POINTS — no forced 2×), `~/Shared`, **clipboard both ways**, **security key + WebAuthn**, **Tor
-  Browser alpha** (overlay shared with `nixvm`: `modules/_lib/tor-browser-alpha.nix`).
+  Browser alpha** (overlay `modules/_lib/tor-browser-alpha.nix`).
 
   Every other measured why lives in `hosts/nixos.nix`'s comments — UTM over Tart/`vzvm`
   (llvmpipe, broken virtio-sound), `image.repart` over `qemu-efi` (needs `kvm`), stock Firefox
