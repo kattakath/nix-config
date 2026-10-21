@@ -38,7 +38,9 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
    `--force-with-lease` is deliberately ALLOWED and you are expected to use it** — plus
    `gh pr merge *`; the MCP config
    writers (`claude mcp add`/`add-json`/`add-from-claude-desktop`, `Edit(~/.claude.json)`);
-   secret REVEAL (`secret reveal *`, `security find-*-password -w*`); decryption (`agenix
+   secret REVEAL (`secret reveal *`, `security find-*-password -w*`, and environment dumps
+   — `env`, `printenv`, `set`, `export`, `declare -x` and kin, EXACT match only, so
+   `printenv NAME` and `env FOO=1 cmd` stay allowed); decryption (`agenix
    -d*`, `age -d*`); and reads of decrypted secret paths (`/run/agenix/**`, the tunnel/MCP
    state dirs, `~/.aws/sso/cache/**`). A deny entry is mechanical; conversational
    authorization does not lift it.

@@ -37,7 +37,9 @@
 # WHAT A DENY RULE IS NOT. Claude Code's docs are explicit that a Bash deny
 # "isn't a security boundary around the program": it matches the command text
 # Claude writes (compound commands and `$(…)` included) but not `/usr/bin/x` or
-# `sh -c 'x'`. This is a FLOOR against the common, accidental shape — the
+# `sh -c 'x'`. Both halves were MEASURED 2026-10-21 for `env`, as `echo $(env)`,
+# `/usr/bin/env` and `bash -c env`, in the environment-dump block below. This is
+# a FLOOR against the common, accidental shape — the
 # project-scoped superhook guard stays the deeper, tested layer in this repo.
 #
 # A RULE RESTATED IN `.claude/settings.json` IS NOT DUPLICATION TO CLEAN UP.
@@ -227,6 +229,51 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     "Bash(security find-generic-password * -w*)"
     "Bash(security find-internet-password -w*)"
     "Bash(security find-internet-password * -w*)"
+    # ENVIRONMENT DUMPS. The keychain-secrets loader exports every bound secret
+    # into EVERY shell on this Mac (.zshenv, .bash_profile, $BASH_ENV), so a bare
+    # `env` is a secret reveal by another name. On 2026-10-21 an audit subagent's
+    # `env | grep -E '^(LANG|LC_)'` printed three API keys, which were rotated.
+    # The project guard's Rule 1e (#927) is the deeper, tested layer, but it
+    # guards sessions rooted in this repo only; this is what every other repo gets.
+    #
+    # EXACT MATCH, NO WILDCARD. `Bash(env *)` would deny `env FOO=bar cmd` and
+    # `Bash(printenv *)` would deny `printenv LANG`, both quiet and legitimate.
+    # Exact entries also carry none of the leading-wildcard cost recorded under
+    # the agenix block below.
+    #
+    # MEASURED, NOT ASSUMED — 2026-10-21, claude-code 2.1.289. These nine as a
+    # USER-scope deny, `-p --dangerously-skip-permissions` (so nothing but a deny
+    # can block), one fresh session per command. Sealed sandbox: a fake HOME (no
+    # loader, no plugin hooks), cwd outside this repo, `env -i` plus one dummy
+    # variable. Verdicts are read from each session's tool_result, not the
+    # model's prose, and only rows whose tool_use command was byte-identical count:
+    #   DENIED   env · env | grep X · true && env · true; env · env 2>&1 ·
+    #            env > /dev/null · echo $(env) · nice env | grep X ·
+    #            printenv | grep X · set | grep X · export | grep X ·
+    #            export -p | grep X · declare -x | grep X · declare -p | grep X ·
+    #            typeset -x | grep X · typeset -p | grep X
+    #   ALLOWED  printenv NAME · env X=1 /usr/bin/true · set -o pipefail; echo ok ·
+    #            export X=1; echo ok   (the over-block controls: all pass)
+    #   ALLOWED  /usr/bin/env · bash -c env   (the by-path / by-subshell class
+    #            the header already names as out of reach — a FLOOR, not a wall)
+    # So the matcher splits on `|`, `&&`, `;` and `$(…)`, drops redirections and
+    # strips a leading `nice` (one of the fixed wrappers named under the agenix
+    # block) BEFORE the exact compare: an exact entry covers the compound shapes
+    # a model actually writes, not just the bare word.
+    # Also out of reach, as for Rule 1e: one NAMED variable (`printenv SOME_KEY`,
+    # `echo "$SOME_KEY"`) and programs that read the env themselves (python
+    # os.environ, node process.env, `jq -n env`). NOT MEASURED: a heredoc whose
+    # body has a bare `env` line. Rule 1e blocks that as a known false positive;
+    # whether this matcher does too is unknown.
+    "Bash(env)"
+    "Bash(printenv)"
+    "Bash(set)"
+    "Bash(export)"
+    "Bash(export -p)"
+    "Bash(declare -x)"
+    "Bash(declare -p)"
+    "Bash(typeset -x)"
+    "Bash(typeset -p)"
     # Host-decrypted agenix plaintext on macos, and the two OpenTofu state dirs
     # that hold a tunnel connector token (+ an Access service-token secret) in
     # plaintext (CLAUDE.md § Important Notes). A Read deny also blocks Edit/Write.

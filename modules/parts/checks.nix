@@ -124,13 +124,16 @@ in
           #     sandbox has not got, which its own header states. "Cannot be RUN" was
           #     read as "cannot be CHECKED" and that was the error — shellcheck needs
           #     no Keychain.
-          #   .claude/hooks/tests/*.sh (4) DELIBERATELY NOT LINTED, and the only one
+          #   .claude/hooks/tests/*.sh DELIBERATELY NOT LINTED, and the only one
           #     of the eleven left that way on purpose. claude-config-lint.yml RUNS
-          #     all four as a REQUIRED check that blocks a merge, which is strictly
-          #     stronger evidence than a lint. Shellcheck was then run over them to
-          #     see whether it adds anything on top, and it does not: its ONLY finding
-          #     across the four is three SC2016 "expressions don't expand in single
-          #     quotes" in rule1c-secret-egress.sh's single-quoted `ck` cases — every one a FALSE POSITIVE
+          #     every file in that glob as a REQUIRED check that blocks a merge, which
+          #     is strictly stronger evidence than a lint. Shellcheck was then run over
+          #     them to see whether it adds anything on top, and it does not. Re-run
+          #     2026-10-21 over the six files then on main (shellcheck 0.11.0): nine
+          #     findings, all in the single-quoted `ck`/`nothrow` cases of
+          #     rule1c-secret-egress.sh and rule1e-env-dump.sh — eight SC2016
+          #     "expressions don't expand in single quotes" and one SC1003. Every one
+          #     is a FALSE POSITIVE
           #     by construction, because those single quotes hold the literal command
           #     text the guard is being asked to judge (`ck block 'echo $(secret
           #     reveal K)'`) and expanding them would mean running it. Zero real
@@ -860,16 +863,22 @@ in
               mac = config.flake.darwinConfigurations.macos.config;
               hm = mac.home-manager.users.${loginName};
               userDeny = hm.programs.claude-code.settings.permissions.deny or [ ];
-              # The secret-value family, by the verbs that PRINT a secret.
+              # The secret-value family, by the verbs that PRINT a secret. The
+              # environment dumps are matched as WHOLE rules, anchored at both
+              # ends: they are exact-match denies, and a bare `env|set|export`
+              # substring would also count unrelated rules and inflate the total.
               secretRules = builtins.filter (
                 r:
                 builtins.match ".*(secret reveal|find-generic-password|find-internet-password|agenix|/run/agenix).*" r
                 != null
+                ||
+                  builtins.match "Bash\\((env|printenv|set|export|export -p|declare -[xp]|typeset -[xp])\\)" r != null
               ) userDeny;
               # Today's count, pinned. Raise it deliberately when the family grows;
               # a DROP means either a real retraction or a reworded rule the pattern
-              # above no longer sees, and both deserve a human.
-              minSecretRules = 12;
+              # above no longer sees, and both deserve a human. 24 = 15 measured
+              # before the environment dumps (2026-10-21) + those 9.
+              minSecretRules = 24;
             in
             pkgs.runCommand "claude-managed-settings"
               {
