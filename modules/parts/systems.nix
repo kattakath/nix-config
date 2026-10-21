@@ -21,8 +21,8 @@
 # which evaluates perSystem for a system WITHOUT enrolling it in the transposition.
 _:
 let
-  # A 2-SYSTEM aarch64-only FLEET (aarch64-darwin: macos; aarch64-linux: nixpi +
-  # nixvm): no x86_64 HOST anywhere. Every package / devShell / check output is
+  # A 2-SYSTEM aarch64-only FLEET (aarch64-darwin: macos; aarch64-linux: nixpi,
+  # nixvm, nixos): no x86_64 HOST anywhere. Every package / devShell / check output is
   # generated for the fleet systems. (The devcontainer IMAGE is the one
   # multi-arch output — it adds x86_64-linux via devcontainerSystems below, for
   # Codespaces; that is a dev tool, not a fleet host, so the invariant holds

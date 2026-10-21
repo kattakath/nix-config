@@ -97,8 +97,9 @@ in
     # mangled for the copy leg. ~/.ssh/config is the only place a spaced
     # ProxyCommand survives both legs.
     # NOTE: this path also depends on a Cloudflare Zero Trust *Access
-    # Application* for the hostname existing — hand-created, NOT in terranix,
-    # and it silently vanished once (2026-08-20). See docs/private-home-modules.md.
+    # Application* for the hostname existing — DECLARED in
+    # infra/cloudflare/nixpi-tunnel.nix (`nixpi_ssh`) because it silently vanished
+    # once (2026-08-20). See docs/private-home-modules.md.
     hostname = "nixpi.${domainName}";
 
     # Who we SSH in as (the operator, keys-only) vs who ACTIVATES (root, via

@@ -247,10 +247,13 @@ agree, because git is doing the copying.
 ## Adding to an extracted repo
 
 1. Commit in that repo and push.
-2. `nix flake update <input>` here, commit the `flake.lock`.
-3. For a plugin, add its bare name to `local.claudePlugins.marketplaces.kattakath.plugins`;
-   for a skill, add a `programs.claude-code.skills.<name>` entry. (There is no userscript step
-   any more — a script is **published**, not declared; see the 2026-09-14 update above.)
+2. For a NEW plugin only, add its bare name to
+   `local.claudePlugins.marketplaces.kattakath.plugins` (`modules/home/default.nix`). A change
+   to an existing plugin ships from the merge alone — the marketplace auto-updates.
+3. Bump the `kattakath-skills` pin here (`/update-input kattakath-skills`) ONLY if the change
+   touches what that pin feeds: `page-lab-pick`, or a `nix-mcp-*` name that
+   `checks.*.mcp-launcher-parity` joins against. (There is no userscript step any more — a
+   script is **published**, not declared; see the 2026-09-14 update above.)
 
 The global `harvest` skill walks these steps (and decides first whether the thing is worth
 keeping at all).

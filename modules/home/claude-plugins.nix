@@ -43,8 +43,8 @@
 # the hand-rolled one.
 #
 # It is NOT adopted, and the reason is scope, not preference: it installs plugin
-# DIRECTORIES and has no concept of a marketplace. This repo's plugins/ tree is a
-# marketplace on purpose — a publishable artifact others can add by URL — and
+# DIRECTORIES and has no concept of a marketplace. The operator's plugins
+# (github:kattakath/skills since 2026-09-12) are a marketplace on purpose — a publishable artifact others can add by URL — and
 # `plugins` would silently drop that, turning a shareable marketplace into three
 # private symlinks. Re-open this if either becomes true: upstream teaches
 # `marketplaces` to accept a git/https source (which would retire this module

@@ -66,8 +66,8 @@ let
   #              system-domain; a gui agent is unreachable from the boot half in
   #              principle, not by omission.
   # A source that is neither self-healing nor system-domain is covered by NOTHING
-  # — true of `launchd.user.agents` today, where the `tart-vms` capsule's two
-  # runners are all that is left. That gap is closed by MIGRATING those units to
+  # — which is why `launchd.user.agents` is kept EMPTY on macos (since 2026-10-02;
+  # `checks.<system>.launchd-selfheal-lane` fails a new one). That gap is closed by MIGRATING units to
   # the home-manager lane (the move metube and yt-dlp-web-ui made 2026-09-22,
   # and `open-maccy` plus the two trash sweeps on 2026-10-02), not by widening
   # this script's blast radius. The full argument,

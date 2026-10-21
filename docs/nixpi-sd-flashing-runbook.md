@@ -9,7 +9,7 @@ one command.
 
 Everything here is grounded in the repo files:
 
-- `flake.nix` — exports `nixosConfigurations.nixpi` (the `sdImage` build target), also surfaced as the `nixpi-sd-image` package that CI prebuilds and publishes to the `installer-latest` release
+- `modules/parts/hosts.nix` — exports `nixosConfigurations.nixpi` (the `sdImage` build target), also surfaced as the `nixpi-sd-image` package that CI prebuilds and publishes to the `installer-latest` release
 - `hosts/nixpi.nix` — the LIVE Pi profile, including the **scripted-initrd boot fix** (`boot.initrd.systemd.enable = lib.mkForce false`) that is the *other* thing that can hang stage-1
 - `hosts/nixpi.nix` + the in-tree `modules/features/cloudflared-connector/` capsule — what `nixpi` does once booted (the Cloudflare Tunnel connector carrying static-key SSH + the Caddy landing page)
 
@@ -343,9 +343,9 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi from this Mac's n
 - **Plant a FALLBACK AP, not just one.** `--ssid` is repeatable
   (`nixpi-wifi-creds --ssid PRIMARY --ssid BACKUP`), and the blocks come out ranked
   by `priority=`. One AP makes that AP a single point of failure whose recovery is
-  this runbook (~40 min): the Pi has no LAN sshd (`modules/nixos/core.nix` binds
-  loopback only), so the only route in is the tunnel, and the tunnel needs working
-  INTERNET rather than merely a LAN. Measured 2026-09-22: a two-block config failed
+  this runbook (~40 min): off-site the only route in is the tunnel, and the tunnel
+  needs working INTERNET rather than merely a LAN (the LAN sshd path, `local.lanRecovery`,
+  helps only when you are on that LAN). Measured 2026-09-22: a two-block config failed
   over to the second AP in ~6 s and reached the internet through it.
 - **The wired link does NOT make this redundant** when both interfaces face the same
   router. If that router keeps LAN carrier but loses its uplink, `end0` keeps a
@@ -491,9 +491,9 @@ Same fresh-key gotcha applies to the tunnelled name, so after a reflash:
 **If the tunnel/SSH proxy fails with `cloudflared access ssh: failed to find
 Access application`** while the public sites on the same tunnel are still
 serving fine — that's not a tunnel/DNS/Pi problem, it's a missing Cloudflare
-Zero Trust Access Application for `nixpi.kattakath.com` (a separate resource
-from the tunnel ingress rule, not currently modeled in terranix). See
-`docs/private-home-modules.md`'s "Deploy nixpi" section for the fix.
+Zero Trust Access Application for `nixpi.kattakath.com` (declared in
+`infra/cloudflare/nixpi-tunnel.nix` as `nixpi_ssh`; restore it with
+`cf-tunnel-plan` → `cf-tunnel-apply`).
 
 (Same stale-host-key gotcha every reprovision hits — the name is stable, the key
 is not.)
@@ -505,7 +505,7 @@ is not.)
 | Symptom | Most likely cause | First action |
 |---|---|---|
 | Green ACT flickers **once** then goes DARK; Ethernet link LED is up but there is **no DHCP lease / no SSH / no mDNS** | **Truncated SD write** (by far the most common). The FAT boot partition read fine (the flicker), but the ext4 root is half-written so the kernel hangs on `rootwait`. | **Re-flash with a verified full write** (§4) — confirm the ~5.6 GB `dd` byte count this time. Only if a *verified* full write still hangs, suspect the scripted-initrd fix (next row). |
-| Green ACT blinks normally for a while, then boot stalls with root never mounting (only visible on serial, or as "up but never reachable" after a *known-good* full write) | **systemd-initrd stage-1 hang** — the `linux-rpi` 6.6.x kernel wedges mounting `/sysroot` under systemd stage-1. The fix (`boot.initrd.systemd.enable = lib.mkForce false`) lives in `hosts/nixpi.nix`; a config change that reintroduces systemd-initrd will hang here. | Confirm `hosts/nixpi.nix` still forces scripted initrd (§8); rebuild the image and re-flash. |
+| Green ACT blinks normally for a while, then boot stalls with root never mounting (only visible on serial, or as "up but never reachable" after a *known-good* full write) | **systemd-initrd stage-1 hang** — the `linux-rpi` kernel (6.6.x when measured) wedges mounting `/sysroot` under systemd stage-1. The fix (`boot.initrd.systemd.enable = lib.mkForce false`) lives in `hosts/nixpi.nix`; a config change that reintroduces systemd-initrd will hang here. | Confirm `hosts/nixpi.nix` still forces scripted initrd (§8); rebuild the image and re-flash. |
 | A verified flash boots and serves fine, then root is **corrupt after a later reboot** (e2fsck: block-bitmap checksum mismatch), or first boot logs `EFSCORRUPTED` | **Fake-capacity card.** The image fits below its real edge, so the flash verifies; writes past the edge (first boot's `resize2fs`, store growth, a GC, the persistent journal) vanish | **f3-test the card** (§3c). On a FAIL, use another card or cap it (§4c) |
 | Green ACT **never blinks at all**; only the **red** power LED is on | Firmware can't read the card at all — the Pi never even loads the bootloader off FAT. | Check **power (needs a solid 5V/3A supply — undervoltage is a classic cause), the SD slot, and the card itself** (reseat / try another card). |
 
@@ -549,7 +549,7 @@ ext4 errors, the card or write is corrupt.
 
 > **CRITICAL gotcha — do NOT add the Ethernet driver to
 > `boot.initrd.availableKernelModules`.** On the Pi 4 with the `linux-rpi`
-> 6.6.51 kernel the GENET Ethernet driver is **built into the kernel image**, so
+> kernel (6.6.51 when this was measured) the GENET Ethernet driver is **built into the kernel image**, so
 > there is no `bcmgenet.ko` / `genet.ko` to load. Listing `bcmgenet` (or
 > `genet`) in `availableKernelModules` makes the initrd build fail with a fatal
 > missing-module error (`boot.initrd.allowMissingModules` defaults `false`).
@@ -560,9 +560,9 @@ ext4 errors, the card or write is corrupt.
 ## 8. Cross-references
 
 - **Scripted-initrd boot fix:** `hosts/nixpi.nix` forces
-  `boot.initrd.systemd.enable = lib.mkForce false` (and
-  `boot.initrd.systemd.tpm2.enable = lib.mkForce false` — the Pi 4 has no TPM).
-  These MUST stay in place; systemd stage-1 hangs mounting root on this kernel.
+  `boot.initrd.systemd.enable = lib.mkForce false` (the `tpm2` one is now set by
+  nixos-hardware's raspberry-pi/4 module itself — the Pi 4 has no TPM).
+  This MUST stay in place; systemd stage-1 hangs mounting root on this kernel.
   A config that reintroduces systemd-initrd will not reboot on this hardware,
   and eval / generic-kernel QEMU will not catch it — only a real Pi (or serial)
   does.
