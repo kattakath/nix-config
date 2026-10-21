@@ -80,10 +80,13 @@ its gates the same day.
       the same one the deleted check ran.
 - [ ] **Publish** per the plugin's `greasyfork.md`: Greasy Fork, or **Sleazy Fork** for an
       adult-adjacent site (one codebase, but a site lands on only one of the two).
-- [ ] **Updates ship by webhook — push to `main`, nothing else** (since 2026-10-21). Greasy Fork
-      listens on a GitHub hook (`ismailkattakath/userscripts`), Sleazy Fork on a GitLab hook
-      (`izzykatt/userscripts`). A pushed file reaches a listing only if it **exactly** equals that
-      listing's sync URL (`…/main/<f>.user.js`, plus `listings/<f>.md` for the additional info).
+- [ ] **Updates ship by webhook — push to `main`, nothing else** (since 2026-10-21). Both repos
+      run the same pipeline: lint + parse, then a publish job fast-forwards a **`published`**
+      branch, but only when both are green. Greasy Fork listens on a GitHub hook
+      (`ismailkattakath/userscripts`), Sleazy Fork on a GitLab hook (`izzykatt/userscripts`), and
+      both sync from `published`, never `main`. A pushed file reaches a listing only if it
+      **exactly** equals that listing's sync URL (`…/published/<f>.user.js`, plus
+      `listings/<f>.md` for the additional info).
       A **new** script never triggers one: the hook reads only *modified* files, not *added*
       ones. So publish the first version by hand, then set both sync URLs on its admin page.
 - [ ] Install from the fork page, once. `@updateURL` then does the rest — **this is the whole
