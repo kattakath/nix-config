@@ -620,10 +620,8 @@ in
       # linker's adhoc signature (measured 2026-08-31: `Sealed Resources=none`,
       # `Identifier=Electron`, `Info.plist=not bound`). Unsigned + quarantined is
       # what macOS reports as "damaged and can't be opened", and that variant is
-      # NOT clearable by right-click ▸ Open — the flag must actually be gone. The
-      # cask's own postflight tries to strip it, but only interactively, which
-      # `brew bundle` can never satisfy (no stdin; a method-level rescue swallows
-      # the failure), so the flag survived every activation.
+      # NOT clearable by right-click ▸ Open — the flag must actually be gone, and
+      # the cask itself does not strip it (ismailkattakath/homebrew-tap README).
       #
       # Why postinstall and not `args.no_quarantine = true`: nix-darwin still
       # offers that arg, but Homebrew 6.0.18 has REMOVED the flag — brew bundle
