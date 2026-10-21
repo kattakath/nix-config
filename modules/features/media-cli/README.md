@@ -97,8 +97,8 @@ local.mediaCli.enable = isMacosHost;
 
 **There is no `nix run .#media-describe`.** This capsule publishes no packages and no apps on
 purpose — every CLI reaches the Mac through the module's `home.packages`, built with the
-host's own pkgs, and a second perSystem-pkgs copy would be eleven `nix flake show` rows
-nothing consumes. `checks.<system>.media-cli-packages` still BUILDS all eleven on every PR,
+host's own pkgs, and a second perSystem-pkgs copy would be one `nix flake show` row per package
+nothing consumes. `checks.<system>.media-cli-packages` still BUILDS every one of them on every PR,
 which is what runs shellcheck over them. The one-line path back is in `flake-module.nix`.
 
 ## Options

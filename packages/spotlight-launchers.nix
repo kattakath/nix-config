@@ -3,7 +3,7 @@
 #   mkLauncherApp — "focus-or-launch" wrappers for GUI processes that have no
 #                   .app of their own (the Android emulator, below).
 #   mkCommandApp  — one bundle per FLEET OPERATION (activate, flake check,
-#                   deploy nixpi, …), so Spotlight can run them by name.
+#                   open repo, …), so Spotlight can run them by name.
 #
 # WHY .app BUNDLES AND NOT SPOTLIGHT'S "ACTIONS" LANE. macOS 26+ added a second
 # Spotlight lane, Actions, and it is fed by exactly two things: App Intents (a

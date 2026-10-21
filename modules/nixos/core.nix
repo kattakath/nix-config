@@ -240,8 +240,8 @@
       curl
     ];
 
-    # Shared install-era stateVersion for every NixOS host (both import this
-    # module). mkDefault lets a future host pin a different one if ever needed.
+    # Default install-era stateVersion for the NixOS hosts that import this module.
+    # mkDefault lets a host pin its own — hosts/nixos.nix does (26.11).
     system.stateVersion = lib.mkDefault "24.05";
   };
 }
