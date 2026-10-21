@@ -54,7 +54,7 @@ severity: error
 # terminator fix and the `users.users.*.home` exemption; the hook has neither,
 # so it still misses a path that ends AT the home directory. The hook is not in
 # this tree to fix: it arrives as a PLUGIN hook from `claude-code-nix` in
-# kattakath/ai (CLAUDE.md § Hooks — deliberately not re-added here, or it would
+# kattakath/skills (CLAUDE.md § Hooks — deliberately not re-added here, or it would
 # fire twice). Closing the gap needs a change in that repo. Until it lands, the
 # hook is the LOOSER of the two and this gate is the one that holds.
 # TERMINATOR, not a literal trailing slash (fixed 2026-09-16). The old pattern
@@ -115,4 +115,4 @@ note: |
   of which is a path on a fleet machine; see the header comment. Same convention
   as the companion `nix-home-path-lint.js` hook — which LAGS this rule as of
   2026-09-16 (no terminator fix, no home-declaration exemption) and lives in
-  kattakath/ai, not this tree. This gate is the stricter of the two.
+  kattakath/skills, not this tree. This gate is the stricter of the two.

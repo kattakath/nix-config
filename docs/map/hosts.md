@@ -179,11 +179,9 @@ they bite any future second account:
     - **The EPERM only fires on a cache MISS**, and a miss can OUTLIVE the warm: if you
       evaluate a nixpi change before CI has pushed it, Nix records the 404 in its narinfo
       negative cache for an hour (`narinfo-cache-negative-ttl`, default 3600), so it keeps
-      planning a build against an already-warmed cache. **You cannot clear that from the CLI**
-      — the operator is `Trusted: 0` against the local daemon, so `--narinfo-cache-negative-ttl 0`
-      is answered with *"ignoring the client-specified setting … you are not a trusted user"*
-      (same reason `--builders`/`--max-jobs 0` are ignored). Wait it out, or add the operator to
-      `determinateNix.customSettings.trusted-users`.
+      planning a build against an already-warmed cache. Clear it per command with
+      `--narinfo-cache-negative-ttl 0`: the operator is a trusted user (`extra-trusted-users` in
+      `modules/parts/compose.nix`), so the daemon honours it.
     - **Your own `nix build --dry-run` counts as that evaluation.** Measured 2026-10-18 (#877):
       a dry-run of the nixpi toplevel run to *prove* "fetch, not build" before the warm-up
       finished poisoned the cache, and the deploy 13 min later still EPERMed on

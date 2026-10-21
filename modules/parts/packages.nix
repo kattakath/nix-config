@@ -180,16 +180,21 @@ in
               ../../packages/grok.nix
               { };
 
-          # Google's Antigravity CLI — a vendor-provided PREBUILT binary. It
-          # replaces the moving `curl … | bash` installer and is shared through
-          # hosts/macos.nix; the package is Darwin-only like the host install.
-          antigravity-cli =
-            (import inputs.nixpkgs {
-              inherit system;
-              config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "antigravity-cli" ];
-            }).callPackage
-              ../../packages/antigravity-cli.nix
-              { };
+          # Google's Antigravity CLI (`agy`) — nixpkgs' own `antigravity-cli`,
+          # re-exported for `nix build .#antigravity-cli`; hosts/macos.nix shares
+          # it machine-wide. Adopted 2026-10-21 over a hand-pinned copy once the
+          # nixpkgs build was measured to keep Google's Developer ID signature
+          # (`codesign --verify --strict` exit 0, TeamIdentifier EQHXZ8M8AV).
+          # Narrowed unfree instance, same reasoning as grok above.
+          inherit
+            (
+              (import inputs.nixpkgs {
+                inherit system;
+                config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "antigravity-cli" ];
+              })
+            )
+            antigravity-cli
+            ;
 
           # (`secret` / `set-secret` / `remove-secret` — the macOS login-Keychain
           # CLIs — are NOT here. They were `inherit (keychain-secrets.packages.
