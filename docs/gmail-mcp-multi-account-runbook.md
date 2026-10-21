@@ -228,6 +228,6 @@ Command: `/gmail-account`.
 | `packages/gmail-mcp.nix` | the generic launcher: alias derivation, Keychain read, `gcp-oauth.keys.json`, `--tool-prefix` |
 | `modules/home/gmail-mcp.nix` | the `local.gmailMcp.enable` option; puts `nix-mcp-gmail` on PATH |
 | `hosts/macos.nix` | `local.gmailMcp.enable = true` |
-| a plugin `.mcp.json` (public `gmail`, or the private overlay) | the DECLARATION and the roster — one server entry per account. **Not in this repo, and invisible to every check here** |
+| a plugin `.mcp.json` (public `gmail`, or the private overlay) | the DECLARATION and the roster — one server entry per account. **Not in this repo**; the public plugin's `nix-mcp-gmail` is read by `checks.*.mcp-launcher-parity` (via the pin), the private overlay by no check here |
 | ~~`modules/shared/mcp.nix`~~ | **deleted 2026-10-02** — held `mkGmailMcp` and the old gateway wiring |
 | `~/.gmail-mcp/` | Runtime state: shared `gcp-oauth.keys.json` + per-account `credentials-<alias>.json` (never in git) |
