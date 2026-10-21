@@ -471,7 +471,7 @@ in
     # on no Linux host. PRE-EMPTIVE: there is no TM destination configured today;
     # see the file's header for what it does and does NOT cover.
     ./tor-browser-backup-exclusion.nix
-    # THESE TWO MODULES ARE THE LIVE MCP LANE (with the `mcpfinderMcp` package in
+    # THESE TWO MODULES BUILD MCP LAUNCHERS (other plugin-named MCP binaries sit in
     # home.packages below). The gateway (modules/shared/mcp.nix) was deleted in #734;
     # these launchers are how the servers that had no plugin owner survived it. Each
     # puts a binary on PATH that a plugin's `.mcp.json` names as its `command` (in
@@ -485,8 +485,8 @@ in
     # silently inert — `local.gmailMcp` was, until it was added.
     # Client side D: the writer for Claude Desktop's stateful
     # claude_desktop_config.json — it merges ONE key, `mcpServers`, and what it
-    # renders there today is `local.claudeDesktop.extraServers` (`github` only, set
-    # below). Desktop loads no plugins, so the plugin lane above cannot reach it; the
+    # renders there is `local.claudeDesktop.extraServers` (set below) plus the
+    # operator's private overlay. Desktop loads no plugins, so the plugin lane above cannot reach it; the
     # module stays enabled because Desktop's server set is a state something must WRITE. NOT gated on any gateway option —
     # that gating was the 2026-10-01 regression `checks.*.claude-desktop-config-shape`
     # now has a leg for.
