@@ -78,8 +78,8 @@ in
 
   # No `project`, no `region`: a budget hangs off the BILLING ACCOUNT, which is
   # above any project. Credentials come from ADC — and, per the devShell's
-  # CLOUDSDK_CONFIG, from the repo-scoped gcloud config dir rather than whichever
-  # account happens to be globally active.
+  # GOOGLE_APPLICATION_CREDENTIALS (set from its CLOUDSDK_CONFIG), from the repo-scoped
+  # gcloud config dir rather than whichever account happens to be globally active.
   provider.google = {
     impersonate_service_account = automationServiceAccount;
   };

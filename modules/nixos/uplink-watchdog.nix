@@ -327,7 +327,7 @@ in
     supplicantUnit = lib.mkOption {
       type = lib.types.str;
       default = "supplicant-wlan0.service";
-      description = "Unit restarted after rewriting the runtime config.";
+      description = "Unit the watchdog restarts when it fails over or recovers.";
     };
 
     probeTargets = lib.mkOption {

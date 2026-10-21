@@ -44,8 +44,9 @@ Two things outside this directory depend on it and must not drift:
   variable this loader exports. `checks.<system>.bedrock-gate-after-loader`
   (`modules/parts/checks.nix`) asserts that order against the real `macos` config.
 
-The three CLIs are also flake outputs on darwin — `nix run .#secret`, `.#set-secret`,
-`.#remove-secret` — registered by this capsule's `flake-module.nix`.
+The CLIs are also flake outputs on darwin — `nix run .#secret`, `.#set-secret`,
+`.#remove-secret`, plus the `secrets-*` backend commands — registered by this capsule's
+`flake-module.nix`.
 
 ## Usage
 
@@ -115,9 +116,9 @@ would fail there for reasons unrelated to the code:
 nix develop -c modules/features/keychain-secrets/tests/grammar.sh
 ```
 
-The two gated checks are `checks.aarch64-darwin.keychain-secrets-module` (the loader's
-`$BASH_ENV` wiring and sentinel, on a throwaway home-manager config) and
-`keychain-secrets-clis` (builds all four CLIs, which is what runs shellcheck over them).
+The gated checks are `checks.aarch64-darwin.keychain-secrets-*` (see `flake-module.nix`), among
+them `-module` (the loader's `$BASH_ENV` wiring and sentinel, on a throwaway home-manager config)
+and `-clis` (builds every CLI, which is what runs shellcheck over them).
 
 ## Backend — Secret Manager as the source of truth (ADR-004, off by default)
 

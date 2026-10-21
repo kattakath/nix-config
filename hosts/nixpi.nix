@@ -76,7 +76,7 @@
   # uplink, and neither dhcpcd nor wpa_supplicant can see that: end0 keeps carrier
   # so it keeps the lower metric, and wlan0 stays associated to an AP that is
   # beaconing perfectly well with nothing behind it. Both paths are then dead and
-  # the tunnel — the only route in — goes with them. The watchdog probes the
+  # the tunnel — the only REMOTE route in — goes with them. The watchdog probes the
   # default route and escalates; the module header carries the full reasoning and
   # the upstream-first grep that justifies it being ours.
   local.uplinkWatchdog.enable = true;
@@ -238,8 +238,8 @@
   # FIRMWARE partition via `local.firmwareProvisioning`
   # (the firmware-secrets capsule), NOT agenix. WHY NOT agenix: it
   # encrypts to nixpi's SSH HOST key, but a fresh SD flash mints a new host key, so
-  # the ciphertext stops decrypting and the tunnel dies — and with SSH being
-  # cert-only OVER that tunnel, unrecoverably (the reflash lockout). A file on the
+  # the ciphertext stops decrypting and the tunnel dies — and with the tunnel the only
+  # REMOTE way to SSH, unrecoverably from afar (the reflash lockout). A file on the
   # macOS-writable FAT partition is immune to host-key rotation; the operator
   # re-plants it per flash (the `nixpi-provision` flake app — see
   # docs/nixpi-sd-flashing-runbook.md). Each planted file is copied into a root-only
@@ -289,7 +289,7 @@
     # nixpi.kattakath.com from first boot. Plant a standard wpa_supplicant.conf that
     # carries `country=` (the Pi 4 radio is rfkill-blocked without a regulatory
     # domain) and a `network={ ssid=…; psk=… }` block. OPTIONAL: absent ⇒ the units
-    # skip cleanly, leaving LAN-only (eth0 stays DHCP as a fallback). The Pi 4
+    # skip cleanly, leaving LAN-only (end0 stays DHCP as a fallback). The Pi 4
     # brcmfmac driver + 43455 firmware/NVRAM already ship in the closure; only the
     # credentials are planted.
     wifi = {
