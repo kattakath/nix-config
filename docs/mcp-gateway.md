@@ -505,8 +505,10 @@ answers** (§ How to verify …). There is only one declaration target now:
   the worked example; `page-lab-pick` and `mcp-nixos` are the same shape for other plugins. Keep
   the credential logic in the Nix wrapper, never duplicated into the plugin repo.
 - **Nothing else in this repo.** No gateway entry (there is no gateway), no
-  `fleet.publicMcpServers` (deleted), no Cloudflare registration (destroyed), no parity check
-  (deleted). `.claude/settings.json` permission rules are still worth writing — allow read-only
+  `fleet.publicMcpServers` (deleted), no Cloudflare registration (destroyed), no
+  `mcp-published-parity` (deleted) — but a new `nix-mcp-*` launcher DOES need the
+  `kattakath-skills` pin bumped here once its plugin names it, or `checks.*.mcp-launcher-parity`
+  goes red. `.claude/settings.json` permission rules are still worth writing — allow read-only
   tools by name, deny anything that writes outside the server's remit.
 - `launchd-naming` does **not** apply to a per-session stdio child: it governs launchd units, and
   the plugin lane declares none. It still applies to any agent a PATH package installs.
