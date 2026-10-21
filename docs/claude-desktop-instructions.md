@@ -75,7 +75,7 @@ Response format
 > missing tool. This is a hand-pasted account-level setting, so nothing here can delete it for
 > you — that is the whole reason this file exists.
 
-**Keep this block 7-bit ASCII.** It reaches the field through the macOS clipboard, and
+**Keep the fenced block above 7-bit ASCII.** It reaches the field through the macOS clipboard, and
 `pbcopy` encodes using the caller's locale — in a `LANG`-less shell (every non-interactive
 hook, script and agent session on this Mac) it reads UTF-8 bytes as **MacRoman**, so an em
 dash lands in the field as `‚Äî`. Verified 2026-09-15. Belt and braces when re-copying:

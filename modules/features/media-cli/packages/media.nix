@@ -109,7 +109,7 @@ writeShellApplication {
       fix       <--video|--image> <path>... repair a media file by class — fixes a
                                             lying extension, re-encodes an
                                             editor-hostile codec
-      audio     [--<format>] <file>         pull the audio track out of a video
+      audio     [--<mode>] <file>...        pull the audio track out of a video
       enqueue   <--video|--image|--describe> [--priority high|normal|low] <path>...
                                             the same describe/fix work, handed
                                             to the background queue instead of

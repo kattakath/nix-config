@@ -127,7 +127,7 @@
 # (makes managed the ONLY source of permission rules, silently disabling this
 # repo's .claude/settings.json AND the user-scope floor),
 # `allowManagedHooksOnly` (this repo's guard and stop-gate are NOT managed hooks;
-# they arrive as superhook plugin hooks, CLAUDE.md § Hooks), `allowManagedMcpServersOnly`, `disableSideloadFlags` (rejects
+# they arrive as superhook plugin hooks, CLAUDE.md's **Hooks** paragraph), `allowManagedMcpServersOnly`, `disableSideloadFlags` (rejects
 # --mcp-config / --plugin-dir / --agents), `permissions.defaultMode`,
 # `managedMcpServers`, `availableModels`. All verified present in the 2.1.260
 # binary — they are unset on purpose, not for lack of a spelling.

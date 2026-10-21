@@ -80,8 +80,8 @@ named act (`reveal`) rather than the path of least resistance — and with it th
 - **Index:** one Keychain item (`__set_secret_index__`) holds the space-separated list of
   managed keys. The grammar — `ENV=SERVICE`, `=SERVICE` (stored but never exported), or a
   bare legacy `SERVICE` — is defined canonically in `packages/set-secret.nix`; `module.nix`'s
-  loader and `packages/secret.nix` both parse it, and **all three must agree**. The index is
-  **single-writer**: only `secret set`/`rm` maintain it, so an item added out-of-band
+  loader and `packages/secret.nix` parse it, and **every file that parses it must agree**. Only the
+  `secret` CLI writes the index (`set`/`rm`, and `bind`/`unbind` through `rebind()`), so an item added out-of-band
   (Keychain Access GUI, raw `security add-generic-password`) is found by a direct read but is
   invisible to `ls` and to the loader until `secret adopt <KEY>` — which registers it and, as
   a bonus, rewrites the item so the CLI is on its ACL (no more per-read auth prompts).
@@ -113,7 +113,7 @@ derivation — the build sandbox has no login session and no Keychain, so every 
 would fail there for reasons unrelated to the code:
 
 ```sh
-nix develop -c modules/features/keychain-secrets/tests/grammar.sh
+nix shell .#set-secret .#secret -c modules/features/keychain-secrets/tests/grammar.sh
 ```
 
 The gated checks are `checks.aarch64-darwin.keychain-secrets-*` (see `flake-module.nix`), among
@@ -137,7 +137,7 @@ local.keychainSecrets.backend.type = "gcp";   # in your USER's home-manager bloc
 | Command | Does | Network |
 |---|---|---|
 | `secrets-status [--offline]` | one row per registered secret: in Keychain? ref, mode, **drift** vs. latest remote version — compared by sha256, never printed; lists `remote-only` strays | yes, unless `--offline` or no backend |
-| `secrets-rehydrate [--dry-run]` | pulls every `<prefix>*` secret that carries this store's annotations back into the Keychain **through `set-secret`** (the index's single writer), so bindings return too; idempotent — matching values are skipped; reference-mode secrets only land in the manifest | yes |
+| `secrets-rehydrate [--dry-run]` | pulls every `<prefix>*` secret that carries this store's annotations back into the Keychain **through `set-secret`**, so bindings return too; idempotent — matching values are skipped; reference-mode secrets only land in the manifest | yes |
 | `secrets-push <SERVICE> [<ACCOUNT>] [--mode cached\|reference] [--ref REF]` | pushes **one** Keychain item: creates the secret if needed, adds a version only when the value changed, records SERVICE/ENV/ACCOUNT/MODE as annotations | yes |
 | `secrets-resolve <REF\|ID\|SERVICE>` | prints one value to stdout, nothing else — the `mode = "reference"` runtime helper | yes |
 
