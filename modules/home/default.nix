@@ -1966,11 +1966,6 @@ in
       # silenced.
       enableDefaultConfig = false;
 
-      # Hand-placed per-host routes (keys and hosts that are the operator's alone,
-      # like ~/.config/git/local.inc). Rendered ABOVE every Host block, so a route
-      # there wins over `*` below; a glob that matches nothing is a silent no-op.
-      includes = [ "~/.ssh/config.d/*" ];
-
       settings = {
         # Keychain-backed agent for git SSH signing / non-interactive SSH. Only the
         # three values that carry a DECISION are set; the rest of home-manager's
