@@ -2,9 +2,10 @@
 # The GLOBAL guardrail floor for Claude Code — user-scope `permissions.deny`
 # that applies in EVERY repo on this Mac, not just this one.
 #
-# WHY THIS EXISTS. Every decision hook this fleet runs (`pretooluse-bash-guard`,
-# `stop-gate`, the Write|Edit secret prompt) lives in THIS repo's
-# `.claude/settings.json` — project scope. A session anywhere else (a work
+# WHY THIS EXISTS. Every decision hook this fleet runs is project-scoped: the
+# Write|Edit secret prompt sits in THIS repo's `.claude/settings.json`, and
+# `pretooluse-bash-guard`/`stop-gate` arrive as `superhook` plugin hooks that
+# find `.claude/hooks/` by convention. A session anywhere else (a work
 # repo, `~`) got none of it, while the VS Code extension and the `claude`
 # terminal profile start in `bypassPermissions` (default.nix). The MCP gateway was
 # the counter-example that forced the issue: it WAS global — `mcpfinder` reached
@@ -219,7 +220,8 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # reworded — a well-formed, completely empty floor. That is the silent vacuum
     # the mcpfinder note above and the `attribution` note below both record: a
     # rule matching nothing is not a weak floor but NO floor, and nothing reports
-    # it. Nothing checks these two lists agree either.
+    # it. `checks.<system>.claude-managed-settings` fails the build when this group
+    # gains a rule the managed copy lacks.
     "Bash(secret reveal *)"
     "Bash(security find-generic-password -w*)"
     "Bash(security find-generic-password * -w*)"
@@ -306,7 +308,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # And NO catch-all `Read(**)`. A blanket Read deny disables Bash
     # auto-approve across the board — it trades one narrow leak for a
     # permanently noisier session everywhere, which is how a floor gets turned
-    # off wholesale by an irritated operator. The four narrow `Read(...)` path
+    # off wholesale by an irritated operator. The seven narrow `Read(...)` path
     # denies above are the shape that holds; a fifth broad one would undo them.
 
     # ── Irreversible remote actions an unattended agent must not take ──

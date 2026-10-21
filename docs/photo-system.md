@@ -4,7 +4,7 @@
 
 ## Two tools
 
-| | photo-describe | rclip |
+| | media-describe | rclip |
 |---|---|---|
 | Writes | words INSIDE each file | an index beside the folder |
 | Searches | exact words, dates, camera | the pixels |
@@ -21,7 +21,7 @@
              │                         │            
              ▼                         ▼            
 ┌────────────────────────┐ ┌───────────────────────┐
-│     photo-describe     │ │         rclip         │
+│     media-describe     │ │         rclip         │
 └────────────┬───────────┘ └───────────┬───────────┘
              │                         │            
              ▼                         ▼            
@@ -34,7 +34,7 @@
 
 ```bash
 cd assets
-photo-describe .          # writes words into the files
+media-describe .          # writes words into the files
 rclip -t 5 "anything"     # builds the index (first run)
 ```
 
@@ -89,7 +89,7 @@ Finder Get Info shows it. Spotlight indexes it. Survives copy/upload/move.
 
 ## Is a describe job actually running?
 
-**Never trust file mtimes.** `photo-describe` writes with exiftool's `-P`,
+**Never trust file mtimes.** `media-describe` writes with exiftool's `-P`,
 which deliberately *preserves* the original modification time — a
 successful write never bumps it. `ls -lt`, `find -newermt`, anything
 mtime-based reads as "nothing happening" no matter how many photos have
@@ -138,7 +138,6 @@ back in-tree on 2026-09-12 (ADR-002 wave 5); either way they reach the Mac as
 capsule: it is the VECTOR half, a third-party tool this repo merely installs, and it reaches
 the stack through that module's `extraSearchPackages` seam.
 
-Nothing about the workflow on this page changed. The commands are the same.
 
 ## The rule
 
