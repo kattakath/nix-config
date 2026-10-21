@@ -170,12 +170,14 @@ and, above it on `macos`, root-owned managed scope in
   `security …-w` that would print a secret VALUE into the transcript) and **Rule 1d** (any shape
   that BUILDS on nixpi — `--build-host <pi>`, `deploy --remote-build`, `ssh <pi> nix build`,
   `--builders ssh://<pi>`; the `--target-host` form is deliberately allowed, since it builds
-  here and only activates there). Rule 1b — which blocked `deploy` and public-`#macos`
-  activation while a private layer existed — was RETIRED 2026-09-15 with that layer.
-- **`.claude/hooks/tests/*.sh`** — the case suites for BOTH hooks: four guard-rule suites
-  (`rule1-terranix-apply-vs-destroy.sh`, `rule1c-secret-egress.sh`,
-  `rule1d-no-build-on-nixpi.sh`, `rule2-cloudflare-docs.sh`)
-  plus `stop-gate-fail-closed.sh`, **gated by
+  here and only activates there), and **Rule 1e** (a command that dumps the whole
+  environment — `env`, `printenv`, bare `set`/`export`, `declare -x` — piped or not, because
+  the Keychain loader makes every bound secret ambient in the Bash tool; added after a
+  `env | grep -E '^(LANG|LC_)'` printed three API keys on 2026-10-21). Rule 1b — which
+  blocked `deploy` and public-`#macos` activation while a private layer existed — was
+  RETIRED 2026-09-15 with that layer.
+- **`.claude/hooks/tests/*.sh`** — the case suites for BOTH hooks: one per guard rule
+  (`rule1*.sh`, `rule2*.sh`) plus `stop-gate-fail-closed.sh`, **gated by
   `claude-config-lint.yml`** as the REQUIRED `Lint .claude config` status check — it BLOCKS a
   merge, it does not merely run. Each asserts BOTH
   halves — the shapes that must block and the shapes that must stay approved — and that the
