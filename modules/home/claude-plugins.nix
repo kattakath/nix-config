@@ -18,15 +18,16 @@
 # nix-personal flake needed a second one and grew a near-verbatim copy of the
 # whole activation script (ordered `entryAfter [ "claudeCodePlugins" ]` so the
 # two would not race on the same mutable ~/.claude state). An attrsOf option
-# merges by key instead, so the private layer now ADDS one attribute and there
-# is exactly one script again — no copy to keep in sync, and no race to order
+# merges by key instead, so any layer composed in through `extraHomeModules`
+# ADDS one attribute (none does today) and there is exactly one script — no copy to keep in sync, and no race to order
 # around.
 #
 # WHY NOT `programs.claude-code.marketplaces` (upstream home-manager,
-# modules/programs/claude-code/options.nix): that option writes a Nix-managed
-# known_marketplaces.json SYMLINK, while both Claude Code's own session-start
-# reconcile and `claude plugin marketplace add` need a mutable file; and the
-# reserved name
+# modules/programs/claude-code/options.nix): its lib.nix hardcodes every entry to
+# `source = "directory"`, so it cannot express the git/https sources this fleet's
+# marketplaces are; without `mutableSettings` it also writes known_marketplaces.json
+# as a SYMLINK, while Claude Code's own session-start reconcile and
+# `claude plugin marketplace add` need a mutable file; and the reserved name
 # `claude-plugins-official` must be an HTTPS/GitHub source (a directory pin is
 # rejected as untrusted). Plugin install state therefore stays Claude-owned
 # mutable ~/.claude, like a gh/hf one-time login — the same "let the tool own
@@ -46,7 +47,7 @@
 # marketplace on purpose — a publishable artifact others can add by URL — and
 # `plugins` would silently drop that, turning a shareable marketplace into three
 # private symlinks. Re-open this if either becomes true: upstream teaches
-# `marketplaces` to accept a directory pin (which would retire this module
+# `marketplaces` to accept a git/https source (which would retire this module
 # outright), or the fleet stops caring about publishing plugins/ (which would
 # make `plugins` strictly better). Measured against pinned home-manager
 # 2026-09; re-grep after a bump rather than trusting this line.

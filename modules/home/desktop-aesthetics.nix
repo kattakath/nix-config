@@ -99,7 +99,7 @@ in
       {
         home.activation.terminalAppearance = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           if /usr/bin/pgrep -x Terminal >/dev/null; then
-            $DRY_RUN_CMD /usr/bin/osascript \
+            run /usr/bin/osascript \
               -e 'tell application "Terminal"' \
               -e '  repeat with s in settings sets' \
               -e '    if font size of s is not ${toString tt.font.sizes.terminalApp} then set font size of s to ${toString tt.font.sizes.terminalApp}' \

@@ -509,8 +509,8 @@ in
   #
   # NEW — the satellite never needed it, and this fleet does. All four modules
   # sit in mkDarwin's BASE list (modules/parts/compose.nix), so they are
-  # evaluated by EVERY darwin composition, including nix-personal's own
-  # `lib.mkDarwin` call. compose.nix asserts in prose that they are "inert
+  # evaluated by EVERY darwin composition — the fleet's own and any future
+  # caller's of `lib.mkDarwin` alike. compose.nix asserts in prose that they are "inert
   # unless a host sets local.tart.githubRunners"; nothing measured it, and a module
   # that quietly contributes a launchd agent or a systemPackage to every
   # composition is exactly the failure ADR-002 §8 describes — invisible to

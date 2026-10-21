@@ -275,7 +275,7 @@ let
     name = "Family";
     authDomain = "kattakath.cloudflareaccess.com";
     loginDesign = {
-      logoUrl = "https://kattakath.com/logo.svg";
+      logoUrl = "https://${domainName}/logo.svg";
       backgroundColor = "#300a24";
       headerText = "Sign in with your @${domainName} email";
       footerText = "Members only";
