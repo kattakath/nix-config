@@ -156,8 +156,8 @@ Smaller, single-purpose CLIs:
 
   The two adjacent tools are **opt-in** in that module
   (`fidelityEnhance.enable`, `obsFacebookSetup.enable`) and deliberately stay OUT of the
-  `media-toolkit` bundle: that bundle is what the queue worker and the Finder Services put
-  on their `PATH`, so every member becomes a runtime dependency of the queue, and a
+  `media-toolkit` bundle: that bundle is what the Finder Services put
+  on their `PATH`, so every member becomes a runtime dependency of the Finder Services, and a
   uv/Python environment plus a Keychain read have no business there.
 - **The four Keychain CLIs are not here either — and never were.** `secret`, `set-secret`,
   `remove-secret` and `pb-conceal` live in **`modules/features/keychain-secrets/packages/`**,
