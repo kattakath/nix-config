@@ -248,7 +248,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   it. It copies the ollama metal guard's shape, so it is one of the boot-ordering `/bin/sh` rows in
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). The file header carries the diagnosis
   (no PREF64, no option 108, no `ipv4only.arpa` AAAA) and the upstream-first grep.
-- **`metube.nix`** / **`yt-dlp-web-ui.nix`** (in `modules/home/` since 2026-09-22; this is their design record) — `local.meTube` and `local.ytDlpWebUi`, the two
+- **`metube.nix`** / **`yt-dlp-web-ui.nix`** (Home Manager modules since 2026-09-22, now in `modules/home/`; this is their design record) — `local.meTube` and `local.ytDlpWebUi`, the two
   local download web UIs, each ONE launchd **user agent** bound to **127.0.0.1** and each
   built from source in `packages/` (neither is in nixpkgs). Both are on in `hosts/macos.nix`.
   Shared shape, and the reasons they diverge from the obvious defaults:

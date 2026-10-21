@@ -28,8 +28,8 @@
 # redirect are then managed out-of-band, directly in that account). A site whose
 # zone lives in a DIFFERENT Cloudflare account from this tunnel MUST also set
 # `ownTunnel = true`: a `cfargotunnel.com` CNAME only resolves within the tunnel's
-# own account, so it needs its own separate tunnel + connector (hand-written in
-# hosts/nixpi.nix) rather than an ingress rule here. hosts/nixpi.nix generates the
+# own account, so it needs its own separate tunnel + connector rather than an ingress
+# rule here (none is running today — see hosts/nixpi.nix's single-connector note). hosts/nixpi.nix generates the
 # matching Caddy vhost from the same list for EVERY site, needing only domain/root.
 # accountId / zoneId (the SSH host's zone) / domainName also come from modules/parts/identity.nix's
 # single sources (via _module.args in cfTunnelConfig).
@@ -73,8 +73,8 @@ let
   # SAME Cloudflare account as the tunnel (confirmed via Cloudflare's own docs), so
   # a site whose zone lives in a DIFFERENT account (e.g. dontsell.ai, in the
   # separate DontSell account) cannot be routed by this (Personal-account) tunnel
-  # at all — it gets its own hand-written connector unit in hosts/nixpi.nix instead
-  # (Caddy still serves it locally; only the tunnel ingress is excluded here).
+  # at all — it needs its own connector (hosts/nixpi.nix runs exactly one today; see its
+  # note on the retired dontsell.ai connector).
   siteIngress = map (s: {
     hostname = s.domain;
     service = "http://localhost:80";
@@ -264,7 +264,7 @@ in
       ingress = [
         # SSH ingress — nixpi.<domain> -> local sshd. Reached client-side with
         # `cloudflared access ssh --hostname nixpi.<domain>` (keys-only, the operator's
-        # static key in modules/nixos/core.nix). No Access/identity layer.
+        # static key in modules/nixos/core.nix), behind the `nixpi_ssh` Access app below.
         {
           hostname = publicHostname;
           service = "ssh://localhost:22";

@@ -1130,7 +1130,7 @@ in
       ];
     };
 
-    # ---- UPSTREAM marketplaces of repos this fleet ALREADY PINS as skill inputs
+    # ---- UPSTREAM marketplaces (some of their repos are also pinned as skill inputs)
     # (added 2026-09-30, kattakath/nix-config#650) -----------------------------
     #
     # Four upstream repos (some of them also pinned as `agent-skills-*` inputs) publish their
@@ -2206,7 +2206,7 @@ in
         # macos-automator in docs/osascript-accessibility-tcc.md.
         quick-terminal-position = "top";
 
-        # ---- Splits: the FOCUSED pane is the darker one ------------------------
+        # ---- Splits: the UNFOCUSED pane's text dims, the ground stays put -------
         # Ghostty only ever modifies the UNFOCUSED split — there is no
         # "focused-background" key.
         # 0.5: a lighter dim than the 0.35 previously set here. The floor is

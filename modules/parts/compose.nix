@@ -148,9 +148,9 @@ let
             # (or null), baked into the email-signature package as its default
             # --tokens-url (darwin only; inert on the NixOS hosts).
             tokensUrl
-            # operatorSshKey: fleet operator public key — modules/home/default.nix feeds it to
-            # programs.git.signing.allowedSigners so git can verify SSH commit sigs
-            # (and the file stays in lockstep with secrets/operator-key.nix).
+            # operatorSshKey: fleet operator public key (secrets/operator-key.nix). No
+            # Home Manager module reads it today — allowed_signers is hand-placed since
+            # 2026-09-20 (modules/home/default.nix's git signing comment).
             operatorSshKey
             # googleAccount: the canonical identity (identity.nix). A FLEET constant,
             # so it rides HERE, not in identityArgs, and the distinction is the whole
