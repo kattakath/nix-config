@@ -289,7 +289,7 @@ in
         };
       };
 
-      # GitLab lane on the SAME slot budget (civitai pipeline): declarative
+      # GitLab lane on the SAME slot budget: declarative
       # gitlab-runner → Tart custom executor. Replaced the brew service +
       # hand-edited ~/.gitlab-runner/config.toml on 2026-09-05; registration
       # (minting the glrt- token) stays the one-time manual act.
@@ -299,8 +299,8 @@ in
         runnerId = 54669377;
         tokenFile = config.age.secrets."gitlab-runner-token".path;
         concurrent = 2;
-        # civitai-live-wallpaper's .gitlab-ci.yml was written for the SHELL runner
-        # this replaced, so its jobs name no `image:`; every one failed in prepare
+        # A pipeline written for the SHELL runner this replaced names no `image:`
+        # in its jobs; every one failed in prepare
         # until this existed (main red since 2026-08-04's last green). The same
         # digest-pinned image the GitHub lane uses, so it is already on disk.
         # Written as <repo>@<digest>, tag dropped: that is the name Tart stores it under.
@@ -594,22 +594,6 @@ in
       "android-platform-tools"
       "blackhole-2ch"
       "bruno"
-      # CivitAI Live Wallpaper — a menu-bar app that rotates CivitAI images/videos
-      # as live wallpapers. From our shared tap
-      # (modules/darwin/homebrew.nix); the DMG comes from the project's public
-      # package registry. Ad-hoc signed with the hardened runtime but NOT notarized
-      # (a Developer ID is pending), so — exactly like escrcpy below — a quarantined
-      # copy is blocked by Gatekeeper and `brew bundle` cannot answer a prompt: the
-      # scoped `postinstall` strips the flag. Read the escrcpy entry's notes on why
-      # postinstall and not `args.no_quarantine` before changing it. Drop the
-      # postinstall once the app is notarized.
-      {
-        name = "ismailkattakath/tap/civitai-live-wallpaper";
-        # Single quotes, not escaped doubles: nix-darwin writes this string into the
-        # Brewfile between double quotes WITHOUT escaping, so an inner `"` produced
-        # invalid Ruby. The path has spaces, so it still needs quoting for the shell.
-        postinstall = "/usr/bin/xattr -dr com.apple.quarantine '/Applications/CivitAI Live Wallpaper.app'";
-      }
       # Claude Desktop — the chat GUI (distinct from the claude-code CLI, nixpkgs).
       "claude"
       # `docker-desktop` is GONE (2026-09-16): its privileged helper bound the
