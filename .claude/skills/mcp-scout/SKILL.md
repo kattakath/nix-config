@@ -151,13 +151,16 @@ Do not quietly create a wrapper plugin to get around this.
 
 **Consequences to state up front, before writing anything:**
 
-- **Claude Code only.** Claude Desktop loads no plugins and now renders an **empty** `mcpServers`
-  block by design, so Desktop and the Cowork bridge get nothing. Nothing detects this.
+- **Claude Code only.** Claude Desktop loads no plugins, so a plugin-declared server never reaches
+  Desktop or the Cowork bridge (Desktop's own set: `docs/claude-desktop-mcp.md` § CURRENT STATE).
+  Nothing detects this.
 - **No `flake.lock` pin** on the server's version — plugin content floats on the marketplace
   branch. The 2026-09-14 recovery levers (**pin the input, override the package**) do not apply to
   a plugin-declared `npx` spec.
-- **No build-time check at all.** `mcp-published-parity` is deleted, and nothing in this repo can
-  read a plugin's `.mcp.json`.
+- **Only a name-level build check.** `mcp-published-parity` is deleted; `checks.*.mcp-launcher-parity`
+  reads the PINNED `kattakath-skills` plugins' `.mcp.json` and joins their `nix-mcp-*` commands
+  against the launchers `macos` builds. It cannot see a server that fails to answer, or a
+  marketplace this repo does not pin.
 
 ## 3. Declare — the plugin's `.mcp.json`
 
