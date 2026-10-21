@@ -857,11 +857,6 @@ in
       # community mechanism; re-deriving dmg extraction and codesign handling in
       # Nix is the hand-rolled path the motto weighs against.
       "tor-browser"
-      # Übersicht — desktop widgets rendered as web views behind every window.
-      # Cask because it is a signed .app with no nixpkgs/home-manager packaging;
-      # the ONE widget the fleet declares (a full-screen HTML file) is placed by
-      # modules/home/ubersicht.nix (local.ubersicht.htmlWidget).
-      "ubersicht"
       # ungoogled-chromium — Chromium without the Google integration. Cask because
       # nixpkgs' chromium/ungoogled-chromium are *-linux only (no darwin build), and
       # the plain `chromium` cask is deprecated (fails the macOS Gatekeeper check,

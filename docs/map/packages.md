@@ -219,8 +219,7 @@ Smaller, single-purpose CLIs:
   `pbpaste | secret set --env RESEND_API_KEY resend.com:api`.
 - **Documented with their consumer, not here:** `gmail-mcp.nix`, `keychain-mcp.nix`,
   `mcpfinder-mcp.nix`, `slack-post-mcp.nix` (the MCP launchers — [`modules-home.md`](modules-home.md)
-  § `gmail-mcp.nix` + `plugin-mcp.nix`), `next-right-thing/` (the übersicht widget's generator —
-  [`modules-home.md`](modules-home.md) § `next-right-thing.nix`); and `rogers-gw.nix` (the
+  § `gmail-mcp.nix` + `plugin-mcp.nix`); and `rogers-gw.nix` (the
   inspection-only gateway CLI) and `launchd-doctor.nix` (the launchd runtime health check),
   both in [`modules-darwin.md`](modules-darwin.md).
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
