@@ -5,7 +5,7 @@
 #
 # Why not `/usr/bin/lockf` — the off-the-shelf answer, and the one that DELETED
 # this exact mkdir + pid-file + `kill -0` + stale-reclaim shape over in
-# the media-cli capsule (packages/media-queue.nix:396-405: "THE LOCK IS THE KERNEL'S,
+# the media-cli capsule (packages/media-queue.nix, its "THE LOCK IS THE KERNEL'S" comment: "THE LOCK IS THE KERNEL'S,
 # NOT OURS … that makes a stale lock structurally impossible"). lockf takes a
 # `flock(2)`, whose entire guarantee is that the kernel drops the lock when the
 # holder dies — and the `vm` marker below must OUTLIVE its acquiring process,
@@ -83,8 +83,8 @@ writeText "tart-slots.sh" ''
   #
   # TR_SLOT_WAIT is the ceiling in seconds. It has NO single right value, so
   # each lane sets its own default at the call site (GitHub waits long — its
-  # jobs sit queued at the forge for free; GitLab fails fast so the job returns
-  # to `pending`); 900 here is only the floor-level fallback for a caller that
+  # jobs sit queued at the forge for free; GitLab fails fast and visibly
+  # (runner_system_failure)); 900 here is only the floor-level fallback for a caller that
   # sets nothing. 0 means "one pass, never sleep".
   #
   # On expiry: returns 1 with SLOT_DIR UNTOUCHED. No slot is held, so the caller

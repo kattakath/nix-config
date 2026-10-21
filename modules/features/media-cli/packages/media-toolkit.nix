@@ -45,7 +45,7 @@
 # single consumer when the rename landed — the moment for it was exactly then.
 #
 # A symlinkJoin, deliberately, not a single dispatching binary: each CLI stays
-# its own derivation, keeps its own `nix run .#<name>` app, and is shellchecked
+# its own derivation and is shellchecked
 # and testable on its own. This only bundles them, so `home.packages` carries
 # one entry instead of drifting out of sync as CLIs are added — which already
 # happened once: media-extract-audio shipped as a flake package but was never added
@@ -58,8 +58,8 @@
 #      one unit." That is a repo-scope question, and it is generous.
 #   2. What goes in THIS BUNDLE?  A CLI that ACTS ON A MEDIA FILE the operator
 #      selected, on this machine. That is a dependency-scope question, and it
-#      is strict — because `media-toolkit` is what media-worker and the Finder
-#      Services put on their PATH, so every member becomes a runtime dependency
+#      is strict — because `media-toolkit` is what the Finder
+#      Services put on their PATH (media-worker takes only media-fix and media-describe), so every member becomes a runtime dependency
 #      of the queue.
 #
 # `obs-fb-setup` and `fidelity-enhance` answer YES to (1) and NO to (2):
