@@ -148,7 +148,9 @@ cp -a /Volumes/FIRMWARE/cmdline.txt* ~/nixpi-forensic-firmware/
 ```
 
 On that hand-edit: `hosts/nixpi.nix` now sets `boot.kernelParams` declaratively and
-notes that raspberry-pi-nix renders it into `cmdline.txt` verbatim, *"so this
+notes that it is rendered into the boot config verbatim (into `cmdline.txt` under
+raspberry-pi-nix; into each generation's `extlinux.conf` APPEND line since the move to
+nixos-hardware, which leaves `cmdline.txt` unused), *"so this
 survives a reflash — unlike the hand-edit that was needed to recover this
 incident."* So a fresh card should need no firmware hand-editing at all; finding a
 `.bak` there means an earlier recovery predates #795, and the `.bak` is evidence
@@ -186,8 +188,9 @@ showed holding only 15.2 GiB on 2026-10-17. Run §3c before blaming the flasher.
 
 **Do this for every card that is new to nixpi.** A verified flash (§1, and `nixpi-flash`'s
 read-back) proves only that the image's ~4.9 GB landed. It says nothing about the rest of the
-card — and nixpi's first boot grows root to the size the card *claims* (raspberry-pi-nix's
-`sdImage.expandOnBoot`, default `true`). A fake-capacity card accepts every write past its
+card — and nixpi's first boot grows root to the size the card *claims*
+(`sdImage.expandOnBoot`, default `true` — nixpkgs' `installer/sd-card/sd-image.nix` since the
+move off raspberry-pi-nix). A fake-capacity card accepts every write past its
 real size and hands back garbage later, so the image verifies clean, first boot works, and
 ext4 corrupts on some later boot once data lands past the real edge.
 
@@ -368,13 +371,17 @@ root capped below its bad region:
 space), and the next first boot grows root across the whole claimed 31 GiB, straight back into
 the bad region. So after §4 and §4b, **before the card goes back in the Pi**, rewrite sector 0.
 
-**Why a fence, not a config option.** raspberry-pi-nix's first-boot step (its
-`boot.postBootCommands`) runs `echo ",+," | sfdisk -N$partNum` to grow root into the free
-space after it, then `resize2fs`, then `nix-store --load-db`. With p3 right after p2 there is
+**Why a fence, not a config option.** The first-boot step (nixpkgs' `expand-root-partition`
+service; raspberry-pi-nix's `boot.postBootCommands` before it) runs
+`echo ",+," | sfdisk -N$partNum` to grow root into the free space after it, then
+`resize2fs`. With p3 right after p2 there is
 nothing to grow into: `sfdisk` exits 0 and changes nothing (tested on nixpi's own util-linux
 2.42.3, and observed on the Pi on 2026-10-17), and `resize2fs` fills the capped partition.
-**Do NOT use `sdImage.expandOnBoot = false`.** The same `mkIf` gates `nix-store --load-db`,
-so the store would be left unregistered, and a later GC would treat all of it as garbage.
+**`sdImage.expandOnBoot = false` was unsafe under raspberry-pi-nix** — the same `mkIf` gated
+`nix-store --load-db`, so the store would be left unregistered and a later GC would treat all
+of it as garbage. nixpkgs' module splits that into its own `register-nix-paths` service, so
+the option is safe now; the fence stays because it also survives a reflash of this card with
+an older image.
 
 ```bash
 diskutil unmountDisk /dev/diskN

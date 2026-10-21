@@ -147,6 +147,9 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - [`docs/nixpi-sd-flashing-runbook.md`](../nixpi-sd-flashing-runbook.md) — flashing the `nixpi`
   SD card (full verified `dd` write), f3-testing a new card first (a verified write cannot catch
   a fake-capacity card), and re-capping the live fake card after every reflash.
+- [`docs/nixpi-nixos-hardware-migration.md`](../nixpi-nixos-hardware-migration.md) — the
+  raspberry-pi-nix → nixos-hardware boot-chain diff, why an in-place switch has no remote undo,
+  and why a fresh card is the recommended path.
 - [`docs/new-mac-runbook.md`](../new-mac-runbook.md) — standing up `macos` from a wiped
   Mac (no key recovery: rotate, don't transport); also the manual steps Nix can't do.
 - [`docs/macvm-readd-runbook.md`](../macvm-readd-runbook.md) — re-adding the removed `macvm`
