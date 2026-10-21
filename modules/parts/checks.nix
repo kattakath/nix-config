@@ -3146,7 +3146,7 @@ in
             # This file CARRIES the grep, so it matches its own source.
             cd ${self}
             if grep -rn 'plugins/userscript-author\|plugins/chrome-devtools' \
-                 --exclude-dir=.git --exclude=facts.md --exclude=checks.nix . ; then
+                 --exclude-dir=.git --exclude=checks.nix . ; then
               echo "  ✘ stale pre-merge plugin PATH above" >&2
               rc=1
             fi
