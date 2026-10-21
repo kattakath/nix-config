@@ -89,7 +89,7 @@
     # the image, and nixos-hardware's `raspberry-pi/common/firmware.nix` fills its
     # FIRMWARE partition (`sdImage.populateFirmwareCommands`, wired automatically
     # whenever an sd-image module is imported). Costing, layout diff and the
-    # in-place-vs-reflash verdict: hosts/nixpi.nix header and docs/map/hosts.md.
+    # in-place-vs-reflash verdict: hosts/nixpi.nix § BOOT CHAIN and docs/map/hosts.md.
     #
     # NOT via nixpkgs' `linux_rpi4`: also a Pi vendor kernel, and evaluating it against
     # the pinned nixpkgs prints "linux-rpi series will be removed in a future release.
