@@ -333,7 +333,7 @@ in
   # The Access application fronting the SSH host. This was hand-created and
   # ALREADY VANISHED ONCE (2026-08-20) — when it does, `cloudflared access ssh`
   # fails with "failed to find token" and BOTH deploy paths die with it, since the
-  # only route to this host is the tunnel. Declaring it means a rebuild restores
+  # only route to this host from off the LAN is the tunnel. Declaring it means a rebuild restores
   # the gate instead of an operator rediscovering it.
   #
   # Enforcement is at the EDGE only: cloudflared proxies raw TCP to localhost:22,

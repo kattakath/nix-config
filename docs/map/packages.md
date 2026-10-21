@@ -117,7 +117,7 @@ Core package set:
   **PNG or JPEG only** and will not read the `.svg`. All of it is per-window on the command
   line, so `local.terminalTheme`'s `#300A24` ground is untouched everywhere else.
   All four wear ONE shared `.icns`, the operator's gold chevron
-  (`packages/fleet-mark.svg`, a verbatim copy of `~/Pictures/icon.svg`); the non-square
+  (`packages/fleet-mark.svg`; the `fleetMarkSvg` assert in `spotlight-launchers.nix` guards it); the non-square
   434.94 x 448 canvas is rewritten to a centred 560 x 560 viewBox **in Nix**, behind an
   `assert`, so the committed file stays refreshable with a plain `cp`.
   **Started at nine, cut to three the same day** — `Nix Deploy nixpi` (deploy-rs failed even
