@@ -222,7 +222,7 @@ in
     owner = loginName;
     mode = "0400";
   };
-  # The GitLab lane's glrt- runner token (runner "macos-ismail-dev",
+  # The GitLab lane's glrt- runner token (gitlabRunner.runnerName below,
   # gitlab.com). local.tart.gitlabRunner's agent renders config.toml from it at
   # start — the token never enters the store; secrets/secrets.nix has the
   # registration/rotation story.
@@ -297,7 +297,7 @@ in
       # (minting the glrt- token) stays the one-time manual act.
       gitlabRunner = {
         enable = true;
-        runnerName = "macos-ismail-dev";
+        runnerName = "macos-tart";
         runnerId = 54669377;
         tokenFile = config.age.secrets."gitlab-runner-token".path;
         concurrent = 2;
