@@ -60,7 +60,7 @@
 #      selected, on this machine. That is a dependency-scope question, and it
 #      is strict — because `media-toolkit` is what the Finder
 #      Services put on their PATH (media-worker takes only media-fix and media-describe), so every member becomes a runtime dependency
-#      of the queue.
+#      of the Finder Services.
 #
 # `obs-fb-setup` and `fidelity-enhance` answer YES to (1) and NO to (2):
 #
