@@ -210,15 +210,6 @@
     comment = "Google Workspace DKIM - 2048-bit (rotated from 1024 on 2026-09-12)";
   }
   {
-    key = "txt_izzykatt_ca_report_dmarc";
-    type = "TXT";
-    name = "izzykatt.ca._report._dmarc.kattakath.com";
-    content = "v=DMARC1";
-    ttl = 3600;
-    proxied = false;
-    comment = "RFC 7489 external report authorisation for izzykatt.ca";
-  }
-  {
     key = "txt_mta_sts";
     type = "TXT";
     name = "_mta-sts.kattakath.com";

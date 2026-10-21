@@ -453,8 +453,8 @@ already-enabled plugin ships from a merge there. Validate with `claude plugin va
 
 **A SECOND source costs one input and its own entries — no new mechanism.**
 `local.claudePlugins.marketplaces` is `attrsOf` and `programs.claude-code.skills` is a
-plain attrset, so both already take N. The operator's `ismailkattakath/ai` and
-`izzykatt/ai` are deliberately NOT pinned here: they aggregate experiments, and an
+plain attrset, so both already take N. The operator's `ismailkattakath/ai` is
+deliberately NOT pinned here: it aggregates experiments, and an
 experiment has no business being always-on global context on the working Mac. Add one
 when it has earned that, or scope it to a project instead. (The operator's PRIVATE client overlay,
 `<handle>/skills`, is not one of these: it is enabled by a hand-placed settings overlay, never

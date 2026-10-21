@@ -79,7 +79,7 @@
  * Rules 1/2 (Cloudflare API calls / billed or mutating) keep their hard block:
  * those genuinely warrant stopping.
  *
- * POLICY CHANGE (2026-08-19, izzykatt.ca redirect-rule task): the plain "raw
+ * POLICY CHANGE (2026-08-19, a redirect-rule task): the plain "raw
  * request to api.cloudflare.com" sub-check of Rule 1 downgrades to a
  * non-blocking nudge (RULE1_API_HOST_BLOCKING = false below) — the same
  * nudge-not-block shape the since-removed Rule 3 used. Reason: mcp__cloudflare__execute's OAuth grant was confirmed (live

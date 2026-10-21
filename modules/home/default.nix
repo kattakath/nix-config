@@ -1974,7 +1974,6 @@ in
       # docs/new-mac-runbook.md. Unconditional, so local.inc's own nested
       # `[includeIf …]` blocks decide. Paths absolute under $HOME.
       includes = [
-        { path = "${config.xdg.configHome}/git/local.inc"; }
         # GitLab personal namespace (ismailkattakath). gitlab.com-specific so
         # github.com/ismailkattakath keeps the GitHub noreply. Address lives in
         # ~/.config/git/gitlab.inc, written at the bottom of this module.
@@ -1990,49 +1989,11 @@ in
           condition = "gitdir:${config.home.homeDirectory}/Developer/gitlab.com/ismailkattakath/";
           path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
         }
-        # The izzykatt persona — a separate public-facing identity that exists on TWO
-        # forges: github.com/izzykatt (an org) and gitlab.com/izzykatt (a group, added
-        # 2026-09-15). Each forge is still matched EXPLICITLY rather than by the bare
-        # org name, so a same-named namespace on some third forge keeps the default
-        # identity. Unlike every other include here, izzykatt.inc overrides user.NAME
-        # as well as the address — the persona is a different name, not just a
-        # different mailbox.
-        #
-        # These must stay AFTER the gitlab.com/ismailkattakath block: git applies
-        # includes in order and the last match wins, so a repo that moves from the
-        # personal namespace into the izzykatt group picks up the persona.
-        #
-        # The gitdir conditions are not redundant: hasconfig matches on a REMOTE, so it
-        # cannot fire between `git init` and `git remote add`, and that window is
-        # exactly where a first commit lands with the wrong author. Same fix as the
-        # gitlab.com block above.
-        #
-        # Address lives in ~/.config/git/izzykatt.inc, written at the bottom of this
-        # module.
-        {
-          condition = "hasconfig:remote.*.url:**/github.com/izzykatt/**";
-          path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
-        }
-        {
-          condition = "hasconfig:remote.*.url:**:github.com:izzykatt/**";
-          path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
-        }
-        {
-          condition = "gitdir:${config.home.homeDirectory}/Developer/github.com/izzykatt/";
-          path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
-        }
-        {
-          condition = "hasconfig:remote.*.url:**/gitlab.com/izzykatt/**";
-          path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
-        }
-        {
-          condition = "hasconfig:remote.*.url:**:gitlab.com:izzykatt/**";
-          path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
-        }
-        {
-          condition = "gitdir:${config.home.homeDirectory}/Developer/gitlab.com/izzykatt/";
-          path = "${config.home.homeDirectory}/.config/git/izzykatt.inc";
-        }
+        # LAST, on purpose: git applies includes in order and the last match wins, so
+        # local.inc's own `[includeIf …]` blocks override the gitlab.com block above
+        # for any repo they also match. Route by remote URL AND gitdir there:
+        # hasconfig cannot fire between `git init` and `git remote add`.
+        { path = "${config.xdg.configHome}/git/local.inc"; }
       ];
     };
 
