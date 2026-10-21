@@ -38,7 +38,7 @@
 # `writeShellApplication` + `runtimeInputs` idiom and the `curl ... -w '%{http_code}'`
 # probe all come from `modules/nixos/uplink-watchdog.nix`. That module tests OUTWARD
 # reachability; this one tests INWARD service health, which is why it is a separate
-# file rather than an option on that one. Read its `:48` note before changing any
+# file rather than an option on that one. Read its note above `probe =` before changing any
 # probe here: per-interface probing was TRIED AND REJECTED on this host because
 # `curl --interface wlan0` fails whenever wlan0 does not own the default route.
 {

@@ -9,7 +9,7 @@
 # capsule ROOT rather than staying under `lib/` because a capsule may not use a
 # parent-directory path literal ANYWHERE — even one that stays inside the
 # capsule (ast-grep/rules/capsule-must-not-reach-out.yml, severity error). From
-# `lib/` every one of the eleven lines below would have had to be `../packages/`;
+# `lib/` every one of the callPackage lines below would have had to be `../packages/`;
 # from the root they are `./packages/`, which is the same store path, the same
 # derivation, and the reason the flattening is a re-home and not a rewrite. Same
 # move tart-vms made with its four modules.

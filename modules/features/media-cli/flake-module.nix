@@ -50,7 +50,7 @@
 #     NOT kept under `lib/`. A capsule may not use a parent-directory path
 #     literal anywhere, even one that stays inside the capsule
 #     (ast-grep/rules/capsule-must-not-reach-out.yml, severity error), so from
-#     `lib/` all eleven `callPackage` lines would have had to be `../packages/`.
+#     `lib/` every `callPackage` line would have had to be `../packages/`.
 #     The flattening is what makes them `./packages/` — same functions, same
 #     store paths, same drvs. tart-vms flattened its four modules for the same
 #     reason.
@@ -83,7 +83,7 @@
 #     the HOST's pkgs — publishing a second, perSystem-pkgs copy would add 11
 #     rows to `nix flake show` that nothing in the fleet consumes.
 #   * The shellcheck coverage the satellite's CI got from BUILDING them is NOT
-#     lost — `media-cli-packages` below builds all eleven in one derivation.
+#     lost — `media-cli-packages` below builds all of them in one derivation.
 #     That is the same call keychain-secrets made, for the reason ADR-002 §7.4
 #     names "the highest-cost silent loss available": nix-config's darwin CI leg
 #     builds `.#checks.<system>` and none of its packages.
@@ -171,7 +171,7 @@
           queueSrc = ./packages/media-queue.nix;
         };
 
-        # The satellite's eleven package outputs, folded into ONE derivation
+        # The satellite's package outputs, folded into ONE derivation
         # that depends on all of them. Not ceremony: each is a
         # `writeShellApplication`, and BUILDING it is what runs shellcheck over
         # its script. See the un-publishing block in this file's header.
