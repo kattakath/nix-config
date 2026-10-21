@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
+`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -398,31 +398,6 @@ in the repo can catch that; see that fixture file's header for the measurement.
   Mac is a true no-op; and the activation that actually CHANGES it raises one macOS consent
   dialog, which is Launch Services' documented behaviour for browser schemes, not a bug. `duti`
   was passed over — bundle ids, but no idempotence guard, so it would re-ask every activation.
-- **`ubersicht.nix`** — `local.ubersicht`, the fleet's ONE Übersicht widget: `htmlWidget` is
-  a runtime shell path (a `$HOME` string, never a store path) to a single HTML file the widget
-  `cat`s and renders full-screen with no chrome, re-read every `refreshMinutes` (5). A plain
-  `home.file` symlink into Übersicht's watched widgets directory
-  (`~/Library/Application Support/Übersicht/widgets/html-fullscreen.jsx`) — hot-loaded, no
-  activation shim, no launchd unit. Upstream-first: neither home-manager nor nix-darwin has an
-  Übersicht option (grepped 2026-09-15). The app itself is the `ubersicht` cask in
-  `hosts/macos.nix`; the file goes into an `<iframe srcDoc>` so a full HTML document keeps its
-  own `<head>`/CSS instead of leaking into Übersicht's page. The file lives in
-  `~/.local/share/ubersicht/`, NOT `~/Documents`/`~/Desktop`/`~/Downloads`: Übersicht shells out
-  via `/bin/sh`, which TCC denies in those three.
-- **`next-right-thing.nix`** — `local.nextRightThing`, the generator that decides what the
-  Übersicht widget SAYS. Split from `ubersicht.nix` so that module stays "render whatever HTML is
-  at this path" and remains reusable; `local.ubersicht.htmlWidget` is single-sourced from
-  `outputPath` here so writer and reader cannot drift. A `launchd.agents.next-right-thing`
-  (`StartCalendarInterval` on `startMinutes`, `nix-next-right-thing` arg0 via `launchd-launcher.nix`) runs
-  six scripts from `packages/next-right-thing/`: `probe.sh` is cheap change-detection that decides
-  whether a run earns a model call at all, `gather.sh` collects candidate signal as plain text
-  using no MCP and no model, `art.sh` caches a fallback wallpaper, `decide.sh` calls `claude -p`
-  with no tools and no MCP (its header says why), `render.sh` emits one self-contained Duochrome card, and `run.sh`
-  publishes atomically via a same-filesystem rename. The `probe`/`gather` pair is the cost control:
-  the expensive step is reached only when something actually changed. It shows exactly ONE
-  action: a dashboard forgives a bad ranking because the eye finds the real item among nine, but
-  with one card a wrong pick IS the product — hence the art fallback, which lets the generator
-  decline to speak. Darwin-gated; a clean no-op on `nixpi`.
 - **`terminal-theme.nix`** — `local.terminalTheme`, the ONE place the fleet's 16-slot ANSI
   ring, ground/ink/cursor, and font face + per-surface sizes are stated. Publishes a derived
   view at `config.lib.terminalTheme` (`byName`, `ghosttyPalette`, `toRgb16`) through
