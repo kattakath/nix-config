@@ -60,7 +60,7 @@
 #      selected, on this machine. That is a dependency-scope question, and it
 #      is strict — because `media-toolkit` is what the Finder
 #      Services put on their PATH (media-worker takes only media-fix and media-describe), so every member becomes a runtime dependency
-#      of the queue.
+#      of the Finder Services.
 #
 # `obs-fb-setup` and `fidelity-enhance` answer YES to (1) and NO to (2):
 #
@@ -72,7 +72,7 @@
 #
 # So they live in this flake, behind their own opt-in module options, and stay
 # OUT of this bundle. Folding them in would put a uv/Python environment and a
-# Keychain read on the media queue worker's PATH for no reason, and would make
+# Keychain read on the Finder Services' PATH for no reason, and would make
 # "media-toolkit" mean only "vaguely about media", which is not a useful thing
 # for it to mean.
 #
