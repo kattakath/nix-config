@@ -107,14 +107,14 @@ they bite any future second account:
   module's section below) — nix-config's *own* CI is fully GitHub-hosted and uses no runner, but
   this Mac is not runner-free. Also configures **`local.tart.githubRunners.*`** (the `tart-vms` capsule's
   `darwinModules.github-runner`, in `mkDarwin`'s BASE module list): ephemeral **Tart-VM-per-job**
-  GitHub Actions runners for `kattakath` and `dontsell-ai` (label
+  GitHub Actions runners for `dontsell-ai` (`kattakath` declared, off; label
   `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
   (`ismailkattakath-ci`, appId 4849830 — it replaced the retired `kattakath-fleet-ci` on
   2026-09-06; key = agenix `gh-app-fleet-key.age`, host-decrypted), digest-pinned
   Cirrus runner image, and Apple's 2-concurrent-VM budget shared by a slot semaphore. The base
   clone and the host-key pin are content-keyed by `oci@digest`, so a digest bump renames both;
   one elected instance per image re-pulls and re-pins itself on its next cycle
-  (`tart-runner-setup-kattakath [image|pin|all]` pre-warms that by hand). Slots, pins and both
+  (`tart-runner-setup-dontsell-vm [image|pin|all]` pre-warms that by hand). Slots, pins and both
   lanes' logs live under `local.tart.runnerStateDir` — `~/.local/state/tart-runner` by default,
   durable and user-writable; a volatile root now fails at eval, after the old `/tmp` default
   was purged and darked all three lanes on 2026-09-05. The **GitLab** runner shares the

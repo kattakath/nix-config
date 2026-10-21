@@ -98,10 +98,10 @@ PRs need no runner fallback), and day-to-day local aarch64-linux builds use Dete
 native Linux builder on the Mac. The ruleset's required checks:
 [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md).
 
-Do **not** read that as "the Mac has no runners": `macos` hosts **six** runner lanes — two
+Do **not** read that as "the Mac has no runners": `macos` declares **five** runners — two
 bare-metal ephemeral runners on the **`dontsell-ai`** org
-(`modules/darwin/github-runner.nix` above), two ephemeral Tart-VM-per-job runners
-(`local.tart.githubRunners.*` — `kattakath`, `dontsell-vm`), and one GitLab runner
+(`modules/darwin/github-runner.nix` above), two ephemeral Tart-VM-per-job lanes
+(`local.tart.githubRunners.*` — `dontsell-vm`, plus `kattakath` declared `enable = false`), and one GitLab runner
 (`local.tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
 
 Also in `.github/workflows/`: `auto-merge.yml`, `build-devcontainer.yml`,

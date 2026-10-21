@@ -1588,11 +1588,9 @@ in
     # binary. Do not re-add it.
   ];
 
-  # No activation shorthand is defined here on purpose. `darwin-rebuild switch
-  # --flake .#macos` is the day-to-day command directly — the `activate` CLI
-  # that used to reconcile this repo against a separate private composition
-  # flake was retired 2026-09-15 along with that flake; there is only one
-  # checkout to activate now.
+  # The day-to-day command is `activate` (packages/activate.nix, `darwinActivate`
+  # in home.packages above). An OLDER `activate` that reconciled this repo against
+  # a separate private composition flake was retired with that flake 2026-09-15.
 
   # ---- Git identity include files -----------------------------------------------
   # The ADDRESSES that programs.git.includes (below) route to. gitlab.inc is

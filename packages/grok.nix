@@ -35,15 +35,15 @@
 #
 # THE SELF-UPDATER IS DELIBERATELY DEFEATED. grok normally downloads new
 # versions into ~/.grok/downloads and re-points the ~/.grok/bin/grok symlink.
-# From the store it cannot: the store is read-only, and hosts/macos.nix drops
+# From the store it cannot: the store is read-only, and modules/home/default.nix (home.sessionPath) drops
 # the `$HOME/.grok/bin` PATH entry so a stale per-user copy cannot shadow this
 # one. Updating is therefore a `version` + `hash` bump here, reviewed in git —
 # which is the entire point of moving it in. Expect the updater to complain.
 #
 # PER-USER STATE IS UNAFFECTED, which is what makes sharing one binary correct:
 # agent_id, active_sessions.json, sandbox.toml and installed-plugins all live in
-# ~/.grok, not next to the executable. Any accounts share the code and keep
-# separate identities.
+# ~/.grok, not next to the executable. Every account shares the code and keeps
+# its own identity.
 {
   lib,
   stdenvNoCC,
