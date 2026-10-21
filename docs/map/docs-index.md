@@ -36,7 +36,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
     why the file is kept rather than deleted.
 - [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md) — **LIVE, unlike the three above.**
   Claude Desktop loads no plugins, so its only MCP lane is `local.claudeDesktop.extraServers`
-  (three servers, pinned by `checks.aarch64-darwin.claude-desktop-config-shape`). Read the
+  (`github` only, pinned by `checks.aarch64-darwin.claude-desktop-config-shape`; client servers
+  come from the operator's hand-placed Desktop overlay). Read the
   CURRENT STATE header first: the module stays ENABLED because a disabled one writes nothing
   and leaves stale entries on disk (#732); the body is the design record of the merge and the
   watch agent.
@@ -152,8 +153,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   Tart guest (2026-09-05); what survives in the `tart-vms` capsule.
 - [`docs/gmail-mcp-multi-account-runbook.md`](../gmail-mcp-multi-account-runbook.md) — TRUE
   simultaneous multi-account Gmail + a silent-wrong-account failure mode. **LIVE**, and the only
-  MCP doc that is: the four accounts moved to the plugin lane on 2026-10-01 (`local.gmailMcp` +
-  the `gmail` plugin) and the capability never went down.
+  MCP doc that is: Gmail moved to the plugin lane on 2026-10-01, and since 2026-10-20 the roster
+  lives only in plugin `.mcp.json` args (`local.gmailMcp.enable` installs one generic launcher).
 - [`docs/claude-code-observability-runbook.md`](../claude-code-observability-runbook.md) — local
   OTel for Claude Code's `tool_decision` telemetry + the `/routing-review` loop.
 - [`docs/claude-hook-messages.md`](../claude-hook-messages.md) — decoder for this repo's hook

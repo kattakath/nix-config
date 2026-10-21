@@ -29,7 +29,7 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
   `.mcp.json` can set `env` to literals and passthroughs but cannot run
   `security find-generic-password`, so the credential work stays in a Nix-installed wrapper the
   plugin names by binary name. **`local.gmailMcp` + `packages/gmail-mcp.nix` is the live
-  pattern** (four accounts, one launcher each), and `page-lab-pick` / `mcp-nixos` are the same
+  pattern** (ONE generic `nix-mcp-gmail <address>` launcher; the accounts live in plugin `args`), and `page-lab-pick` / `mcp-nixos` are the same
   arrangement for `page-lab` / `claude-code-nix`.
 - **The repo CAN see the credentialed half of its MCP surface — and only that half.** An earlier
   revision of this bullet said "nothing here reads a plugin's `.mcp.json`"; that is **false**.
@@ -43,7 +43,7 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
     answers, and it is a **procedure**, not a gate.
   - **the three non-`nix-mcp-` lanes**, excluded by construction: `${CLAUDE_PLUGIN_ROOT}`-relative
     commands (which expand only inside the owning plugin), bare nixpkgs binaries, and `npx`
-    invocations. Of the 17 servers the pinned plugins declare, 8 are out of scope this way — the
+    invocations. Of the 15 servers the pinned plugins declare (pin `e3e48a9`, 2026-10-21), 8 are out of scope this way — the
     per-lane breakdown is in [`modules-home.md`](modules-home.md) § `gmail-mcp.nix` +
     `plugin-mcp.nix`.
   - **anything in a marketplace this repo does not pin.** The join covers `kattakath/skills`
@@ -383,7 +383,7 @@ moves on every content bump and `plugin install` COPIES into `~/.claude/plugins/
 the re-pin a bump would serve a previous generation's content forever.
 
 Its plugins are the live list at `local.claudePlugins.marketplaces.kattakath.plugins`
-(`modules/home/default.nix`) — **14** as of 2026-09-30, and read it rather than any prose here.
+(`modules/home/default.nix`) — read it rather than any count in prose here.
 Two of them carry write-ups worth keeping:
 
 - **`llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
@@ -456,10 +456,12 @@ already-enabled plugin ships from a merge there. Validate with `claude plugin va
 plain attrset, so both already take N. The operator's `ismailkattakath/ai` and
 `izzykatt/ai` are deliberately NOT pinned here: they aggregate experiments, and an
 experiment has no business being always-on global context on the working Mac. Add one
-when it has earned that, or scope it to a project instead.
+when it has earned that, or scope it to a project instead. (The operator's PRIVATE client overlay,
+`<handle>/skills`, is not one of these: it is enabled by a hand-placed settings overlay, never
+named here — [`agent-resource-externalization.md`](../agent-resource-externalization.md).)
 
 Everything in [`kattakath/skills`](https://github.com/kattakath/skills) is a plugin under
-`plugins/` (33 as of 2026-10-17, no bare `skills/` tree) — a lone skill ships as a one-skill
+`plugins/` (29 as of 2026-10-21, no bare `skills/` tree) — a lone skill ships as a one-skill
 plugin, as `gif-meme` does. An agent for ONE project belongs
 in that project's `.claude/agents/`, per the seargraph record above.
 
