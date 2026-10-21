@@ -137,9 +137,10 @@ writeShellApplication {
       wireless [serial]       USB-connected device only: bootstrap to wireless
                               AND start mirroring in one step (delegates to
                               `scrcpy --tcpip`, which does its own IP discovery)
-      mirror [serial] [-- scrcpy-args...]
+      mirror [serial [scrcpy-args...]]
                               start scrcpy; auto-picks the sole authorized
                               device if serial is omitted and only one exists
+                              (scrcpy-args need the serial before them)
       doctor                  tool paths, which mDNS backend is live, adb's view
                               vs the SYSTEM's view (they disagree when adb goes
                               blind), and connected devices
@@ -149,7 +150,7 @@ writeShellApplication {
       android-phone pair 192.168.1.50:41273 482910
       android-phone connect
       android-phone wireless
-      android-phone mirror -- --stay-awake --turn-screen-off
+      android-phone mirror <serial> --stay-awake --turn-screen-off
     EOF
     }
 

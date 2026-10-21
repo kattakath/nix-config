@@ -6,11 +6,12 @@
 # that file (origin/main's `catalogArgOverrides` + `requiredEnvToPasswordCommand`), not
 # re-derived from an upstream README.
 #
-# WHY A GENERIC FACTORY RATHER THAN ONE FILE PER SERVER. Three servers (wordpress, apify,
-# postgres) need exactly the same shape: export N variables, exec a pinned interpreter.
+# WHY A GENERIC FACTORY RATHER THAN ONE FILE PER SERVER. The servers
+# modules/home/plugin-mcp.nix builds through it need exactly the same shape: export N
+# variables, exec a pinned interpreter.
 # `packages/gmail-mcp.nix` is its own file because gmail genuinely differs — it
-# materialises an OAuth keys FILE and derives a per-account tool prefix. These three do
-# not write anything, so a third and fourth copy of "export then exec" would be the
+# materialises an OAuth keys FILE and derives a per-account tool prefix. These do
+# not write anything, so another copy of "export then exec" per server would be the
 # "second copy is a bug with a delayed fuse" the repo motto names. The old gateway had
 # already proven one function covers them; this is that function, lifted.
 #
@@ -49,9 +50,8 @@
   # "npx" or "uvx" — the two the catalog's stdio entries use. Resolved to a store path
   # here, mirroring the purged gateway's `resolveCatalogCommand`.
   # OR a Nix-built server package (one with `meta.mainProgram`), exec'd directly with
-  # `args`. Added 2026-10-16 for slack-mcp-server, which nixpkgs does not ship and npm
-  # only wraps a prebuilt Go binary; building it here keeps the server inside the closure
-  # while reusing this factory's Keychain read instead of a sixth copy of it.
+  # `args`, which keeps the server inside the closure. Which servers pass one:
+  # modules/home/plugin-mcp.nix.
   interpreter,
   # Full argument vector for that interpreter, INCLUDING this fleet's version/interpreter
   # pins. Pins are not cosmetic: an unpinned `uvx postgres-mcp` was measured to break two
@@ -69,7 +69,7 @@
   # and a hardcoded /Users/<name> in a .nix VALUE is what
   # ast-grep/rules/nix-hardcoded-home-path.yml rejects.
   homeDirectory,
-  # A macOS Seatbelt profile (`.sb`) to run the server UNDER, or null for the three
+  # A macOS Seatbelt profile (`.sb`) to run the server UNDER, or null for the
   # servers that need no fence. A store path, so the profile itself is unwritable by
   # the thing it confines — which is the whole point: desktop-commander's own README
   # says `allowedDirectories` "only restricts filesystem operations, not terminal

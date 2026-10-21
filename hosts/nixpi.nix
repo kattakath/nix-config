@@ -336,9 +336,9 @@
     enable = true;
     urlFile = "/run/heartbeat-url";
     httpPort = 80;
-    # NAMED units, not a blanket `is-system-running`. This host legitimately carries
-    # a failing `mnt-storage.mount` — two USB sticks declared `nofail` on purpose —
-    # so a blanket `degraded` check would alert forever and train everyone to ignore
+    # NAMED units, not a blanket `is-system-running`. `mnt-storage.mount` is
+    # `nofail` on purpose and can fail while the host still serves, so a blanket
+    # `degraded` check would alert on it and train everyone to ignore
     # the heartbeat. These two are the ones whose death means "not serving":
     # cloudflared is the only remote path in, Caddy serves the one hosted site.
     requireUnits = [
@@ -366,7 +366,7 @@
   #
   # THREE OVERRIDES ARE LOAD-BEARING, not preference:
   #   1. ConditionPathExists — upstream is UNCONDITIONALLY `wantedBy
-  #      multi-user.target` (:67). Without this, a Pi flashed with no Wi-Fi
+  #      multi-user.target`. Without this, a Pi flashed with no Wi-Fi
   #      credentials starts a supplicant with a missing -c file and restart-loops
   #      forever. The whole point of the firmware-planting design is that an
   #      absent conf skips cleanly and the host stays LAN-only.

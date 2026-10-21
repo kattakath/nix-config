@@ -47,8 +47,8 @@ in
       # only `apps` (below) forces it, and that whole block is `optionalAttrs isDarwin`.
       #
       # WHY a wrapper at all: upstream resolves `virtualisation.diskImage` against the
-      # CALLER's working directory (qemu-vm.nix:129 readlink -f's it, 156 lines before its
-      # own `cd "$TMPDIR"` at :285), so the same command grew a different 8 GiB root — and
+      # CALLER's working directory (qemu-vm.nix's `startVM` readlink -f's it before its
+      # own `cd "$TMPDIR"`), so the same command grew a different 8 GiB root — and
       # a different saved browser session — per directory it was invoked from. Same root
       # cause as the tofu state lost twice (modules/parts/terranix.nix), same fix shape: pin
       # an XDG state dir. `NIX_DISK_IMAGE` is upstream's OWN override hook, so nothing here
@@ -56,8 +56,9 @@ in
       # the only two levers that exist (`virtualisation.vz.diskImage` is a different backend).
       #
       # WHY the mkdir is load-bearing, not tidiness: nothing in qemu-vm.nix creates the
-      # image's parent, and `readlink -f` exits 1 on a missing one — which :129's own
-      # `|| test -z` swallows, so :131 skips creation while :1355 still emits `-drive file=`.
+      # image's parent, and `readlink -f` exits 1 on a missing one — which that line's own
+      # `|| test -z` swallows, so the `! test -e` creation branch is skipped while the `root`
+      # entry of `virtualisation.qemu.drives` still emits `-drive file=`.
       # A bare XDG path in `virtualisation.diskImage` would break with no diagnostic.
       #
       # WHY it is NOT in `packages`, unlike every other writeShellApplication here: its text
@@ -209,8 +210,9 @@ in
           # cross-agent interop worth installing: it drives `claude`, `grok` and
           # `agy` over the protocol all three already speak, with a real
           # permission policy and turn/timeout caps. FOSS (MIT), so unlike grok
-          # and antigravity-cli above it needs no unfree predicate. Not
-          # Darwin-only — ACP is a stdio protocol with nothing macOS-specific.
+          # and antigravity-cli above it needs no unfree predicate. Exposed on
+          # Darwin only, by this block; its own platforms are packages/acpx.nix
+          # `meta.platforms`.
           acpx = pkgs.callPackage ../../packages/acpx.nix { };
 
           jsonresume = pkgs.callPackage ../../packages/jsonresume.nix {
@@ -342,7 +344,7 @@ in
         # `nix run .#set-secret -- KEY [VALUE]` — store a secret in the macOS
         # login Keychain (encrypted at rest) + register it for the login
         # export loop. Bare `nix run` only persists; the `set-secret` shell
-        # function (modules/home/default.nix) also applies it to the current
+        # function (modules/features/keychain-secrets/module.nix) also applies it to the current
         # shell. Darwin-only (Keychain).
         set-secret = {
           type = "app";
@@ -353,14 +355,14 @@ in
         # `nix run .#remove-secret -- KEY` — delete KEY from the macOS login
         # Keychain and unregister it (alias for `set-secret --remove`). Bare
         # `nix run` only mutates the Keychain; the remove-secret shell function
-        # (modules/home/default.nix) also unsets it from the current shell.
+        # (modules/features/keychain-secrets/module.nix) also unsets it from the current shell.
         remove-secret = {
           type = "app";
           program = "${config.packages.remove-secret}/bin/remove-secret";
           meta.description = "Delete KEY from the macOS login Keychain and unregister it from the set-secret index (alias for set-secret --remove)";
         };
 
-        # `nix run .#secret -- <set|reveal|rm|ls> …` — the primary noun-verb
+        # `nix run .#secret -- <verb> …` (verbs: `secret --help`) — the primary noun-verb
         # interface to the Keychain secret store (set-secret/remove-secret are
         # its aliases). `secret load` is shell-function-only (mutates the
         # current shell); the app covers the Keychain-only verbs.
@@ -368,7 +370,7 @@ in
           type = "app";
           program = "${config.packages.secret}/bin/secret";
           # NO `get`: printing a value is opt-in via `reveal` (CLAUDE.md § Security).
-          meta.description = "Keychain secret store: secret set|reveal|rm|ls (primary interface; set-secret/remove-secret are aliases)";
+          meta.description = "Keychain secret store, verbs per secret --help (primary interface; set-secret/remove-secret are aliases)";
         };
 
         # nixpi SD-card provisioning (macOS). The executable runbook: build +
@@ -379,7 +381,7 @@ in
         nixpi-flash = {
           type = "app";
           program = "${config.packages.nixpi-flash}/bin/nixpi-flash";
-          meta.description = "Fresh reflash: build (or --image) → verified dd → auto-plant token+wifi (--disk /dev/diskN)";
+          meta.description = "Fresh reflash: get an image → verified dd → auto-plant token+wifi (flags: nixpi-flash --help)";
         };
         nixpi-provision = {
           type = "app";
@@ -397,22 +399,22 @@ in
           meta.description = "Re-encrypt a new connector token (stdin/$TUNNEL_TOKEN) into secrets/cloudflared-token.age (run from the repo root)";
         };
 
-        # `nix run .#jsonresume -- <download|print|markdown|text> …` — fetch a JSON
+        # `nix run .#jsonresume -- <verb> …` (verbs: `jsonresume --help`) — fetch a JSON
         # Resume and render it (PDF, or theme-less Markdown/text to stdout) via the
         # npm resume CLI (also on PATH via home.packages).
         jsonresume = {
           type = "app";
           program = "${config.packages.jsonresume}/bin/jsonresume";
-          meta.description = "Fetch a JSON Resume (--url, else the baked-in default) and render it — PDF (theme from meta.theme), or Markdown/plain text to stdout: jsonresume download|print|markdown|text";
+          meta.description = "Fetch a JSON Resume (--url, else the baked-in default) and render it — PDF (theme from meta.theme), or Markdown/plain text to stdout (verbs: jsonresume --help)";
         };
 
         # `nix run .#email-signature -- [--url URL] [--out DIR]` — render a self-contained
-        # HTML email signature from the JSON Resume + bundled logo (also on PATH via
+        # HTML email signature from the JSON Resume + the gist logo (baked logoUrl) (also on PATH via
         # home.packages, and regenerated on activation).
         email-signature = {
           type = "app";
           program = "${config.packages.email-signature}/bin/email-signature";
-          meta.description = "Render a paste-ready HTML email signature from your JSON Resume (--url, else baked default) + bundled logo into ~/.local/share/email-signature/signature.html";
+          meta.description = "Render a paste-ready HTML email signature from your JSON Resume (--url, else baked default) + the gist logo (baked logoUrl) into ~/.local/share/email-signature/signature.html";
         };
 
         # `nix run .#design-tokens -- [--tokens-url URL] [--out DIR]` — transform the gist

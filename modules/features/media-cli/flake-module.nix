@@ -4,7 +4,7 @@
 # standalone github:kattakath/nix-media-cli flake by PLAIN COPY — history stays
 # in the archived origin repo, per the operator's decision.
 #
-# The LARGEST capsule (4,559 lines, ~1,300 of them the queue alone) and the last
+# The LARGEST capsule (~1,300 lines of it the queue alone) and the last
 # of the seven satellites but one. Its live surface is narrow in nix-config's
 # terms — one option set in modules/home/default.nix — and was zero in the
 # since-retired nix-personal's, which is why a tree this big could move in one
@@ -20,7 +20,7 @@
 #    own header records that. Do not re-inline it into either caller.
 #
 # 2. THE INNER `nix-<name>` WRAPPER STAYS. ./module.nix builds its own
-#    `pkgs.writeShellScriptBin "nix-media-queue"` and sets `ProgramArguments`
+#    `nix-<name>` wrapper (`mkAgentProgram`) and sets `ProgramArguments`
 #    itself rather than taking home-manager's `/bin/sh -c "wait4path … && exec"`
 #    shape. That is not style: `.claude/rules/launchd-naming.md` measured that an
 #    adhoc-signed /nix/store arg0 may READ the TCC-protected user folders while
@@ -91,17 +91,16 @@
 #     graph;`), if a `nix run .#media-describe` ever has a caller.
 #
 # UPSTREAM FIRST → grepped the pinned home-manager for a launchd `arg0` seam
-# (`ProgramArguments|waitForNixStore|wait4path` over modules/launchd/): the only
-# knob is `waitForNixStore` (modules/launchd/default.nix:47-52), which upstream
-# itself documents as the trade "appear[s] under its own name, rather than as
+# (`ProgramArguments|waitForNixStore|wait4path` over modules/launchd/):
+# `waitForNixStore`, whose own description in modules/launchd/default.nix
+# documents the trade "appear[s] under its own name, rather than as
 # 'sh' … but the agent will fail to start if launchd runs it before the Nix store
 # is mounted" — i.e. it drops wait4path entirely. Nothing CAN "still wait"
-# from inside a store-resident wrapper (launchd must exec it out of /nix first),
-# so the only properties upstream does not offer are the `nix-` PREFIX and a
-# store-bash interpreter instead of `#!/bin/sh` — the two the TCC measurement
-# was made with. ./module.nix's own wrapper stands → custom, because upstream
-# has no option for either. (modules/home/launchd-launcher.nix does the same on
-# the ENGINE side; this capsule cannot reach it and does not need to.)
+# from inside a store-resident wrapper (launchd must exec it out of /nix first).
+# The `nix-` PREFIX and a store-bash interpreter — the two the TCC measurement
+# was made with — are upstream's `launchd.agents.<name>.launcher.name` and
+# `.launcher.shell`; modules/home/launchd-launcher.nix sets both on the ENGINE
+# side. ./module.nix still builds its own wrapper (see its header).
 # UPSTREAM FIRST → ✅ `flake-parts.flakeModules.modules` exists and is already
 # adopted by modules/parts/capsules.nix → using its shape.
 { inputs, lib, ... }:
@@ -136,7 +135,7 @@
       #
       # The gate is INSIDE each output, never around the module body — a
       # `perSystem` whose SHAPE depends on `pkgs` is an infinite recursion
-      # through `_module.args`. Same reason as the five capsules before this.
+      # through `_module.args`. Same reason as the capsules before this.
       isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
 
       # ONE graph, shared with ./module.nix. Called with neither knob here, so

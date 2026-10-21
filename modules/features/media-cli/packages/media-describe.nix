@@ -643,10 +643,8 @@ writeShellApplication {
       # first "so a re-describe replaces the list" — but that clear ran on the
       # DEFAULT path for every photo, so a file carrying keywords from Lightroom,
       # Photos or the operator's own hand lost them irreversibly, with no backup
-      # (see -overwrite_original above). `+=` with `-api NoDups` gets the intended
-      # idempotence without the destruction: re-running adds nothing, because the
-      # labels are the same. IPTC:Keywords is the legacy IIM twin of dc:subject,
-      # written alongside it for the older tools that read only that one.
+      # (see -overwrite_original above). IPTC:Keywords is the legacy IIM twin of
+      # dc:subject, written alongside it for the older tools that read only that one.
       # `-=` then `+=` per value is exiftool's add-if-absent idiom, and it is what
       # makes appending idempotent WITHOUT a clear: the delete removes only that
       # exact value if present, the add puts it back exactly once, and every other

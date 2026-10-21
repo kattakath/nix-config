@@ -50,7 +50,7 @@ in
     home.file.".aws/config.example".text = ''
       # ~/.aws/config.example — SHAPE ONLY (written by nix-config's cloud-cli capsule).
       # Copy to ~/.aws/config and fill in YOUR values, or let `aws configure sso` write it.
-      # ~/.aws/config is yours: not in Nix, not in git, gitignored everywhere.
+      # ~/.aws/config is yours: not in Nix, not in git.
       #
       # Why an example and not the real file: account ids / start-URL ids / regions are
       # not credentials, but they are reconnaissance; every user's shape differs; and

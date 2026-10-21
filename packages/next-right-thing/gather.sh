@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
 # Collect candidate signal as PLAIN TEXT, using no MCP and no model.
 #
-# WHY THIS EXISTS — this is the whole cost fix, and it is not a micro-optimisation.
-# Measured on this machine: `claude -p` with MCP servers loaded costs $0.67 for a
-# two-token prompt, because ~95k tokens of tool SCHEMAS are built into the system
+# WHY THIS EXISTS — this is part of the cost fix, and it is not a micro-optimisation.
+# `claude -p` with MCP servers loaded builds every tool SCHEMA into the system
 # prompt before the model reads a word. `--allowedTools` does not help: it gates
-# PERMISSION, not LOADING. The only way down is to give the model no MCP at all
-# (`--strict-mcp-config`), which means the gathering must happen out here.
-#   with MCP:    ~$0.67/run  -> ~$48/day
-#   without:     ~$0.03/run  -> ~$2/day
+# PERMISSION, not LOADING. So the model gets no MCP at all, which means the
+# gathering must happen out here. The measured costs, and the second flag the fix
+# needs: the `BOTH flags are required` table above decide.sh's `claude -p` call.
 #
 # Quota discipline (Gmail limit = 6,000 units per user per minute):
 #   messages.list  5     messages.get (metadata) 20

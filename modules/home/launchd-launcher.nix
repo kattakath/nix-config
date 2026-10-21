@@ -40,8 +40,8 @@
             # The fork derived this from the Label minus `org.nix-community.home.`;
             # upstream derives it from the attribute name. Those are the same
             # string whenever the Label is left at its default — every agent except
-            # the three in macos-user-agents.nix that pin their Label (they still
-            # get `nix-<attr>`, which that file relies on).
+            # those that pin their Label (they still get `nix-<attr>`, which
+            # macos-user-agents.nix relies on).
             launcher.name = lib.mkDefault "nix-${name}";
             # The fork used writeShellScriptBin, whose shebang is runtimeShell.
             # Same interpreter here, so the attribution target does not move.

@@ -26,8 +26,7 @@
 # from `--print0` (NUL-separated on stdout, diagnostics on stderr). Reading them
 # into an array rather than piping to xargs also means an empty selection ends
 # the run quietly, instead of invoking the next CLI with no arguments and
-# turning "nothing to fix" into a usage error the Service would report as a
-# failure.
+# turning "nothing to fix" into a usage error.
 #
 # No --dry-run, deliberately: media-transcode has none, so the flag could only
 # ever rehearse half the pipeline while implying it rehearsed all of it. Preview
@@ -68,7 +67,7 @@ writeShellApplication {
     [ $# -ge 1 ] || die "$usage"
 
     # Stage one for both classes. Its stdout is the surviving file list; its
-    # log goes to stderr, where the Service wrapper collects it.
+    # log goes to stderr.
     list=$(mktemp)
     trap 'rm -f "$list"' EXIT
     rc=0

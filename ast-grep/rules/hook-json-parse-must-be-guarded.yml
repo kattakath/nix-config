@@ -10,7 +10,7 @@
 # parse untrusted event JSON off stdin, and three of the four parse on-disk state
 # files that a crashed earlier run may have left truncated.
 #
-# Nothing STATICALLY lints these four files (~1.3k lines):
+# Nothing STATICALLY lints these four files:
 # .github/workflows/claude-config-lint.yml checks agent/command/context
 # frontmatter, then runs `.claude/hooks/tests/*.sh` — behavioural case suites
 # covering only pretooluse-bash-guard.js and stop-gate.js. The two SessionStart

@@ -12,8 +12,8 @@
 # `checks.access-service-token-duration` from modules/parts/terranix.nix — that
 # last one cannot live here, because `flake.lib` exports only `cfTunnelConfig`
 # and the check reads the other renderers in scope there. flake-parts declares `checks` as
-# `lazyAttrsOf types.package` (pinned modules/checks.nix:14), so all five files
-# merge into one per-system attrset — and every entry must be a derivation,
+# `lazyAttrsOf types.package` (pinned modules/checks.nix:14), so every file that
+# declares checks merges into one per-system attrset — and every entry must be a derivation,
 # which is why none of these are a bare `runCommand` argument set.
 {
   config,
@@ -59,11 +59,8 @@ let
 
   # The ONE shared shape in this file. It was born for `determinate-daemon-{macos,nixpi}`,
   # which is literally the same check run against two hosts whose contracts are
-  # opposites (see both halves below); `nixpi-security-posture` is the third
-  # consumer, and took it because it wants exactly this behaviour — report EVERY
-  # broken leg, not the first. That is the bar for reaching for it. Every other
-  # check here stays inline: a helper that served two unrelated checks would
-  # just hide their differences.
+  # opposites (see both halves below). The bar for reaching for it: the check
+  # wants exactly this behaviour — report EVERY broken leg, not the first.
   mkHostContract =
     {
       pkgs,
@@ -124,12 +121,12 @@ in
           #     sandbox has not got, which its own header states. "Cannot be RUN" was
           #     read as "cannot be CHECKED" and that was the error — shellcheck needs
           #     no Keychain.
-          #   .claude/hooks/tests/*.sh (4) DELIBERATELY NOT LINTED, and the only one
-          #     of the eleven left that way on purpose. claude-config-lint.yml RUNS
-          #     all four as a REQUIRED check that blocks a merge, which is strictly
+          #   .claude/hooks/tests/*.sh DELIBERATELY NOT LINTED, and the only entry
+          #     here left that way on purpose. claude-config-lint.yml RUNS
+          #     every one as a REQUIRED check that blocks a merge, which is strictly
           #     stronger evidence than a lint. Shellcheck was then run over them to
           #     see whether it adds anything on top, and it does not: its ONLY finding
-          #     across the four is three SC2016 "expressions don't expand in single
+          #     across the four it was run over is three SC2016 "expressions don't expand in single
           #     quotes" in rule1c-secret-egress.sh's single-quoted `ck` cases — every one a FALSE POSITIVE
           #     by construction, because those single quotes hold the literal command
           #     text the guard is being asked to judge (`ck block 'echo $(secret
@@ -147,9 +144,9 @@ in
           # (SC1071, "ShellCheck only supports sh/bash/dash/ksh"), so nothing here
           # covers a `.zsh` file or a zsh-shebanged script — and zsh's lack of
           # implicit IFS field splitting makes `for f in $files` a silent one-shot
-          # loop that exits 0, exactly the class of bug a lint is wanted for. All
-          # fifteen tracked `.sh` files are `#!/usr/bin/env bash`, so the gap is
-          # latent rather than live; it goes live the day someone adds a zsh script.
+          # loop that exits 0, exactly the class of bug a lint is wanted for. No
+          # tracked `.sh` file is zsh today, so the gap is latent rather than live; it
+          # goes live the day someone adds a zsh script.
           #
           # bootstrap.sh still earns being named first. It CANNOT be wrapped: it runs
           # on a Mac that has no Nix yet, so it is plain bash copied out-of-band
@@ -387,12 +384,12 @@ in
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           # ---- Claude Desktop only accepts the stdio shape ----------------------
           #
-          # modules/home/claude-desktop.nix renders the MCP hub into Desktop's
-          # claude_desktop_config.json. Desktop's parser is the narrowest client
+          # modules/home/claude-desktop.nix renders `local.claudeDesktop.extraServers`
+          # into Desktop's claude_desktop_config.json. Desktop's parser is the narrowest client
           # in the fleet: {command, args, env} and nothing else — a `url` or
           # `type` key is rejected by its schema and the entry silently vanishes
           # from the app. The module's shim transform is what keeps that from
-          # happening, and a future hub change (a new transport key, an upstream
+          # happening, and a future change there (a new transport key, an upstream
           # transformMcpServer that stops stripping `type`) would break it
           # without any eval error. So: read the REAL rendering from the macos
           # config and assert its shape, plus the module's agreements with the rest
@@ -2140,7 +2137,7 @@ in
                   ok = btUnits == [ ];
                 }
                 # ---- the SECOND INGRESS. A build-time check cannot reach a running
-                # host, so none of this proves the LAN path WORKS. What these five
+                # host, so none of this proves the LAN path WORKS. What these
                 # legs do is make its DELETION a build failure: the day someone
                 # restores loopback-only sshd or drops the per-interface allow-list,
                 # the single-point-of-failure comes back silently and green, which
@@ -2371,8 +2368,8 @@ in
           # own pinned nixpkgs, which is one less supply-chain edge and makes the gate
           # reproducible locally instead of only in CI.
           #
-          # Two SC2086 findings are disabled INLINE with their reason rather than fixed
-          # or globally ignored: both rely on word-splitting deliberately (printf reusing
+          # The SC2086 findings are disabled INLINE with their reason rather than fixed
+          # or globally ignored: each relies on word-splitting deliberately (e.g. printf reusing
           # its format per word; `printf | wc -l` counting attrs), so quoting would be
           # the regression.
           actionlint =
@@ -2743,8 +2740,8 @@ in
           #
           # THE LABEL IS ALSO WHAT THE PROBE USES, which is why the override is
           # safe at all: pinned home-manager modules/launchd/default.nix:165
-          # names each plist `"${v.config.Label}.plist"` and :426 reads
-          # `agentName` straight back out of that filename, so the probe asks
+          # names each plist `"${v.config.Label}.plist"` and the activation script's
+          # `agentName` local reads it straight back out of that filename, so the probe asks
           # `launchctl print gui/<uid>/<Label>` — the real unit.
           #
           # `enable` IS ITS OWN LEG, and it is not redundant with the lane leg.
@@ -2794,8 +2791,8 @@ in
               # DERIVED, unlike the three below, and that is the distinction
               # worth keeping. Their Labels are not hand-picked strings: each is
               # nix-darwin's own former default for the attribute name
-              # (`launchd.labelPrefix` + "." + attr, pinned
-              # modules/launchd/default.nix:88), which is precisely what sits on
+              # (`launchd.labelPrefix` + "." + attr, the `serviceConfig.Label`
+              # mkDefault in pinned modules/launchd/default.nix), which is precisely what sits on
               # disk and holds the BTM approval. So the invariant is the
               # FORMULA, and a literal list here would hardcode a consumer's
               # per-instance runner names into the fleet's checks as well.
@@ -2964,7 +2961,7 @@ in
           # plugin names is a capability the operator believes is wired and is not.
           #
           # SCOPE IS THE `nix-mcp-` PREFIX, because the prefix IS this lane. At the
-          # pinned rev the plugins name 17 servers; the other 8 are out of scope for
+          # pinned rev, the other 8 servers the plugins name are out of scope for
           # reasons that are structural, not an oversight:
           #   ${CLAUDE_PLUGIN_ROOT}/…  `memory`, `chrome-devtools` — that variable
           #                            expands ONLY inside the owning plugin, so no
@@ -2997,7 +2994,8 @@ in
           # THE COST, stated rather than discovered: `kattakath-skills` is now
           # load-bearing for a SECOND thing, so adding an MCP server over there needs
           # this pin bumped here to stay green. Bounded and automatic —
-          # .github/workflows/update-flake-lock.yml bumps every input weekly and arms
+          # .github/workflows/update-flake-lock.yml bumps it weekly (its
+          # `updatable-inputs` step names the inputs it skips) and arms
           # auto-merge on the result — so the join is re-checked on a reviewable PR
           # rather than never. A red leg there means a plugin is ALREADY broken on
           # this Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile
@@ -3091,9 +3089,9 @@ in
           # `${inputs.kattakath-skills}`, and those two halves are GONE — not because
           # they stopped mattering, but because they already run where the content
           # lives. `kattakath/skills`' own validate.yml does both verbatim:
-          #   :49-56  "Scripts parse"            -> node --check + bash -n
-          #   :62-63  "page-lab envelope self-test" -> the same pick-validate.mjs
-          #                                            --self-test, same fixtures path
+          #   step "Scripts parse"               -> node --check + bash -n
+          #   step "page-lab envelope self-test" -> the same pick-validate.mjs
+          #                                         --self-test, same fixtures path
           #
           # So keeping them here was a SECOND COPY of one gate, and worse than
           # redundant: the two copies read DIFFERENT revisions — skills CI runs HEAD,
@@ -3136,8 +3134,7 @@ in
             #      is the CORRECT new form and contains "plugins/page-lab", so a
             #      substring grep would flag the fix as the bug.
             #
-            # facts.md RECORDS old names as history; this file CARRIES the grep so
-            # it matches its own source.
+            # This file CARRIES the grep, so it matches its own source.
             cd ${self}
             if grep -rn 'plugins/userscript-author\|plugins/chrome-devtools' \
                  --exclude-dir=.git --exclude=facts.md --exclude=checks.nix . ; then

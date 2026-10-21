@@ -1,6 +1,6 @@
 # media-toolkit — the fleet's local media-file CLIs, as one installable unit.
 #
-#   media <describe|fix|audio|queue> ...   one entry point for everything below
+#   media <verb> ...                       the dispatcher; its verbs: media.nix `usage()`
 #   media-describe <file-or-dir>...        write what an image IS into the image
 #                                          (XMP description + keywords + rating)
 #   media-fix <--video|--image> <path>...  repair a media file by CLASS, deciding
@@ -54,8 +54,9 @@
 # TWO DIFFERENT MEMBERSHIP QUESTIONS, and conflating them is the mistake this
 # comment exists to prevent:
 #
-#   1. What ships in THIS FLAKE?  "Media work you want to add or strip off as
-#      one unit." That is a repo-scope question, and it is generous.
+#   1. What ships in THIS CAPSULE?  "Media work you want to add or strip off as
+#      one unit" — one `local.mediaCli.enable`. That is a capsule-scope
+#      question, and it is generous.
 #   2. What goes in THIS BUNDLE?  A CLI that ACTS ON A MEDIA FILE the operator
 #      selected, on this machine. That is a dependency-scope question, and it
 #      is strict — because `media-toolkit` is what the Finder
@@ -70,15 +71,11 @@
 #     running an ephemeral uv environment (~1 GB of torch/insightface on first
 #     run). It judges images, generating and transforming nothing.
 #
-# So they live in this flake, behind their own opt-in module options, and stay
+# So they live in this capsule, behind their own opt-in module options, and stay
 # OUT of this bundle. Folding them in would put a uv/Python environment and a
 # Keychain read on the Finder Services' PATH for no reason, and would make
 # "media-toolkit" mean only "vaguely about media", which is not a useful thing
 # for it to mean.
-#
-# (Earlier revisions of this header said both "stay separate" full stop, from
-# when this file lived in a mono-repo where separate-from-the-bundle and
-# separate-from-the-repo were the same thing. They no longer are.)
 #
 # media-fix-extension is the one member that changes no bytes — it only renames. It
 # still belongs: it operates directly on the selected media file and repairs it

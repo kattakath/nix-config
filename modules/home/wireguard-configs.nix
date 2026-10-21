@@ -56,9 +56,8 @@ in
       type = types.str;
       default = "${config.home.homeDirectory}/.config/wireguard";
       description = ''
-        Destination for synced confs. NOTE: `wg-quick <name>` resolves a BARE
-        interface name against /etc/wireguard, not this directory — reach these
-        by full path (`wg-quick up ~/.config/wireguard/<name>.conf`).
+        Destination for synced confs, to import into WireGuard.app (no
+        `wg-quick` CLI: hosts/macos.nix's `wireguard-tools` NB).
       '';
     };
   };
