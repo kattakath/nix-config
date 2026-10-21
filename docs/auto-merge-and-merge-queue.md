@@ -111,12 +111,12 @@ PR #558:
 | `nix-ci` on the queue entry | **7m29s** |
 | merged | — |
 | **open → merged** | **18m56s** |
+| `nix-ci` on `push: main`, after | 8m19s |
 
 **That is ONE PR, not the norm — do not read 10m27s as typical.** Measured 2026-10-01 over the
 last 37 successful `pull_request` runs of `nix-ci.yml`: **median 7.1 min**, p90 8.2, max 10.2, min
 5.2. #558's 10m27s sat at the top of that range, and its 18m56s open→merged reflects the queue
 leg that no longer exists.
-| `nix-ci` on `push: main`, after | 8m19s |
 
 *The expiry.* The queue was adopted to escape a strict up-to-date policy that the
 queue itself then disabled. With strict off, plain auto-merge has nothing to stall
@@ -258,7 +258,7 @@ non-cancellable runs have no business gating a merge.
 
 The post-merge `push: main` run is **kept**: with no queue entry to validate the
 projected merge, it is the only thing that evaluates what actually landed, and it
-warms Cachix under `main`'s own rev (the four tree-dependent checks take `self`, so
+warms Cachix under `main`'s own rev (the tree-dependent checks take `self`, so
 their store paths differ per rev) for the operator's local `nix flake check`.
 
 ## The fleet
@@ -346,8 +346,8 @@ while querying `/repos/{owner}/{repo}/installation` instead, which requires a JW
 authoritative view existed the whole time on a different endpoint.
 
 **Fix: add `Issues: Write` to the App and accept the expansion on the installation.** No workflow change
-was needed — `auto-merge.yml` requests no `permission-*` inputs, so its token inherits the installation's
-full grant and the cure was live the moment the expansion was accepted.
+was needed — `auto-merge.yml` requested no `permission-*` inputs at the time, so its token inherited the
+installation's full grant and the cure was live the moment the expansion was accepted.
 
 ### Two traps this left behind
 
@@ -424,5 +424,6 @@ not evidence of this defect returning.
 
 Delete `.github/workflows/auto-merge.yml` — PRs stop arming, everything else
 unchanged. To go the other way and re-add a queue, read §3 "Before re-adopting a
-queue" first: add the `merge_queue` rule to the ruleset, restore `merge_group:` to
-`nix-ci.yml` and `gitleaks.yml`, and accept the second CI run.
+queue" first: add the `merge_queue` rule to the ruleset, add `merge_group:` to every
+workflow producing a context in the ruleset's `required_status_checks` (§ (b)), and accept
+the second CI run.

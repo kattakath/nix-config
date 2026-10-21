@@ -476,7 +476,7 @@ let
               # build-installers-impl.yml now signs the image with a GitHub OIDC identity
               # (actions/attest-build-provenance). This verifies that signature BEFORE
               # zstd touches the file, so a tampered or wrong-provenance asset fails while
-              # it is still inert bytes on disk rather than mid-way through a 5.6 GB write
+              # it is still inert bytes on disk rather than mid-way through a multi-GB write
               # to a block device.
               #
               # --repo pins WHICH repo's workflow may have produced it: an attestation
@@ -649,9 +649,9 @@ let
             echo "nixpi-flash:  it; it proves the write landed. Durability is untested.)"
 
             /usr/sbin/diskutil mount "''${disk}s1" >/dev/null 2>&1 || true
-            # On a BAND-SPLIT network (e.g. joined to `FOO-5G` but the keychain stores the
-            # base `FOO` PSK) nixpi-provision's auto Wi-Fi detect fails — pin it with --ssid
-            # or a prebuilt --wifi-conf. Build the conf here when --ssid is given.
+            # With no Wi-Fi args nixpi-provision plants the declared nixpiWifiNetworks
+            # ladder (identity.nix); --ssid REPLACES it. Build the conf here when --ssid
+            # is given.
             if [ -z "$wifi_conf" ] && [ ''${#wc_args[@]} -gt 0 ]; then
               wifi_conf="$tmp/wpa.conf"
               if [ -n "$country" ]; then wc_args+=(--country "$country"); fi

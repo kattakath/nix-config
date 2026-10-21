@@ -466,7 +466,7 @@ let
                   echo "    One-time, per machine:" >&2
                   echo "      1. mint a token:  https://flakehub.com/user/settings?editview=tokens" >&2
                   echo "      2. store it:      secret set FLAKEHUB_TOKEN" >&2
-                  echo "      3. log in:        secret exec FLAKEHUB_TOKEN -- sh -c \\" >&2
+                  echo "      3. log in:        secret exec FLAKEHUB_TOKEN -- bash -c \\" >&2
                   echo "           'determinate-nixd auth login token --token-file <(printf %s \"\$FLAKEHUB_TOKEN\")'" >&2
                   echo "    If it persists, the daemon may be stale:  sudo determinate-nixd upgrade" >&2
                   echo "    Verify:  determinate-nixd version | grep native-linux-builder" >&2

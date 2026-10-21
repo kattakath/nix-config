@@ -80,16 +80,19 @@ means re-registering the runner.)
 > host-decrypt mechanism was "used by NOTHING" — that was true only between the runner's
 > retirement (2026-07-16) and its revival (2026-08-23). Don't repeat it.
 
-When changing recipients, **re-key**: `agenix -r`. The `macos` host key pinned in
+When changing recipients, **re-key**: `AGENIX_RULES=secrets/secrets.nix agenix -r`. The `macos` host key pinned in
 `secrets/secrets.nix` was re-verified 2026-08-23 after a host-key rotation had silently
 invalidated the previous pin — verify it against the live
 `/etc/ssh/ssh_host_ed25519_key.pub` before reusing that value.
 
-Edit any secret with:
+Edit any secret from the repo root, inside `nix develop` (the only place `agenix` is installed):
 
 ```bash
-agenix -e secrets/<name>.age    # uses ~/.ssh/id_ed25519 directly — no SOPS_AGE_KEY_FILE ceremony
+AGENIX_RULES=secrets/secrets.nix agenix -e <name>.age    # uses ~/.ssh/id_ed25519 directly — no SOPS_AGE_KEY_FILE ceremony
 ```
+
+The bare `agenix -e secrets/<name>.age` form fails: agenix looks for `secrets.nix` only in the
+current directory, then resolves `<name>.age` from the rules file's own directory.
 
 History: agenix was adopted **2026-07-08**, replacing **sops-nix** — a deliberate preference for
 the simpler age/SSH model. The older `/etc/secrets` operator-placed model was retired in #109.
@@ -165,11 +168,8 @@ The broad token used to be `secret bind`-ed to `CLOUDFLARE_API_TOKEN`, so **ever
 therefore every process the operator ever launched, including this repo's own agent tooling —
 inherited write access to two accounts and seven zones. That is the opposite of what the
 `cf-*` apps' own "export a scoped token" hint asked for. It is now unbound; reach any of them
-explicitly:
-
-```bash
-secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- <the terranix app>
-```
+explicitly. For the terranix apps, the canonical form is the
+`nix develop -c bash -c 'secret exec …'` line in [`map/infra.md`](map/infra.md).
 
 Verified by denial, not by reading the dashboard: the scoped token can read/write the two
 tunnel zones and the tunnel itself, and is **refused** on aloshy.ai DNS, Workers, Gateway,
