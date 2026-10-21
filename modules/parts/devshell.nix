@@ -136,8 +136,9 @@ in
           # is `ast-grep` — there is no `sg` alias in the nixpkgs output.
           pkgs.ast-grep
           pkgs.jq # flattens deadnix JSON for the problem matcher
-          # agenix secret editing: `agenix -e secrets/<name>.age` (recipients in
-          # secrets/secrets.nix). Pure age/SSH — no ssh-to-age needed.
+          # agenix secret editing, from the repo root:
+          # `AGENIX_RULES=secrets/secrets.nix agenix -e <name>.age`.
+          # Pure age/SSH — no ssh-to-age needed.
           agenix.packages.${system}.default
         ];
 

@@ -18,7 +18,7 @@ that silently use a previous version of a file.
 
 ## Mandatory automation
 
-1. **Before every evaluation pass** (`nix flake check`, `nix flake show`, `home-manager build`,
+1. **Before every evaluation pass** (`nix flake check`, `nix flake show`,
    `nix-instantiate`), run:
 
    ```bash

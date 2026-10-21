@@ -16,8 +16,8 @@ description: >
 
 > **THE GATEWAY LANE NO LONGER EXISTS (2026-10-02).** `modules/shared/mcp.nix`,
 > `local.mcpGateway.*`, `fleet.publicMcpServers`, the Cloudflare portal and
-> `checks.*.mcp-published-parity` are all **deleted**; `https://mcp.kattakath.com/mcp` answers
-> **403** and nothing listens on `127.0.0.1:8097`. There is **ONE** declarative destination now.
+> `checks.*.mcp-published-parity` are all **deleted**; `mcp.kattakath.com` has no DNS record
+> (`infra/cloudflare/kattakath-dns.nix` header) and nothing listens on `127.0.0.1:8097`. There is **ONE** declarative destination now.
 > If you are working from a cached memory of this skill that offers you a "gateway lane", that
 > memory is stale.
 

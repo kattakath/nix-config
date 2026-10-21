@@ -16,8 +16,8 @@ wired in — so the layers are the spine of this doc.
 | **Determinate Nix** | the Nix daemon + `/etc/nix/nix.conf` (nixd-owned; the declarative half is `/etc/nix/nix.custom.conf`) | `modules/parts/compose.nix` (`determinateNix.*`) |
 
 > **Structural constraint:** Determinate Nix sets `nix.enable = false`, so the
-> **entire `nix.*` option tree is unavailable on this host**. The only Nix knob is
-> `determinateNix.customSettings` (used solely to add the Cachix substituter). Any
+> **entire `nix.*` option tree is unavailable on this host**. The Nix knobs are
+> `determinateNix.*` instead (`modules/parts/compose.nix`, plus `hosts/macos.nix`). Any
 > guide that says "set `nix.settings.…`" does not apply to `macos` — it applies to
 > the NixOS hosts (`nixpi`, `nixvm`).
 
@@ -32,7 +32,7 @@ slice**, not the ceiling — §2 shows how much more is reachable.
 
 | Domain | Keys set today |
 | --- | --- |
-| `dock` | `autohide`, `orientation="left"`, `show-recents=false`, `tilesize=48`, `mru-spaces=false`, `minimize-to-application`, `show-process-indicators` |
+| `dock` | `autohide`, `orientation="right"`, `show-recents=false`, `tilesize=24`, `mru-spaces=false`, `minimize-to-application`, `show-process-indicators`, `static-only` |
 | `finder` | `AppleShowAllExtensions`, `FXPreferredViewStyle="Nlsv"` (list), `ShowPathbar`, `ShowStatusBar`, `_FXShowPosixPathInTitle`, `_FXSortFoldersFirst`, `FXDefaultSearchScope="SCcf"`, `FXEnableExtensionChangeWarning=false`, `FXRemoveOldTrashItems=true` (Trash self-purges at 30d — the second half of the Downloads rotation) |
 | `NSGlobalDomain` | `AppleInterfaceStyle="Dark"`, `KeyRepeat=2`, `InitialKeyRepeat=15`, `ApplePressAndHoldEnabled=false`, `AppleKeyboardUIMode=3`, the five `NSAutomatic*Substitution/Capitalization/Spelling` toggles off, `NSNavPanelExpandedStateForSaveMode{,2}` |
 | `trackpad` | `Clicking` (tap-to-click) |
@@ -111,7 +111,7 @@ Option names below are verified against the pinned nix-darwin source
 `mouse-over-hilite-stack` · `mru-spaces ✓` · `orientation ✓` · `persistent-apps` ·
 `persistent-others` · `scroll-to-open` · `showAppExposeGestureEnabled` · `showDesktopGestureEnabled` ·
 `showLaunchpadGestureEnabled` · `showMissionControlGestureEnabled` · `show-process-indicators ✓` ·
-`showhidden` · `show-recents ✓` · `slow-motion-allowed` · `static-only` · `tilesize ✓` ·
+`showhidden` · `show-recents ✓` · `slow-motion-allowed` · `static-only ✓` · `tilesize ✓` ·
 `magnification` · `largesize` · **hot corners:** `wvous-tl-corner` · `wvous-tr-corner` ·
 `wvous-bl-corner` · `wvous-br-corner`
 
@@ -121,7 +121,7 @@ Option names below are verified against the pinned nix-darwin source
 
 ### `system.defaults.finder`
 `AppleShowAllFiles` · `ShowStatusBar ✓` · `ShowPathbar ✓` · `FXDefaultSearchScope ✓` ·
-`FXRemoveOldTrashItems` · `FXPreferredViewStyle ✓` · `AppleShowAllExtensions ✓` · `CreateDesktop`
+`FXRemoveOldTrashItems ✓` · `FXPreferredViewStyle ✓` · `AppleShowAllExtensions ✓` · `CreateDesktop`
 (hide desktop icons) · `QuitMenuItem` · `ShowExternalHardDrivesOnDesktop` · `ShowHardDrivesOnDesktop` ·
 `ShowMountedServersOnDesktop` · `ShowRemovableMediaOnDesktop` · `_FXEnableColumnAutoSizing` ·
 `_FXShowPosixPathInTitle ✓` · `_FXSortFoldersFirst ✓` · `_FXSortFoldersFirstOnDesktop` ·
@@ -159,7 +159,7 @@ Option names below are verified against the pinned nix-darwin source
 - **`smb`** · **`magicmouse`** · **`universalaccess`** · **`ActivityMonitor`** · **`hitoolbox`** · **`iCal`** — present, niche
 
 ### Beyond `system.defaults` (top-level nix-darwin options)
-- **`system.keyboard`** — `enableKeyMapping`, `remapCapsLockToControl`, `remapCapsLockToEscape`, `swapLeftCommandAndLeftAlt`, `userKeyMapping` (arbitrary remaps). *Left at defaults today; a commented example sits in `core.nix`.*
+- **`system.keyboard`** — `enableKeyMapping`, `remapCapsLockToControl`, `remapCapsLockToEscape`, `swapLeftCommandAndLeftAlt`, `userKeyMapping` (arbitrary remaps). *Left at defaults today.*
 - **`networking`** — `applicationFirewall.*` (used ✓), `computerName`, `hostName`, `localHostName`, `dns`, `wakeOnLan`, `knownNetworkServices`
 - **`time.timeZone`** · **`power`** (`sleep`, `restartAfterPowerFailure`, `restartAfterFreeze`) · **`system.startup.chime`**
 - **`fonts.packages`** — system-wide fonts · **`security.sudo.extraConfig`**, extra `security.pam.services`
@@ -221,13 +221,12 @@ empty and `gpg.ssh.allowedSignersFile` points at that runtime path), `programs.s
 GUI git signing), `programs.zsh` + `starship` + `bash`, `programs.gh`,
 `programs.direnv`, `programs.vscode` (declarative extensions + ~80 `userSettings`,
 including `git.enableCommitSigning`), `programs.claude-code` (the MCP gateway that used to sit beside it was deleted 2026-10-02),
-`fonts.fontconfig`, `home.packages`. GitHub/GitLab **Verified** still requires the
+`fonts.fontconfig`, `home.packages`, and `targets.darwin.defaults` — **user** defaults set
+from the Home-Manager side, the per-user analogue of `system.defaults`. GitHub/GitLab **Verified** still requires the
 same pubkey registered as a *Signing* key on the forge (not only Authentication).
 
 **Available but unused, worth knowing:**
-- **`targets.darwin.defaults`** — set **user** defaults from the Home-Manager side
-  (the per-user analogue of `system.defaults`), and `targets.darwin.currentHostDefaults`
-  for `-currentHost`-scoped keys.
+- **`targets.darwin.currentHostDefaults`** — the same, for `-currentHost`-scoped keys.
 - **`targets.darwin.linkApps` / `copyApps`** — surface Nix-installed GUI apps into
   `~/Applications/Home Manager Apps`. (Recent HM releases flipped the default toward
   `copyApps` because symlinked `.app`s confuse Spotlight/Gatekeeper — verify the
@@ -240,8 +239,7 @@ same pubkey registered as a *Signing* key on the forge (not only Authentication)
 ## 5. Window managers & bars (available via `services.*`)
 
 nix-darwin ships first-class `services.*` modules (each ~ `enable` + `package` +
-`config`/`configFile`, wired to a launchd agent). None are enabled here — `core.nix`
-has a commented `services.yabai`/`services.skhd` placeholder.
+`config`/`configFile`, wired to a launchd agent). None are enabled here.
 
 | Tool | Module | Note |
 | --- | --- | --- |
@@ -279,7 +277,7 @@ way to "start X at login" is a **launchd user agent** with `RunAtLoad`.
 
 **Allow in the Background** names each item by `ProgramArguments[0]`'s **basename**
 (verify with `sfltool dumpbtm`). Fleet rule: that basename **must** be
-`nix-<activity>` (e.g. `nix-maccy`, `nix-tart-vm-<name>`; `nix-mcp-gateway` was one until 2026-10-02) so items are obviously
+`nix-<activity>` (e.g. `nix-open-maccy`, `nix-tart-vm-<name>`; `nix-mcp-gateway` was one until 2026-10-02) so items are obviously
 from this nix-config, not bare `sh`/`python3` or third-party helpers.
 
 | Bad (shows as phantom `sh` / `python3` / `open`) | Good |
@@ -322,14 +320,13 @@ depend on.
 
 | Agents | Host |
 |---|---|
-| `open-maccy` / `open-slack` / `open-mail` / `open-messages` | **macos only** |
+| `open-maccy` | **macos only** |
 | RAG (`ollama-local`, `postgres-pgvector`) — the MCP gateway shared this gate until it was deleted 2026-10-02 | **macos only** |
 | `metube` / `yt-dlp-web-ui` (loopback download servers) | **macos only** |
 | `file-rotation-logs` / `file-rotation-logs-system` (launchd log rotation) | **macos only** |
 | `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (a Tart guest whose `~/Downloads` is VirtioFS-shared with the host's would lose host files to a guest-side rotation — `mv` across filesystems is `cp`+`rm`) |
 
-Gate with `isMacosHost` (`modules/_lib/is-macos-host.nix`, which reads the `local.operatorHost`
-flag set in `hosts/macos.nix`) — never the hostname. All three of the agents below use it.
+Which gate to use for a macos-only agent: [`CLAUDE.md`](../CLAUDE.md) § Configuration.
 
 ```nix
 # modules/home/macos-user-agents.nix (GUI opener — quiet: menu-bar only, no window)
@@ -344,15 +341,14 @@ open-maccy = {
 # arg0 is the launcher launchd-launcher.nix derives from the ATTR name → …/bin/nix-open-maccy
 ```
 
-Each opener runs `open -g -j`, then re-hides the process via System Events for
-~12s (Slack/Messages/Mail ignore `-j` and raise a window after init). Dock icons
-and menu-bar extras stay; only the window is suppressed. Needs Accessibility for
-`/usr/bin/osascript` — TCC scopes the grant to that binary, not to whatever parent spawns it, which is why it survived `macos-automator` moving off the (now deleted) MCP gateway into the `mac-app-send` plugin.
+The Slack, Mail and Messages openers, and the System Events hide loop they needed, were
+removed 2026-09-23. Why, and the bar for re-adding a windowed-app opener, is the comment
+above `launchd.agents` in `modules/home/macos-user-agents.nix`.
 
 Also: turn OFF each app's own "Open at Login" / SMAppService toggle so you don't
 get double registration.
 
-**There was a sixth opener, `open-docker`, and a `settings-store.json` `AutoStart`
+**There was another opener, `open-docker`, and a `settings-store.json` `AutoStart`
 rewriter beside it.** Both were deleted on 2026-09-22: Docker Desktop was removed
 from this Mac on 2026-09-16 (`hosts/macos.nix` records why — its privileged helper
 bound the machine-wide socket to a username that was deleted the next day), and
@@ -434,16 +430,11 @@ already an activation no-op: its target still exists and already holds
 
 ### The "apply immediately" trick
 Many defaults don't take effect until logout/restart (Dock, some keyboard/mouse
-keys). The community workaround is Apple's private `activateSettings -u`:
-
-```nix
-system.activationScripts.postUserActivation.text = ''
-  /System/Library/PrivateFrameworks/SystemAdministration.framework/Resources/activateSettings -u
-'';
-```
-
-Not adopted here (a `darwin-rebuild switch` + occasional logout is fine for a
-single operator), but it's the standard remedy if a setting seems to "not apply."
+keys). The community workaround is Apple's private `activateSettings -u`. Not adopted
+here (a `darwin-rebuild switch` + occasional logout is fine for a single operator). The
+`system.activationScripts.postUserActivation` snippet guides show for it no longer
+evaluates: the pinned nix-darwin asserts that option was removed, since all activation now
+runs as `root` (`nix-darwin/modules/system/activation-scripts.nix`).
 
 ---
 

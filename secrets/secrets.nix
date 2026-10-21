@@ -9,8 +9,8 @@
 # also carry the `macos` host-key recipient below. A secret added without
 # picking a model explicitly is one the host silently cannot decrypt.
 #
-# Edit a secret:   nix run github:ryantm/agenix -- -e secrets/<name>.age
-# Re-key after changing recipients:  … -- -r
+# Edit / re-key: docs/secrets-and-keychain.md § agenix (the AGENIX_RULES form,
+# inside `nix develop`; a bare `agenix -e secrets/<name>.age` fails).
 let
   # operator (ismail) — ~/.ssh/id_ed25519.pub; backed up off-machine, kept
   # editable. Single-sourced in ./operator-key.nix (also the fleet's authorizedKeys
@@ -24,7 +24,7 @@ in
 {
   # nixpi's Cloudflare Tunnel connector token (TUNNEL_TOKEN=…). OPERATOR-ONLY: the
   # operator decrypts it on the Mac to plant on the card's FIRMWARE partition (via
-  # `nix run .#nixpi-provision --token`); nixpi never decrypts it on-device (a fresh
+  # `nix run .#nixpi-provision -- --token`); nixpi never decrypts it on-device (a fresh
   # SD flash rotates the host key — see the firmware-secrets capsule,
   # modules/features/firmware-secrets/).
   "cloudflared-token.age".publicKeys = [

@@ -117,7 +117,7 @@ let
         echo "Store it (from the repo root): pipe the TUNNEL_TOKEN= line above into"
         echo "  nix run .#nixpi-vault-token"
         echo "then plant it on a mounted card with"
-        echo "  nix run .#nixpi-provision --token        # (or reflash)"
+        echo "  nix run .#nixpi-provision -- --token     # (or reflash)"
         echo "----- end nixpi -----"
       '';
     in
