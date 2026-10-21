@@ -1,6 +1,6 @@
 # Claude Desktop / Cowork — MCP (2026-09-15, rewritten 2026-10-02)
 
-> # ⚠ CURRENT STATE (2026-10-20): Claude Desktop has ONE public MCP server — `github` — plus whatever the operator's private overlay adds.
+> # ⚠ CURRENT STATE (2026-10-21): this repo renders ONE public MCP server into Claude Desktop — `github` — plus whatever the operator's private overlay adds. Desktop Commander reaches Desktop separately, as a Desktop Extension this repo does not render.
 >
 > The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Claude Desktop loads
 > no plugins**, so no plugin-owned server reaches it or the Cowork bridge behind it. `github`
@@ -49,7 +49,8 @@ move the shim transform with it.
 
 ## What gets written
 
-**Since 2026-10-02: NOTHING — an empty `mcpServers` object.** The flow below is the shape the
+**From 2026-10-02: an empty `mcpServers` object, until `local.claudeDesktop.extraServers` came back
+— today `github` only from Nix, plus the private overlay.** The flow below is the shape the
 renderer still has (and would use again if a `url` ever reappeared via `extraServers`), but there
 is no portal entry at the top of it any more. Read it as the mechanism, not the inventory.
 
@@ -87,7 +88,8 @@ programs.mcp.servers (hub)
 
 ## What this gives Cowork — and what it does not
 
-**Current answer: nothing, on every row.** The table below is the 2026-09-22 state, kept because it
+**Current answer: none of these rows is served from this repo any more** (what Desktop does have is
+in the CURRENT STATE header). The table below is the 2026-09-22 state, kept because it
 is the clearest statement of what was given up on 2026-10-02 — all three rows are now **no**.
 
 | Surface | Path | Includes telegram / gmail-* / wordpress? |
@@ -142,7 +144,8 @@ Ordering no longer matters: you can activate with Desktop open. It still needs a
 
 `checks.aarch64-darwin.claude-desktop-config-shape` reads the real macos rendering. **Inverted
 2026-10-02**: it used to fail if no rendered entry dialled the gateway's own `portalEndpoint` (two
-modules, one URL); it now asserts the render is **EMPTY**, paired with a leg asserting
+modules, one URL); it now asserts the render holds **no server but `github`** (and never
+`desktop-commander`), paired with a leg asserting
 `claudeDesktop.enable` is still **true**. Both legs are needed, and a deleted check would have
 caught neither direction — an empty set from a disabled module is a different claim from an empty
 set from an enabled one, and the disabled case leaves stale content on disk (#732). The shape rules
