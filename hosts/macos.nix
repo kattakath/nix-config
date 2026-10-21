@@ -594,6 +594,22 @@ in
       "android-platform-tools"
       "blackhole-2ch"
       "bruno"
+      # CivitAI Live Wallpaper — our own menu-bar app (gitlab.com/izzykatt/civitai-live-wallpaper)
+      # that rotates CivitAI images/videos as live wallpapers. From our shared tap
+      # (modules/darwin/homebrew.nix); the DMG comes from the project's public
+      # package registry. Ad-hoc signed with the hardened runtime but NOT notarized
+      # (a Developer ID is pending), so — exactly like escrcpy below — a quarantined
+      # copy is blocked by Gatekeeper and `brew bundle` cannot answer a prompt: the
+      # scoped `postinstall` strips the flag. Read the escrcpy entry's notes on why
+      # postinstall and not `args.no_quarantine` before changing it. Drop the
+      # postinstall once the app is notarized.
+      {
+        name = "ismailkattakath/tap/civitai-live-wallpaper";
+        # Single quotes, not escaped doubles: nix-darwin writes this string into the
+        # Brewfile between double quotes WITHOUT escaping, so an inner `"` produced
+        # invalid Ruby. The path has spaces, so it still needs quoting for the shell.
+        postinstall = "/usr/bin/xattr -dr com.apple.quarantine '/Applications/CivitAI Live Wallpaper.app'";
+      }
       # Claude Desktop — the chat GUI (distinct from the claude-code CLI, nixpkgs).
       "claude"
       # `docker-desktop` is GONE (2026-09-16): its privileged helper bound the
@@ -607,8 +623,8 @@ in
       # Complements, never replaces, `android-phone` (packages/android-phone.nix):
       # that CLI still owns the adb pairing/connect footguns it exists to encode,
       # and its header's refusal to VENDOR a third-party pairing tool is unaffected
-      # by installing one alongside. From the sole third-party tap — see the tap's
-      # comment in modules/darwin/homebrew.nix for the other accepted cost.
+      # by installing one alongside. From our shared tap (ismailkattakath/tap) — see
+      # the tap's comment in modules/darwin/homebrew.nix for the other accepted cost.
       #
       # postinstall is LOAD-BEARING — without it the app installs but cannot be
       # opened at all. Upstream ships Escrcpy.app with no _CodeSignature, only the
@@ -648,8 +664,8 @@ in
       # only AFTER the bundle runs, so mid-bundle brew sees the cask in two taps and
       # refuses — "Cask escrcpy exists in multiple taps … Please use the
       # fully-qualified name". Qualifying it is also what keeps this unambiguous on a
-      # machine where someone re-taps upstream by hand. Re-point this tap prefix
-      # together with modules/darwin/homebrew.nix when homebrew-escrcpy#61 merges.
+      # machine where someone re-taps upstream by hand. The tap prefix must match
+      # modules/darwin/homebrew.nix's `taps` entry.
       #
       # MOVING THIS CASK BETWEEN TAPS NEEDS A ONE-TIME MANUAL STEP, and qualifying the
       # name is NOT it: brew keys an installed cask to the tap it came from, refuses to
@@ -659,7 +675,7 @@ in
       # activation reinstall from the new tap. Nothing declarative can do this; brew's
       # `cleanup` untaps only AFTER the install that was already aborting.
       {
-        name = "ismailkattakath/escrcpy/escrcpy";
+        name = "ismailkattakath/tap/escrcpy";
         postinstall = "/usr/bin/xattr -dr com.apple.quarantine /Applications/Escrcpy.app";
       }
       # Google Chrome — the DAILY browser and the holder of http/https
