@@ -100,7 +100,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
     (`builtins.readDir`/`readFile` over a realised input — no import-from-derivation, no
     network) and asserts SET EQUALITY between the `nix-mcp-*` commands those plugins name and
     the `nix-mcp-*` derivations `macos` actually composes into `home.packages`. Measured
-    2026-10-02 at pin `5ba108f`: **8 = 8**, no drift either way.
+    2026-10-02 at pin `5ba108f`: **8 = 8**; 2026-10-21 at `e3e48a9`: **7** distinct commands
+    (the per-account gmail launchers became one `nix-mcp-gmail`), with `nix-mcp-slack` exempt
+    because only the private overlay names it.
     - **The built side is read off the composed package list, not re-derived.** A check that
       re-applied gmail's address sanitisation would agree with a broken rule by sharing it.
       Derivation name == binary name for all three builders — every one `writeShellApplication`
@@ -108,8 +110,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
       `packages/mcpfinder-mcp.nix`), each emitting exactly one `$out/bin/<name>` and
       shellchecked at build. The first two keep `bashOptions = [ "nounset" ]`, the `set -u`
       they always ran under, so a missing Keychain entry still warns rather than aborts.
-    - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Of the 17 servers
-      the plugins declare, 8 are out of this lane: `memory` and `chrome-devtools` are
+    - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Of the 15 servers
+      the plugins declare (pin `e3e48a9`, 2026-10-21), 8 are out of this lane: `memory` and `chrome-devtools` are
       `${CLAUDE_PLUGIN_ROOT}`-relative, which expands **only** inside the owning plugin, so no
       PATH binary can exist for them even in principle; `mcp-nixos` and `terraform-mcp-server`
       are bare nixpkgs binaries installed as ordinary packages; `mobile-mcp`,
