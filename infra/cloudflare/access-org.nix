@@ -61,8 +61,8 @@
 #
 # IMPORT, NEVER CREATE. There is exactly one organisation per account and it has
 # existed since 2026-07-03. The apply wrapper refuses an empty state for this
-# reason; import with the account id:
-#   tofu import cloudflare_zero_trust_organization.fleet <accountId>
+# reason; import with `nix run .#cf-access-org-import` (it cd's into the pinned state dir —
+# never a bare `tofu import`, which runs wherever you happen to be).
 #
 # Fields in the live API response that this resource does NOT model —
 # `cache_device_posture`, `service_token_inactivity`, `trusted_accounts`,

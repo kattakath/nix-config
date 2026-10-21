@@ -758,7 +758,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
 
 ## Home-Manager modules that are not in `modules/home/`
 
-Three whole features reach the Mac's Home Manager profile from outside this directory, each
+Whole features reach the Mac's Home Manager profile from outside this directory, each
 behind **one** `enable` — all of them in-tree capsules under `modules/features/` now.
 
 - **`tor-browser-backup-exclusion.nix`** (in `modules/home/` itself, despite this heading; macos only, since 2026-10-06) — keeps the Tor Browser

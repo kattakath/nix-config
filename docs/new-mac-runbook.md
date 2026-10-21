@@ -60,7 +60,7 @@ secret is re-issuable by the vendor that minted it:
 
 | Secret | Re-issue from |
 |---|---|
-| `cloudflared-token.age` | Cloudflare — the `cf-tunnel-apply` app re-prints the tunnel's CURRENT connector token (a data source); re-encrypt it to the new key |
+| `cloudflared-token.age` | Cloudflare — the `cf-tunnel-apply` app re-prints the tunnel's CURRENT connector token (a data source; `cf-tunnel-plan` first — see nixpi-tunnel.nix § ADOPTION IS IMPORT-FIRST); re-encrypt it to the new key |
 | `gh-app-dontsell-ai-key.age` | GitHub App settings — generate a new private key |
 | `gh-app-fleet-key.age` | the same App (identical material on purpose — rotate both together) |
 | `gitlab-runner-token.age` | GitLab — re-register the runner |
