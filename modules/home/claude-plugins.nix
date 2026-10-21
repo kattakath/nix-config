@@ -31,7 +31,7 @@
 # `claude-plugins-official` must be an HTTPS/GitHub source (a directory pin is
 # rejected as untrusted). Plugin install state therefore stays Claude-owned
 # mutable ~/.claude, like a gh/hf one-time login — the same "let the tool own
-# its own state" trade this repo makes for grokMcp.
+# its own state" trade this repo makes elsewhere.
 #
 # AND WHY NOT THE SIBLING OPTION, `programs.claude-code.plugins` (same file,
 # options.nix:150) — the half this note used to leave unexamined. It is an

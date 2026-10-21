@@ -3,7 +3,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 ## `modules/home/`
 
 `modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,ubersicht.nix,next-right-thing.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
-— the Home Manager profile loaded on every host, and **nothing else**: it is 25 `.nix`,
+— the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
 same day. This manifest also silently omitted `spotlight-actions.nix` and
@@ -759,10 +759,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
 ## Home-Manager modules that are not in `modules/home/`
 
 Three whole features reach the Mac's Home Manager profile from outside this directory, each
-behind **one** `enable`. One is now an in-tree capsule; two are still flake inputs (ADR-002
-waves 5-6 absorb them).
+behind **one** `enable` — all of them in-tree capsules under `modules/features/` now.
 
-- **`tor-browser-backup-exclusion.nix`** (macos only, since 2026-10-06) — keeps the Tor Browser
+- **`tor-browser-backup-exclusion.nix`** (in `modules/home/` itself, despite this heading; macos only, since 2026-10-06) — keeps the Tor Browser
   profile out of Time Machine with Apple's own `tmutil addexclusion`, re-applied each activation.
   **Pre-emptive, not a fix**: measured that day, the Mac had no Time Machine destination at all,
   so nothing had ever been backed up. The header records the upstream-first grep (neither

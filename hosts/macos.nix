@@ -58,8 +58,8 @@ in
   # 8 GiB VM leaves ~3.9 GiB, and building the `nixos` guest's seed disk image
   # (hosts/nixos.nix) stages its closure, the ext4 filesystem and the raw
   # image there at once — "No space left on device" at every size tried.
-  # 16 GiB is the upstream knob for exactly this (the engine's comment in
-  # modules/parts/compose.nix names memoryBytes as the OOM lever). Apple
+  # 16 GiB is the upstream knob for exactly this (docs/map/hosts.md § Building
+  # aarch64-linux on the Mac names memoryBytes as the OOM lever). Apple
   # Virtualization backs guest RAM lazily, so an idle or small build costs
   # little; cpuCount is left at upstream's default, as its option text asks.
   # Activation rewrites /etc/determinate/config.json but the RUNNING daemon keeps
@@ -94,7 +94,8 @@ in
   environment.systemPackages = [
     (pkgs.callPackage ../packages/grok.nix { })
     (pkgs.callPackage ../packages/antigravity-cli.nix { })
-    # acpx — the headless ACP client that drives the three agents above as PEERS
+    # acpx — the headless ACP client that drives the fleet's agents (grok,
+    # Antigravity, Claude Code) as PEERS
     # rather than as separate terminals. Machine-wide for the same reason they
     # are: it is a client, all per-session state is in its arguments, and the
     # alternative (`npm i -g acpx`) is a per-user install outside the store.
@@ -436,7 +437,7 @@ in
     # needs one. That mattered while one server exiting at startup could dark the
     # whole gateway; since 2026-10-02 every server is spawned per-session by its
     # own plugin, so it can only cost itself. Individual tool calls simply fail until a browser
-    # is listening; `devtools-doctor.sh` in the chrome-devtools plugin says which
+    # is listening; `devtools-doctor.sh` in the page-lab plugin says which
     # of the three causes it is.
     #
     # What is NOT persistent, deliberately: debugging itself. The in-browser toggle
@@ -502,7 +503,7 @@ in
       # repo actually configures. Identical today; a silent divergence tomorrow.
       "git-cliff" # release stage — changelog / release notes (GitLab CI)
       "git-filter-repo"
-      # gitlab-runner moved OFF brew 2026-09-05: local.tart.gitlabRunner below runs
+      # gitlab-runner moved OFF brew 2026-09-05: local.tart.gitlabRunner above runs
       # pkgs.gitlab-runner as a launchd agent with a runtime-rendered config
       # (the tart-vms capsule's gitlab-runner.nix). After activating, retire
       # the brew copy once: `brew services stop gitlab-runner`.
@@ -780,13 +781,12 @@ in
       # `activate` is immune either way (packages/activate.nix).
       "kde-connect"
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
-      # skills (modules/home/default.nix programs.claude-code.skills) already hardcode
+      # skills (the anthropic-agent-skills marketplace) already hardcode
       # as their document-conversion engine. Cask (not nixpkgs libreoffice-bin)
       # because its command_wrapper execs the real Mach-O soffice binary directly —
       # nixpkgs' wrapper shells out via `open -na`, which won't block/report exit
       # status for scripted --convert-to pipelines. First headless run may need a
-      # one-time profile warm-up (soffice -env:UserInstallation=file:///tmp/... );
-      # see the NOTE at the skills block below.
+      # one-time profile warm-up (soffice -env:UserInstallation=file:///tmp/... ).
       "libreoffice"
       "maccy"
       "microsoft-auto-update"
@@ -804,7 +804,7 @@ in
       # adoption is unconditional (no re-copy, no touch of the app's ~1GB state).
       #
       # greedy is LOAD-BEARING, paired with launchd.user.envVariables.
-      # OD_UPDATE_ENABLED below — the in-app updater's launcher-tree relaunch
+      # OD_UPDATE_ENABLED above — the in-app updater's launcher-tree relaunch
       # path caused a measured version split (docs/open-design.md has the
       # numbers). greedy opts this one cask back into upgrades past
       # onActivation.upgrade = false, so versions land at activation instead
@@ -917,7 +917,7 @@ in
     # ---- Mac App Store apps (masApps) ----------------------------------------
     # macos only — a sandbox host cannot sign into an App Store login, so any
     # masApps entry fails brew bundle there.
-    # `mas` itself comes from nixpkgs (modules/darwin/core.nix); anything listed here is also
+    # `mas` itself comes from programs.mas (modules/darwin/xcode-license.nix); anything listed here is also
     # protected from onActivation.cleanup = "uninstall" (undeclared MAS apps
     # get removed — that is how Xcode was wiped before this entry).
     #
