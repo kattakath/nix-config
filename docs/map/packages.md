@@ -4,12 +4,12 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 Core package set:
 
-- **`grok.nix`** — xAI's `grok` CLI, one of the tree's pinned prebuilt vendor binaries. It replaces
+- **`grok.nix`** — xAI's `grok` CLI, a pinned prebuilt vendor binary. It replaces
   a per-user `curl … | bash` install that put a self-updating Mach-O in each account's
   `~/.grok/bin`, outside the store and outside git. The URL pattern was read out of xAI's own
-  install.sh rather than guessed; xAI publishes NO checksum, so the `hash` is our SRI pin,
-  cross-checked byte-for-byte against the copy their installer had already placed locally —
-  a reproduction of a verified install rather than fresh trust in a URL. `dontFixup` and
+  install.sh rather than guessed; xAI publishes NO checksum, so the `hash` is our SRI pin, and
+  every bump is verified against xAI's Mach-O signature (the header's `HOW A BUMP IS VERIFIED`
+  block has the commands). `dontFixup` and
   `dontStrip` are load-bearing: nixpkgs' default fixup rewrites Mach-O headers and would
   invalidate xAI's Developer ID signature. Unfree via a predicate naming ONE package, so a
   second unfree arrival fails rather than being waved through. The self-updater is
@@ -24,13 +24,13 @@ Core package set:
   the rail `claude`, `grok` and `agy` already share; it drives one from another with a real
   permission policy (`--permission-policy`, `--deny-all`, `--allowed-tools`, `--max-turns`,
   `--timeout`). Shares the `environment.systemPackages` lane with the two vendor CLIs above
-  but is the opposite shape: MIT, built from source. Three packaging traps are in its header
-  and all three were measured — upstream ships **pnpm-lock.yaml only** so `buildNpmPackage`
+  but is the opposite shape: MIT, built from source. Its packaging traps are in its header,
+  each one measured — among them, upstream ships **pnpm-lock.yaml only** so `buildNpmPackage`
   cannot consume it (`fetchPnpmDeps` + `pnpmConfigHook` instead), **`fetcherVersion = 2` was
   removed in the 26.11 release**, and `pnpmConfigHook` does **not** bring `pnpm` with it the
-  way the deprecated `pnpm.configHook` did. It pins `nodejs_22` itself: `engines.node` is
-  `>=22.13` and the fleet default `nodejs` is 20.x, so inheriting fails at import rather than
-  with a version message. Rationale, and the two interop paths that are CLOSED, are
+  way the deprecated `pnpm.configHook` did. It pins `nodejs_22` itself rather than inheriting
+  `pkgs.nodejs`, so its `engines.node` floor (`>=22.13`) never depends on the fleet default.
+  Rationale, and the two interop paths that are CLOSED, are
   [`ADR-007`](../agent-interop-adr.md).
 - **`fal.nix`** — fal.ai as two binaries, because the vendor ships two different things:
   `fal` (their own CLI — a serverless runtime, `fal run`/`fal deploy`) and `fal-gen` (ours, a
@@ -92,9 +92,11 @@ Core package set:
   MISSING `extraKnownMarketplaces` entry in `~/.claude/settings.json` actually points at a
   stale tree.
 - **`spotlight-launchers.nix`** — macOS-only: from-scratch `.app` bundle generator (original
-  in-Nix SVG/icns icons via librsvg+libicns), in two makers. `mkLauncherApp` gives the Android
+  in-Nix SVG/icns icons via librsvg+libicns). `mkLauncherApp` gives the Android
   emulator a Spotlight-visible, focus-or-launch identity (consumed by
   `modules/home/default.nix`'s `home.file."Applications/Android Emulator.app"`).
+  `mkAliasApp` builds the `Terminal` alias bundle that opens Ghostty — see
+  [`modules-home.md`](modules-home.md) § `spotlight-actions.nix`.
   `mkCommandApp` emits **one bundle per fleet operation** — the four `commandApps`
   (`Nix Activate`, `Nix Flake Check`, `Nix Open Repo`, `NixOS VM`) planted by
   `modules/home/spotlight-actions.nix`. Three `shape`s: `terminal` opens a **Ghostty**
@@ -140,19 +142,18 @@ Smaller, single-purpose CLIs:
   staleness and duplicate-transport device listings. Its operator knowledge is also the
   `android-phone` plugin in
   [`kattakath/skills`](https://github.com/kattakath/skills).
-- **The media packages are NOT here — they are in the `media-cli` capsule.**
-  `media-quick-actions.nix`, `media-queue.nix`, `media-toolkit.nix`, `media-describe.nix`,
-  `media.nix`, `media-fix.nix`, `media-fix-extension.nix`, `media-extract-audio.nix` and
-  `media-transcode.nix` — plus the two media-*adjacent* tools `obs-fb-setup.nix` and
-  `fidelity-enhance.nix` — left for `kattakath/nix-media-cli` on 2026-09-05 (which is where
-  the `photo-describe` → `media-describe` renaming happened) and came back on 2026-09-12 as
-  `modules/features/media-cli/packages/`, with their reasoning intact in their own headers.
+- **The media packages are NOT here — they are in the `media-cli` capsule.** Every media
+  package, plus the two media-*adjacent* tools `obs-fb-setup.nix` and `fidelity-enhance.nix`,
+  lives in `modules/features/media-cli/packages/` — read that directory, not a list here. The
+  original set left for `kattakath/nix-media-cli` on 2026-09-05 (which is where the
+  `photo-describe` → `media-describe` renaming happened) and came back on 2026-09-12, with its
+  reasoning intact in each file's own header.
   This repo consumes them as `local.mediaCli` (see [`modules-home.md`](modules-home.md)
   § `modules/home/`). There is no
   `nix run .#media-describe`: the capsule publishes **no** packages or apps, on purpose — the
-  CLIs reach the Mac through `home.packages` and a second perSystem-pkgs copy would be eleven
-  `nix flake show` rows nothing consumes. The one-line path back is in the capsule's
-  `flake-module.nix` header.
+  CLIs reach the Mac through `home.packages`, and a second perSystem-pkgs copy would only add
+  `nix flake show` rows nothing consumes. The why, and the one-line path back, are in the
+  capsule's `flake-module.nix` header.
 
   The two adjacent tools are **opt-in** in that module
   (`fidelityEnhance.enable`, `obsFacebookSetup.enable`) and deliberately stay OUT of the
@@ -167,7 +168,7 @@ Smaller, single-purpose CLIs:
   declared once in `modules/parts/packages.nix`'s `apps`, which points at
   `config.packages.<name>`. `pb-conceal` is installed by the module but deliberately not
   published.
-- **`jobspy.nix`** — a reproducible `uv`-ephemeral wrapper CLI around the `python-jobspy`
+- **`jobspy.nix`** — a `uv`-ephemeral wrapper CLI around the `python-jobspy`
   library for scraping job boards.
 - **`jsonresume.nix`** — dual-engine `jsonresume <download|print|validate|markdown|text>`
   wrapper (`resumed` for PDF/validate, `resume-cli` where `resumed` falls short); see the
@@ -217,10 +218,11 @@ Smaller, single-purpose CLIs:
   lookup is by Keychain **service** `resend.com:api`, not by the env name, so set it with
   `pbpaste | secret set --env RESEND_API_KEY resend.com:api`.
 - **Documented with their consumer, not here:** `gmail-mcp.nix`, `keychain-mcp.nix`,
-  `mcpfinder-mcp.nix`, `slack-post-mcp.nix` (the Keychain-reading MCP launchers — [`modules-home.md`](modules-home.md)
+  `mcpfinder-mcp.nix`, `slack-post-mcp.nix` (the MCP launchers — [`modules-home.md`](modules-home.md)
   § `gmail-mcp.nix` + `plugin-mcp.nix`), `next-right-thing/` (the übersicht widget's generator —
-  [`modules-home.md`](modules-home.md) § `next-right-thing.nix`), and `rogers-gw.nix` (the
-  inspection-only gateway CLI — [`modules-darwin.md`](modules-darwin.md)).
+  [`modules-home.md`](modules-home.md) § `next-right-thing.nix`); and `rogers-gw.nix` (the
+  inspection-only gateway CLI) and `launchd-doctor.nix` (the launchd runtime health check),
+  both in [`modules-darwin.md`](modules-darwin.md).
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
 

@@ -1,7 +1,8 @@
 # ---- Checks: `nix flake check` enforces formatting + lint + hooks ------
 # Lint/format only, to keep merge CI fast. The host toplevels are
 # deliberately NOT checks: BUILDING them (esp. the cold Pi kernel, ~1h) is
-# a RELEASE-time concern. Merge CI instead EVALUATES the host configs
+# too slow for merge CI (nixpi's toplevel is built by warm-nixpi-cache.yml;
+# see docs/map/hosts.md). Merge CI instead EVALUATES the host configs
 # (cheap, catches config/eval errors) without building — see
 # .github/workflows/nix-ci.yml.
 #

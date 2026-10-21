@@ -21,7 +21,8 @@ that name to THIS flake makes it the `lib` of a thing with no `lib`. It was alre
 undroppable before wave 2 (six of the seven satellites called `mkFlake`); now it is declared here
 rather than borrowed from an arbitrary satellite anchor. **There are no satellite inputs left.**
 
-Exports:
+The export list is `nix flake show` — a hand-kept one here had already dropped `apps`,
+`identity` and `lib`. Notes on the outputs whose shape is not obvious from that listing:
 
 - `darwinConfigurations."macos"` (aarch64-darwin).
 - `nixosConfigurations."nixpi"` / `"nixvm"` / `"nixos"` (aarch64-linux) — `nixos` is the UTM GNOME desktop (see `hosts.md`); `nixvm` is the disposable HEADLESS dev
@@ -49,7 +50,7 @@ is defined once in `modules/parts/identity.nix` (`identityArgs`) and threaded th
 `specialArgs`/`extraSpecialArgs`. `mkDarwin` takes an optional per-host `identity` override
 (and `mkHomeManagerModule` is a function of it) so a host *could* run under a different
 persona, but nothing in the fleet uses it today — `macos` and `nixpi` both inherit
-the same global identity; per-host divergence (leanness, package sets, desktop aesthetics) is
+the same global identity; per-host divergence (leanness, package sets) is
 achieved via `isMacosHost`-gated `lib.mkIf` (the `local.operatorHost` flag, not the hostname),
 never via a separate identity.
 
@@ -97,18 +98,15 @@ What the current lock drops, and the evidence for each:
 
 | Line | Kind | Evidence |
 |---|---|---|
-| `agenix.inputs.darwin.follows = "nix-darwin"` | dedupe | A whole second nix-darwin tree, referenced only at `darwin.lib.darwinSystem` inside agenix's own `checks`. We consume `packages.<sys>.default` + `darwinModules.default` only. |
-| `agenix.inputs.home-manager.follows = "home-manager"` | dedupe | Same shape, and agenix's copy was pinned to April 2025 — a stale second HM tree. Used only in `checks` / `legacyPackages`. |
-| `agenix.inputs.systems.follows = "terranix/systems"` | dedupe | **Cannot** be `""`: `import systems` feeds agenix's `packages`, which our devShell pulls. Identical rev to terranix's. |
-| `deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems"` | dedupe | Same: flake-utils' `outputs = { self, systems }` is a *closed* pattern doing `import systems`. |
+| `deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems"` | dedupe | **Cannot** be `""`: flake-utils' `outputs = { self, systems }` is a *closed* pattern doing `import systems`, so it is forced. Same rev as terranix's copy. |
 | `deploy-rs.inputs.flake-compat.follows = ""` | drop | Non-flake `import` shim only. |
 | `determinate.inputs.nixpkgs.follows = "nixpkgs"` | dedupe | Legit only since 2026-09-21, when the root `nixpkgs` moved onto FlakeHub's `DeterminateSystems/nixpkgs-weekly/0.1` — the **same flake URL** determinate declares, so this is one node fewer and not a re-point. It feeds only the `determinate-nixd` wrapper derivation (a `cp` of a prebuilt binary). Its `nix` input (nix-src) keeps its own tree on purpose — see the bullet below. |
 | `git-hooks.inputs.flake-compat.follows = ""` | drop | `outputs = { self, nixpkgs, ... }` never destructures it; `default.nix`/`shell.nix` read the rev from git-hooks' *own vendored* `flake.lock`, and we only ever call `lib.<system>.run`. |
-| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules left this row one by one — `vast-provision` at wave 4, `media-cli` at wave 5, and `local-rag` at wave 6 — so **no `follows = "flake-parts"` line survives**: every flake-parts consumer left in the lock is this flake itself. The `nixpkgs-lib` half stays and is the whole row now. |
+| `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`: 8 nodes for one library, now 1. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules left this row one by one — `vast-provision` at wave 4, `media-cli` at wave 5, and `local-rag` at wave 6 — so **no `follows = "flake-parts"` line survives**: this flake is the root flake-parts node's only consumer. The `nixpkgs-lib` half stays and is the whole row now. |
 
 **Deliberately left duplicated.** Not everything that looks like a duplicate is one:
 
-- **nix-src's `nixpkgs` trees** (its own `nixpkgs-weekly` pin, `nixpkgs-23-11`,
+- **nix-src's `nixpkgs` trees** (its own `nixpkgs` pin, `nixpkgs-23-11`,
   `nixpkgs-regression`) — the build/regression pins of `determinate → nix`. Not ours to
   re-point: that tree builds the Determinate Nix package, and re-basing it turns a cache HIT on
   `install.determinate.systems` into a from-source C++ Nix build on every NixOS host and on the
@@ -157,7 +155,7 @@ rewrites a file):
 | `capsule-must-not-reach-out` | nix | ADR-002's capsule boundary ([`engine.md`](engine.md) § `modules/features/`) | Scoped by `files:` to `modules/features/**`; flags ANY `..` in a `path_expression` — even one that stays inside the capsule. The file-layer half of the boundary — `checks.<system>.capsule-registry` is the option-layer half. Blind to overlays, `specialArgs` and runtime-built store paths (ADR-002 §7.6, §9.3). |
 | `home-must-not-cross-layers` | nix | the `modules/home/` layer boundary (`662db6a`, 2026-09-14) | The Home Manager profile may reach **down** into the content trees its rule's `note:` lists — never **across** into `modules/features/`, nor **up** into `modules/parts/`, `hosts/` or `infra/`. |
 | `activation-must-not-touch-secrets` | nix | ADR-004 §2.5 ([`secrets-recovery-and-identity-adr.md`](../secrets-recovery-and-identity-adr.md)) | A `home.activation` / `system.activationScripts` / `system.userActivationScripts` string that names `secrets-{rehydrate,push,resolve,status}` or `gcloud secrets`/`gcloud auth`. Activation must never touch a secret backend; the CLIs are operator-invoked after `gcloud auth login`. Eval-time twin: `checks.aarch64-darwin.keychain-secrets-backend-inert`. |
-| `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. First mechanical check those ~1.3k lines have ever had — `claude-config-lint.yml` checks frontmatter, never hook JS. |
+| `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. |
 
 Two things the check does that a naive `ast-grep scan` would not:
 
@@ -274,7 +272,9 @@ active. It is **not** `CLOUDSDK_ACTIVE_CONFIG_NAME`, and the difference is load-
 region), while `credentials.db` and `application_default_credentials.json` sit at the TOP of the
 config dir, shared by every configuration. The google Terraform provider reads **ADC**, so a
 named configuration gives a correct `gcloud` and a `tofu` silently authenticated as whoever last
-ran `gcloud auth application-default login`. Repointing the whole directory moves both.
+ran `gcloud auth application-default login`. Repointing the directory alone does NOT move
+`tofu`, so the shellHook in `modules/parts/devshell.nix` also exports
+`GOOGLE_APPLICATION_CREDENTIALS` — the comment above that export says why.
 
 First use needs **two** logins, because the CLI and Terraform read different files:
 `gcloud auth login` **and** `gcloud auth application-default login`, then

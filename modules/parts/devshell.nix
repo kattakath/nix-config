@@ -221,7 +221,8 @@ in
             # CORRECT `gcloud` and a `tofu` still acting as whoever last ran
             # `gcloud auth application-default login` — wrong project, no error,
             # exactly the silent-wrong-account shape docs/gmail-mcp-multi-account
-            # -runbook.md records. Repointing the whole dir moves both together.
+            # -runbook.md records. Repointing the dir alone does NOT move `tofu`: the
+            # GOOGLE_APPLICATION_CREDENTIALS export below is what does.
             #
             # XDG, never inside the worktree: this directory holds live
             # credentials and must not sit where `git add -A` can reach it.

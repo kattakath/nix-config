@@ -7,7 +7,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 **Verdict first: there is no MCP infrastructure in this repo any more.** No shared proxy, nothing
 listening on `127.0.0.1:8097`, no tunnel, no portal, no `modules/shared/mcp.nix`, no
 `infra/cloudflare/mcp-public.nix`, no `local.mcpGateway.*`, no `fleet.publicMcpServers`, no
-`mcp-published-parity` check. `https://mcp.kattakath.com/mcp` answers **403**.
+`mcp-published-parity` check. `mcp.kattakath.com` has had **no DNS record** since 2026-10-02
+(the `infra/cloudflare/kattakath-dns.nix` header records the deletion).
 
 **How a server reaches a session now:**
 
@@ -29,8 +30,7 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
   `.mcp.json` can set `env` to literals and passthroughs but cannot run
   `security find-generic-password`, so the credential work stays in a Nix-installed wrapper the
   plugin names by binary name. **`local.gmailMcp` + `packages/gmail-mcp.nix` is the live
-  pattern** (ONE generic `nix-mcp-gmail <address>` launcher; the accounts live in plugin `args`), and `page-lab-pick` / `mcp-nixos` are the same
-  arrangement for `page-lab` / `claude-code-nix`.
+  pattern** (ONE generic `nix-mcp-gmail <address>` launcher; the accounts live in plugin `args`).
 - **The repo CAN see the credentialed half of its MCP surface — and only that half.** An earlier
   revision of this bullet said "nothing here reads a plugin's `.mcp.json`"; that is **false**.
   `checks.<system>.mcp-launcher-parity` (`modules/parts/checks.nix`) reads every
@@ -73,7 +73,7 @@ It holds the **all-projects, machine-wide** context this repo installs on `macos
   this tree, wired by `modules/home/claude-brain.nix` as `programs.claude-code.rules.brain-signals-context`
   (plugins carry no rules). The output style, the `cartographer` subagent, `/task` and the
   `/explain` family all ship as the **`brain-signals` plugin** since 2026-09-23; `claude-brain.nix`
-  keeps only this rule plus the style SELECTION (`settings.outputStyle`, `lib.mkDefault`, so a plain
+  keeps this rule plus the style SELECTION (`settings.outputStyle`, `lib.mkDefault`, so a plain
   assignment downstream wins). Two things it must never do: route extra global prose through
   `context` (already defined as a PATH in `modules/home/default.nix` — a second path definition is
   a hard eval error, not a merge; use another `rules.<name>`), or reach for the `rulesDir` form
@@ -318,7 +318,7 @@ this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-ad
   ships as the **`brain-signals` plugin** from the `kattakath` marketplace, which is why it
   kept its kit-with-the-output-style property while leaving this tree: the style moved WITH the
   skills, so neither half can drift from the other. `modules/home/claude-brain.nix` keeps only
-  what has no plugin form — the **style SELECTION** (`settings.outputStyle =
+  what has no plugin form — including the **style SELECTION** (`settings.outputStyle =
   "brain-signals:Brain Signals"`, namespaced because a plugin ships it) and the calibration
   **rule** (`rules.brain-signals-context`, since plugins carry no rules). No skills block.
 
@@ -364,7 +364,9 @@ any file in any flake. Today the source is the https URL, so neither trap applie
 
 `modules/home/claude-plugins.nix` contributes only the **declaration** for this marketplace:
 its `extraKnownMarketplaces` entry (`{ source = "git"; url = …; autoUpdate = true; }`) and the
-`<plugin>@kattakath` keys of `enabledPlugins`. It does **not** register or install them — the
+`<plugin>@kattakath` keys of `enabledPlugins` — only for the always-on set and the ids
+`local.claudePlugins.declared` names, never one per catalogue entry (the `enabledPlugins`
+comment in that file says why). It does **not** register or install them — the
 `home.activation.claudeCodePlugins` script skips every https marketplace and serves exactly ONE
 today (`xai-grok-build`); Claude Code clones and downloads this one itself at session start.
 
@@ -404,7 +406,7 @@ Two of them carry write-ups worth keeping:
   **measured** fact table (`references/facts.md`) where every falsifiable claim has an ID, a
   date and a re-measure recipe — because `chrome-devtools-mcp@1.8.0` exposes **29** of the ~57
   tools its generated docs describe (those are written from `main`), so 12 of 13 Memory tools
-  do not exist yet. **The Extensions group claim above is stale for this fleet — and the
+  do not exist yet. **Upstream's Extensions-group claim is stale for this fleet — and the
   measurement that refutes it outlived the option that carried it.** Verified 2026-09-30:
   `--categoryExtensions` works in attach mode against this fleet's Chrome 152 despite upstream's
   own `--help` claiming otherwise; the group's tools DO navigate/list `chrome-extension://` pages
@@ -422,10 +424,10 @@ Two of them carry write-ups worth keeping:
   but leaves a **stale** `DevToolsActivePort` whose WebSocket UUID is dead, so `--autoConnect`
   cannot. The wrapper probes `/json/version` first — authoritative when it answers, since it
   carries the live `webSocketDebuggerUrl` — and falls back to the file when nothing
-  answers. Hence **both** a `port` (probe hint) and
-  a `userDataDir` option — and hence the one thing the plugin lane structurally cannot reproduce:
-  a `.mcp.json` names a bare command and cannot decide a flag by probing first, so whatever
-  replaces that wrapper has to make the probe part of the command it names. The file fallback is
+  answers. A `.mcp.json` has no conditionals, so the plugin now names a script that does that
+  probe itself: `${CLAUDE_PLUGIN_ROOT}/scripts/chrome-devtools-attach.sh` (pinned
+  `kattakath-skills`), a port of that wrapper, configured by `CDP_PORT` / `CDP_USER_DATA_DIR`
+  where the deleted `.port` / `.userDataDir` options used to be. The file fallback is
   NOT proof the file is fresh: the probe runs once, at spawn, so a flag-mode browser started
   AFTER spawn met a dead UUID (2026-10-21). `nix-chromium-debug` now rewrites the file after
   launch; why is in its comment in `modules/home/chromium.nix`.
@@ -446,7 +448,10 @@ The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`.
 
 Adding one = a `plugins/<name>/` tree (or a `skills/<name>/` plus a marketplace-root entry)
 and a `marketplace.json` entry **in that repo**, then its bare name in
-`local.claudePlugins.marketplaces.kattakath.plugins` here. **No pin bump:** a change to an
+`local.claudePlugins.marketplaces.kattakath.plugins` here. That list is a **catalogue** and
+enables nothing (the #751 trap): turning the plugin on takes `"<name>@kattakath" = true` in
+`local.claudePlugins.declared` ([`ADR-008`](../declarative-plugin-floor-adr.md) §9a), or a
+`/plugin` toggle. **No pin bump:** a change to an
 already-enabled plugin ships from a merge there. Validate with `claude plugin validate .`.
 
 **A SECOND source costs one input and its own entries — no new mechanism.**
