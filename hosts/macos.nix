@@ -85,8 +85,8 @@ in
   # into the `home-manager.users.${loginName}` block below.
 
   # Machine-wide CLIs — the mechanism for "shared by every account". A
-  # systemPackages entry is ONE store path on PATH for every user, so neither
-  # profile has to declare it and neither can drift to a different version.
+  # systemPackages entry is ONE store path on PATH for every user, so no
+  # profile has to declare it and none can drift to a different version.
   #
   # grok and Antigravity were per-user `curl … | bash` installs until
   # 2026-09-15 and 2026-09-16 respectively; their packages pin the vendor
