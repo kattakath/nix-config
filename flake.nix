@@ -91,6 +91,11 @@
     # whenever an sd-image module is imported). Costing, layout diff and the
     # in-place-vs-reflash verdict: hosts/nixpi.nix § BOOT CHAIN and docs/map/hosts.md.
     #
+    # PINNED BY HAND: update-flake-lock.yml excludes this input, because a bump moves
+    # the LIVE Pi's kernel (common/kernel.nix pins one linux-rpi tag) and costs a cold
+    # kernel build. Move it deliberately with `/update-input nixos-hardware`, then let
+    # warm-nixpi-cache prove it before any deploy.
+    #
     # NOT via nixpkgs' `linux_rpi4`: also a Pi vendor kernel, and evaluating it against
     # the pinned nixpkgs prints "linux-rpi series will be removed in a future release.
     # Please change to use nixos-hardware." (measured 2026-09-21).

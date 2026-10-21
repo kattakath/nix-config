@@ -58,7 +58,16 @@ on:
       - "secrets/operator-key.nix"
       - ".github/workflows/build-installers.yml"
       - ".github/workflows/build-installers-impl.yml"
+  # A manual dispatch is BUILD-ONLY unless `publish` is ticked. Dispatching used to
+  # always publish, so "prove this branch's image builds" and "overwrite the LIVE
+  # installer-latest image" were the same click (2026-10-21, PR #898). push-to-main
+  # never reads this input and still publishes exactly as before.
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to installer-latest (the LIVE nixpi image). Leave off to build + inspect only."
+        type: boolean
+        default: false
 
 concurrency:
   group: build-installers-${{ github.ref }}
@@ -126,7 +135,7 @@ jobs:
       # no PR), but kept as a faithful mirror of build-devcontainer's gate so the
       # build/record-baseline `if:` stay identical — and safe if a PR trigger is
       # ever added.
-      is_publish: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
+      is_publish: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.publish) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -209,10 +218,13 @@ jobs:
       attestations: write
       id-token: write
     # Skip BOTH the ~1h build and the non-idempotent multi-GB upload when the image
-    # is unchanged. is_publish is always true for this workflow's triggers; the
-    # load-bearing guard is changed (see the gate comment).
-    if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
+    # is unchanged (a dispatch always counts as changed). is_publish no longer gates
+    # the BUILD: it is passed down, and the callee skips every Release-writing step
+    # when it is false. On push-to-main is_publish is true, so that path is unchanged.
+    if: needs.gate.outputs.changed == 'true'
     uses: ./.github/workflows/build-installers-impl.yml
+    with:
+      publish: ${{ needs.gate.outputs.is_publish == 'true' }}
     secrets: inherit
 
   # RECORD-BASELINE: save the gate marker ONLY after a fully successful publish, so
