@@ -471,21 +471,23 @@ in
     # on no Linux host. PRE-EMPTIVE: there is no TM destination configured today;
     # see the file's header for what it does and does NOT cover.
     ./tor-browser-backup-exclusion.nix
-    # THESE TWO ARE THE LIVE MCP LANE. The gateway (`mcp.nix`) was deleted in #734;
+    # THESE TWO MODULES BUILD MCP LAUNCHERS (other plugin-named MCP binaries sit in
+    # home.packages below). The gateway (modules/shared/mcp.nix) was deleted in #734;
     # these launchers are how the servers that had no plugin owner survived it. Each
-    # puts a binary on PATH that a plugin's `.mcp.json` in github:kattakath/skills names
-    # as its `command`, because that file can set `env` only to literals or passthroughs
-    # and cannot run a Keychain read. See each module's header.
+    # puts a binary on PATH that a plugin's `.mcp.json` names as its `command` (in
+    # github:kattakath/skills, or the operator's private overlay), because that file can
+    # set `env` only to literals or passthroughs and cannot run a Keychain read or a
+    # `sandbox-exec` fence. See each module's header.
     ./gmail-mcp.nix # the generic nix-mcp-gmail <address> launcher
-    ./plugin-mcp.nix # wordpress + apify (Keychain) and postgres (loopback pgvector URI)
+    ./plugin-mcp.nix # wordpress, apify, postgres, desktop-commander, github, slack
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
     # silently inert — `local.gmailMcp` was, until it was added.
     # Client side D: the writer for Claude Desktop's stateful
     # claude_desktop_config.json — it merges ONE key, `mcpServers`, and what it
-    # renders there today is EMPTY. Desktop loads no plugins, so the plugin lane
-    # above cannot reach it; the module stays enabled because "Desktop has no MCP
-    # servers" is a state something must WRITE. NOT gated on any gateway option —
+    # renders there is `local.claudeDesktop.extraServers` (set below) plus the
+    # operator's private overlay. Desktop loads no plugins, so the plugin lane above cannot reach it; the
+    # module stays enabled because Desktop's server set is a state something must WRITE. NOT gated on any gateway option —
     # that gating was the 2026-10-01 regression `checks.*.claude-desktop-config-shape`
     # now has a leg for.
     ./claude-desktop.nix
