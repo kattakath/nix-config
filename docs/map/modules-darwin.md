@@ -14,7 +14,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   what makes `~/Desktop` the capture inbox the sweeps rotate.
   **It declares no launchd AGENT any more.** The Maccy opener and the two `mkTrashSweep`
   rotations left for the home-manager lane on 2026-10-02 — see
-  `modules/home/macos-user-agents.nix` above. With the `tart-vms` CI runners moved the same
+  [`modules-home.md`](modules-home.md) § `macos-user-agents.nix`. With the `tart-vms` CI runners moved the same
   week, **nothing composed on `macos` is left on `launchd.user.agents` at all**, and
   `checks.<system>.launchd-selfheal-lane` gates that emptiness as its first leg rather than
   only naming the five Labels. The one place the option is still WRITTEN is
@@ -156,7 +156,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   (pid 832) held its log the same way. **Both of those agents are gone (2026-10-02, with the MCP
   gateway) — the MEASUREMENT is not.** It was taken on them, it generalises to every launchd
   job this repo authors (that is the inherited-fd behaviour, not an `mcp-proxy` quirk), and the
-  mechanism it chose still rotates `cloudflared` for nixpi's tunnel and every other long-lived
+  mechanism it chose still rotates every long-lived
   agent. Re-measure on a current pid if you want it fresh; do not read the two dead names as a
   reason to revisit the choice. Cost, stated up front: `copytruncate`'s man page warns
   of "a very small time slice between copying the file and truncating it, so some logging data
@@ -197,8 +197,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     upstream's launchd setup and substitutes `pkgs.nix` — nothing else differs.
   - **Auth:** a GitHub **App** RS256 private key (the host-decrypted
     `gh-app-dontsell-ai-key.age`), used to mint a fresh ~1 h installation token per
-    registration rather than holding a long-lived bearer credential. Scoped to *only*
-    "Organization permissions → Self-hosted runners: Read and write".
+    registration rather than holding a long-lived bearer credential. Its permissions are the
+    shared fleet App's, recorded with its id in `hosts/macos.nix` (App-GLOBAL, wider than this lane needs).
   - **Security:** `--ephemeral` (one job per registration; launchd restart + re-register makes
     it self-healing), outbound-only. Only trusted push jobs may target `runs-on: [self-hosted,
     …]` — **never fork-PR workflows**, since the daemon inherits the operator's login
@@ -214,8 +214,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     apart is the *absence* of `tart`, and GitHub has no negative selector. **Widening a label
     set is free; narrowing is not** — `runs-on:` is a hard AND-match, so always: widen → verify
     live on an ONLINE runner for that scope → flip consumers one repo at a time → narrow last.
-  - Also pins `postgresql`+pgvector onto the runners' PATH (`modules/home/default.nix`, `hiPrio`
-    to resolve the duplicate `bin/psql`).
+  - Also pins `postgresql`+pgvector onto the runners' PATH (the daemon's `path`
+    list in this module).
 
 - **`ollama-daemon.nix`** — `local.ollamaDaemon`: ONE machine-wide `ollama serve`, so
   every account shares one process and one model store. It exists because a second account
@@ -248,6 +248,11 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   it. It copies the ollama metal guard's shape, so it is one of the boot-ordering `/bin/sh` rows in
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). The file header carries the diagnosis
   (no PREF64, no option 108, no `ipv4only.arpa` AAAA) and the upstream-first grep.
+- **`operator-host.nix`** (`local.operatorHost`, default false; set only in `hosts/macos.nix`) —
+  the operator-only gate that `modules/_lib/is-macos-host.nix` reads. A flag rather than
+  `hostName == "macos"` because a template consumer may legitimately name its Mac "macos";
+  `checks.*.template-consumer` builds such a consumer and fails if any operator-only item
+  turns on. Imported by `core.nix`, so every Mac has it (off).
 - **`metube.nix`** / **`yt-dlp-web-ui.nix`** (Home Manager modules since 2026-09-22, now in `modules/home/`; this is their design record) — `local.meTube` and `local.ytDlpWebUi`, the two
   local download web UIs, each ONE launchd **user agent** bound to **127.0.0.1** and each
   built from source in `packages/` (neither is in nixpkgs). Both are on in `hosts/macos.nix`.
@@ -320,7 +325,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     scope.
   - **Path spellings are load-bearing:** only `//` and `~/`. A single leading `/` anchors at
     the settings SOURCE, and what that resolves to for the managed tier is undocumented — a
-    `Read(/run/agenix/**)` spelled that way would match nothing, silently. The four `Read`
+    `Read(/run/agenix/**)` spelled that way would match nothing, silently. The `Read`
     rules port verbatim from the user-scope file because they already carry the safe spelling.
   - **The kill switch is real:** `enable = false` DELETES the file rather than merely stopping
     the rewrite, guarded by a `.nix-config-owned` marker beside it so it can never remove an

@@ -170,7 +170,7 @@ let
           # modules/features/cloud-cli/. RAW seam for the home.packages reason.
           cloudCliModule = cloud-cli;
           # A SOURCE PATH, not a module and not a derivation — modules/home/default.nix
-          # `callPackage`s it with the HOST's pkgs so the five gitlab-tart slot
+          # `callPackage`s it with the HOST's pkgs so the gitlab-tart slot
           # shims are built against `nixpkgs.config.allowUnfree` from
           # modules/darwin/core.nix, exactly as they were when this came from the
           # nix-tart-vms input. It was the `nix-tart-vms` flake input until
