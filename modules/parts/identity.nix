@@ -164,13 +164,8 @@ let
     # ismail.kattakath.com moved OFF nixpi/Caddy to GitHub Pages 2026-09-16 (nixpi
     # was down; decoupled from the Pi). Now served by the kattakath/ismail-landing
     # repo; DNS is a plain CNAME -> kattakath.github.io (DNS-only), no longer a
-    # tunnel CNAME here. sites/ismail-landing stays as the content source that
-    # seeded that repo. Re-add an entry here only to serve it from nixpi again.
-    #
-    # DO NOT DELETE THAT TREE AS DEAD WEIGHT: its fonts/ subdir is LIVE, and not
-    # for a site — modules/home/next-right-thing.nix reads it for the übersicht
-    # widget's typography. Absent from `hostedSites` means "Caddy no longer serves
-    # it", not "nothing uses it".
+    # tunnel CNAME here. That repo is the source: the in-tree copy was deleted
+    # 2026-10-21 with its last reader (the übersicht widget's fonts).
   ];
 
   # ---- GCP billing -----------------------------------------------------------
