@@ -149,9 +149,9 @@
     # UNPINNED again (kattakath/nix-config#613). It had been held at 09a921d (brew
     # 6.0.22) because brew 7 DISABLED `depends_on macos: :catalina` and the escrcpy
     # cask still used it, so `brew bundle` aborted every activation. The blocker was
-    # the CASK, not brew: `modules/darwin/homebrew.nix` now taps our own fork, whose
-    # `main` carries the fix — read that tap's comment before touching either, and
-    # re-point it upstream when viarotel-org/homebrew-escrcpy#61 merges.
+    # the CASK, not brew: `modules/darwin/homebrew.nix` now taps our own shared tap
+    # (ismailkattakath/tap), whose escrcpy cask carries the fix — read that tap's
+    # comment before touching either (upstream's fix PR was closed unmerged).
     #
     # If a future brew release breaks a cask or formula again, fix the CASK (fork or
     # drop it); re-pinning brew freezes every cask's parser and only defers the same
