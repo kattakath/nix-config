@@ -72,7 +72,7 @@ in
     # claim is an `lsregister`-level call neither project models; `defaultbrowser`
     # (nixpkgs) is the off-the-shelf binary doing the work, not a hand-rolled one.
     home.activation.defaultBrowser = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      $DRY_RUN_CMD ${lib.getExe pkgs.defaultbrowser} ${lib.escapeShellArg cfg} \
+      run ${lib.getExe pkgs.defaultbrowser} ${lib.escapeShellArg cfg} \
         || /usr/bin/printf '%s\n' "warning: could not make ${cfg} the default browser (cask not registered yet?) — retried next activation"
     '';
   };

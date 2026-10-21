@@ -455,7 +455,7 @@ let
   # A FOURTH Cloudflare stack, for ONE resource, and that is the right shape:
   # `cloudflare_zero_trust_organization` owns `auth_domain`, the sign-in host for
   # EVERY Access application in the account. Breaking it takes out nixpi's SSH
-  # gate and the MCP portal together — a blast radius that shares nothing with a
+  # gate and any future Access app together — a blast radius that shares nothing with a
   # tunnel or a DNS record, which is exactly when ADR-005 §4 says to split.
   #
   # The guard here is not the zones stack's "did the render shrink". There is
@@ -611,8 +611,8 @@ let
           echo "    state:  $state_ad" >&2
           echo "    render: $render_ad" >&2
           echo "  auth_domain is the sign-in host for EVERY Access application in" >&2
-          echo "  the account. Rewriting it locks nixpi's SSH gate and the MCP" >&2
-          echo "  portal in the same apply. If this is a typo in" >&2
+          echo "  the account. Rewriting it locks nixpi's SSH gate (today the only" >&2
+          echo "  Access app) in the same apply. If this is a typo in" >&2
           echo "  modules/parts/identity.nix (fleet.accessOrg.authDomain), fix it." >&2
           echo "  If you genuinely mean to move the sign-in host:" >&2
           echo "    CF_ACCESS_ORG_ALLOW_AUTH_DOMAIN_CHANGE=1 ${name}" >&2

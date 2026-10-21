@@ -615,7 +615,7 @@ in
 
   local.rag.ollama.enable = isMacosHost;
   # The SERVER moved to a machine-wide daemon (`local.ollamaDaemon`,
-  # modules/darwin/ollama-daemon.nix) so a second account shares one process and
+  # modules/darwin/ollama-daemon.nix) so every account shares one process and
   # one 31 GB model store. The capsule keeps everything else — the embed model,
   # its dimension, and the one-shot pull agent, which now targets a server it
   # does not own.
@@ -1422,7 +1422,7 @@ in
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       darwinActivate # `activate [extra darwin-rebuild args]` — `darwin-rebuild switch` that re-execs under sudo, so a forgotten `sudo` becomes the Touch ID sheet instead of exit 1; names the flake + branch/rev it is about to activate first (packages/activate.nix)
       androidEmu
-      awscli2 # AWS CLI v2 — SSO login into client accounts; profiles live in ~/.aws/config (uncommitted, has account IDs/SSO URL — not this public repo)
+      # awscli2 is NOT here: the cloud-cli capsule's programs.awscli owns it (local.cloudCli.aws).
       # buku — the bookmark manager of record (SQLite + CLI), chosen over rolling anything
       # custom: `buku --ai` reads Chrome/Brave/Chromium/Firefox profiles DIRECTLY off disk
       # (it does NOT need the browser installed), collapses duplicates on URL, and maps each
@@ -1942,13 +1942,9 @@ in
       # SSH commit/tag signing (GitHub/GitLab Verified). The forge still needs
       # the pubkey as a *Signing* key (docs/new-mac-runbook.md).
       # upstream option home-manager.programs.git.signing exists → using it
-      # (pinned programs/git.nix:63-116; impl :470-506 writes
-      # $XDG_CONFIG_HOME/git/allowed_signers and points gpg.ssh.allowedSignersFile
-      # at it). This replaced a hand-written ~/.ssh/allowed_signers, five raw INI
-      # keys and a custom option (kattakath.git.extraAllowedSignersPrincipals)
-      # that the private nix-personal flake filled; both went when that flake was
-      # retired 2026-09-15, and any future layer appends to the upstream `lines`
-      # option instead of a custom seam.
+      # (pinned programs/git.nix:63-116). It replaced five raw INI keys and a
+      # custom option (kattakath.git.extraAllowedSignersPrincipals) that the
+      # private nix-personal flake filled, retired with that flake 2026-09-15.
       # `format` is explicit because home.stateVersion 24.05 predates the "ssh"
       # default (git.nix:20-31). `signer` is left to upstream (nixpkgs' ssh-keygen).
       # The principals file (allowed_signers) is HAND-PLACED since 2026-09-20 — it
@@ -1976,7 +1972,7 @@ in
       includes = [
         # GitLab personal namespace (ismailkattakath). gitlab.com-specific so
         # github.com/ismailkattakath keeps the GitHub noreply. Address lives in
-        # ~/.config/git/gitlab.inc, written at the bottom of this module.
+        # ~/.config/git/gitlab.inc, written in § Git identity include files above.
         {
           condition = "hasconfig:remote.*.url:**/gitlab.com/ismailkattakath/**";
           path = "${config.home.homeDirectory}/.config/git/gitlab.inc";
@@ -2612,7 +2608,7 @@ in
     # the next activation. Same "let the tool own its fetched, mutable state" pattern as
     # claudeCodePlugins / grokMcp.
     emailSignature = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      $DRY_RUN_CMD ${email-signature}/bin/email-signature || true
+      run ${email-signature}/bin/email-signature || true
     '';
   };
 

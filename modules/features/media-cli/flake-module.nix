@@ -6,8 +6,9 @@
 #
 # The LARGEST capsule (4,559 lines, ~1,300 of them the queue alone) and the last
 # of the seven satellites but one. Its live surface is narrow in nix-config's
-# terms — one option set in modules/home/default.nix — and zero in nix-personal's,
-# which is why a tree this big can move in one wave without moving a host drv.
+# terms — one option set in modules/home/default.nix — and was zero in the
+# since-retired nix-personal's, which is why a tree this big could move in one
+# wave without moving a host drv.
 #
 # ---- THE THREE THINGS THAT ARE LOAD-BEARING HERE ----------------------------
 #

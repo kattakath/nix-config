@@ -323,8 +323,10 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi from this Mac's n
 ```
 
 - **Token** — decrypted from the operator-only vault `secrets/cloudflared-token.age`
-  and written as `cloudflared-token`. To rotate it: `cf-tunnel-apply` prints a new
-  token → `nix run .#nixpi-vault-token` re-encrypts it into the vault → re-plant.
+  and written as `cloudflared-token`. To refresh it: `cf-tunnel-apply` prints the
+  tunnel's CURRENT token (a data source — apply mints nothing; a real rotation means
+  replacing the tunnel resource) → `nix run .#nixpi-vault-token` re-encrypts it into
+  the vault → re-plant.
   This deliberately does NOT use agenix: agenix binds the token to nixpi's SSH host
   key, but a fresh flash mints a new host key, so the ciphertext would stop
   decrypting and the tunnel would die — and the tunnel is the only remote path in,
