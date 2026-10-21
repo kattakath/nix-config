@@ -212,10 +212,11 @@ EMPTY output**, a silent failure rather than a `command not found`. And a bare `
 `deploy --targets .#nixpi` deploys the real Pi directly — the private nix-personal flake that
 used to gate this (a separate checkout carrying the real `hostedSites`) was retired 2026-09-15;
 this repo's own `nixosConfigurations.nixpi` now carries the real data. `remoteBuild = false`
-still means the Pi never builds, and the caddy `Caddyfile-formatted` EPERM on Determinate's
-native Linux builder still means `nixos-rebuild switch --flake .#nixpi --target-host
-ismail@nixpi.kattakath.com` (no magic rollback) is the working path today, not this deploy-rs
-node — see [`hosts.md`](hosts.md).
+still means the Pi never builds. With the closure warm in Cachix (`warm-nixpi-cache.yml`) the
+Mac substitutes rather than builds, so the caddy `Caddyfile-formatted` EPERM on Determinate's
+native Linux builder never runs and this deploy-rs node IS the working path — used for the
+2026-10-18 and 2026-10-21 deploys. Deploy over the LAN (`--hostname`) when the change restarts
+`cloudflared` — see [`hosts.md`](hosts.md).
 
 **That is `--target-host`, NOT `--build-host`** — an earlier revision of this paragraph named
 the `--build-host nixpi` form, which is the one shape that must never run: it builds ON the Pi,

@@ -98,6 +98,7 @@ nix develop -c deploy --targets .#nixpi      # Same, via deploy-rs w/ magicRollb
                                              #   `deploy` fans out over EVERY node. --dry-activate to rehearse.
                                              #   `nix develop -c` is NOT optional either — outside the devShell a
                                              #   bare `deploy` exits 1 SILENTLY. Why: docs/map/entry-points.md § deploy.nodes
+                                             #   Restarts cloudflared? Add `--hostname <pi-lan-ip>` or the tunnel stays DOWN (hosts.md)
 nix run .#nixvm                              # Build + boot the HEADLESS nixvm build-vm (console in a QEMU window; root disk PERSISTS)
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
@@ -225,7 +226,7 @@ as live, the doc is stale, not the code.
 Servers come from an enabled plugin's `.mcp.json`; a launcher doing what a JSON file CANNOT — a
 Keychain read, or `sandbox-exec -f` — is a PATH package (`local.gmailMcp`, `local.pluginMcp`;
 `desktop-commander` is the fenced, credential-FREE case). **Claude Desktop loads no plugins**, so plugin servers never reach it; its only
-lane is `local.claudeDesktop.extraServers` (3 servers since 2026-10-16), pinned by `checks.*.claude-desktop-config-shape`.
+lane is `local.claudeDesktop.extraServers` (`github` only; client servers come from the operator's Desktop overlay file), pinned by `checks.*.claude-desktop-config-shape`.
 [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
 
 ## Code Style & Conventions
@@ -301,15 +302,11 @@ How a host gets composed — change these knobs, not the hosts' internals:
   **nothing in the fleet uses it** — every host runs the same operator identity.
 - **Per-host divergence is a gate, not a fork.** `networking.hostName`-gated `lib.mkIf` (or
   `osConfig`) inside `modules/`; never a second identity, never a copy-pasted host block.
-- **No private layer any more.** `lib.mkDarwin { extraHomeModules }` / `mkNixos { hostedSites }`
-  are still generic, optional composition hooks (both default to `[ ]`), but the private
-  nix-personal flake that used to fill them was retired 2026-09-15 — its values (AWS SSO
-  profiles, extra gmail accounts, git identities, the OpenAI gateway, the real `hostedSites`)
-  were folded directly into `hosts/macos.nix` and `modules/parts/identity.nix` — and on
-  2026-09-20 (ADR-004) the AWS profiles and the personal git-identity files left Nix again for
-  hand-placed local files (`~/.aws/config`, `~/.config/git/local.inc`, `allowed_signers`): the repo ships shape, the operator's content stays on the Mac. See
-  [`docs/map/engine.md`](docs/map/engine.md).
-- **Client config: a PRIVATE overlay marketplace** (`<handle>/skills`) — [how](docs/agent-resource-externalization.md).
+- **No private NIX layer** (nix-personal retired 2026-09-15; `extraHomeModules`/`hostedSites` stay
+  generic hooks defaulting to `[ ]`). The repo ships shape; the operator's content stays on the Mac
+  in hand-placed files (`~/.aws/config`, `~/.config/git/local.inc`, `allowed_signers`, two settings
+  overlays) and a PRIVATE overlay marketplace (`<handle>/skills`) for client config —
+  [`engine.md`](docs/map/engine.md), [`agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 - **Whole features are ONE enable flag — and they are all IN-TREE now.** The media stack
   (`local.mediaCli`) and the Keychain secret store (`local.keychainSecrets`) are each one
   switch: `local.mediaCli.enable = false` removes the CLIs, both launchd agents, the Finder
