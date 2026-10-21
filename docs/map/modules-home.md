@@ -105,9 +105,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
     because only the private overlay names it.
     - **The built side is read off the composed package list, not re-derived.** A check that
       re-applied gmail's address sanitisation would agree with a broken rule by sharing it.
-      Derivation name == binary name for all three builders — every one `writeShellApplication`
+      Derivation name == binary name for all four builders — every one `writeShellApplication`
       since 2026-10-17 (`packages/keychain-mcp.nix`, `packages/gmail-mcp.nix`,
-      `packages/mcpfinder-mcp.nix`), each emitting exactly one `$out/bin/<name>` and
+      `packages/mcpfinder-mcp.nix`, `packages/slack-post-mcp.nix`), each emitting exactly one `$out/bin/<name>` and
       shellchecked at build. The first two keep `bashOptions = [ "nounset" ]`, the `set -u`
       they always ran under, so a missing Keychain entry still warns rather than aborts.
     - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Of the 15 servers

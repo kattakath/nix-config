@@ -61,8 +61,9 @@ the durable re-add path (it survives refactors where a `git revert` would not).
    flake.nix` shows the app as it was, before outputs moved to `modules/parts/`).
 
 6. **VM itself**: `tart clone tahoe-golden macvm` (if the golden image
-   survived) — else `nix run .#macvm-tart-bake` — then
-   `macvm-tart-start` + `macvm-tart-bootstrap` (identity injects from
+   survived) — else `tart-vm bake --vm macvm` (the tart-vms capsule's CLI) — then
+   `tart-vm start --vm macvm` + `tart-vm bootstrap --vm macvm` (or the `macvm-tart-*`
+   aliases, if you restored step 3's veneer; identity injects from
    `identityArgs`; the image is operator-neutral by design).
 
 ## Traps encoded during removal (do not relearn)
