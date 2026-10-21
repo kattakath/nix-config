@@ -180,7 +180,7 @@ to build the boundary machinery around it.
 
 ### `tart-vms` (wave 5, 3,255 lines) — the most LIVE surface
 
-`macos` runs three Tart-VM GitHub runners and a GitLab lane off this capsule, and both runner
+`macos` declares two Tart-VM GitHub lanes (only `dontsell-vm` enabled) and a GitLab lane off this capsule, and both runner
 modules sit in `mkDarwin`'s **base list**, so EVERY `mkDarwin` composition evaluates them —
 the one exported host (`macos`) and the stranger-identity Mac that
 `checks.<system>.template-consumer` composes alike, not just the host that enables them.

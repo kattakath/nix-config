@@ -9,7 +9,7 @@
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
 > as `kattakath-skills`, for the `page-lab-pick` PATH package (+ `checks.<system>.page-lab`) and
-> `checks.<system>.mcp-launcher-parity` (both `modules/parts/checks.nix`) — **TWO uses since 2026-10-02**,
+> `checks.<system>.mcp-launcher-parity` (the two checks in `modules/parts/checks.nix`) — **TWO uses since 2026-10-02**,
 > when `mcp.nix`'s `mcpCatalog` went with the gateway (`superhook` had already become a plugin hook
 > 2026-09-30). It was **four consumers, not the "two PATH
 > packages" this document said until 2026-09-30**. A plugin's `bin/` reaches the Bash tool's
@@ -261,7 +261,7 @@ During development, skip the push/update loop with
 `kattakath/skills` on 2026-09-23, so both halves of the old command were wrong.
 
 **That override only covers what the PIN feeds** — today the `page-lab-pick`
-PATH package and its check alone (`superhook` became a plugin hook 2026-09-30; `mcp.nix`'s
+PATH package, its check, and `checks.*.mcp-launcher-parity` (`superhook` became a plugin hook 2026-09-30; `mcp.nix`'s
 `mcpCatalog` died with the gateway 2026-10-02). Plugin and skill **content** does not go
 through the pin at all any more (the marketplace is an https git source), so an
 override cannot test a plugin edit. Test that by **pushing to `kattakath/skills`
