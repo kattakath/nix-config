@@ -41,6 +41,7 @@ imports it **unconditionally** and enables it on `macos` only:
 
 ```nix
 local.rag.ollama.enable = isMacosHost;
+local.rag.ollama.manageServer = false; # the server is the machine-wide local.ollamaDaemon
 local.rag.pgvector.enable = isMacosHost;
 ```
 
@@ -100,13 +101,14 @@ connect with any Postgres client — `psql`, a script, or your own MCP
 127.0.0.1):
 
 ```sh
-psql "$(nix eval --raw .#homeConfigurations.\"you\".config.local.rag.pgvector.databaseUri)"
+psql "$(nix eval --raw .#darwinConfigurations.macos.config.home-manager.users.<you>.local.rag.pgvector.databaseUri)"
 ```
 
 or just hardcode the default shape: `postgresql://mcp@127.0.0.1:5433/ragdb`.
 
-**This flake does not wire the URI into an MCP server for you** — that
-decoupling is deliberate (see below). Point your own tool at it.
+**This capsule does not wire the URI into an MCP server for you** — that
+decoupling is deliberate (see below). In this fleet `modules/home/plugin-mcp.nix` does it,
+as the `postgres` launcher's `DATABASE_URI`; anywhere else, point your own tool at it.
 
 ```sql
 -- ingest

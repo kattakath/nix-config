@@ -30,7 +30,7 @@
   config,
   fullName,
   userEmail,
-  # The fleet's DNS zone (identityArgs in flake.nix). Used to build nixpi's
+  # The fleet's DNS zone (identityArgs in modules/parts/identity.nix). Used to build nixpi's
   # tunnelled SSH hostname below, so the domain is never re-typed.
   domainName,
   # Fleet operator ed25519 PUBLIC key (secrets/operator-key.nix) — single source

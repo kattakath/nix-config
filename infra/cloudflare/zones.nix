@@ -15,7 +15,8 @@
 # account and share no failure mode with a tunnel. They must not ride in a plan
 # whose other half is a Raspberry Pi.
 #
-# Records come from `config.fleet.dnsRecords` (infra/cloudflare/kattakath-dns.nix) as DATA and
+# Records come from the `dnsRecords` module arg (a plain list imported from
+# infra/cloudflare/kattakath-dns.nix by modules/parts/terranix.nix) as DATA and
 # are rendered by one `map` — the same shape `hostedSites` already uses. Nothing
 # about a record is computed here; this file is the renderer, that file is the
 # content.

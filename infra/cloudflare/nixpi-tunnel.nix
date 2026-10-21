@@ -31,7 +31,7 @@
 # own account, so it needs its own separate tunnel + connector (hand-written in
 # hosts/nixpi.nix) rather than an ingress rule here. hosts/nixpi.nix generates the
 # matching Caddy vhost from the same list for EVERY site, needing only domain/root.
-# accountId / zoneId (the SSH host's zone) / domainName also come from flake.nix's
+# accountId / zoneId (the SSH host's zone) / domainName also come from modules/parts/identity.nix's
 # single sources (via _module.args in cfTunnelConfig).
 #
 # The runtime connector unit (the in-tree `modules/features/cloudflared-connector/`

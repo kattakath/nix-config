@@ -1,7 +1,7 @@
-# Your host deltas, layered on top of the engine's hosts/macos.nix profile
-# (which mkDarwin imports via `hostname = "macos"`). Same module system:
-# anything set here MERGES with the engine profile; use lib.mkForce to replace
-# an engine value outright.
+# Your host deltas, layered on top of the engine's identity-free
+# hosts/generic-darwin.nix (which mkDarwin imports via `hostname = "generic-darwin"`).
+# Same module system: anything set here MERGES with the engine's modules; use
+# lib.mkForce to replace an engine value outright.
 { loginName, ... }:
 {
   # No runner kill-switch is needed: `hostname = "generic-darwin"` never imports the
@@ -9,8 +9,6 @@
   # (A `lib.mkForce false` on it — what this file carried until 2026-09-20 — made
   # every consumer eval FAIL with "option does not exist"; ADR-004 §9.9.)
 
-  # The engine profile's Gmail-MCP accounts belong to its operator, not you —
-  # leaving them in would spawn OAuth prompts for accounts you don't own.
   home-manager.users.${loginName} = {
 
     # ---- Cloud CLIs and secrets recovery — both OFF until you flip them ---------
@@ -23,8 +21,8 @@
     # local.keychainSecrets.backend.type = "gcp";
   };
 
-  # Homebrew apps for THIS Mac. These MERGE with the engine's list; wrap either
-  # list attribute in lib.mkForce to replace the engine's set instead.
+  # Homebrew apps for THIS Mac. generic-darwin declares no casks of its own, so
+  # these lists are the whole set.
   homebrew = {
     brews = [
       "gh"
