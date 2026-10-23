@@ -56,7 +56,7 @@ jobs:
       # a bare `nixpkgs#` installable resolves the RUNNER's flake registry
       # (a floating nixpkgs we do not control), never ./flake.lock. Same
       # convention as nix-ci.yml's note on not executing unpinned upstream refs.
-      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
