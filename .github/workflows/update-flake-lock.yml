@@ -54,7 +54,7 @@ jobs:
       # comment / docs). Outputs `token`, used by checkout + update-flake-lock so
       # the resulting PR is authored by the App and DOES trigger nix-ci.
       - id: app-token
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
           client-id: ${{ vars.CI_BOT_CLIENT_ID }}
           private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
@@ -75,7 +75,7 @@ jobs:
       # public-repo metadata at the 5000/hr authenticated rate instead. (Does
       # NOT help with the xai-org IP-allowlist issue below — that's a
       # different failure mode entirely, not rate-limiting.)
-      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
