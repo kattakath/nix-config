@@ -478,6 +478,15 @@ in
   # and the auto-download. Takes effect for apps launched after activation.
   launchd.user.envVariables.OD_UPDATE_ENABLED = "0";
 
+  # ---- adb: the mDNS backend that can actually see the phone -------------------
+  # adb's default (Bonjour) mDNS backend is blind on this Mac; packages/android-phone.nix
+  # exports this for its own calls, but the backend is fixed by whichever process STARTS
+  # the shared adb server on tcp:5037 — usually Escrcpy or the emulator, launched from the
+  # Dock with no such env. A blind server made Escrcpy's Auto Discover and QR pairing find
+  # nothing, and forgot a paired phone at every server restart (measured 2026-10-25: same
+  # adb, same LAN, `adb mdns services` empty vs. the phone listed, by this variable alone).
+  launchd.user.envVariables.ADB_MDNS_OPENSCREEN = "1";
+
   # ---- Homebrew apps for THIS host --------------------------------------------
   # The framework (enable/onActivation/taps) lives in modules/darwin/homebrew.nix;
   # this is macos's app set. onActivation.cleanup = "uninstall" removes anything
