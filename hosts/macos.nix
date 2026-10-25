@@ -481,10 +481,11 @@ in
   # ---- adb: the mDNS backend that can actually see the phone -------------------
   # adb's default (Bonjour) mDNS backend is blind on this Mac; packages/android-phone.nix
   # exports this for its own calls, but the backend is fixed by whichever process STARTS
-  # the shared adb server on tcp:5037 — usually Escrcpy or the emulator, launched from the
-  # Dock with no such env. A blind server made Escrcpy's Auto Discover and QR pairing find
-  # nothing, and forgot a paired phone at every server restart (measured 2026-10-25: same
-  # adb, same LAN, `adb mdns services` empty vs. the phone listed, by this variable alone).
+  # the shared adb server on tcp:5037 — often Escrcpy or the emulator, launched from the
+  # Dock with no such env. A blind server cannot re-find a paired phone's changed connect
+  # port (measured 2026-10-25: same adb, same LAN, `adb mdns services` empty vs. the phone
+  # listed, by this variable alone). NOT Escrcpy's Auto Discover / QR pairing: those run
+  # their own in-app mDNS — see the escrcpy cask entry for what breaks them.
   launchd.user.envVariables.ADB_MDNS_OPENSCREEN = "1";
 
   # ---- Homebrew apps for THIS host --------------------------------------------
@@ -670,6 +671,12 @@ in
       # INSTALLED record) then `brew untap` the old tap, and let the next
       # activation reinstall from the new tap. Nothing declarative can do this; brew's
       # `cleanup` untaps only AFTER the install that was already aborting.
+      # After a reinstall/upgrade, Auto Discover says "No connectable devices found" and QR
+      # pairing spins forever. Escrcpy's discovery is in-app mDNS (bonjour-service in its
+      # renderer), so macOS Local Network privacy gates it, and that grant is keyed to the
+      # adhoc signature, which every reinstall replaces, while Settings still shows it ON
+      # (measured 2026-10-25: Dock launch found nothing, terminal launch found the phone).
+      # Fix: Privacy & Security > Local Network > Escrcpy OFF then ON, then relaunch.
       {
         name = "ismailkattakath/tap/escrcpy";
         postinstall = "/usr/bin/xattr -dr com.apple.quarantine /Applications/Escrcpy.app";
