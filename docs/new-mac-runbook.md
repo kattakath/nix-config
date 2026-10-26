@@ -193,6 +193,15 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   version this was verified against required `sudo determinate-nixd upgrade`
   first when the daemon was a patch behind.
 
+  **Logged in AND current, yet still only `lazy-trees`?** Restart the daemon:
+  `sudo launchctl kickstart -k system/systems.determinate.nix-daemon` — upstream's
+  own fix ([troubleshooting page](https://docs.determinate.systems/troubleshooting/native-linux-builder/)).
+  Seen 2026-10-26: the instance a 3.24.0→3.24.1 self-upgrade started was logged in
+  and on the latest version but advertised no FlakeHub features at all (no
+  `native-linux-builder`, no `provenance`); one kickstart restored both, and
+  `upgrade` could not have helped. The nudge checks `determinate-nixd status` and
+  prints the kickstart instead of the login steps in this case.
+
 - **A changed `/etc/nix/nix.custom.conf` is INERT until the nix daemon
   restarts — activation does not bounce it.** The file itself is fully
   declarative (`determinateNix.customSettings` regenerates it every
