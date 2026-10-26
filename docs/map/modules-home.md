@@ -141,8 +141,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
     argv from a plugin's `.mcp.json` (public `gmail`, private `gmail-private`), so no mailbox is
     written here (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys
     FILE with `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
-  - `local.pluginMcp.servers` → `nix-mcp-{wordpress,apify,postgres}`, the three CREDENTIALED
-    servers the purge left homeless, **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**,
+  - `local.pluginMcp.servers` → `nix-mcp-{wordpress,postgres}`, the CREDENTIALED
+    servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26), **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**,
     plus `github` (gh's token via `ghTokenEnv`) and `slack` (its own `packages/slack-post-mcp.nix`).
     One generic `packages/keychain-mcp.nix` builds all but `slack` —
     it is the extracted form of the gateway's own `mkGeneratedStdio`, so there is no second copy
@@ -158,7 +158,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     into the store, so the thing it confines cannot rewrite it, and the server's own
     `allowedDirectories` is explicitly NOT the boundary — upstream's SECURITY.md calls directory
     restrictions "guardrails, not sandboxing", and an empty list means every path is allowed.
-  - Secret handles (NAMES only; values stay in the login Keychain): `mcp:apify.com:token`,
+  - Secret handles (NAMES only; values stay in the login Keychain):
     `mcp:wordpress:wp_url` / `:wp_user` / `:wp_app_password` (host-free names since 2026-10-20). `postgres` needs none — its
     `DATABASE_URI` is the local-rag capsule's `local.rag.pgvector.databaseUri`, loopback `trust`
     with no password, and the module ASSERTS `local.rag.pgvector.enable` so it cannot declare a
@@ -171,9 +171,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
     The gateway never hit this because its launchd agent already carried `pkgs.nodejs` on PATH;
     a plugin-spawned launcher has no such PATH control. `gmail-mcp.nix` bakes `npx` the same way
     and does **not** prepend — it works today only because its server tolerates node 20.
-  - All three were smoke-tested through a real MCP `initialize` before being declared, not just
-    evaluated: wordpress reported `Connection successful` against the PROD site, apify
-    registered its Actor tools, postgres logged `Successfully connected to database`.
+  - Each was smoke-tested through a real MCP `initialize` before being declared, not just
+    evaluated: wordpress reported `Connection successful` against the PROD site (as did
+    apify, before it moved to the official plugin), postgres logged `Successfully connected to database`.
 - **`chromium.nix`** — `local.ungoogledChromium`, real-Mac-only: the declarative surface for
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
