@@ -609,6 +609,8 @@ in
       "android-platform-tools"
       "blackhole-2ch"
       "bruno"
+      # CapCut — video editor (proprietary, ByteDance); not in nixpkgs, so the cask.
+      "capcut"
       # Claude Desktop — the chat GUI (distinct from the claude-code CLI, nixpkgs).
       "claude"
       # `docker-desktop` is GONE (2026-09-16): its privileged helper bound the
