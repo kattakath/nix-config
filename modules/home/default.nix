@@ -693,7 +693,7 @@ in
   # The Claude Code plugin set — DATA only; the registration + install mechanism
   # is ./claude-plugins.nix. Same keyed-attrset seam as the userscripts above: a
   # layer composed in through `extraHomeModules` adds its own marketplace and the
-  # eight declared below survive untouched. `plugins` is a listOf, so such a layer
+  # ones declared below survive untouched. `plugins` is a listOf, so such a layer
   # can even append a plugin to a marketplace declared here.
   #
   # `source` is mkDefault throughout so a downstream layer can repoint one (a
