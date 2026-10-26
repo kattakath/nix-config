@@ -468,9 +468,15 @@ let
           source = "github";
           repo = "obra/*";
         }
+        {
+          source = "github";
+          repo = "apify/*";
+        }
 
-        # The eight declared today, spelled exactly as modules/home/default.nix
-        # declares them, so nothing in flight depends on the wildcard inference.
+        # Every git-source marketplace modules/home/default.nix declares, spelled
+        # exactly as it declares them, so nothing in flight depends on the wildcard
+        # inference. A marketplace declared there but missing here is REFUSED at
+        # `marketplace add` ("blocked by enterprise policy") — measured 2026-10-26.
         {
           source = "git";
           url = "https://github.com/kattakath/skills.git";
@@ -498,6 +504,10 @@ let
         {
           source = "git";
           url = "https://github.com/obra/superpowers.git";
+        }
+        {
+          source = "git";
+          url = "https://github.com/apify/apify-claude-code-plugin.git";
         }
 
         # The store-path marketplace, and the ~/.claude/skills/ auto-load.
