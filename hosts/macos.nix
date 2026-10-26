@@ -341,10 +341,10 @@ in
     # session — nothing shared, nothing listening.
     local.gmailMcp.enable = true;
 
-    # The three CREDENTIALED servers the gateway owned that no EXISTING plugin could
-    # carry — the "wordpress, apify, … local postgres" part of the cost the purge
+    # The CREDENTIALED servers the gateway owned that no EXISTING plugin could
+    # carry — the "wordpress, … local postgres" part of the cost the purge
     # accepted. Launchers land on PATH as `nix-mcp-<name>`; in
-    # github:kattakath/skills the new `wordpress` and `apify` plugins name theirs, and
+    # github:kattakath/skills the `wordpress` plugin names its, and
     # `postgres` goes to the EXISTING `rag` plugin, whose own SKILL.md already said it
     # "runs entirely local via the postgres MCP server" — it owned this in documentation
     # before it owned it in code.
@@ -352,7 +352,7 @@ in
     # Each was checked LIVE before being declared, because a plugin for a dead endpoint
     # is worse than no plugin (see modules/home/plugin-mcp.nix for the probes):
     # the WordPress site's REST API answers and only authentication gates it, and the
-    # pgvector store is listening on loopback. All three then completed a real MCP
+    # pgvector store is listening on loopback. Each then completed a real MCP
     # `initialize` through their launcher.
     #
     # `wordpress-adapter` is NOT here and must not be added: that is a DIFFERENT endpoint
@@ -366,7 +366,6 @@ in
     # claude-guardrails.nix, which the fence cannot reproduce. Accepted 2026-10-07.
     local.pluginMcp.servers = [
       "wordpress"
-      "apify"
       "postgres"
       "desktop-commander"
       # Post as the operator with a user token, so Slack adds no `Sent using Claude`
