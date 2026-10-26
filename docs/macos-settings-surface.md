@@ -195,7 +195,7 @@ Manages the **entire** brew surface with `onActivation.cleanup = "uninstall"`
   containers are `local.containers` (per-user Colima), which replaced Docker Desktop.
 - **`brews`** — CLI formulae (cloudflared, kubernetes-cli, ffmpeg, pyenv, …)
 - **`masApps`** — Mac App Store apps (not none: e.g. WireGuard, Xcode) · **`taps`** —
-  `ismailkattakath/tap`, our shared tap holding the escrcpy cask (`modules/darwin/homebrew.nix`)
+  `viarotel-org/escrcpy`, upstream's tap for the escrcpy cask (`modules/darwin/homebrew.nix`)
 - For any count, evaluate rather than grep `hosts/macos.nix`: on 2026-10-21 a source grep
   under-counted `brews` and over-counted `masApps`. `nix eval .#darwinConfigurations.macos.config.homebrew`
   is the answer; the source list is a claim about it.

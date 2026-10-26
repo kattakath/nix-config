@@ -622,16 +622,17 @@ in
       # Complements, never replaces, `android-phone` (packages/android-phone.nix):
       # that CLI still owns the adb pairing/connect footguns it exists to encode,
       # and its header's refusal to VENDOR a third-party pairing tool is unaffected
-      # by installing one alongside. From our shared tap (ismailkattakath/tap) — see
-      # the tap's comment in modules/darwin/homebrew.nix for the other accepted cost.
+      # by installing one alongside. From upstream's tap (viarotel-org/escrcpy) — see
+      # the tap's comment in modules/darwin/homebrew.nix.
       #
       # postinstall is LOAD-BEARING — without it the app installs but cannot be
       # opened at all. Upstream ships Escrcpy.app with no _CodeSignature, only the
       # linker's adhoc signature (measured 2026-08-31: `Sealed Resources=none`,
       # `Identifier=Electron`, `Info.plist=not bound`). Unsigned + quarantined is
       # what macOS reports as "damaged and can't be opened", and that variant is
-      # NOT clearable by right-click ▸ Open — the flag must actually be gone, and
-      # the cask itself does not strip it (ismailkattakath/homebrew-tap README).
+      # NOT clearable by right-click ▸ Open — the flag must actually be gone.
+      # Upstream's cask now strips it too (`postflight_steps`, homebrew-escrcpy#63);
+      # this stays because a cask regression there would be silent.
       #
       # Why postinstall and not `args.no_quarantine = true`: nix-darwin still
       # offers that arg, but Homebrew 6.0.18 has REMOVED the flag — brew bundle
@@ -678,7 +679,7 @@ in
       # (measured 2026-10-25: Dock launch found nothing, terminal launch found the phone).
       # Fix: Privacy & Security > Local Network > Escrcpy OFF then ON, then relaunch.
       {
-        name = "ismailkattakath/tap/escrcpy";
+        name = "viarotel-org/escrcpy/escrcpy";
         postinstall = "/usr/bin/xattr -dr com.apple.quarantine /Applications/Escrcpy.app";
       }
       # Google Chrome — the DAILY browser and the holder of http/https
