@@ -142,6 +142,10 @@ Smaller, single-purpose CLIs:
   staleness and duplicate-transport device listings. Its operator knowledge is also the
   `android-phone` plugin in
   [`kattakath/skills`](https://github.com/kattakath/skills).
+- **`claude-work.nix`** — macOS-only: `claude` as the WORK account, side by side with the
+  personal login. It injects `CLAUDE_CODE_OAUTH_TOKEN` (a `claude setup-token` token, held in
+  the login Keychain) into that one process, so `~/.claude` — history, memory, settings — stays
+  shared. Why not a second `CLAUDE_CONFIG_DIR`: the file's header.
 - **The media packages are NOT here — they are in the `media-cli` capsule.** Every media
   package, plus the two media-*adjacent* tools `obs-fb-setup.nix` and `fidelity-enhance.nix`,
   lives in `modules/features/media-cli/packages/` — read that directory, not a list here. The

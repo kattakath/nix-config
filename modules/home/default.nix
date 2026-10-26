@@ -282,6 +282,7 @@ let
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
   androidPhone = pkgs.callPackage ../../packages/android-phone.nix { };
+  claudeWork = pkgs.callPackage ../../packages/claude-work.nix { };
   nixosVm = pkgs.callPackage ../../packages/nixos-vm.nix { };
   # `activate` — self-elevating `darwin-rebuild switch`. nix-darwin dropped sudo
   # self-elevation in its 2025-01-30 root migration and ships no option to
@@ -1461,6 +1462,7 @@ in
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
     ]
     ++ lib.optionals isMacosHost [
+      claudeWork # `claude-work` — Claude Code as the work account via a per-process CLAUDE_CODE_OAUTH_TOKEN from the login Keychain, so it runs ALONGSIDE the personal `claude` with shared ~/.claude (packages/claude-work.nix)
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
       nixosVm # `nixos-vm <verb>` (verbs: the case in packages/nixos-vm.nix) — the long-lived nixos UTM guest (packages/nixos-vm.nix); on PATH so the "NixOS VM" Spotlight launcher can run `nixos-vm start`
       pkgs.scrcpy # mirror/control a PHYSICAL Android phone. Was the `scrcpy` BREW until 2026-09-29 (hosts/macos.nix records the move). Its nixpkgs wrapper prepends its OWN android-tools adb to PATH for its own process only — so it drives adb 37.0.0 while mobile-mcp/android-phone use the cask's 37.0.1. Harmless: both speak protocol 1.0.41, so they share one adb server instead of killing each other's. `adb` itself stays on the cask
