@@ -476,7 +476,7 @@ in
     # set `env` only to literals or passthroughs and cannot run a Keychain read or a
     # `sandbox-exec` fence. See each module's header.
     ./gmail-mcp.nix # the generic nix-mcp-gmail <address> launcher
-    ./plugin-mcp.nix # wordpress, apify, postgres, desktop-commander, github, slack
+    ./plugin-mcp.nix # wordpress, postgres, desktop-commander, github, slack
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
     # silently inert — `local.gmailMcp` was, until it was added.
@@ -1137,6 +1137,7 @@ in
     #   trailofbits/skills    -> "trailofbits"                (44 plugins)
     #   obra/superpowers      -> "superpowers-dev"            (1 plugin)  <- NOT "superpowers"
     #   anthropics/skills     -> "anthropic-agent-skills"     (5 plugins) <- NOT "anthropic" / "-official"
+    #   apify/apify-claude-code-plugin -> "apify"            (1 plugin, 2026-10-26)
 
     # OFFICIAL Cloudflare (Apache-2.0), input `agent-skills-cloudflare`. One plugin,
     # `cloudflare`, whose skills include the two already declared below
@@ -1172,6 +1173,25 @@ in
       source = lib.mkDefault "https://github.com/anthropics/skills.git";
       plugins = [ ];
     };
+
+    # Apify's OFFICIAL plugin (Apache-2.0), github:apify/apify-claude-code-plugin —
+    # key `apify` is the `name` in its own .claude-plugin/marketplace.json (read
+    # 2026-10-26). It REPLACES kattakath/skills' `apify` plugin and the
+    # `nix-mcp-apify` launcher: one source of truth instead of a local unpinned
+    # `npx @apify/actors-mcp-server` copy of the same server. Ships the hosted
+    # mcp.apify.com (type=http, one-time in-client OAuth via `/mcp`, same shape as
+    # stripe/resend/gitlab; its AS advertises the refresh_token grant), 5 skills
+    # and an `apify` agent.
+    #
+    # Trade accepted on purpose: OAuth, not the Keychain token, so a HEADLESS run
+    # (`claude -p`, launchd, CI) loses Apify if the refresh token lapses — its
+    # lifetime is unpublished. Vetted at that read: no injected instructions; its
+    # skills suggest `npm install -g apify-cli` and `apify login --token TOKEN`
+    # (argv), neither of which this fleet does — prefer the MCP route.
+    apify = {
+      source = lib.mkDefault "https://github.com/apify/apify-claude-code-plugin.git";
+      plugins = [ "apify" ];
+    };
   };
 
   # ADR-008's `declared` lane: which ids of the catalogue above are actually ON or
@@ -1196,6 +1216,10 @@ in
     # #753 added the name to the catalogue and enabled NOTHING. This line is what
     # #753 meant.
     "silent-instruments@kattakath" = true;
+
+    # Apify's official plugin — see the `apify` marketplace above for why it
+    # replaced the kattakath one. Declared so a fresh Mac gets it without a click.
+    "apify@apify" = true;
 
     # ---- The same failure, four more times ---------------------------------
     # Measured on the live ~/.claude/settings.json, 2026-10-02, before this block:

@@ -3,10 +3,11 @@
 # WHY THIS MODULE EXISTS. The MCP gateway was purged from macOS
 # (modules/shared/mcp.nix, deleted 2026-10-02). Most of its servers had a plugin owner already and
 # went home with it; three CREDENTIALED ones did not, and the operator chose to keep the
-# capability rather than let it go dark:
+# capability rather than let it go dark. The third, `apify`, left on 2026-10-26 for Apify's
+# OFFICIAL plugin — hosted mcp.apify.com with in-client OAuth, so it needs no launcher (see
+# the `apify` marketplace in modules/home/default.nix). The two that remain:
 #
 #   wordpress   site administration over the WP REST API against the operator's PROD site
-#   apify       Apify Store Actors — the rag-web-browser / web-fetch scraping lane
 #   postgres    the LOCAL pgvector RAG store (NOT a hosted Postgres; the Neon connector
 #               covers Neon projects and cannot see 127.0.0.1:5433)
 #
@@ -289,7 +290,6 @@ let
   # service ids) — rather than from an upstream README. The pins are the measured part:
   # the gateway spawned every server at startup and ONE failing import darked all of
   # them, which is why the `-y <pkg>@<version>` pins and each `--python` are here.
-  # `apify` is the one npx entry left UNPINNED.
   servers = {
     # docdyhr/mcp-wordpress, ~59 tools over the WP REST API. `@3.3.30` pins the client
     # library. Three Keychain reads, not one: the SITE URL is stored too, so the live
@@ -317,18 +317,6 @@ let
         WORDPRESS_USERNAME = "mcp:wordpress:wp_user";
         WORDPRESS_APP_PASSWORD = "mcp:wordpress:wp_app_password";
       };
-    };
-
-    # apify/actors-mcp-server run LOCALLY against APIFY_TOKEN — NOT the hosted
-    # mcp.apify.com OAuth bridge used until 2026-08-19, whose interactive browser
-    # redirect a spawned stdio server cannot complete any more than a launchd agent could.
-    apify = {
-      interpreter = "npx";
-      args = [
-        "-y"
-        "@apify/actors-mcp-server"
-      ];
-      keychainEnv.APIFY_TOKEN = "mcp:apify.com:token";
     };
 
     # crystaldba's postgres-mcp ("Postgres MCP Pro") — a general SQL executor, so every
@@ -453,9 +441,9 @@ in
 
       Empty by default and set PER HOST: which third-party accounts the operator holds is
       identity, not fleet shape — a template consumer wants the mechanism without
-      inheriting someone else's WordPress site or Apify billing.
+      inheriting someone else's WordPress site or Slack workspace.
 
-      Credentials come from the login Keychain at launch (`wordpress`, `apify`, the
+      Credentials come from the login Keychain at launch (`wordpress`, the
       `slack` per-workspace user tokens), so no
       secret is in the store or in this list. `postgres` needs none — its URI is
       loopback `trust` — and neither does `desktop-commander`, which is here for its
