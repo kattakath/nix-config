@@ -204,6 +204,20 @@ writeShellApplication {
       echo "set-secret: empty value; nothing stored." >&2
       exit 1
     fi
+    # Refuse an embedded CR/LF BEFORE storing. `security find-generic-password -w`
+    # returns data holding a non-printable byte HEX-ENCODED, so every reader
+    # (`secret exec`, the loader, `-w` wrappers) would get a hex string, never the
+    # value. Measured 2026-10-26: a 108-char token copied off a WRAPPED terminal line
+    # stored as 109 bytes and read back as 220 hex chars -> API 401. The old order
+    # stored it first and only then failed the round-trip, leaving the bad value in.
+    case "$value" in
+      *$'\n'* | *$'\r'*)
+        echo "set-secret: value contains a line break; nothing stored." >&2
+        echo "  The Keychain would hand it back hex-encoded. If a long token wrapped" >&2
+        printf "%s\n" "  when copied, strip it: pbpaste | tr -d '\\r\\n' | secret set ..." >&2
+        exit 1
+        ;;
+    esac
 
     # Store the secret encrypted. -U updates the item in place if it exists.
     "$security" add-generic-password -U -a "$account" -s "$key" -w "$value" "''${kc[@]}"
@@ -232,7 +246,7 @@ writeShellApplication {
     # first few characters as proof (never the whole secret).
     got="$("$security" find-generic-password -a "$account" -s "$key" -w "''${kc[@]}" 2>/dev/null || true)"
     if [ "$got" != "$value" ]; then
-      echo "set-secret: WARNING — $key did not round-trip out of the Keychain." >&2
+      echo "set-secret: WARNING — $key did not round-trip out of the Keychain (a non-printable byte reads back hex-encoded)." >&2
       exit 1
     fi
     # Report LENGTH, never a prefix. The old message printed the first four
