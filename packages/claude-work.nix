@@ -1,4 +1,4 @@
-# `claude-work` — Claude Code as the WORK account (ismailk@infin8it.ca, Teams), alongside
+# `claude-work` — Claude Code as the WORK account, alongside
 # plain `claude` as the personal one (Max), at the SAME time, in different projects.
 #
 # WHY A PER-PROCESS TOKEN. Claude Code keeps ONE login per config dir: the Keychain item
@@ -17,19 +17,24 @@
 #
 # THE TOKEN comes from `claude setup-token`, approved in the browser AS the work account
 # (~1 year; inference-scoped, so claude.ai connectors may not load in these sessions).
-# Plant it without argv or history, under the <tool>:<host>:<kind> convention:
-#   pbpaste | tr -d '\r\n' | secret set --env CLAUDE_CODE_OAUTH_TOKEN claude:infin8it.ca:oauth
+# Plant it without argv or history. The service name is generic on purpose — this repo
+# is public and carries no client literal; which account it is lives only on the Mac:
+#   pbpaste | tr -d '\r\n' | secret set --no-export claude:work:oauth
 # The `tr` is not decoration: the token is long enough to wrap in a terminal, and a
 # copy across the wrap carries a newline that set-secret now refuses.
+# `--no-export` is LOAD-BEARING: the Keychain loader exports every BOUND item into every
+# new shell, so a token stored with `--env CLAUDE_CODE_OAUTH_TOKEN` turns plain `claude`
+# into the work account everywhere (read in the loader's export loop, 2026-10-26) — the
+# opposite of this wrapper.
 { writeShellApplication }:
 writeShellApplication {
   name = "claude-work";
   text = ''
-    token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s claude:infin8it.ca:oauth -w 2>/dev/null || true)"
+    token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s claude:work:oauth -w 2>/dev/null || true)"
     if [ -z "$token" ]; then
-      echo "claude-work: no login-Keychain secret for service claude:infin8it.ca:oauth." >&2
+      echo "claude-work: no login-Keychain secret for service claude:work:oauth." >&2
       echo "  1. run: claude setup-token  (approve in the browser as the WORK account)" >&2
-      printf "%s\n" "  2. copy the token, then: pbpaste | tr -d '\\r\\n' | secret set --env CLAUDE_CODE_OAUTH_TOKEN claude:infin8it.ca:oauth" >&2
+      printf "%s\n" "  2. copy the token, then: pbpaste | tr -d '\\r\\n' | secret set --no-export claude:work:oauth" >&2
       exit 1
     fi
     # A wrong value only surfaces as a 401 mid-session, and `claude auth status`
@@ -38,7 +43,7 @@ writeShellApplication {
       sk-ant-oat01-*) ;;
       *)
         echo "claude-work: the stored value is not a setup-token token (no sk-ant-oat01- prefix)." >&2
-        printf "%s\n" "  Re-mint it and re-store; if it wrapped when copied: pbpaste | tr -d '\\r\\n' | secret set --env CLAUDE_CODE_OAUTH_TOKEN claude:infin8it.ca:oauth" >&2
+        printf "%s\n" "  Re-mint it and re-store; if it wrapped when copied: pbpaste | tr -d '\\r\\n' | secret set --no-export claude:work:oauth" >&2
         exit 1
         ;;
     esac
