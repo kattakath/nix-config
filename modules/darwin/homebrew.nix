@@ -57,24 +57,17 @@ _:
     };
 
     # ---- Taps --------------------------------------------------------------
-    # Exactly one third-party tap: our OWN shared tap, ismailkattakath/tap
-    # (github.com/ismailkattakath/homebrew-tap — brew maps `<user>/tap` to
-    # `homebrew-tap`). It holds every cask this fleet ships that homebrew/cask
-    # does not, so a new one is a file in that repo, not a new tap here. It
-    # replaced the per-app fork tap `ismailkattakath/escrcpy` (2026-10-21).
-    # Do not "clean it up" as leftover drift: each cask in it ships NOWHERE else,
-    # and without the tap the app would be a hand-dragged .app no `cleanup` reclaims.
+    # Exactly one third-party tap: viarotel-org/escrcpy (github.com/viarotel-org/
+    # homebrew-escrcpy), upstream's own tap for the escrcpy cask (absent from
+    # homebrew/cask AND nixpkgs). Upstream bumps it on release, so a new escrcpy
+    # arrives via `brew upgrade --cask`. `activate` alone keeps the old one:
+    # autoUpdate/upgrade are off (above).
     #
-    #   - escrcpy (graphical scrcpy frontend; absent from homebrew-core AND nixpkgs).
-    #     Migrated from our fork of viarotel-org/homebrew-escrcpy; the tap's README
-    #     lists what diverges. The first divergence: upstream's `depends_on macos: :catalina` is DISABLED in
-    #     Homebrew 7 (a hard `brew bundle` failure that aborts activation — why
-    #     nix-homebrew sat rev-pinned to brew 6.0.22, kattakath/nix-config#613).
-    #     The upstream fix, viarotel-org/homebrew-escrcpy#61, was CLOSED unmerged
-    #     (2026-10-10), so the cask stays ours. Cost: no upstream version bumps —
-    #     bump `version` + `sha256` in the tap when escrcpy releases, then `git pull`
-    #     the installed clone under /opt/homebrew/Library/Taps — `autoUpdate` is off
-    #     (above), so nothing else ever moves it and `activate` keeps the old cask.
+    # We ran a fork (ismailkattakath/tap) from 2026-09-29 until 2026-10-25, while upstream's
+    # cask used `depends_on macos: :catalina`, which Homebrew 7 disables. Upstream fixed that
+    # and its interactive postflight in viarotel-org/homebrew-escrcpy#63, so the fork was
+    # retired and its repo archived. Moving back needs the one-time migration recorded at the
+    # escrcpy cask entry in hosts/macos.nix.
     #
     # The app is unsigned and not notarized, so Gatekeeper never evaluates it: a
     # quarantined copy will not launch. Each such cask entry therefore
@@ -101,8 +94,8 @@ _:
     # nats-server is homebrew-core, so no tap is needed.
     taps = [
       {
-        # Our shared tap — see above. Resolves to github.com/ismailkattakath/homebrew-tap.
-        name = "ismailkattakath/tap";
+        # Upstream's tap — see above. Resolves to github.com/viarotel-org/homebrew-escrcpy.
+        name = "viarotel-org/escrcpy";
         trusted = true;
       }
     ];
