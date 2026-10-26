@@ -387,9 +387,9 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   (only the Nix store image is rebuilt per boot). The filesystem split, and the per-CWD trap
   the app's wrapper defeats: [`docs/map/hosts.md`](docs/map/hosts.md).
 - **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (ephemeral
-  Apple-Virtualization VM). Two traps: `determinate-nixd` logged OUT of FlakeHub silently kills
-  it, and every build then fails as `platform mismatch`; and `cp --no-preserve=mode` into `$out`
-  EPERMs, which breaks every Mac-side build of a Caddy-serving `nixpi` generation. **Never fix
+  Apple-Virtualization VM). Two traps: `determinate-nixd` logged OUT of FlakeHub (or a logged-in
+  daemon that came up featureless — kickstart it) silently kills it, and every build then fails
+  as `platform mismatch`; and `cp --no-preserve=mode` into `$out` EPERMs, which breaks every Mac-side build of a Caddy-serving `nixpi` generation. **Never fix
   that by building on the Pi** — CI warms the cache so the Mac substitutes instead.
   Measurements, the `memoryBytes` OOM knob, and why it is NOT a general chmod ban:
   [`docs/map/hosts.md`](docs/map/hosts.md) § Building aarch64-linux on the Mac.

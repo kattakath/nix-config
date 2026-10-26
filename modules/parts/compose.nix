@@ -429,7 +429,9 @@ let
           # rendered `external-builders` is empty, and every aarch64-linux build
           # then dies with "platform mismatch — Required system: 'aarch64-linux',
           # Current system: 'aarch64-darwin'". That reads as a flake bug and is
-          # not one: it is an AUTH gap, and the cost of not saying so is an hour
+          # not one: it is an AUTH gap — or a logged-in daemon that came up
+          # without its FlakeHub feature set (2026-10-26, after a 3.24.0→3.24.1
+          # self-upgrade; a kickstart restored it) — and the cost of not saying so is an hour
           # of debugging the wrong layer (docs/new-mac-runbook.md records it as a
           # manual step precisely because it kept being rediscovered).
           #
@@ -457,13 +459,20 @@ let
                   echo "" >&2
                   echo "  ⚠ Determinate's native Linux builder is NOT active on this Mac." >&2
                   echo "    Every aarch64-linux build — nix run .#nixvm, .#nixpi, the Pi closure —" >&2
-                  echo "    fails with 'platform mismatch'. That is an AUTH gap, not a config bug." >&2
-                  echo "    One-time, per machine:" >&2
-                  echo "      1. mint a token:  https://flakehub.com/user/settings?editview=tokens" >&2
-                  echo "      2. store it:      secret set FLAKEHUB_TOKEN" >&2
-                  echo "      3. log in:        secret exec FLAKEHUB_TOKEN -- bash -c \\" >&2
-                  echo "           'determinate-nixd auth login token --token-file <(printf %s \"\$FLAKEHUB_TOKEN\")'" >&2
-                  echo "    If it persists, the daemon may be stale:  sudo determinate-nixd upgrade" >&2
+                  echo "    fails with 'platform mismatch'. Not a config bug." >&2
+                  if /usr/local/bin/determinate-nixd status 2>/dev/null | grep -q 'Logged in: true'; then
+                    echo "    The daemon IS logged in, so it came up without its feature set." >&2
+                    echo "    Restart it (upstream's fix; it also bounces nix-daemon, so in-flight builds die):" >&2
+                    echo "      sudo launchctl kickstart -k system/systems.determinate.nix-daemon" >&2
+                    echo "    https://docs.determinate.systems/troubleshooting/native-linux-builder/" >&2
+                  else
+                    echo "    The daemon is logged OUT of FlakeHub. One-time, per machine:" >&2
+                    echo "      1. mint a token:  https://flakehub.com/user/settings?editview=tokens" >&2
+                    echo "      2. store it:      secret set FLAKEHUB_TOKEN" >&2
+                    echo "      3. log in:        secret exec FLAKEHUB_TOKEN -- bash -c \\" >&2
+                    echo "           'determinate-nixd auth login token --token-file <(printf %s \"\$FLAKEHUB_TOKEN\")'" >&2
+                    echo "    If it persists, the daemon may be stale:  sudo determinate-nixd upgrade" >&2
+                  fi
                   echo "    Verify:  determinate-nixd version | grep native-linux-builder" >&2
                   echo "    Details: docs/new-mac-runbook.md" >&2
                   ;;
