@@ -172,8 +172,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     a plugin-spawned launcher has no such PATH control. `gmail-mcp.nix` bakes `npx` the same way
     and does **not** prepend — it works today only because its server tolerates node 20.
   - Each was smoke-tested through a real MCP `initialize` before being declared, not just
-    evaluated: wordpress reported `Connection successful` against the PROD site (as did
-    apify, before it moved to the official plugin), postgres logged `Successfully connected to database`.
+    evaluated: wordpress reported `Connection successful` against the PROD site, postgres logged `Successfully connected to database`.
 - **`chromium.nix`** — `local.ungoogledChromium`, real-Mac-only: the declarative surface for
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
