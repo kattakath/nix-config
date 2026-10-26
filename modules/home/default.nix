@@ -1004,6 +1004,8 @@ in
         "android-phone"
         "nix-dev-toolkit"
         "harvest"
+        # Remove a literal that must not be public from a public repo's history (kattakath/skills#101).
+        "history-scrub"
         "jsonresume-tailor"
         "github-release-gate"
         "skill-curator"
@@ -1233,6 +1235,10 @@ in
     "prior-art-recon@kattakath" = true;
     "foundation-audit@kattakath" = true;
     "mac-app-send@kattakath" = true;
+
+    # Harvested 2026-10-26 after the third public-history scrub in a week; declared
+    # here so it is LOADED, not just catalogued — the failure the block above records.
+    "history-scrub@kattakath" = true;
 
     # The Seatbelt-fenced shell/filesystem server — see the `desktop-commander` entry
     # in the kattakath catalogue above. It is HERE, and not left to a `/plugin` click,
