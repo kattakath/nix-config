@@ -142,7 +142,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
     written here (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys
     FILE with `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
   - `local.pluginMcp.servers` → `nix-mcp-{wordpress,postgres}`, the CREDENTIALED
-    servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26), **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**,
+    servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26),
+    **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**,
     plus `github` (gh's token via `ghTokenEnv`) and `slack` (its own `packages/slack-post-mcp.nix`).
     One generic `packages/keychain-mcp.nix` builds all but `slack` —
     it is the extracted form of the gateway's own `mkGeneratedStdio`, so there is no second copy
@@ -172,7 +173,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
     a plugin-spawned launcher has no such PATH control. `gmail-mcp.nix` bakes `npx` the same way
     and does **not** prepend — it works today only because its server tolerates node 20.
   - Each was smoke-tested through a real MCP `initialize` before being declared, not just
-    evaluated: wordpress reported `Connection successful` against the PROD site, postgres logged `Successfully connected to database`.
+    evaluated: wordpress reported `Connection successful` against the PROD site, postgres
+    logged `Successfully connected to database`.
 - **`chromium.nix`** — `local.ungoogledChromium`, real-Mac-only: the declarative surface for
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a

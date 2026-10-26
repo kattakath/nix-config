@@ -248,5 +248,11 @@ ck "bad ENV rejected" "1" "$?"
 set-secret 'has space' v >/dev/null 2>&1
 ck "bad SERVICE rejected" "1" "$?"
 
+echo "== 9. a value with a line break is refused BEFORE it is stored =="
+printf 'WRAP-FAKE\n-TAIL' | set-secret --env WRAPK wr:example.org:api >/dev/null 2>&1
+ck "embedded LF rejected" "1" "$?"
+security find-generic-password -a "$(id -un)" -s wr:example.org:api "$KC" >/dev/null 2>&1
+ck "nothing stored" "44" "$?"
+
 printf '\n%s passed, %s failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
