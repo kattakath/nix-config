@@ -320,7 +320,8 @@ Determinate disables (nix-darwin#1505).
 to FlakeHub, or `native-linux-builder` silently vanishes and every `aarch64-linux` build fails
 with a `platform mismatch` that reads as a platform problem rather than an auth one. It is a
 manual, per-machine step — see "Manual steps Nix can't do" in
-[`new-mac-runbook.md`](../new-mac-runbook.md).
+[`new-mac-runbook.md`](../new-mac-runbook.md). A logged-in daemon can ALSO come up without the
+feature (seen after a self-upgrade); a `launchctl kickstart -k` restores it — same runbook entry.
 
 #### The one operation it cannot do
 
