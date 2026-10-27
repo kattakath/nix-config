@@ -69,7 +69,7 @@ let
   # — which is why `launchd.user.agents` is kept EMPTY on macos (since 2026-10-02;
   # `checks.<system>.launchd-selfheal-lane` fails a new one). That gap is closed by MIGRATING units to
   # the home-manager lane (the move metube and yt-dlp-web-ui made 2026-09-22,
-  # and `open-maccy` plus the two trash sweeps on 2026-10-02), not by widening
+  # and `open-maccy` (retired 2026-10-27) plus the two trash sweeps on 2026-10-02), not by widening
   # this script's blast radius. The full argument,
   # with the pinned upstream lines it rests on, is in ./launchd-sources.nix.
   healable = lib.filter (s: !s.selfHeals && s.domain == "system") (
