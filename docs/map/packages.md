@@ -120,7 +120,7 @@ Core package set:
   (`packages/fleet-mark.svg`; the `fleetMarkSvg` assert in `spotlight-launchers.nix` guards it); the non-square
   434.94 x 448 canvas is rewritten to a centred 560 x 560 viewBox **in Nix**, behind an
   `assert`, so the committed file stays refreshable with a plain `cp`.
-  **Started at nine, cut to three the same day** — `Nix Deploy nixpi` (deploy-rs failed even
+  **Bundles cut at birth** — `Nix Deploy nixpi` (deploy-rs failed even
   after a successful Cloudflare Access login) and `Nix Launchd Doctor` (`launchd-doctor` is
   not on a login shell's PATH) were both BROKEN; update-inputs / rollback /
   determinate-status / search-packages / a `code`-based editor bundle were dropped as unused.

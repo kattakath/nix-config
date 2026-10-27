@@ -126,7 +126,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
       bump load-bearing rather than cosmetic.
     - **The two non-empty legs are not redundant with that.** Equality alone is degenerate if
       both sides empty at once (host lists cleared *and* layout moved), and — the everyday
-      value — a layout regression otherwise reads as "8 orphans", sending the reader to
+      value — a layout regression otherwise reads as a list of orphans, sending the reader to
       `hosts/macos.nix` when the fault is the pinned tree. Verified by pointing the plugin
       directory at one holding no `.mcp.json`: three legs red, the **first** of them naming the
       tree rather than the host.
@@ -150,7 +150,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     of "export N variables, exec a pinned interpreter". It writes NO file, so it needs no umask;
     credentials reach the server through its environment, never argv.
 
-    **The fourth one is NOT credentialed, and that is the point.** `desktop-commander` reads no
+    **This one is NOT credentialed, and that is the point.** `desktop-commander` reads no
     secret at all; it is a PATH package because a plugin's `.mcp.json` cannot run
     `sandbox-exec -f <profile>` any more than it can run a Keychain read. So the factory grew a
     `sandboxProfile` parameter rather than a generic command prefix — the launcher execs

@@ -161,12 +161,12 @@
 
         # The satellite's four package-checks (`inherit (self.packages.…)
         # secret set-secret remove-secret pb-conceal`), folded into ONE
-        # derivation that depends on all four. Same coverage, four fewer rows
+        # derivation that depends on every CLI. Same coverage, fewer rows
         # in `nix flake show`.
         #
-        # This is not ceremony: each of the four is a `writeShellApplication`,
+        # This is not ceremony: each of them is a `writeShellApplication`,
         # and BUILDING one runs shellcheck over its script. nix-config's darwin
-        # CI leg builds `.#checks.<system>` but none of its 44 packages
+        # CI leg builds `.#checks.<system>` but none of its packages
         # (ADR-002 §7.4), so without this the shellcheck coverage the
         # satellite's own CI had would be silently lost on absorption — the ADR
         # calls that "the highest-cost silent loss available" and refuses it.

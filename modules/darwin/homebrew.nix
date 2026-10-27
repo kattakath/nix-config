@@ -9,10 +9,8 @@
 #
 # What is DELIBERATELY NOT installed via Homebrew on any host (nixpkgs/Home
 # Manager is the single source, and a duplicate on PATH causes buildEnv
-# collisions): aws-cdk, awscli, make, node (unversioned), uv, gh, git-lfs, the
-# claude-code cask, 6 font casks, pandoc, poppler, and `mas` — see
-# modules/home/default.nix, and modules/darwin/core.nix for `mas` (which the
-# fleet already consumed as `pkgs.mas` from xcode-license.nix's activation).
+# collisions): whatever modules/home/default.nix and the capsules install — read
+# those, not a list here. `mas` is nix-darwin's `programs.mas` (xcode-license.nix).
 #
 # THE ONE DELIBERATE INVERSION OF THAT PRINCIPLE: `gnupg` IS brewed (2026-10-06).
 # Two GnuPG stacks sharing one `~/.gnupg` make which `gpg-agent`/pinentry you get
@@ -66,7 +64,7 @@ _:
     # We ran a fork (ismailkattakath/tap) from 2026-09-29 until 2026-10-25, while upstream's
     # cask used `depends_on macos: :catalina`, which Homebrew 7 disables. Upstream fixed that
     # and its interactive postflight in viarotel-org/homebrew-escrcpy#63, so the fork was
-    # retired and its repo archived. Moving back needs the one-time migration recorded at the
+    # retired and its repo archived. Moving back took the one-time migration recorded at the
     # escrcpy cask entry in hosts/macos.nix.
     #
     # The app is unsigned and not notarized, so Gatekeeper never evaluates it: a

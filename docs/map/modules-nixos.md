@@ -25,7 +25,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   [`hosts.md`](hosts.md).
   `nixvm` is only ever the local, HEADLESS `nix run .#nixvm` build-vm (SSH only via the host-loopback forward on `127.0.0.1:2222`) and has no networked login path
   either — but note it autologins with **no password** AND keeps a persistent `/home` in its
-  qcow2 (see `nixvm.nix` above), so that image is durable unencrypted local state rather than
+  qcow2 (see [`hosts.md`](hosts.md) § `nixvm.nix`), so that image is durable unencrypted local state rather than
   a scratch buffer.
 
   **That posture is now a GATE, not just these paragraphs** —
