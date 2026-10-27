@@ -525,10 +525,13 @@ in
     # `git add -A` first because flakes IGNORE untracked files
     # (.claude/rules/git-purity.md) — without it a new .nix is invisible and the
     # check passes on a tree that does not exist.
+    # TWO legs, in this order: `--all-systems --no-build` evaluates BOTH systems
+    # (a bare check on the Mac omits aarch64-linux) but RUNS no check; the bare
+    # `nix flake check` is the suite. The eval leg alone reported green on a red tree.
     "Nix Flake Check" = mkCommandApp {
       name = "Nix Flake Check";
       bundleId = "com.kattakath.nix-flake-check";
-      command = ''cd "$1" && git add -A && nix flake check --all-systems --no-build'';
+      command = ''cd "$1" && git add -A && nix flake check --all-systems --no-build && nix flake check'';
     };
 
     # A terminal already sitting in the tree — the declarative answer to
