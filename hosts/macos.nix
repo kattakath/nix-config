@@ -15,6 +15,7 @@
 # Thereafter: sudo darwin-rebuild switch --flake .#macos
 {
   config,
+  lib,
   pkgs,
   loginName,
   ...
@@ -486,6 +487,23 @@ in
   # listed, by this variable alone). NOT Escrcpy's Auto Discover / QR pairing: those run
   # their own in-app mDNS — see the escrcpy cask entry for what breaks them.
   launchd.user.envVariables.ADB_MDNS_OPENSCREEN = "1";
+
+  # ---- Google Drive for desktop (cask below) ----------------------------------
+  # Keys are Google's documented admin keys for the com.google.drivefs.settings
+  # domain (support.google.com/a/answer/7644837): AutoStartOnLogin = launch at
+  # session login (menu-bar app). Mirror vs Stream has NO key — Google offers
+  # only DisableMirroredMyDrive — so the sync mode stays an in-app choice.
+  system.defaults.CustomUserPreferences."com.google.drivefs.settings".AutoStartOnLogin = true;
+  # Bandwidth caps are in-app prefs written to the same user domain; a 100 KB/s
+  # BandwidthRxKBPS was found 2026-10-27 and stalled every on-demand read of the
+  # File Provider mount. Delete both caps on each activation so sync always runs
+  # at full speed (absent key = unlimited). Runs as the login user: the domain
+  # lives in ~/Library/Preferences, and postActivation runs as root.
+  system.activationScripts.postActivation.text = lib.mkAfter ''
+    for k in BandwidthRxKBPS BandwidthTxKBPS; do
+      /usr/bin/sudo -u ${loginName} /usr/bin/defaults delete com.google.drivefs.settings "$k" 2>/dev/null || true
+    done
+  '';
 
   # ---- Homebrew apps for THIS host --------------------------------------------
   # The framework (enable/onActivation/taps) lives in modules/darwin/homebrew.nix;
