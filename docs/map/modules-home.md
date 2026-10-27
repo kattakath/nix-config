@@ -27,7 +27,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   (`ssh` for activation + `nix copy` for the closure); see [`entry-points.md`](entry-points.md) § `deploy.nodes`. Host-gated: RAG
   (ollama/pgvector) only on the operator's Mac (`isMacosHost`). **The public-MCP-tunnel half of
   that gate is gone** — it went with the gateway on 2026-10-02
-  ([`claude.md`](claude.md) § MCP after the gateway).
+  ([`claude-code.md`](claude-code.md) § MCP after the gateway).
   `home.packages` also carries `pandoc`/`poppler-utils` (nixpkgs, darwin-only) — together with
   macos's `libreoffice` cask, these satisfy the docx/pptx/xlsx/pdf skills' stated runtime deps
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
@@ -218,7 +218,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `npx -y kapture-mcp@latest bridge` at user scope — imperative and unpinned, so it can
     change under a session with no rebuild. Its declarative home is the `page-lab` plugin's
     `.mcp.json` (where `kapture` moved on 2026-09-30), **not** this repo — there is no gateway to
-    declare it in since 2026-10-02 ([`claude.md`](claude.md) § MCP after the gateway).
+    declare it in since 2026-10-02 ([`claude-code.md`](claude-code.md) § MCP after the gateway).
     (Historical note: the kapture *gateway* entry was removed 2026-08-22 along with the whole
     public-MCP-exposure subsystem; that removal was about the gateway and the Cloudflare
     tunnel, not about the tool, and this extension does not resurrect either. It outlived both

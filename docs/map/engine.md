@@ -274,7 +274,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
   port/role/db rename fails there instead of quietly returning zero rows, and
   `checks.mcp-launcher-parity` joins the plugin that names `nix-mcp-postgres` against the
   launcher built here — so the consumer side is gated too, in both directions. The lane itself
-  is described in [`claude.md`](claude.md) § MCP after the gateway.
+  is described in [`claude-code.md`](claude-code.md) § MCP after the gateway.
 - **Layout:** the two modules sit at the capsule ROOT, not under `modules/`, so that
   `pgvector-local.nix`'s `imports = [ ./ollama-local.nix ]` stays a **sibling** path. That
   literal is load-bearing — it is how `local.rag.pgvector` single-sources
