@@ -20,7 +20,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 > record was deleted the same day (the `infra/cloudflare/kattakath-dns.nix` header). Its
 > state object, the `mcp-public-{plan,apply,destroy,sync,token}` apps, the
 > `packages.mcp-worker-probe` helper and `fleet.publicMcpServers`/`publicMcpPort` went with it.
-> **Do not re-add a stack to publish MCP** — [`claude.md`](claude.md) § MCP after the gateway
+> **Do not re-add a stack to publish MCP** — [`claude-code.md`](claude-code.md) § MCP after the gateway
 > says what replaced it, and
 > § The `mcp-public` teardown below records the one object that refused to die and why that
 > refusal was correct.
