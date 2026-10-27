@@ -14,7 +14,7 @@ lane rules and spawn-test measurements that outlived it) and
 > sentence anywhere in this repo. There is no shared proxy, nothing on `127.0.0.1:8097`, no
 > `mcp.kattakath.com` portal (that hostname has had **no DNS record** since 2026-10-02), and no
 > `modules/shared/mcp.nix`. **Every MCP server now comes from an enabled plugin's own
-> `.mcp.json`, spawned per session, nothing shared** — see [`map/claude.md`](map/claude.md)
+> `.mcp.json`, spawned per session, nothing shared** — see [`map/claude-code.md`](map/claude-code.md)
 > § MCP after the gateway for the replacement and for what the teardown measured.
 
 ## Contents
@@ -43,7 +43,7 @@ ceiling of its own, so the budget table is not a thing you can forget.
 | [`map/engine.md`](map/engine.md) | `modules/parts/` (the flake engine) · `modules/features/` (the seven capsules — read the mechanical boundary and the only-entry/three-seams sections before touching any) · `modules/_lib/` (shared **data**, not modules). |
 | [`map/packages.md`](map/packages.md) | `packages/` — flake apps and packages, including `activate` and the `nixpi-*` provisioning CLIs — plus the record of why there is no `userscripts/` tree to look for. |
 | [`map/infra.md`](map/infra.md) | `infra/` — the five terranix stacks (zones + DNS, `access-org`, `gcp/foundation`, `gcp/budget`, `nixpi-tunnel`) and the `mcp-public` teardown — plus the Cachix binary cache. |
-| [`map/claude.md`](map/claude.md) | Claude Code surface. **Read § MCP after the gateway first — it supersedes every older MCP sentence.** Then `claude/` (the GLOBAL context), `.claude/{commands,rules,hooks,skills}/`, global skills, the operator's marketplace, project memory. |
+| [`map/claude-code.md`](map/claude-code.md) | Claude Code surface. **Read § MCP after the gateway first — it supersedes every older MCP sentence.** Then `claude/` (the GLOBAL context), `.claude/{commands,rules,hooks,skills}/`, global skills, the operator's marketplace, project memory. |
 | [`map/ci.md`](map/ci.md) | CI, release, publishing — the hosted legs and `warm-nixpi-cache.yml`, the workflow that keeps the Pi from ever building. |
 | [`map/docs-index.md`](map/docs-index.md) | **Every `docs/*.md`, annotated.** The place to look when you want a document and not an architecture. |
 
