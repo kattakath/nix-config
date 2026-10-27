@@ -395,8 +395,9 @@ in
       pbConceal
     ]
     # ADR-004: the four backend CLIs arrive ONLY when a backend is declared. With
-    # `backend.type = "none"` nothing is installed and nothing changes — measured on the
-    # real host: home.activation, the loader and the darwin-system drv stay byte-identical.
+    # `backend.type = "none"` nothing is installed and nothing changes — measured before
+    # `macos` enabled the gcp backend (./checks/backend-inert.nix keeps the activation +
+    # loader half): home.activation, the loader and the darwin-system drv stay byte-identical.
     # Declaring ≠ installing.
     ++ lib.optionals (cfg.backend.type != "none") [
       backendCmds.secrets-status

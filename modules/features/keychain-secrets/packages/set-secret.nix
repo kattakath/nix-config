@@ -242,8 +242,7 @@ writeShellApplication {
       "$security" add-generic-password -U -a "$account" -s "$index_service" -w "$new_index" "''${kc[@]}"
     fi
 
-    # Verify the value round-trips back out of the Keychain, then show only the
-    # first few characters as proof (never the whole secret).
+    # Verify the value round-trips back out of the Keychain.
     got="$("$security" find-generic-password -a "$account" -s "$key" -w "''${kc[@]}" 2>/dev/null || true)"
     if [ "$got" != "$value" ]; then
       echo "set-secret: WARNING — $key did not round-trip out of the Keychain (a non-printable byte reads back hex-encoded)." >&2

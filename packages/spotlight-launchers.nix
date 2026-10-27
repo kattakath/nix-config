@@ -533,7 +533,7 @@ in
 
     # A terminal already sitting in the tree — the declarative answer to
     # "install something". It replaced a `code "$1"` bundle on 2026-09-23: the
-    # editor opened but NOT on the repo, and Ghostty is where the other two
+    # editor opened but NOT on the repo, and Ghostty is where the other bundles
     # already land, so one window type serves the whole row.
     "Nix Open Repo" = mkCommandApp {
       name = "Nix Open Repo";

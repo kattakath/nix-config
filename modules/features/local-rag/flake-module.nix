@@ -38,7 +38,7 @@
 #     carrying a second formatter config would be two sources of truth for one
 #     `nix fmt`. Same call the capsules before this one made.
 #
-# NO PACKAGES. Unlike every other absorbed capsule this one registers no
+# NO PACKAGES. This capsule registers no
 # `perSystem.packages` — the satellite had none either. Everything it installs
 # (ollama, postgresql, pgvector, pgsql-http) is nixpkgs', reached through
 # `home.packages` from inside the modules. There is nothing here to shellcheck,

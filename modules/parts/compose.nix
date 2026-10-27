@@ -110,14 +110,10 @@ let
             agent-skills-vercel-agent
             agent-skills-vercel-workflow
             grok-build-plugin-cc
-            # kattakath-skills is DELIBERATELY ABSENT from this seam, and that is
-            # the correction rather than an omission. It sat here until 2026-10-02
-            # with a comment naming two home-manager consumers: modules/home's
-            # superhook package, which became a plugin hook 2026-09-30, and
-            # `modules/shared/mcp.nix`'s `mcpCatalog`, which was DELETED with that
-            # module the same day. The pin is still live and still load-bearing —
-            # modules/parts/packages.nix (page-lab-pick) and modules/parts/checks.nix
-            # (mcp-launcher-parity) — but every one of those reads
+            # kattakath-skills is DELIBERATELY ABSENT from this seam (removed
+            # 2026-10-02, when its last home-manager consumer died). The pin is still
+            # load-bearing — modules/parts/packages.nix (page-lab-pick) and
+            # modules/parts/checks.nix (mcp-launcher-parity) — but each reads
             # `inputs.kattakath-skills` directly in the FLAKE ENGINE, where `inputs`
             # is already in scope. None is a home-manager module, so nothing reached
             # through here; an extraSpecialArg no module declares is dead weight that
