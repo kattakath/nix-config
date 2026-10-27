@@ -45,7 +45,10 @@
 # module builds its OWN `nix-<activity>` wrapper and sets ProgramArguments
 # itself. One honest note: on
 # the engine the launchd launcher re-wraps this agent once more (nix-media-queue →
-# nix-media-queue → media-worker).
+# nix-media-queue-run → media-worker). The inner wrapper is `nix-<agent>-run`, NOT
+# `nix-<agent>`: the launcher already takes that name, and one name on two store
+# paths is what .claude/rules/launchd-naming.md item 1 forbids. It keeps the
+# `nix-` prefix because checks/module-evaluations.nix asserts it.
 {
   config,
   lib,
@@ -87,13 +90,13 @@ let
       # writeShellApplication: ShellCheck, and the same `set -euo pipefail` this
       # always set by hand.
       wrapper = pkgs.writeShellApplication {
-        name = "nix-${name}";
+        name = "nix-${name}-run";
         text = ''
           exec ${exe}
         '';
       };
     in
-    [ "${wrapper}/bin/nix-${name}" ];
+    [ (lib.getExe wrapper) ];
 
   loadControl = {
     ProcessType = "Background";
