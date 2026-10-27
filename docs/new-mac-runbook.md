@@ -171,7 +171,7 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   `aarch64-linux` (or `x86_64-linux`) build/`nix run` fails with `error: Cannot
   build '...': Reason: platform mismatch — Required system: 'aarch64-linux',
   Current system: 'aarch64-darwin'`, which reads like a config bug but isn't
-  one — `nix show-config`'s `external-builders` is simply empty until login
+  one — `nix config show`'s `external-builders` is simply empty until login
   happens. Fix, after activating the fresh Mac:
   1. Generate a token at <https://flakehub.com/user/settings?editview=tokens>.
   2. Store it durably: `secret set FLAKEHUB_TOKEN` (hidden prompt), so this

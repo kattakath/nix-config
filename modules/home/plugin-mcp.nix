@@ -23,7 +23,7 @@
 # `security find-generic-password`, which is the whole reason the credential half stays
 # in Nix. Secret NAMES live here; no secret VALUE ever reaches the store or argv.
 #
-# A FOURTH SERVER, FOR A DIFFERENT REASON (2026-10-07). `desktop-commander` needs no
+# ANOTHER SERVER, FOR A DIFFERENT REASON (2026-10-07). `desktop-commander` needs no
 # credential at all — it is here because a plugin's `.mcp.json` equally cannot run
 # `sandbox-exec -f <profile>`, and that fence is the only thing making the server safe
 # to re-adopt. Same split, same cause: the launcher does what a JSON file cannot. Its
@@ -324,7 +324,7 @@ let
     # @modelcontextprotocol/server-postgres is ARCHIVED with an unpatched
     # read-only-bypass SQL-injection CVE and is deliberately avoided.
     #
-    # The ONLY one of the three with no secret: `databaseUri` is loopback `trust` auth
+    # No secret: `databaseUri` is loopback `trust` auth
     # with no password, so it is a plain env value rather than a Keychain read — and it
     # comes from the local-rag capsule's own option, so the port/role/db are stated once.
     # `--access-mode=unrestricted` lets it create tables and insert vectors; the blast

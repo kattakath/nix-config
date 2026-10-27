@@ -19,7 +19,7 @@
 # org.nix lines across four activations that day and, for those three labels,
 # exactly one kind of event: `Could not find job with label …`. Never a spawn.
 # `launchctl load`'s exit code is documented as meaningless, so every one of
-# those activations reported success. ollama-daemon.nix's header records the same
+# those activations reported success. github-runner.nix's boot-ordering comment records the same
 # class costing 10h52m an earlier time. This is upstream nix-darwin #1199.
 #
 # WHY BOTH HOOKS, not one.

@@ -53,8 +53,8 @@ let
       [ -r "$LOG" ] || exit 0
 
       # Bounded read: this log is append-only between rotations (logging.nix's root
-      # tick copytruncates it), so a whole-file grep every interval is unbounded. The last few hundred
-      # lines always contain the most recent startup banner.
+      # tick copytruncates it), so a whole-file grep every interval is unbounded. The bounded tail
+      # always contains the most recent startup banner.
       last=$(tail -n 2000 "$LOG" | grep 'inference compute' | tail -1 || true)
       [ -n "$last" ] || exit 0
 
@@ -112,8 +112,8 @@ in
       default = "/var/lib/ollama/models";
       description = ''
         Shared model store, outside any user's home — that is the whole point.
-        /var/lib matches the fleet's other system daemon
-        (`modules/darwin/github-runner.nix` uses /var/lib/github-runner-*).
+        /var/lib, like `modules/darwin/github-runner.nix`'s
+        /var/lib/github-runner-*.
 
         Moving an existing store here is a RENAME, not a copy: /Users and
         /private/var are firmlinked onto the same APFS data volume, so 31 GB
@@ -144,9 +144,9 @@ in
         # declared, evaluated, and reaching nothing. Keep the fact in ONE place,
         # next to the process it configures.
         # WHY 1, and not a round number: a 6.1 GB vision model IS the whole GPU.
-        # photo-describe serialises within a run, but that lock covers the
-        # WORKER only — a hand-run `photo-describe` alongside a draining queue,
-        # or `qwen` mid-sweep, would otherwise put two inferences on one GPU.
+        # media-describe serialises within a run, but that lock covers the
+        # WORKER only — a hand-run `media-describe` alongside a draining queue
+        # would otherwise put two inferences on one GPU.
         # Ollama queues rather than thrashes, so the failure mode is slow rather
         # than broken; this states the constraint where the resource actually
         # is, instead of in one of its callers.

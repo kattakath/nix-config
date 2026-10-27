@@ -268,7 +268,7 @@
     # "fails (and blocks the connector) if it is absent" as if absence were the only
     # way to fail. An UNREADABLE firmware partition failed it too — via
     # RequiresMountsFor, as a DEPENDENCY failure, which no Restart= can retry — and
-    # `requiredBy` then turned that into a PERMANENT loss of the only route in. The
+    # `requiredBy` then turned that into a PERMANENT loss of the only REMOTE route in. The
     # connector's own module is explicitly built to survive a missing token
     # (Restart=on-failure, so a late plant self-heals without a rebuild); a hard
     # Requires= on a non-restarting oneshot silently overrode that design.

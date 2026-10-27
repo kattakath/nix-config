@@ -517,8 +517,7 @@ in
       "git-filter-repo"
       # gitlab-runner moved OFF brew 2026-09-05: local.tart.gitlabRunner above runs
       # pkgs.gitlab-runner as a launchd agent with a runtime-rendered config
-      # (the tart-vms capsule's gitlab-runner.nix). After activating, retire
-      # the brew copy once: `brew services stop gitlab-runner`.
+      # (the tart-vms capsule's gitlab-runner.nix).
       "glab"
       # GnuPG — BREWED, NOT nixpkgs, and that inverts this repo's usual instinct
       # on purpose. It was first brewed (2026-10-06) because the `gpgfrontend`
@@ -663,7 +662,7 @@ in
       # only AFTER the bundle runs, so mid-bundle brew sees the cask in two taps and
       # refuses — "Cask escrcpy exists in multiple taps … Please use the
       # fully-qualified name". Qualifying it is also what keeps this unambiguous on a
-      # machine where someone re-taps upstream by hand. The tap prefix must match
+      # machine where someone taps a second escrcpy cask by hand. The tap prefix must match
       # modules/darwin/homebrew.nix's `taps` entry.
       #
       # MOVING THIS CASK BETWEEN TAPS NEEDS A ONE-TIME MANUAL STEP, and qualifying the
@@ -757,7 +756,7 @@ in
       # KDE Connect — the phone-as-TRACKPAD/keyboard for this Mac (its "Virtual
       # touchpad" panel). A CASK because nixpkgs' `kdePackages.kdeconnect-kde` is
       # Linux+FreeBSD in `meta.platforms` and does not evaluate on aarch64-darwin;
-      # the cask ships 26.08.1, the SAME version, arm64-only, macOS >= 13. Same
+      # the cask ships the SAME version, arm64-only, macOS >= 13. Same
       # Homebrew-app/Nix-config split as the ghostty and ungoogled-chromium casks.
       #
       # THE macOS BACKEND IS REAL, verified in upstream source (2026-10-06), not
@@ -788,7 +787,7 @@ in
       # irrelevant to whether this works.
       #
       # IT CLAIMS THIS MAC'S `.local` NAME — the cause of LocalHostName `macos-2`.
-      # On macOS 26.08.x always runs its OWN mDNS responder (upstream
+      # On macOS, KDE Connect 26.08.x always runs its OWN mDNS responder (upstream
       # core/backends/lan/lanlinkprovider.cpp:59-62, whose TODO is to use the system
       # API instead) and publishes `<hostname>.local` A/AAAA beside mDNSResponder's
       # (mdnsh_wrapper.cpp:645). When those differ, mDNSResponder loses its probe
@@ -840,9 +839,9 @@ in
       # rockymadden/slack-cli webhook-poster, not this tool.
       "slack-cli"
       "telegram"
-      # Tor Browser 15.0.24 — BARE STRING, no greedy, and that is the default
+      # Tor Browser — BARE STRING, no greedy, and that is the default
       # shape here rather than an omission. `auto_updates true` + `depends_on
-      # :macos`, installed from ONE universal tor-browser-macos-15.0.24.dmg:
+      # :macos`, installed from ONE universal tor-browser-macos-<version>.dmg:
       # native Apple Silicon, no Rosetta, no arch-split url. `google-chrome`
       # above is the precedent for exactly this (a normal auto_updates cask,
       # bare string). `greedy` in this repo is reserved for a DOCUMENTED

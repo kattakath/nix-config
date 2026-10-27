@@ -43,8 +43,7 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
     answers, and it is a **procedure**, not a gate.
   - **the three non-`nix-mcp-` lanes**, excluded by construction: `${CLAUDE_PLUGIN_ROOT}`-relative
     commands (which expand only inside the owning plugin), bare nixpkgs binaries, and `npx`
-    invocations. Of the 15 servers the pinned plugins declare (pin `e3e48a9`, 2026-10-21), 8 are out of scope this way — the
-    per-lane breakdown is in [`modules-home.md`](modules-home.md) § `gmail-mcp.nix` +
+    invocations. Which servers fall out of scope this way, per lane, is in [`modules-home.md`](modules-home.md) § `gmail-mcp.nix` +
     `plugin-mcp.nix`.
   - **anything in a marketplace this repo does not pin.** The join covers `kattakath/skills`
     only, and that pin lags the marketplace, which tracks HEAD.

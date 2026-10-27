@@ -201,8 +201,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     shared fleet App's, recorded with its id in `hosts/macos.nix` (App-GLOBAL, wider than this lane needs).
   - **Security:** `--ephemeral` (one job per registration; launchd restart + re-register makes
     it self-healing), outbound-only. Only trusted push jobs may target `runs-on: [self-hosted,
-    …]` — **never fork-PR workflows**, since the daemon inherits the operator's login
-    environment. `arg0` is nix-darwin's `/bin/sh -c 'wait4path /nix/store && exec …'` wrapper —
+    …]` — **never fork-PR workflows** (why: the `github-runner.nix` header's SECURITY note). `arg0` is nix-darwin's `/bin/sh -c 'wait4path /nix/store && exec …'` wrapper —
     the launchd-naming rule's **boot-ordering exception** for daemons; the exec'd process is
     still `nix-github-runner-<instance>`.
   - **Labels:** `extraLabels` (default `[ "nix" ]`) is passed as `--labels` **without**
