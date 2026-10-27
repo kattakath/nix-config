@@ -1,6 +1,6 @@
 # Reading Claude Code hook messages in this repo
 
-This repo's hooks (where each one is wired: [`map/claude.md`](map/claude.md) § `.claude/hooks/`)
+This repo's hooks (where each one is wired: [`map/claude-code.md`](map/claude-code.md) § `.claude/hooks/`)
 surface messages that the Claude Code harness labels with error-adjacent words even when nothing is broken. This is
 the decoder: **scan the first keywords of the message, not the harness label.**
 

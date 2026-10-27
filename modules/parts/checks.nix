@@ -2367,8 +2367,8 @@ in
                   path = ../../docs/map/ci.md;
                   limit = 12000;
                 };
-                "docs/map/claude.md" = {
-                  path = ../../docs/map/claude.md;
+                "docs/map/claude-code.md" = {
+                  path = ../../docs/map/claude-code.md;
                   limit = 40000;
                 };
                 "docs/map/docs-index.md" = {

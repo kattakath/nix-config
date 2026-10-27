@@ -526,4 +526,4 @@ you aim a destroy at them.
 
 **What replaced it:** nothing at this layer. There is no portal and no plan for one — MCP servers
 come from an enabled plugin's `.mcp.json`, spawned per session, reachable only by Claude Code on
-this Mac. [`map/claude.md`](map/claude.md) § MCP after the gateway.
+this Mac. [`map/claude-code.md`](map/claude-code.md) § MCP after the gateway.
