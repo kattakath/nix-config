@@ -1003,6 +1003,9 @@ in
         "harvest"
         # Remove a literal that must not be public from a public repo's history (kattakath/skills#101).
         "history-scrub"
+        # GTD on eight Google Workspace apps — Tasks + Calendar, daily shutdown, drafted
+        # Friday review, employer as a free/busy adapter, no alarms (kattakath/skills#102).
+        "workspace-gtd"
         "jsonresume-tailor"
         "github-release-gate"
         "skill-curator"
@@ -1236,6 +1239,11 @@ in
     # Harvested 2026-10-26 after the third public-history scrub in a week; declared
     # here so it is LOADED, not just catalogued — the failure the block above records.
     "history-scrub@kattakath" = true;
+
+    # The operator's work-life system (2026-10-27). Declared, not clicked, because it
+    # is life-wide: every session in every repo must load it, and a fresh Mac must too.
+    # It moved here from agentic-nomad, whose rules only load inside that repo.
+    "workspace-gtd@kattakath" = true;
 
     # The Seatbelt-fenced shell/filesystem server — see the `desktop-commander` entry
     # in the kattakath catalogue above. It is HERE, and not left to a `/plugin` click,
