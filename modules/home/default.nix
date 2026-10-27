@@ -569,7 +569,7 @@ in
   # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
   local.mediaCli = {
     enable = isMacosHost;
-    # `auge` is Apple's Vision framework from the shell — photo-describe already
+    # `auge` is Apple's Vision framework from the shell — media-describe already
     # has it hermetically, this puts it on PATH for direct use ("is this shot any
     # good", "is anyone blinking"). `rclipCli` is the VECTOR half of retrieval,
     # deliberately kept out of the capsule (see its override above).

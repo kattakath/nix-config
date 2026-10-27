@@ -15,7 +15,7 @@
 # IT USED TO ASSERT `unitConfig.RequiresMountsFor == "/boot/firmware"`, i.e. it
 # PINNED THE DEFECT. Requires= on the mount made an unreadable FAT partition a
 # dependency failure, which no Restart= can retry, and a consumer's requiredBy then
-# made that permanent — on nixpi, a permanent loss of the only route in. So the
+# made that permanent — on nixpi, a permanent loss of the only remote route in. So the
 # assertion is inverted: the mount must be WANTED and ORDERED, and
 # `RequiresMountsFor` must be ABSENT. A test that pins the broken behaviour is worse
 # than no test, because it makes the fix look like the regression.
