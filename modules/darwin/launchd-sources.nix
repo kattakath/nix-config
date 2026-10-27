@@ -54,9 +54,9 @@
 #
 # So a `selfHeals = false; domain = "gui"` source is covered by NEITHER — and as
 # of 2026-10-02 NOTHING composed on `macos` sits there. It was FIVE. metube and
-# yt-dlp-web-ui moved 2026-09-22; `open-maccy` and the two trash sweeps followed
-# into modules/home/macos-user-agents.nix; then the two `tart-vms` CI runner
-# lanes (`gitlab-runner`, `tart-runner-<instance>`) finished the row. Labels were
+# yt-dlp-web-ui moved 2026-09-22; `open-maccy` (since retired, 2026-10-27) and
+# the two trash sweeps followed into modules/home/macos-user-agents.nix; then the
+# two `tart-vms` CI runner lanes (`gitlab-runner`, `tart-runner-<instance>`) finished the row. Labels were
 # pinned every time, so each unit kept its Background Task Management approval.
 #
 # THE TWO CI LANES WERE NOT THE HARD CASE THEY LOOKED LIKE, and this is the part
