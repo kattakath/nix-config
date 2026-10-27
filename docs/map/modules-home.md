@@ -110,8 +110,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
       one `$out/bin/<name>` and shellchecked at build. All but mcpfinder keep
       `bashOptions = [ "nounset" ]`, the `set -u`
       they always ran under, so a missing Keychain entry still warns rather than aborts.
-    - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Of the 15 servers
-      the plugins declare (pin `e3e48a9`, 2026-10-21), 8 are out of this lane: `memory` and `chrome-devtools` are
+    - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Out of this lane:
+      `memory` and `chrome-devtools` are
       `${CLAUDE_PLUGIN_ROOT}`-relative, which expands **only** inside the owning plugin, so no
       PATH binary can exist for them even in principle; `mcp-nixos` and `terraform-mcp-server`
       are bare nixpkgs binaries installed as ordinary packages; `mobile-mcp`,
