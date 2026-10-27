@@ -235,7 +235,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
   `module.nix` for `home.packages`. That is the whole reason the file exists. It sits at the
   capsule **ROOT** rather than under `lib/`, because from `lib/` every one of its `callPackage`
   lines would have had to be `../packages/`.
-- **It builds its OWN `nix-media-queue` wrapper and sets `ProgramArguments` itself.** Upstream
+- **It builds its OWN `nix-<agent>-run` wrapper (`nix-media-queue-run`; the HM launcher keeps `nix-media-queue`) and sets `ProgramArguments` itself.** Upstream
   home-manager's `/bin/sh -c 'wait4path … && exec'` arg0 **silently loses TCC read access** to
   the very folders the worker exists to work on
   ([`launchd-naming.md`](../../.claude/rules/launchd-naming.md)) — which is why

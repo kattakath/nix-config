@@ -137,7 +137,7 @@ local.keychainSecrets.backend.type = "gcp";   # in your USER's home-manager bloc
 | Command | Does | Network |
 |---|---|---|
 | `secrets-status [--offline]` | one row per registered secret: in Keychain? ref, mode, **drift** vs. latest remote version — compared by sha256, never printed; lists `remote-only` strays | yes, unless `--offline` or no backend |
-| `secrets-rehydrate [--dry-run]` | pulls every `<prefix>*` secret that carries this store's annotations back into the Keychain **through `set-secret`**, so bindings return too; idempotent — matching values are skipped; reference-mode secrets only land in the manifest | yes |
+| `secrets-rehydrate [--dry-run]` | pulls every `<prefix>*` secret that carries this store's annotations back into the Keychain **through `set-secret`**, so bindings return too; idempotent — matching values are skipped; reference-mode secrets only land in the manifest; one failed write is named and skipped, and the run exits 1 at the end | yes |
 | `secrets-push <SERVICE> [<ACCOUNT>] [--mode cached\|reference] [--ref REF]` | pushes **one** Keychain item: creates the secret if needed, adds a version only when the value changed, records SERVICE/ENV/ACCOUNT/MODE as annotations | yes |
 | `secrets-resolve <REF\|ID\|SERVICE>` | prints one value to stdout, nothing else — the `mode = "reference"` runtime helper | yes |
 
