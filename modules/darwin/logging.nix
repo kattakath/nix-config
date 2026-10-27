@@ -68,11 +68,11 @@
 # is what resolves /var/log/ollama-daemon.log being written by BOTH the
 # KeepAlive `ollama` daemon and the StartInterval `ollama-metal-guard`.
 #
-# A THIRD class falls out of that derivation rather than being classified: the
-# login opener (`open-maccy`, modules/home/macos-user-agents.nix — the only one
-# left) declares neither StandardOutPath nor StandardErrorPath, so `paths` below
-# is empty for it and it reaches neither set. Nothing excludes it — there is
-# nothing to exclude.
+# A THIRD class falls out of that derivation rather than being classified: an
+# agent that declares neither StandardOutPath nor StandardErrorPath has empty
+# `paths` below and reaches neither set. Nothing excludes it — there is nothing
+# to exclude. No current agent is one; the Maccy login opener (`open-maccy`)
+# was, until it was retired 2026-10-27.
 #
 # PATHS ARE DERIVED, NOT TYPED. Two traps a hand-written list walks straight into:
 #   (a) claude-desktop-mcp-sync declares StandardErrorPath and NO StandardOutPath,

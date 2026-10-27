@@ -2629,7 +2629,8 @@ in
           # so a unit macOS has dropped simply stays down until a human notices.
           # Five units sat there and ALL FIVE moved to home-manager's
           # `launchd.agents` on 2026-10-02 — three into
-          # modules/home/macos-user-agents.nix, then the two tart-vms CI runners
+          # modules/home/macos-user-agents.nix (the Maccy opener among them,
+          # retired 2026-10-27), then the two tart-vms CI runners
           # — so the stranded row is now EMPTY, which is what the first leg
           # below asserts. Upstream owns the `launchctl print` probe. This gate
           # is what stops them coming back, and the per-unit legs are keyed on
@@ -2637,7 +2638,7 @@ in
           #
           # THE LABEL IS THE UNIT'S ON-DISK IDENTITY, and the operator's
           # "Allow in the Background" approval in Background Task Management is
-          # keyed to it. The three literals below are therefore the artifact, not
+          # keyed to it. The literals below are therefore the artifact, not
           # a restatement of the module: home-manager's default Label would be
           # `org.nix-community.home.<attr>`, so the module must OVERRIDE it, and
           # a check that re-derived the override from the module could not tell a
@@ -2669,7 +2670,7 @@ in
           # `nix-gitlab-runner` and `nix-tart-runner-dontsell-vm` are what BTM
           # listed before it, and those names come from `launcher.name`, not from
           # the inner script (which is deliberately named differently, so one
-          # name does not end up on two store paths). The three macos-user-agents
+          # name does not end up on two store paths). The macos-user-agents
           # defaults come from modules/home/launchd-launcher.nix as `mkDefault`s,
           # i.e. a single agent can still silently opt out of both; the capsule
           # sets its own explicitly, because a capsule may not assume its
@@ -2694,7 +2695,7 @@ in
               # defaults off `config.system.primaryUserHome`. Lane, not layer:
               # what self-heals is the option surface, not which file writes it.
               #
-              # DERIVED, unlike the three below, and that is the distinction
+              # DERIVED, unlike the literals below, and that is the distinction
               # worth keeping. Their Labels are not hand-picked strings: each is
               # nix-darwin's own former default for the attribute name
               # (`launchd.labelPrefix` + "." + attr, the `serviceConfig.Label`
@@ -2714,7 +2715,6 @@ in
               units = {
                 file-rotation-desktop = "com.kattakath.file-rotation.trash-desktop";
                 file-rotation-downloads = "com.kattakath.file-rotation.trash-downloads";
-                open-maccy = "org.nixos.open-maccy";
               }
               // lib.listToAttrs (map (n: lib.nameValuePair n "org.nixos.${n}") tartLanes);
               attrs = lib.attrNames units;
@@ -2735,6 +2735,10 @@ in
               # EMPTY on macos, so the strongest available assertion is
               # emptiness, and it needs no maintenance.
               strandedGui = lib.attrNames mac.launchd.user.agents;
+              # Maccy starts through its OWN launch-at-login (one BTM item) since
+              # 2026-10-27. A nix opener next to it is the two-launcher race of
+              # 2026-09-23 (dead menu-bar icon), so its return is a red leg.
+              maccyOpener = hm.launchd.agents ? open-maccy;
             in
             mkHostContract {
               inherit pkgs;
@@ -2769,6 +2773,10 @@ in
                   name = "every launcher is still named nix-<attr> (wrong: ${toString badLauncher})";
                   ok = badLauncher == [ ];
                 }
+                {
+                  name = "no nix login opener for Maccy (the app's own launch-at-login is the one launcher)";
+                  ok = !maccyOpener;
+                }
               ];
               # NO BACKTICKS IN THESE LINES. mkHostContract emits each one inside
               # a double-quoted echo, so a backtick is command substitution: the
@@ -2777,7 +2785,8 @@ in
               advice = [
                 "All five were nix-darwin launchd.user.agents until 2026-10-02 and moved"
                 "to home-manager launchd.agents for its launchctl-print self-heal: three"
-                "in modules/home/macos-user-agents.nix, and the two CI runners in"
+                "in modules/home/macos-user-agents.nix (the Maccy opener among them, retired"
+                "2026-10-27 for Maccy's own launch-at-login), and the two CI runners in"
                 "modules/features/tart-vms/. Moving one back puts it on the selfHeals ="
                 "false, domain = gui row of modules/darwin/launchd-sources.nix, which no"
                 "mechanism repairs: the unit stays down silently after macOS drops it."
@@ -2792,6 +2801,8 @@ in
                 "sweeps would run, log nothing useful, and quietly do no work. For the two"
                 "CI runners the same change costs BTM legibility instead - the operator"
                 "sees a phantom sh where nix-gitlab-runner used to be."
+                "A nix opener for Maccy (open-maccy) races the app's own launch-at-login:"
+                "two launchers left a dead menu-bar icon on 2026-09-23. Use the app toggle."
               ];
             };
 

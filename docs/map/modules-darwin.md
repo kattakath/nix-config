@@ -12,8 +12,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   key here and in `system.defaults`. `screencapture.location` is unset
   everywhere, which is
   what makes `~/Desktop` the capture inbox the sweeps rotate.
-  **It declares no launchd AGENT any more.** The Maccy opener and the two `mkTrashSweep`
-  rotations left for the home-manager lane on 2026-10-02 — see
+  **It declares no launchd AGENT any more.** The Maccy opener (retired 2026-10-27) and the
+  two `mkTrashSweep` rotations left for the home-manager lane on 2026-10-02 — see
   [`modules-home.md`](modules-home.md) § `macos-user-agents.nix`. With the `tart-vms` CI runners moved the same
   week, **nothing composed on `macos` is left on `launchd.user.agents` at all**, and
   `checks.<system>.launchd-selfheal-lane` gates that emptiness as its first leg rather than

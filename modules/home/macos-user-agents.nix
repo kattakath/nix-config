@@ -1,10 +1,11 @@
-# home-manager module: the three macos-only user agents — Maccy's login opener
-# and the two inbox Trash sweeps.
+# home-manager module: the two macos-only user agents — the inbox Trash sweeps.
+# (Maccy's login opener lived here too until 2026-10-27; see the note above
+# `launchd.agents` for why it left and must not come back.)
 #
 # WHY HOME MANAGER AND NOT nix-darwin's `launchd.user.agents` (moved 2026-10-02).
 # Both layers place a user agent in ~/Library/LaunchAgents under gui/<uid>; only
 # one REPAIRS it. The four surfaces and which mechanism covers which are
-# enumerated once in modules/darwin/launchd-sources.nix, and these three sat on
+# enumerated once in modules/darwin/launchd-sources.nix, and these units sat on
 # the one row covered by NEITHER (`selfHeals = false; domain = "gui"`):
 #
 #   • nix-darwin's activation is diff-gated in BOTH lanes — pinned nix-darwin
@@ -31,9 +32,9 @@
 # approval in Background Task Management is keyed to the Label, so a rename
 # silently drops the toggle and the unit reappears as a new, unapproved item.
 # metube and yt-dlp-web-ui accepted that rename when they moved on 2026-09-22
-# because neither is a BTM-approved background reader; these three are.
+# because neither is a BTM-approved background reader; these are.
 # `checks.<system>.launchd-selfheal-lane` gates both halves — the lane and the
-# three Label strings.
+# Label strings.
 #
 # NOT `launchd.user.agents` IN A HOME-MANAGER MODULE EITHER: that option belongs
 # to nix-darwin and does not exist here. `launchd.agents` is the whole surface
@@ -150,7 +151,7 @@ let
     };
 in
 {
-  # ---- User agents (login opener + inbox rotations) ---------------------------
+  # ---- User agents (inbox rotations) ------------------------------------------
   # BTM RULE: "Allow in the Background" names each item by ProgramArguments[0]
   # basename (`sfltool dumpbtm`). Always use a `nix-<activity>` wrapper — never
   # bare /bin/sh or a `script =`/`waitForNixStore` wrapper (those render
@@ -161,55 +162,25 @@ in
   # The `nix-*` wrapper is also load-bearing for TCC *file access*, not just
   # cosmetics — see docs/macos-settings-surface.md § TCC and a /nix/store arg0.
   #
-  # ONE launch-at-login opener survives: Maccy. Slack, Mail and Messages were
-  # removed 2026-09-23 — each still raised a window at login despite `open -g
-  # -j` plus a 12s System Events re-hide loop, and the operator wants a login
-  # with no windows and no Dock churn. Maccy is LSUIElement (menu-bar only), so
-  # it never was part of that complaint and it keeps its opener.
+  # NO launch-at-login opener survives here. Slack, Mail and Messages went
+  # 2026-09-23 (each raised a window at login despite `open -g -j` plus a
+  # System Events re-hide loop). Maccy's `open-maccy` agent went 2026-10-27, by
+  # operator decision: Maccy now starts through its OWN "Launch at login"
+  # setting — one SMAppService registration in Background Task Management,
+  # which §5a of docs/macos-settings-surface.md records as not declarable.
+  # ONE LAUNCHER, ON PURPOSE: on 2026-09-23 two launchers (this agent and a
+  # login item) raced at login and left a dead menu-bar icon that swallowed
+  # the first click. Do NOT add a nix opener for Maccy back alongside the app's
+  # own toggle, and prefer an app's own launch-at-login over a new `open-*`
+  # agent for any other app, absent a new decision.
   #
-  # Maccy had a DIFFERENT bug: a dead menu-bar icon that swallowed the first
-  # click after login, needing a Spotlight relaunch. Cause: two launchers raced
-  # — this agent AND a System Events login item. Measured 2026-09-23: deleting
-  # that login item ALSO cleared Maccy's app-level BTM record, i.e. they were
-  # one registration seen twice, not two. This agent is now the only launcher.
-  # Do NOT re-add an `open-*` agent for a windowed app without a new decision.
-  #
-  # No hide loop here (unlike the retired Slack/Mail/Messages agents): Maccy has
-  # no window to suppress, so `open -g -j` alone is the whole job.
-  #
-  # Host scope: all three are **macos only**, gated on `osConfig` because
+  # Host scope: both are **macos only**, gated on `osConfig` because
   # `local.operatorHost` is a nix-darwin option and this is a home-manager
   # module. The gate keeps the sweeps off any other darwin host — a Tart guest
   # whose ~/Downloads is a VirtioFS symlink into the host's would be destroyed
   # by a guest-side rotation: mv(1) degrades to cp+rm across filesystems,
   # copying host bytes into the guest and unlinking them on the host.
   launchd.agents = lib.mkIf isMacosHost {
-    # Label pinned to the live `org.nixos.open-maccy` so existing BTM toggle
-    # state survives the lane change — home-manager would otherwise name this
-    # `org.nix-community.home.open-maccy`, a different unit. The attribute name
-    # still supplies arg0 (`nix-open-maccy`) per
-    # .claude/rules/launchd-naming.md — a bare /usr/bin/open would show in
-    # "Allow in the Background" as a phantom "open". The inner script is NOT
-    # called `nix-open-maccy` for the one-name-two-store-paths reason above.
-    # `enable = true` is load-bearing — see the note in mkTrashSweep above.
-    open-maccy = {
-      enable = true;
-      config = {
-        Label = "org.nixos.open-maccy";
-        ProgramArguments = [
-          "${
-            pkgs.writeShellApplication {
-              name = "open-maccy-run";
-              text = ''
-                exec /usr/bin/open -g -j -a Maccy
-              '';
-            }
-          }/bin/open-maccy-run"
-        ];
-        RunAtLoad = true;
-      };
-    };
-
     # The two inbox sweeps (mkTrashSweep above; hourly tick each; recoverable —
     # Finder erases Trash items at 30d via FXRemoveOldTrashItems). Stock
     # /bin + /usr/bin only (no Nix runtime).

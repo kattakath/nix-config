@@ -12,7 +12,7 @@ paths:
 # Launchd Naming — `nix-<kebab>` arg0, NEVER a bare interpreter
 
 Every launchd unit **this repo authors** MUST expose a first argument whose **basename is
-`nix-<activity-in-kebab-case>`** — e.g. `nix-open-maccy`, `nix-ollama-local`,
+`nix-<activity-in-kebab-case>`** — e.g. `nix-ollama-local`, `nix-open-maccy` (historical, retired 2026-10-27),
 `nix-file-rotation-downloads`. The `arg0` the kernel execs (`ProgramArguments[0]`, or
 `Program` if used) is what macOS's **Background Task Manager (BTM)** and *System Settings →
 Login Items & Extensions* display. A bare interpreter there — `sh`, `bash`, `zsh`, `dash`,
@@ -78,9 +78,9 @@ mandatory, not as a security boundary to rely on. Live example:
    `modules/features/tart-vms/darwin.nix`'s `launchd.user.agents.tart-vm-<name>`, whose
    `arg0` is a `writeShellApplication "nix-tart-vm-<name>"`. Both CI runner lanes
    (`tart-vms/gitlab-runner.nix`, `github-runner.nix`) moved to item 1's home-manager lane
-   on 2026-10-02, as did `modules/darwin/core.nix`'s `open-maccy` and two trash sweeps
+   on 2026-10-02, as did `modules/darwin/core.nix`'s `open-maccy` (retired 2026-10-27) and two trash sweeps
    (`modules/home/macos-user-agents.nix`), where the launcher supplies the `nix-*` arg0 and
-   the inner scripts are therefore named `open-maccy-run` / `file-rotation-<inbox>-sweep`.
+   the inner scripts are therefore named `file-rotation-<inbox>-sweep` (and was `open-maccy-run`).
 3. **Before declaring any launchd change done**, mentally (or with the audit below) confirm
    the new unit's `arg0` basename starts with `nix-`.
 
@@ -213,8 +213,9 @@ so they form one contiguous block instead of scattering under d/d.
 Home Manager agents get this for free — `launchd.agents.<n>.launcher.name` defaults to
 `nix-<attr>` (`modules/home/launchd-launcher.nix`), so `nix-media-queue` /
 `nix-media-queue-power` and `nix-claude-desktop-mcp-sync` / `nix-claude-otel-collector`
-already sort together — and since 2026-10-02 the trash sweeps and the Maccy opener get it
-the same way (`modules/home/macos-user-agents.nix`). The nix-darwin lane hand-rolls its
+already sort together — and since 2026-10-02 the trash sweeps get it the same way
+(`modules/home/macos-user-agents.nix`; the Maccy opener did too until its 2026-10-27
+retirement). The nix-darwin lane hand-rolls its
 wrapper, which is where a prefix gets dropped — `mkNixAgent` passed `suffix = "maccy"` into
 `nix-${suffix}` and lost the `open-` until 2026-09-22. That helper is gone with the move;
 `tart-vms/darwin.nix`'s `nix-tart-vm-<name>` is the last hand-rolled wrapper.
