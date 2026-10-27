@@ -211,7 +211,7 @@ as PLUGIN hooks, finding these scripts BY CONVENTION. **Do not re-add any of the
 fires TWICE.** `.claude/hooks/tests/*.sh` covers BOTH hooks and is **a REQUIRED status check**
 (`Lint .claude config`, `claude-config-lint.yml`) — it BLOCKS a merge, because a throw
 fails OPEN. Mechanism:
-[`docs/map/claude.md`](docs/map/claude.md) § `.claude/hooks/`; message decoder:
+[`docs/map/claude-code.md`](docs/map/claude-code.md) § `.claude/hooks/`; message decoder:
 [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 All of the above is **project-scoped** — it guards sessions in THIS repo only. Policy that is
 wrong in EVERY repo sits in two wider tiers: user-scope `permissions.deny` in

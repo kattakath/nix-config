@@ -134,7 +134,7 @@ This table only adds the **output** column. The full path list (`modules/_lib/`,
       `line-refs-cite-constructs` check already fails on them. The as-of records it skips
       (ADRs, studies, plans, retired `mcp-*` docs) keep their old numbers on purpose.
 - [ ] CLAUDE.md skill/command lists (§ Navigating the Codebase) include this skill after add,
-      and `docs/map/claude.md` describes it.
+      and `docs/map/claude-code.md` describes it.
 
 ### E. Community patterns
 
