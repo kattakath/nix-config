@@ -594,6 +594,10 @@ in
 
     # ---- Casks ---------------------------------------------------------------
     casks = [
+      # Adobe Acrobat Reader — holds the operator's saved signature and initials
+      # (synced via his Adobe ID); used to export a signature image for forms
+      # such as the OCI application (2026-10-27). Proprietary; not in nixpkgs.
+      "adobe-acrobat-reader"
       # Affinity — the fleet's image/vector/layout editor, one app since v3
       # (Designer + Photo + Publisher merged). Free for individuals and
       # self-updating (auto_updates), so the cask only bootstraps it. Closed
