@@ -223,14 +223,16 @@ in
         "  bindings and the index are restored too. Idempotent:" \
         "  an item whose Keychain value already matches is skipped. reference-mode secrets" \
         "  are NOT cached — only their ref lands in the manifest. Needs an active gcloud SSO" \
-        "  session; fails loudly without one. Never run by activation." >&2
+        "  session; fails loudly without one. A secret that fails to write is reported by" \
+        "  NAME and the run continues; the exit status is 1 if any failed. Never run by" \
+        "  activation." >&2
     }
     dry=0
     case "''${1:-}" in -h|--help) usage; exit 0 ;; --dry-run) dry=1 ;; "") ;; *) usage; exit 64 ;; esac
     require_backend; require_session
     proj="$(project)"
     names="$(list_remote)" # dies loudly on API-disabled / no-permission; never prompts
-    n_new=0; n_same=0; n_ref=0; n_skip=0
+    n_new=0; n_same=0; n_ref=0; n_skip=0; failed=()
     while IFS= read -r name; do
       [ -n "$name" ] || continue
       id="$(secret_id "$name")"
@@ -253,13 +255,25 @@ in
       if [ "$dry" -eq 1 ]; then echo "$me: would write $svc (env=''${env:--})"; n_new=$((n_new+1)); continue; fi
       # Value travels over a PIPE into set-secret's stdin path — never argv, never a file.
       if [ -n "$env" ]; then flag=(--env "$env"); else flag=(--no-export); fi
-      gcloud --quiet secrets versions access latest --secret="$id" --project="$proj" | set-secret "''${flag[@]}" "$svc" >/dev/null
-      manifest_put "$svc" "$name" cached "$env"
+      # Inside `if`, so one refused item (set-secret's validation, a failed gcloud
+      # access) is RECORDED and the loop goes on. Bare, `set -e` + pipefail ended
+      # the whole run at the first failure, leaving every later secret unrestored.
+      if ! gcloud --quiet secrets versions access latest --secret="$id" --project="$proj" | set-secret "''${flag[@]}" "$svc" >/dev/null; then
+        echo "$me: FAILED $svc (see the error above)" >&2; failed+=("$svc"); continue
+      fi
+      if ! manifest_put "$svc" "$name" cached "$env"; then
+        echo "$me: FAILED $svc (written to the Keychain, but the manifest update failed)" >&2; failed+=("$svc"); continue
+      fi
       echo "$me: wrote $svc -> \$''${env:--}"
       n_new=$((n_new+1))
     done <<<"$names"
-    echo "$me: done — $n_new written, $n_same already current, $n_ref reference-only, $n_skip skipped$( [ "$dry" -eq 1 ] && printf ' (dry run)' )"
+    echo "$me: done — $n_new written, $n_same already current, $n_ref reference-only, $n_skip skipped, ''${#failed[@]} failed$( [ "$dry" -eq 1 ] && printf ' (dry run)' )"
     echo "$me: open a new shell (or 'secret load') to see restored bindings."
+    # Service NAMES only — never a value.
+    if [ "''${#failed[@]}" -gt 0 ]; then
+      echo "$me: FAILED (''${#failed[@]}): ''${failed[*]}" >&2
+      exit 1
+    fi
   '';
 
   secrets-push = mk "secrets-push" ''
