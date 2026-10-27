@@ -178,7 +178,7 @@ modules/        parts/ (the flake engine), features/ (capsules — absorbed sate
 packages/       Nix-built artifacts with no capsule owner (devcontainer image, SD-card provisioning apps, single-purpose CLIs). A capsule's own packages live under modules/features/<name>/packages/
 templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake
 infra/          terranix (Nix → Terraform JSON): five stacks for the Cloudflare edge + the GCP foundation, applied only through the flake's own cf-*/gcp-* apps
-sites/          Two static site trees; one is Caddy-served on nixpi via config.fleet.hostedSites
+sites/          Static site trees Caddy serves on nixpi via config.fleet.hostedSites
 secrets/        agenix recipients + four ciphertexts (see § Secrets below) — no plaintext
 ast-grep/       Six structural-lint rules + a matching test fixture each, gated by `checks.<system>.ast-grep`. Its config must sit at the repo root as sgconfig.yml: ast-grep finds it by walking UP from the working directory
 scripts/        drv-snapshot.sh — the ADR-002 acceptance harness ("moved code, changed no build"). Deliberately not a flake package: that would add an output and perturb the baseline it measures

@@ -5,8 +5,8 @@
 # so `gmail` would have gone dark with no replacement. The operator chose to keep the
 # capability and give it a plugin home.
 #
-# THE SPLIT, and it is the pattern the other ownerless servers will follow:
-#   HERE          the launcher binaries, because they read the login Keychain and must
+# THE SPLIT, the same one ./plugin-mcp.nix uses:
+#   HERE          the launcher binary, because it reads the login Keychain and must
 #                 not be duplicated into a plugin repo.
 #   THE PLUGIN    a `.mcp.json` naming `nix-mcp-gmail` with the ACCOUNT in `args`, so
 #                 Claude Code spawns one stdio server per account, per session, with

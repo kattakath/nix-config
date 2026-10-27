@@ -1,7 +1,6 @@
 # home-manager module: local.ytDlpWebUi — yt-dlp-web-ui on 127.0.0.1.
 #
-# Loopback only. Downloads stay in the login user's home, the same directory
-# the Colima trial was aimed at. A system daemon would put them in /var/lib
+# Loopback only. Downloads stay in the login user's home. A system daemon would put them in /var/lib
 # and the operator would not see them in the folder they already have.
 #
 # The agent binary is built from source (packages/yt-dlp-web-ui.nix). yt-dlp,
