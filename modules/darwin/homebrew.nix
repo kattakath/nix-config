@@ -9,7 +9,7 @@
 #
 # What is DELIBERATELY NOT installed via Homebrew on any host (nixpkgs/Home
 # Manager is the single source, and a duplicate on PATH causes buildEnv
-# collisions): whatever modules/home/default.nix and the capsules install — read
+# collisions): whatever modules/home/default.nix, hosts/macos.nix (fonts) and the capsules install — read
 # those, not a list here. `mas` is nix-darwin's `programs.mas` (xcode-license.nix).
 #
 # THE ONE DELIBERATE INVERSION OF THAT PRINCIPLE: `gnupg` IS brewed (2026-10-06).

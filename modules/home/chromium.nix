@@ -505,7 +505,7 @@ in
     # Why a wrapper at all, rather than a declared browser flag: the .app is a
     # Homebrew cask, so `programs.chromium.package` is null, and upstream's own
     # assertion then FORBIDS `commandLineArgs` — there is no Nix wrapper to pass
-    # them to (see modules/home/chromium.nix).
+    # them to.
     #
     # Deliberately a hand-run command and NOT a launchd agent or a login item: the
     # port is an unauthenticated control channel over a browser holding live logins

@@ -276,8 +276,7 @@
       # KNOCK-ON, recorded honestly: WireGuard was the main thing in this guest
       # that needed a REAL KERNEL — an in-tree module plus NET_ADMIN. With it
       # gone, nothing obviously left here requires a VM rather than a container.
-      # A substrate comparison is in flight as of this date; this comment does
-      # not decide it, it just connects the two for whoever reads next.
+      # The substrate question was settled for the GUI job: hosts/nixos.nix's header.
 
       # ---- SSH from the Mac: 127.0.0.1:2222 -> guest 22 ------------------------
       # `ssh -p 2222 ismail@localhost` from the Mac. The operator's key is already

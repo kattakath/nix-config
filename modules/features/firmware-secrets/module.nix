@@ -64,7 +64,7 @@ let
       # so `Restart=` cannot retry it and `Type=oneshot` never ran again. Combined with
       # a consumer's `requiredBy`, one failed mount was a PERMANENT loss of that
       # consumer. For nixpi that consumer is the Cloudflare connector, i.e. the only
-      # route in, and the recovery is a physical reflash.
+      # REMOTE route in, and the recovery is a physical reflash.
       #
       # Wants= keeps the ordering and drops the veto: the mount is still pulled in and
       # still waited for, but if it fails the script RUNS and decides for itself --
