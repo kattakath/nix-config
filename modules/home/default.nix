@@ -170,7 +170,7 @@ let
   # xAI's bridge hardcodes `--sandbox read-only` for every non-write run (delegate/review/
   # critique). grok >=1.0.13's `read-only` AND `strict` profiles kernel-deny the container
   # runtime sockets and REFUSE TO START when a deny path has a symlink component — and Docker
-  # Desktop installs /run/docker.sock as a symlink into $HOME/.docker/run/. Net effect: every
+  # Desktop (removed 2026-09-16, see modules/home/containers.nix) installed /run/docker.sock as a symlink into $HOME/.docker/run/. Net effect: every
   # read-only grok-build run died in ~50ms with "runtime-socket deny resolution failed: could
   # not resolve runtime-socket deny path /run/docker.sock: endpoint is a symlink".
   # Only the `workspace`/`devbox` bases skip that deny, and a custom profile may NOT reuse a
@@ -205,8 +205,7 @@ let
   # The sandbox profile's CONTENT, as a store file. It is copied to
   # ~/.grok/sandbox.toml at activation rather than symlinked, because grok
   # rejects a symlink there — see home.activation.grokSandboxProfile below for
-  # the failure it causes and why the older "symlinks are fine here" note is
-  # stale. Kept next to the profile NAME so the two cannot drift apart.
+  # the failure it causes. Kept next to the profile NAME so the two cannot drift apart.
   grokSandboxToml = pkgs.writeText "grok-sandbox.toml" ''
     # Managed by nix-config (modules/home/default.nix) — do not hand-edit.
     [profiles.${grokSandboxProfile}]
@@ -570,7 +569,7 @@ in
   # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a template consumer gets none of it.
   local.mediaCli = {
     enable = isMacosHost;
-    # `auge` is Apple's Vision framework from the shell — photo-describe already
+    # `auge` is Apple's Vision framework from the shell — media-describe already
     # has it hermetically, this puts it on PATH for direct use ("is this shot any
     # good", "is anyone blinking"). `rclipCli` is the VECTOR half of retrieval,
     # deliberately kept out of the capsule (see its override above).
@@ -727,9 +726,7 @@ in
         # neondatabase/agent-skills plugins/neon-postgres). Needs neonctl on PATH (macos brew).
         "neon"
         # Stripe OFFICIAL plugin (git-subdir of stripe/ai providers/claude/plugin, pinned by
-        # the marketplace sha): the full Stripe agent kit in one unit — 7 skills
-        # (stripe-best-practices, stripe-docs, upgrade-stripe, connect-recommend,
-        # stripe-apps, stripe-directory, stripe-projects), the company-researcher agent,
+        # the marketplace sha): the full Stripe agent kit in one unit — its skills, the company-researcher agent,
         # /explain-error + /test-cards commands, AND the hosted mcp.stripe.com MCP server
         # (type=http; one-time in-client OAuth — no API key handled here, and nothing for
         # this fleet to host or launch, since the server is Stripe-remote). Pairs with the nixpkgs
@@ -1321,7 +1318,7 @@ in
 
   # Spotlight-launchable "Android Emulator" — click (or re-click) like any
   # normal app: launches if not running, brings the existing window frontmost
-  # if it is. Real Mac only. Symlinked into ~/Applications, which Spotlight
+  # if it is. Real Mac only. Planted (recursive) into ~/Applications, which Spotlight
   # indexes; see packages/spotlight-launchers.nix. First launch prompts a
   # one-time Automation permission ("wants to control System Events") —
   # approve it in System Settings > Privacy & Security > Automation.
@@ -1914,7 +1911,7 @@ in
       # personas that do not belong in a public repo (ADR-004 §7, inventory #3).
       # Upstream's `signing.allowedSigners` would write it from Nix, so it is left
       # empty and `gpg.ssh.allowedSignersFile` points at the runtime path instead;
-      # `adoptGitIdentityFiles` above kept the previously generated copy. Signing
+      # `adoptGitIdentityFiles` below kept the previously generated copy. Signing
       # itself needs no principals file — only VERIFYING does — so a fresh machine
       # signs correctly before the file exists. Shape of a line:
       #   <mailbox> namespaces="git" <the operator ssh public key>
@@ -2043,10 +2040,6 @@ in
       profileExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin sshAuthSockFromLaunchd;
     };
 
-    # zsh as the interactive shell — matches the devcontainer default
-    # (common-utils configureZshAsDefaultShell). Kept lean: no oh-my-zsh /
-    # framework. bash stays enabled above for login-shell
-    # compatibility.
     # Ghostty — GPU-accelerated terminal, macos only. `package = null` is the
     # escape hatch home-manager documents for exactly this: nixpkgs' `ghostty` is
     # LINUX-ONLY and refuses to evaluate on aarch64-darwin, so the Homebrew cask
@@ -2236,6 +2229,10 @@ in
       };
     };
 
+    # zsh as the interactive shell — matches the devcontainer default
+    # (common-utils configureZshAsDefaultShell). Kept lean: no oh-my-zsh /
+    # framework. bash stays enabled above for login-shell
+    # compatibility.
     zsh = {
       enable = true; # enableCompletion defaults true (zsh/default.nix)
       autosuggestion.enable = true;
@@ -2243,11 +2240,11 @@ in
 
       # Session-only terminal background, one word each. These change the RUNNING
       # terminal via OSC 11 and persist nothing — a new tab is back to the
-      # programs.ghostty `background` below, so `red` doubles as the reset.
+      # `local.terminalTheme.background` ground (terminal-theme.nix), so `red` doubles as the reset.
       #
       # The three grounds are the SAME COLOUR at three hues, not three guesses:
       # #300A24 converted to OKLCh, then hue rotated with L=0.2228 and C=0.0710
-      # held fixed. So all three read as equally dark and the Tango ring below —
+      # held fixed. So all three read as equally dark and the Tango ring in terminal-theme.nix —
       # which was lifted to 4.5:1 against #300A24 specifically — stays as
       # readable on green and blue as it is on red. Contrast against #FFFFFF is
       # 17.58 / 16.91 / 17.27 respectively.

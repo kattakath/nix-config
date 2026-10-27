@@ -2892,7 +2892,7 @@ in
           # The two NON-EMPTY legs are not redundant with that. Equality alone is
           # degenerate when BOTH sides empty (host lists cleared and layout moved at
           # once), and — the real everyday value — a layout regression otherwise
-          # reports as "8 orphans", sending the reader to hosts/macos.nix when the
+          # reports as a list of orphans, sending the reader to hosts/macos.nix when the
           # fault is the pinned tree. Verified by pointing `pluginsDir` at a
           # directory with no `.mcp.json`: three legs red, the FIRST of them naming
           # the tree rather than the host.

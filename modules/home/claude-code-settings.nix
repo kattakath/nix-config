@@ -74,8 +74,7 @@ let
   inherit (config.programs.claude-code) configDir;
 
   # Nix's OWN keys, rendered from the very option every other module already
-  # writes to (claude-guardrails.nix, claude-plugins.nix, claude-bedrock-gate.nix,
-  # claude-brain.nix, default.nix). Intercepting the RENDERING rather than the option
+  # writes to. Intercepting the RENDERING rather than the option
   # means no module has to change and checks.nix's `userDeny` keeps reading the same path.
   nixSettings = (pkgs.formats.json { }).generate "claude-code-nix-settings.json" (
     config.programs.claude-code.settings

@@ -82,7 +82,7 @@ in
         "wlan0"
       ];
       description = ''
-        Interfaces on which sshd's port is opened. Deliberately has NO default:
+        Interfaces on which sshd's port is opened. Empty by default (opens nothing):
         interface names are hardware- and host-specific, and a wrong guess here
         fails open (the port simply never opens) rather than loudly. On nixpi the
         list is cross-checked against the interfaces the uplink watchdog and the

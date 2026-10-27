@@ -333,13 +333,8 @@ in
       programs.bash.bashrcExtra = lib.mkOrder 1600 gateShell;
     })
 
-    # (b) was the IDENTITY section: it wrote AWS_REGION/AWS_PROFILE into
-    # `programs.claude-code.settings.env` from the deprecated
-    # `local.claudeBedrock` options, alongside a warning when either was set.
-    # Both are gone (2026-09-15) with the options themselves — the identity is
-    # runtime state now: `~/.aws/config` for the profile's `region`, and the
-    # shell hook above exports it because Claude Code reads the region from the
-    # environment only.
+    # (b), the identity section, went with `local.claudeBedrock` (2026-09-15): the
+    # region is runtime state in `~/.aws/config`, exported by the shell hook above.
 
     # ---- (c) migration: adopt a store-symlinked ~/.aws/config --------------
     # The day no module declared ~/.aws/config any more (nix-personal's
