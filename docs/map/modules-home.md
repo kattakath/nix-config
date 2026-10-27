@@ -674,7 +674,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
   off: a 560-line vendored copy deleted the moment the input owned the behaviour.
 
 - **`macos-user-agents.nix`** (macos only, gated on `isMacosHost`) — the
-  Maccy login opener and the two inbox Trash sweeps: **`~/Desktop`**, the capture inbox
+  two inbox Trash sweeps (the Maccy login opener lived here until **2026-10-27**; Maccy
+  now starts through its own launch-at-login, one BTM item, and a nix opener beside it is
+  gated off by `launchd-selfheal-lane`): **`~/Desktop`**, the capture inbox
   (⇧⌘4/⇧⌘5 land there by macOS's own default; the real Mac sets no
   `screencapture.location`) swept whole after **1 day**; **`~/Downloads`**, the
   browser/AirDrop inbox, swept after **7 days** of disposable types only
@@ -693,16 +695,16 @@ in the repo can catch that; see that fixture file's header for the measurement.
 
   **Two things this move had to preserve that the download servers did not.** The
   **Labels** are pinned to their live values with an explicit `config.Label`
-  (`com.kattakath.file-rotation.trash-{desktop,downloads}`, `org.nixos.open-maccy`): taking
+  (`com.kattakath.file-rotation.trash-{desktop,downloads}`, and `org.nixos.open-maccy` until it was retired): taking
   home-manager's `org.nix-community.home.<attr>` default would make each a DIFFERENT launchd
   unit and drop the operator's Background Task Management approval. That is safe because the
   self-heal probe keys off the Label too — upstream names each plist
   `"${v.config.Label}.plist"` and reads `agentName` back out of that filename. And the
   **arg0** stays a store-resident `nix-*` script, which is what grants the two sweeps read
   access to the TCC-protected folders at all; `launchd-launcher.nix` supplies it from the
-  attribute name, so the inner scripts are named `file-rotation-<inbox>-sweep` /
-  `open-maccy-run` to avoid one name mapping to two store paths.
-  `checks.<system>.launchd-selfheal-lane` gates the lane, the three Labels, the per-agent
+  attribute name, so the inner scripts are named `file-rotation-<inbox>-sweep` (and were
+  `open-maccy-run`) to avoid one name mapping to two store paths.
+  `checks.<system>.launchd-selfheal-lane` gates the lane, the pinned Labels, the per-agent
   `enable` (a `mkEnableOption` defaulting to **false** — a lane change that forgets it
   renders no plist and throws no error) and the arg0.
 

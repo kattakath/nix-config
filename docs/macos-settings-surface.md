@@ -275,14 +275,14 @@ way to "start X at login" is a **launchd user agent** with `RunAtLoad`.
 
 **Allow in the Background** names each item by `ProgramArguments[0]`'s **basename**
 (verify with `sfltool dumpbtm`). Fleet rule: that basename **must** be
-`nix-<activity>` (e.g. `nix-open-maccy`, `nix-tart-vm-<name>`; `nix-mcp-gateway` was one until 2026-10-02) so items are obviously
+`nix-<activity>` (e.g. `nix-file-rotation-desktop`, `nix-tart-vm-<name>`; `nix-mcp-gateway` and `nix-open-maccy` were ones until 2026-10-02 and 2026-10-27) so items are obviously
 from this nix-config, not bare `sh`/`python3` or third-party helpers.
 
 | Bad (shows as phantom `sh` / `python3` / `open`) | Good |
 |---|---|
 | nix-darwin `script = ''…''` (wraps `/bin/sh -c wait4path`) | `ProgramArguments = [ "${writeShellScriptBin "nix-…"}/bin/nix-…" ]` |
 | stock home-manager launchd (default `/bin/sh -c wait4path`) | `modules/home/launchd-launcher.nix` (sets upstream's own `waitForNixStore = false` + `launcher.name`/`launcher.shell` — named `nix-*` launcher, no wait4path; the vendored `hm-launchd` fork it replaced was retired 2026-09-14) |
-| bare `/usr/bin/open -a App` | a `launchd.agents` entry in `modules/home/macos-user-agents.nix`, whose launcher supplies the `nix-*` arg0 (`open-maccy` is the live example; the old `mkNixAgent` helper is gone) |
+| bare `/usr/bin/open -a App` | first, the app's **own** launch-at-login toggle (one BTM item — Maccy since 2026-10-27); only if it has none, a `launchd.agents` entry in `modules/home/macos-user-agents.nix`, whose launcher supplies the `nix-*` arg0 (no opener is live; `open-maccy` was the last, below) |
 
 "Unidentified developer" is expected for unsigned `/nix/store` wrappers (Developer ID
 would be needed for a custom icon/signing); the **name** is what we control.
@@ -318,13 +318,17 @@ depend on.
 
 | Agents | Host |
 |---|---|
-| `open-maccy` | **macos only** |
 | RAG (`ollama-local`, `postgres-pgvector`) — the MCP gateway shared this gate until it was deleted 2026-10-02 | **macos only** |
 | `metube` / `yt-dlp-web-ui` (loopback download servers) | **macos only** |
 | `file-rotation-logs` / `file-rotation-logs-system` (launchd log rotation) | **macos only** |
 | `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (a Tart guest whose `~/Downloads` is VirtioFS-shared with the host's would lose host files to a guest-side rotation — `mv` across filesystems is `cp`+`rm`) |
 
 Which gate to use for a macos-only agent: [`CLAUDE.md`](../CLAUDE.md) § Configuration.
+
+HISTORICAL — retired 2026-10-27, kept as the shape to copy if an app genuinely has no
+launch-at-login of its own. Maccy now starts through its own "Launch at login" (one BTM
+registration); a nix opener beside it would recreate the 2026-09-23 two-launcher race
+(dead menu-bar icon), and `checks.<system>.launchd-selfheal-lane` fails one.
 
 ```nix
 # modules/home/macos-user-agents.nix (GUI opener — quiet: menu-bar only, no window)
