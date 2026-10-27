@@ -128,6 +128,12 @@
   # could also cause on nixpi itself.
   services.journald.settings.Journal.Storage = "persistent";
 
+  # Hard-link identical store files as each path lands, rather than in a one-off
+  # `nix store optimise` scan: that scan is a long burst of writes on the SD card,
+  # while this spreads the work across deploys. nixpi only builds by substituting,
+  # so the per-path hashing cost is paid once per deploy, never during a build.
+  nix.settings.auto-optimise-store = true;
+
   networking.hostName = "nixpi";
 
   # ── BOOT CHAIN (nixos-hardware, since the raspberry-pi-nix exit) ─────────────
