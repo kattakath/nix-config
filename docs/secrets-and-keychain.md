@@ -139,6 +139,13 @@ resistance:
 | `secret adopt <KEY>` | register a Keychain item added outside this CLI |
 | `secret load` | reload the whole store into the current shell — the shell-function-only fix for a manually-unset var |
 
+Each is a **shell function** (`set`/`rm`/`bind`/`unbind`/`load` also mutate the current shell —
+export/unset/reload) backed by a **PATH binary** *and* a **`nix run .#secret -- …`** app (`load`
+is function-only). `set-secret <KEY> [VALUE]` and `remove-secret <KEY>` remain as back-compat
+**aliases** for `secret set` / `secret rm`. The mutating verbs forward to `set-secret` so the
+Keychain/index logic lives once, and the Keychain index (`__set_secret_index__`) is
+authoritative — so **secret names sit in `.nix` only where a launcher needs one**.
+
 ### Cloudflare tokens — scoped, and deliberately NOT ambient
 
 There are several Cloudflare entries, and the split is the point. **Which handle you reach
@@ -159,7 +166,7 @@ exists at all: **"broad" is not a superset on Cloudflare's newest API surfaces.*
 works everywhere you have tried is not evidence it works on an endpoint you have not. Expect to
 mint a narrowly scoped handle for each new surface rather than assuming `:api` covers it.
 
-`cf:cloudflare.com:dontsell-dns` was a fourth entry, scoped to `dontsell.ai` only. That zone's
+`cf:cloudflare.com:dontsell-dns` was another entry, scoped to `dontsell.ai` only. That zone's
 terranix module was deleted on 2026-09-14 (its apex had moved to Vercel out-of-band and the
 module had drifted from live DNS on every record), so nothing in this fleet reaches for that
 handle any more — it can be removed from the Keychain whenever convenient.
@@ -176,13 +183,6 @@ tunnel zones and the tunnel itself, and is **refused** on aloshy.ai DNS, Workers
 devices, listing API tokens, and any Access **write**. It does retain Access *read* (apps,
 service tokens, IdPs) — that rides inside Cloudflare's own `Cloudflare Tunnel Write`
 permission group and cannot be separated out.
-
-Each is a **shell function** (`set`/`rm`/`bind`/`unbind`/`load` also mutate the current shell —
-export/unset/reload) backed by a **PATH binary** *and* a **`nix run .#secret -- …`** app (`load`
-is function-only). `set-secret <KEY> [VALUE]` and `remove-secret <KEY>` remain as back-compat
-**aliases** for `secret set` / `secret rm`. The mutating verbs forward to `set-secret` so the
-Keychain/index logic lives once, and the Keychain index (`__set_secret_index__`) is
-authoritative — so **secret names sit in `.nix` only where a launcher needs one**.
 
 ### The threat model — ambient by design, and what that costs
 
@@ -205,7 +205,7 @@ Two properties bound the blast radius, and neither softens the sentence above:
   (`__set_secret_index__`) is itself a Keychain item.
 - A secret can be stored **without** an env binding (`secret bind`/`unbind`, or the
   `=SERVICE` index form). Unbound secrets are never exported and are reached on demand with
-  `copy`/`exec`/`fp`/`reveal` — which is exactly what the three Cloudflare tokens above do.
+  `copy`/`exec`/`fp`/`reveal` — which is exactly what the Cloudflare tokens above do.
 
 **An agent's own `env` is the leak this costs in practice.** On 2026-10-21 a read-only audit
 subagent checked the locale with `env | grep -E '^(LANG|LC_)'`; the prefix match printed three

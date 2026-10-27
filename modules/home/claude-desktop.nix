@@ -49,7 +49,7 @@
 #
 # DELIBERATELY NOT RENDERED — and sufficient again, since the purge.
 #   desktop-commander is already installed in Desktop as a Desktop Extension
-#   (.mcpb, `ant.dir.gh.wonderwhy-er.desktopcommandermcp`), so this file has
+#   (.mcpb, `ant.dir.gh.wonderwhy-er.desktopcommandermcp`), so this file
 #   never renders a second copy. The arm of
 #   checks.<system>.claude-desktop-config-shape that names desktop-commander is what
 #   ENFORCES that.

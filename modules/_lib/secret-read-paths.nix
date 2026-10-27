@@ -1,4 +1,4 @@
-# The secret PATHS no agent may read, as DATA — one copy, two renderers.
+# The secret PATHS no agent may read, as DATA — one copy, rendered by each importer.
 #
 # WHY DATA AND NOT RULES. Two enforcement layers need these paths in two
 # incompatible spellings, and until 2026-10-07 only one layer existed:
