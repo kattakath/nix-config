@@ -47,9 +47,12 @@ in
   # SO THIS FILE AND gh-app-fleet-key.age NOW HOLD IDENTICAL KEY MATERIAL, and
   # that is deliberate, not duplication to clean up: an agenix secret has ONE
   # owner, and the two consumers run as different users — this one is owned by
-  # `_github-runner` (the bare-metal launchd DAEMONS), the other by the login
-  # user (the Tart USER AGENTS, which need a GUI session for
-  # Virtualization.framework). Rotating the App key means re-encrypting BOTH,
+  # root (the bare-metal launchd DAEMONS read it as root and drop to
+  # `_github-runner` to run jobs — modules/darwin/github-runner.nix § PRIVILEGE
+  # SPLIT), the other by the login user (the Tart USER AGENTS, which need a GUI
+  # session for Virtualization.framework). The Tart twin has NOT had that split
+  # yet: its key is still readable by the uid its agents run as — an open
+  # follow-up, not an oversight here. Rotating the App key means re-encrypting BOTH,
   # with `age -R` and a recipient-tag check — never `agenix -e`.
   "gh-app-dontsell-ai-key.age".publicKeys = [
     operator

@@ -44,9 +44,10 @@ its gates the same day.
   warned about. See the long-form note that replaced it in `modules/parts/checks.nix`.
 - **The rulebook did not move.** It is still the plugin's `scripts/userscript-meta-lint.sh`, now
   running in CI in the repositories that own the scripts. One rulebook, run where the content is.
-- **The OPTION stays.** `local.ungoogledChromium.userScripts` in `modules/home/chromium.nix` is
-  generic and documented, `enable` still defaults `true`, `scripts` is `{ }`. **Do not describe
-  it as removed.**
+- **Only `enable` stays.** `local.ungoogledChromium.userScripts.enable` in
+  `modules/home/chromium.nix` still defaults `true` and sideloads Violentmonkey. The
+  `userScripts.scripts` seam was deleted 2026-10-30 (#963), so there is no Nix path to declare a
+  script.
 
 ## Standing preference (thin by design — append, never invent)
 
@@ -99,8 +100,7 @@ its gates the same day.
 
 - **Violentmonkey is still sideloaded** (`userScripts.enable` defaults `true` in
   `modules/home/chromium.nix`), so the extension is there even though zero scripts are declared.
-- **`~/.local/share/userscripts/` no longer exists.** `xdg.dataFile` is gated on
-  `scripts != { }`, so with an empty attrset nothing is materialised and **there is no
+- **`~/.local/share/userscripts/` no longer exists**, and nothing writes it: **there is no
   `index.html` to click through** — verified absent on disk 2026-09-14. Installing now means
   navigating to the fork listing.
 - One-time per profile, in `chrome://extensions`: **Allow User Scripts** + **Allow access to

@@ -57,14 +57,14 @@ host itself.
 
 | Secret | Consumer | Content |
 |---|---|---|
-| `gh-app-dontsell-ai-key.age` | `local.macosGithubRunner` (`modules/darwin/github-runner.nix`) — the bare-metal `_github-runner` **daemons** | GitHub App RS256 `.pem` |
+| `gh-app-dontsell-ai-key.age` | `local.macosGithubRunner` (`modules/darwin/github-runner.nix`) — the bare-metal runner **daemons**; root-owned, read before the drop to `_github-runner` (`github-runner.nix` § PRIVILEGE SPLIT) | GitHub App RS256 `.pem` |
 | `gh-app-fleet-key.age` | `local.tart.githubRunners.*` (the `tart-vms` capsule, `hosts/macos.nix`) — the login-user Tart **agents** | the *same* App's RS256 `.pem` |
 | `gitlab-runner-token.age` | `local.tart.gitlabRunner` — renders `config.toml` at agent start | the bare `glrt-` token, one line |
 
 **The two `gh-app-*` files hold identical key material, and that is deliberate — not duplication
 to clean up.** Both authenticate as the `ismailkattakath-ci` App (appId 4849830), but an agenix
-secret has exactly **one** owner, and the consumers run as different users (`_github-runner`
-daemons vs. the login user, whose Tart agents need a GUI session for Virtualization.framework).
+secret has exactly **one** owner, and the consumers run as different users (root, for the runner
+daemons, vs. the login user, whose Tart agents need a GUI session for Virtualization.framework).
 Rotating the App key therefore means re-encrypting **both**, with `age -R` and a recipient-tag
 check — never `agenix -e`. `secrets/secrets.nix` carries the full App history (this App replaced
 the retired `kattakath-fleet-ci`, `kattakath-ci` and `dontsell-ai` Apps on 2026-09-06) and the

@@ -23,9 +23,8 @@ re-activate. Doing that by hand, repo by repo, is what this skill replaces.
 ## Fleet manifest
 
 `.claude/skills/fleet-doctor/fleet-repos.txt` — one repo per line, relative
-to `~/Developer`. This is the fleet — today exactly **one** line, nix-config
-itself — **not** every repo on disk; see the file's own header for every
-removal and its reason.
+to `~/Developer`. This is the fleet — **not** every repo on disk; the file's
+own header says what qualifies, and each orbit line carries its reason.
 Add a line there when a new fleet repo is created; nothing else in this skill
 needs to change.
 
@@ -108,7 +107,7 @@ with unique unmerged commits, or any dirty `git status`, → report only.
 ### B. Per-repo: open PRs
 
 ```bash
-gh pr list --repo kattakath/<repo> --state open \
+gh pr list --repo <owner>/<repo> --state open   # ${repo#github.com/} of a manifest line \
   --json number,title,isDraft,mergeStateStatus,statusCheckRollup,autoMergeRequest
 ```
 
@@ -135,7 +134,7 @@ table above.
 ### C. Per-repo: latest CI run
 
 ```bash
-gh run list --repo kattakath/<repo> --limit 1 --json workflowName,conclusion,createdAt,headBranch
+gh run list --repo <owner>/<repo> --limit 1 --json workflowName,conclusion,createdAt,headBranch
 ```
 
 A red/failed latest run is a finding, not an auto-fix — diagnosis is

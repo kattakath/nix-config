@@ -8,5 +8,5 @@ for: $ARGUMENTS
 
 Then follow `.claude/skills/userscript-author/SKILL.md` — the fleet layer that owns how a
 script reaches **this** Mac (publish to Greasy/Sleazy Fork, install once from the fork), which
-old pipeline steps are dead, and the dormant `local.ungoogledChromium.userScripts` path. No PR
-to this repo.
+old pipeline steps are dead, and what `local.ungoogledChromium.userScripts.enable` still does. No
+PR to this repo.
