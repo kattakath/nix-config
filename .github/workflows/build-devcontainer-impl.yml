@@ -3,7 +3,8 @@ name: build-devcontainer-impl
 # REUSABLE workflow: the per-arch devcontainer BUILD matrix — build + smoke-test +
 # the regression guards + a conditional per-arch push — extracted from
 # build-devcontainer.yml. Called ONLY by build-devcontainer.yml's `images` job, and
-# ONLY on a publish event (push to main / workflow_dispatch). Nothing triggers this
+# ONLY on a publish event (push to main / workflow_dispatch) whose gate saw new image
+# content (a dispatch always counts as new). Nothing triggers this
 # file directly — `on: workflow_call` means it never appears as its own run.
 #
 # WHY A REUSABLE WORKFLOW. The build is a matrix (one leg per arch). On a PR the
@@ -14,7 +15,7 @@ name: build-devcontainer-impl
 # job (`images`): skipped ⇒ one clean `images` job; running ⇒ `images / build
 # (linux/arm64)` + `images / build (linux/amd64)`. Same fix build-installers uses.
 #
-# The gate outputs the matrix needs (ref / sha12 / changed) come in as `inputs`;
+# The gate outputs the matrix needs (ref / sha12) come in as `inputs`;
 # secrets (CACHIX_AUTH_TOKEN, GITHUB_TOKEN) arrive via the caller's `secrets: inherit`.
 
 on:
@@ -26,10 +27,6 @@ on:
         type: string
       sha12:
         description: "12-char commit SHA tag, computed by the gate."
-        required: true
-        type: string
-      changed:
-        description: "'true' when the image content changed — gates the per-arch push."
         required: true
         type: string
 
@@ -259,7 +256,8 @@ jobs:
 
       # Push ONLY this arch's image, tagged :<sha12>-<arch>. The caller's `manifest`
       # job assembles :latest and :<sha12> as a manifest list over both arch tags.
-      # Gated on inputs.changed so an unchanged image skips the multi-GB upload.
+      # Unconditional: the caller runs this workflow only when its gate saw new
+      # content, so an unchanged image never reaches the multi-GB upload.
       #
       # skopeo choices (unchanged from the single-arch era): materialise the
       # archive to a file (streamLayeredImage emits an UNCOMPRESSED docker-archive
@@ -267,7 +265,6 @@ jobs:
       # v2 registries.conf (nixpkgs skopeo rejects the runner's v1 host config);
       # --format oci for the annotation convention.
       - name: Login to GHCR
-        if: inputs.changed == 'true'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v3
         with:
           registry: ghcr.io
@@ -275,7 +272,6 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push per-arch image
-        if: inputs.changed == 'true'
         env:
           CONTAINERS_REGISTRIES_CONF: ${{ runner.temp }}/registries.conf
         run: |

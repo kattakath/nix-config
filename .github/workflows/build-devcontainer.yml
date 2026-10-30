@@ -187,7 +187,7 @@ jobs:
             echo "::notice::devcontainer image content CHANGED (or forced/first-run) — will publish."
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::devcontainer image drvPath unchanged — SKIPPING publish (no-op republish avoided)."
+            echo "::notice::devcontainer image drvPath unchanged — SKIPPING build + publish (no-op rebuild avoided)."
           fi
 
   # IMAGES: the per-arch build matrix, delegated to the reusable
@@ -214,7 +214,6 @@ jobs:
     with:
       ref: ${{ needs.gate.outputs.ref }}
       sha12: ${{ needs.gate.outputs.sha12 }}
-      changed: ${{ needs.gate.outputs.changed }}
     secrets: inherit
 
   # MANIFEST: stitch the per-arch tags into the manifest lists :latest + :<sha12>,
