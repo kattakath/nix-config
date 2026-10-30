@@ -33,10 +33,9 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
    `sudo darwin-rebuild switch` ran fine straight from a tool call.)
 2. **Only if a mechanism genuinely forbids you**, hand it over — and then `pbcopy` it so he
    pastes rather than types. That mechanism is the `permissions.deny` list in
-   `modules/home/claude-guardrails.nix` — **six families, not two**, so re-read the file
+   `modules/home/claude-guardrails.nix` — **several families, not one**, so re-read the file
    rather than quoting this line from memory: force-push — **bare `--force`/`-f` ONLY;
-   `--force-with-lease` is deliberately ALLOWED and you are expected to use it** — plus
-   `gh pr merge *`; the MCP config
+   `--force-with-lease` is deliberately ALLOWED and you are expected to use it**; the MCP config
    writers (`claude mcp add`/`add-json`/`add-from-claude-desktop`, `Edit(~/.claude.json)`);
    secret REVEAL (`secret reveal *`, `security find-*-password -w*`, and environment dumps
    — `env`, `printenv`, `set`, `export`, `declare -x` and kin, EXACT match only, so
