@@ -617,6 +617,11 @@ in
   # its dimension, and the one-shot pull agent, which now targets a server it
   # does not own.
   local.rag.ollama.manageServer = false;
+  # ONE endpoint: both capsules default to 127.0.0.1:11434 independently and may
+  # not reach out, so the daemon's coordinates are threaded in here. No `or`
+  # fallback — isMacosHost implies hosts/macos.nix, which imports the daemon.
+  services.ollama = lib.mkIf isMacosHost { inherit (osConfig.local.ollamaDaemon) host port; };
+  local.mediaCli.ollamaHost = lib.mkIf isMacosHost "${osConfig.local.ollamaDaemon.host}:${toString osConfig.local.ollamaDaemon.port}";
 
   # The server-side tuning that used to live here (OLLAMA_NUM_PARALLEL,
   # MAX_LOADED_MODELS, KEEP_ALIVE) moved to `local.ollamaDaemon.environmentVariables`

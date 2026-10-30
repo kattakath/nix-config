@@ -101,9 +101,9 @@ in
       type = lib.types.port;
       default = 11434;
       description = ''
-        Ollama's own default. Consumers key off `local.mediaCli.ollamaHost`,
-        whose default is already `127.0.0.1:11434`, so leaving this alone means
-        nothing else needs configuring.
+        Ollama's own default. The home profile (modules/home/default.nix)
+        threads `host` and this port into `local.mediaCli.ollamaHost` and
+        `services.ollama.{host,port}`, so a change here reaches every consumer.
       '';
     };
 
