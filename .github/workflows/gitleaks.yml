@@ -52,10 +52,10 @@ jobs:
       # the wrapper is gated — so run it directly and drop the third-party action
       # (one less supply-chain edge).
       #
-      # Pinned by resolving our own flake.lock BELOW, not by `nixpkgs#gitleaks`:
-      # a bare `nixpkgs#` installable resolves the RUNNER's flake registry
-      # (a floating nixpkgs we do not control), never ./flake.lock. Same
-      # convention as nix-ci.yml's note on not executing unpinned upstream refs.
+      # Pinned to our own flake.lock via `--inputs-from .` BELOW: a bare
+      # `nixpkgs#` installable resolves the RUNNER's flake registry (a floating
+      # nixpkgs we do not control), never ./flake.lock. Same pattern as
+      # nix-ci.yml's yq-go step.
       - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31
         with:
           extra_nix_config: |
@@ -66,9 +66,5 @@ jobs:
         # --redact keeps any finding out of the public CI log.
         run: |
           set -euo pipefail
-          rev=$(jq -r '.nodes[.nodes[.root].inputs.nixpkgs].locked.rev' flake.lock)
-          # The root nixpkgs is a FlakeHub tarball node since 2026-09-21; it still
-          # carries `.locked.rev`, but fail loudly rather than run `github:NixOS/nixpkgs/null`.
-          [ -n "$rev" ] && [ "$rev" != null ] || { echo "::error::no nixpkgs rev in flake.lock" >&2; exit 1; }
-          nix run "github:NixOS/nixpkgs/$rev#gitleaks" -- \
+          nix run --inputs-from . nixpkgs#gitleaks -- \
             detect --source . --redact --verbose --exit-code 1
