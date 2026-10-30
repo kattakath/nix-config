@@ -177,7 +177,17 @@
   # sd-image.nix marks it `noauto`, which would leave the firmware activation
   # script above skipping every switch. `nofail` keeps a bad FAT from blocking
   # boot (the firmware-secrets capsule already only Wants= this mount).
-  fileSystems."/boot/firmware".options = lib.mkForce [ "nofail" ];
+  #
+  # fmask/dmask=0077: vfat has no on-disk permissions, so without a mask every
+  # planted secret (connector token, Wi-Fi PSK, heartbeat URL) is world-readable
+  # to every local uid — caddy, audiobookshelf, cloudflared. uid/gid default to root,
+  # and every reader is root: the firmware-file-* units, uplink-watchdog's
+  # wpaSourceConf restore, and the firmware activation script (cp + mv, no chmod).
+  fileSystems."/boot/firmware".options = lib.mkForce [
+    "nofail"
+    "fmask=0077"
+    "dmask=0077"
+  ];
 
   # TPM2: no workaround here any more. nixos-hardware raspberry-pi/4/default.nix
   # sets `boot.initrd.systemd.tpm2.enable = false` itself ("Allow building kernel")
