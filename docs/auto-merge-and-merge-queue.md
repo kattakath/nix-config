@@ -26,9 +26,9 @@ is the record of why, and what has to be true before re-adopting one.
 ### 1. `auto-merge.yml` — arms the PR
 
 A `pull_request`-triggered workflow that runs `gh pr merge --auto --squash` when
-`github.event.pull_request.user.login == 'ismailkattakath'` and the PR is not a
-draft. Triggers are `opened`, `reopened`, `ready_for_review` and `synchronize`, and
-arming is **idempotent** — so a PR GitHub disarmed re-arms itself: on `synchronize` the
+`github.event.pull_request.user.id == 8927166` (the operator, matched by immutable id, never by
+login — why: the workflow's own comment) and the PR is not a draft. Triggers are `opened`,
+`reopened`, `ready_for_review` and `synchronize`, and arming is **idempotent** — so a PR GitHub disarmed re-arms itself: on `synchronize` the
 moment a conflict or failed check is fixed and pushed, and on `ready_for_review` after a
 draft conversion (which disarms — see §3). No arm run is cancelled; `cancel-in-progress`
 is `false`.
