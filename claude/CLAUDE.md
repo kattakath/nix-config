@@ -225,7 +225,7 @@ reply, every time, without being asked.
 
 **This is evidence, not taste** — and specifically **not negotiable on the grounds that it
 looks like taste.** The published standards behind each rule, with effect sizes, are recorded
-in `nix-config`'s [`docs/answer-shape-evidence.md`](../docs/answer-shape-evidence.md). The one
+in `nix-config`'s [`docs/answer-shape-evidence.md`](https://github.com/kattakath/nix-config/blob/main/docs/answer-shape-evidence.md). The one
 rule that surprises people: a diagram or chart that does **not** carry data measurably *hurts*
 comprehension, so "add a visual" is never an automatic improvement.
 
