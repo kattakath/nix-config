@@ -349,7 +349,7 @@ flake pin**: since 2026-09-23 it is registered as the https git source
 `https://github.com/kattakath/skills.git` with `autoUpdate = true`, and it is one of the declared
 marketplaces in `local.claudePlugins.marketplaces` (`modules/home/default.nix` — read it, not a count
 here); the only `/nix/store` one is `xai-grok-build`, from a patched pinned input. The `kattakath-skills`
-input survives for the `page-lab-pick` PATH package and `checks.*.mcp-launcher-parity` (the `page-lab` check is containment-only since #654) — never for the
+input survives for the `page-lab-pick` PATH package and `checks.*.mcp-launcher-parity` — never for the
 marketplace source. (It was `superhook` + `page-lab-pick` + `mcp.nix`'s `mcpCatalog`; superhook
 became a plugin hook 2026-09-30 and `mcpCatalog` died with the gateway 2026-10-02.) (The renamed-repo and pinned-era history is the quoted
 update block above.)
