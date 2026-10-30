@@ -251,15 +251,10 @@ every install everywhere follows. What was given up is the declarative guarantee
 longer ends up with the scripts installed, and the linter no longer runs in this repo's CI (it
 still lives in the `page-lab` plugin, and Greasy Fork enforces its own rules at upload).
 
-**The option is deliberately KEPT, with zero scripts.**
-`local.ungoogledChromium.userScripts` (`enable` + the `attrsOf (nullOr path)` `scripts` attrset)
-stays in [`modules/home/chromium.nix`](../../modules/home/chromium.nix) — see
-[`modules-home.md`](modules-home.md) § `chromium.nix` for the materialisation and the reason
-Chromium allows nothing more declarative.
-Violentmonkey is still sideloaded by `enable`; `scripts` is simply empty, and
-`xdg.dataFile` is gated on non-empty so an empty attrset writes nothing. It costs nothing and
-keeps the seam available if a script ever has to be fleet-pinned again (a private one, say, that
-must not go to a public fork).
+**Only the manager stays.** `local.ungoogledChromium.userScripts.enable` in
+[`modules/home/chromium.nix`](../../modules/home/chromium.nix) still sideloads Violentmonkey,
+which the published scripts install into. The empty `userScripts.scripts` seam was deleted
+2026-10-30 (#963); see [`modules-home.md`](modules-home.md) § `chromium.nix`.
 
 **The authoring METHOD is unchanged and lives in the plugin.** The portable
 [`page-lab` plugin](https://github.com/kattakath/skills/tree/main/plugins/page-lab)

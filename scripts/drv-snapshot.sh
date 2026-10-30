@@ -53,7 +53,7 @@ done
 # These change on EVERY commit for reasons that have nothing to do with a wave,
 # and a harness that flags them gets disabled within a day:
 #
-#   formatting / ast-grep / page-lab / pre-commit — take `self`
+#   formatting / ast-grep / pre-commit — take `self`
 #     as a source input, so their drv hash tracks the working tree, not their
 #     definition.
 #   docs-indexed / docs-links-resolve — the same, added 2026-10-02 after they
@@ -75,7 +75,7 @@ done
 #
 # Excluded here means "compared by NAME only": their presence and absence still
 # registers, only their hash is ignored.
-EXCLUDE_RE='^(formatting|ast-grep|page-lab|pre-commit|docs-indexed|docs-links-resolve|line-refs-cite-constructs|claude-md-budget|hosts-documented)$'
+EXCLUDE_RE='^(formatting|ast-grep|pre-commit|docs-indexed|docs-links-resolve|line-refs-cite-constructs|claude-md-budget|hosts-documented)$'
 
 emit() { # emit <label> <expr>  — prints "label<TAB>drvpath" or "label<TAB>ERROR"
   local label="$1" expr="$2" v

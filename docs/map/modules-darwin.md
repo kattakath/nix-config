@@ -196,10 +196,13 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   - **Hand-rolled on purpose:** nix-darwin's `services.github-runners` hard-asserts
     `nix.enable = true` (it takes the runner's `nix` from `config.nix.package`), which is
     mutually exclusive with Determinate Nix (`nix.enable = false`). This module reproduces
-    upstream's launchd setup and substitutes `pkgs.nix` — nothing else differs.
+    upstream's launchd setup and substitutes `pkgs.nix`, plus a privilege split upstream's
+    module lacks (next bullet).
   - **Auth:** a GitHub **App** RS256 private key (the host-decrypted
     `gh-app-dontsell-ai-key.age`), used to mint a fresh ~1 h installation token per
-    registration rather than holding a long-lived bearer credential. Its permissions are the
+    registration rather than holding a long-lived bearer credential. The key is **root-only**:
+    each daemon starts as root, mints a registration token, then `chpst` drops to
+    `_github-runner`, so no job uid can read the key (`github-runner.nix` § PRIVILEGE SPLIT). Its permissions are the
     shared fleet App's, recorded with its id in `hosts/macos.nix` (App-GLOBAL, wider than this lane needs).
   - **Security:** `--ephemeral` (one job per registration; launchd restart + re-register makes
     it self-healing), outbound-only. Only trusted push jobs may target `runs-on: [self-hosted,
