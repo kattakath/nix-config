@@ -152,7 +152,8 @@ to build the boundary machinery around it.
   README § Backend.
 - **Seam:** `capsuleModules.homeManager.keychain-secrets` (the raw seam; this is the capsule whose
   measurement produced it).
-- **Checks:** `keychain-secrets-module` and `keychain-secrets-clis` (the satellite's four package
+- **Checks:** the authoritative list is the capsule's own `flake-module.nix`. Among them,
+  `keychain-secrets-module` and `keychain-secrets-clis` (the satellite's four package
   checks folded into one — **building a `writeShellApplication` RUNS SHELLCHECK**, and this
   repo's darwin CI leg builds none of its packages, so dropping them would have been ADR-002
   §7.4's "highest-cost silent loss").
