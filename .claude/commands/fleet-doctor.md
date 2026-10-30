@@ -32,10 +32,10 @@ Examples:
 3. Apply the skill's **fix policy table** exactly — auto-fix only what it lists as auto-fix; everything else is a reported finding, confirmed with the user before acting.
 4. If nix-config itself is in scope: compose the **nix-hygiene** skill (same mode) rather than re-deriving its checks.
 5. End with the skill's **Fleet-doctor report** block.
-6. On completion, update `.claude/hooks/.fleet-doctor-state.json`:
+6. On completion, update `${XDG_STATE_HOME:-~/.local/state}/nix-config/fleet-doctor-state.json` — per user, not per checkout, so a worktree session does not read "never run" (the reader is `.claude/hooks/fleet-doctor-digest.js`):
 
    ```bash
-   node -e 'const f=".claude/hooks/.fleet-doctor-state.json";const fs=require("fs");let s={};try{s=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}s.lastRunAt=new Date().toISOString();s.lastMode=process.argv[1]||"fix";fs.writeFileSync(f,JSON.stringify(s,null,2)+"\n")' -- "<audit-or-fix>"
+   node -e 'const fs=require("fs"),os=require("os"),path=require("path");const f=path.join(process.env.XDG_STATE_HOME||path.join(os.homedir(),".local/state"),"nix-config","fleet-doctor-state.json");fs.mkdirSync(path.dirname(f),{recursive:true});let s={};try{s=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}s.lastRunAt=new Date().toISOString();s.lastMode=process.argv[1]||"fix";fs.writeFileSync(f,JSON.stringify(s,null,2)+"\n")' -- "<audit-or-fix>"
    ```
 
 ## Do not

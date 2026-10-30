@@ -53,10 +53,10 @@ Also surface, separately, the top `skill.name`/`mcp_tool.name` values by overall
 
 ## 5. Stamp the state file
 
-After review, update `.claude/hooks/.routing-review-state.json`: read the JSON (or start from `{}` if absent), set a top-level `reviewedAt` to the current ISO timestamp, and write it back.
+After review, update `${XDG_STATE_HOME:-~/.local/state}/nix-config/routing-review-state.json` (per user, like the global `events.jsonl` it bookmarks; the reader is `.claude/hooks/routing-review-digest.js`): read the JSON (or start from `{}` if absent), set a top-level `reviewedAt` to the current ISO timestamp, and write it back.
 
 ```bash
-node -e 'const f=".claude/hooks/.routing-review-state.json";const fs=require("fs");let s={};try{s=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}s.reviewedAt=new Date().toISOString();fs.writeFileSync(f,JSON.stringify(s,null,2)+"\n")'
+node -e 'const fs=require("fs"),os=require("os"),path=require("path");const f=path.join(process.env.XDG_STATE_HOME||path.join(os.homedir(),".local/state"),"nix-config","routing-review-state.json");fs.mkdirSync(path.dirname(f),{recursive:true});let s={};try{s=JSON.parse(fs.readFileSync(f,"utf8"))}catch{}s.reviewedAt=new Date().toISOString();fs.writeFileSync(f,JSON.stringify(s,null,2)+"\n")'
 ```
 
 ## 6. Note on log hygiene
