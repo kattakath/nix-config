@@ -4,7 +4,8 @@ description: >
   Add, remove, or authenticate accounts for the self-hosted multi-account
   Gmail MCP (local.gmailMcp.enable, modules/home/gmail-mcp.nix, the generic
   `nix-mcp-gmail <address>` launcher from packages/gmail-mcp.nix, accounts
-  declared in the `gmail` / private `gmail-private` plugins' .mcp.json) —
+  declared in the `gmail` / private `gmail-private` / `gmail-persona` plugins'
+  .mcp.json) —
   TRUE simultaneous multi-account Gmail via ArtyMcLabin/Gmail-MCP-Server, one
   process per account, unlike the built-in single-account connector. Use when
   asked to "add a gmail account", "authenticate gmail mcp", "gmail multi

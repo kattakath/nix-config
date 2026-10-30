@@ -2872,9 +2872,9 @@ in
           # the content is: the same principle that moved the gate here in the
           # first place, applied once more.
           #
-          # The `local.ungoogledChromium.userScripts` OPTION in
-          # modules/home/chromium.nix stays, unused and documented. If a
-          # script is ever declared again, restore this gate with it.
+          # Only `local.ungoogledChromium.userScripts.enable` (the Violentmonkey
+          # sideload) remains in modules/home/chromium.nix; the `scripts` seam is
+          # gone. If a script is ever declared again, restore this gate with it.
 
           # ---- the launcher<->plugin JOIN, across the repo boundary -------------
           #
