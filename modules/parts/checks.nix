@@ -280,8 +280,7 @@ in
                   exit 1
                 ''
             );
-        }
-        // lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+
           # ---- Claude Desktop only accepts the stdio shape ----------------------
           #
           # modules/home/claude-desktop.nix renders `local.claudeDesktop.extraServers`
@@ -590,14 +589,6 @@ in
                       (mac.config.users.users ? ${loginName} || mac.config.system.primaryUser != templateLogin)
                       "the template's 'hostname' selected a host that creates the OPERATOR's account (${loginName}) — this is the 2026-09-15 regression, via the template"
                   ++
-                    # The gateway is PURGED, so a template consumer must inherit NO
-                    # such agent. This leg used to assert the opposite (that the agent
-                    # bound publicMcpPort); inverted rather than deleted, so "the
-                    # gateway came back through the template path" still fails.
-                    lib.optional (
-                      macHm.launchd.agents ? mcp-gateway || macHm.launchd.agents ? mcp-tunnel-connector
-                    ) "a template consumer inherited an MCP gateway agent — the gateway is purged"
-                  ++
                     lib.optional
                       (
                         namedMacos.config.local.operatorHost
@@ -773,6 +764,14 @@ in
               # above no longer sees, and both deserve a human. 24 = 15 measured
               # before the environment dumps (2026-10-21) + those 9.
               minSecretRules = 24;
+              # The SECOND hand-kept duplicate in that file: strictKnownMarketplaces'
+              # exact `git` entries restate every non-store marketplace source the
+              # home profile declares, and a source missing there is REFUSED at
+              # `marketplace add`. Store paths are the home module's own isStorePath
+              # split (claude-plugins.nix), covered by the `pathPattern` entry.
+              gitMarketplaces = builtins.filter (s: !(lib.hasPrefix "/nix/store/" s)) (
+                map (m: m.source) (lib.attrValues hm.local.claudePlugins.marketplaces)
+              );
             in
             pkgs.runCommand "claude-managed-settings"
               {
@@ -819,117 +818,34 @@ in
                   exit 1
                 fi
 
-                echo "managed floor carries all ${toString (builtins.length secretRules)} secret-value rules from the user scope" > "$out"
+                if [ "${toString (builtins.length gitMarketplaces)}" -eq 0 ]; then
+                  echo "claude-managed-settings: no git marketplace read from local.claudePlugins.marketplaces —" >&2
+                  echo "the allowlist leg below would pass over an empty set. Re-read that option." >&2
+                  exit 1
+                fi
+                allowedGit=$(jq -r '.strictKnownMarketplaces // [] | .[] | select(.source == "git") | .url' "$managed")
+                unlisted=0
+                while IFS= read -r url; do
+                  [ -n "$url" ] || continue
+                  if ! printf '%s\n' "$allowedGit" | grep -qxF "$url"; then
+                    echo "  NOT in strictKnownMarketplaces: $url" >&2
+                    unlisted=1
+                  fi
+                done <<< "${lib.concatStringsSep "\n" gitMarketplaces}"
+
+                if [ "$unlisted" -ne 0 ]; then
+                  echo "" >&2
+                  echo "claude-managed-settings: local.claudePlugins.marketplaces declares the sources above," >&2
+                  echo "but modules/darwin/claude-managed-settings.nix's strictKnownMarketplaces has no" >&2
+                  echo "byte-identical git entry for them, so 'marketplace add' is refused by policy." >&2
+                  echo "Add the exact URL there; the list is restated, not derived, on purpose." >&2
+                  exit 1
+                fi
+
+                echo "managed floor carries all ${toString (builtins.length secretRules)} secret-value rules from the user scope, and allows all ${toString (builtins.length gitMarketplaces)} declared git marketplaces" > "$out"
               '';
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          # ---- The four names a reflash depends on, pinned ---------------------
-          #
-          # ADR-002 wave 3 moved the Cloudflare Tunnel connector in-tree as a
-          # capsule. The dangerous edit there is not a behaviour change — it is a
-          # RENAME, because three separate modules agree on strings and nothing
-          # type-checks the agreement:
-          #
-          #   hosts/nixpi.nix orders the firmware-planted token
-          #     `before`/`requiredBy` "cloudflared-connector.service", a name the
-          #     CAPSULE owns.
-          #   local.firmwareProvisioning derives "firmware-file-<key>.service"
-          #     from each attribute key, and hosts/nixpi.nix's supplicant override
-          #     names "firmware-file-wifi.service" back by hand.
-          #   The /run targets are the handoff between the firmware partition and
-          #     the two consumers.
-          #
-          # A rename anywhere in that triangle still EVALUATES, still passes
-          # `nix flake check`, and still passes `--dry-activate` on a card that was
-          # provisioned before the rename — the units are already on disk. It only
-          # bites on the NEXT FLASH, when the ordering edge silently no longer
-          # exists: the connector starts before its token is copied, or the Wi-Fi
-          # supplicant before its conf. On a headless Pi reachable REMOTELY only
-          # through that connector, that is a ~40-minute trip to the shelf and a full
-          # verified re-flash (docs/nixpi-sd-flashing-runbook.md).
-          #
-          # Values measured against the live config on 2026-09-12, before the
-          # capsule move. Linux-only for the same reason the capsule's own check
-          # is: `nixpi` is an aarch64-linux host and CI evaluates it on that leg.
-          nixpi-firmware-names =
-            let
-              c = config.flake.nixosConfigurations.nixpi.config;
-              svc = c.systemd.services;
-
-              # EVERY lookup goes through these, and that is the point. Reading
-              # `svc.cloudflared-connector` directly makes the FIRST failure mode
-              # this check exists to catch — a renamed unit — come out as
-              # `error: attribute 'cloudflared-connector' missing` from inside a
-              # trivial-builder stack trace, instead of the explanation below.
-              # Measured: it does exactly that. A guard that degrades into an
-              # eval error is a guard whose message nobody reads.
-              unit = n: svc.${n} or { };
-              has = n: svc ? ${n};
-              orders = n: field: lib.elem "cloudflared-connector.service" ((unit n).${field} or [ ]);
-
-              expect = [
-                {
-                  name = "unit firmware-file-cloudflared-token.service exists";
-                  ok = has "firmware-file-cloudflared-token";
-                }
-                {
-                  name = "unit firmware-file-wifi.service exists";
-                  ok = has "firmware-file-wifi";
-                }
-                {
-                  name = "unit cloudflared-connector.service exists";
-                  ok = has "cloudflared-connector";
-                }
-                {
-                  name = "connector reads /run/cloudflared-token as its EnvironmentFile";
-                  ok =
-                    (unit "cloudflared-connector").serviceConfig.EnvironmentFile or null == "/run/cloudflared-token";
-                }
-                {
-                  name = "the planted token is ordered before cloudflared-connector.service";
-                  ok = orders "firmware-file-cloudflared-token" "before";
-                }
-                {
-                  name = "cloudflared-connector.service requires the planted token";
-                  ok = orders "firmware-file-cloudflared-token" "requiredBy";
-                }
-                {
-                  name = "supplicant reads /run/wpa_supplicant-firmware.conf";
-                  ok = c.networking.supplicant.wlan0.configFile.path == "/run/wpa_supplicant-firmware.conf";
-                }
-                {
-                  name = "supplicant is gated on /run/wpa_supplicant-firmware.conf existing";
-                  ok =
-                    (unit "supplicant-wlan0").unitConfig.ConditionPathExists or null
-                    == "/run/wpa_supplicant-firmware.conf";
-                }
-                {
-                  name = "supplicant is ordered after firmware-file-wifi.service";
-                  ok = lib.elem "firmware-file-wifi.service" ((unit "supplicant-wlan0").after or [ ]);
-                }
-              ];
-              broken = builtins.filter (e: !e.ok) expect;
-            in
-            pkgs.runCommand "nixpi-firmware-names" { } (
-              if broken == [ ] then
-                ''
-                  echo "nixpi firmware/connector contract: ${toString (builtins.length expect)} assertions ok" > "$out"
-                ''
-              else
-                ''
-                  echo "nixpi-firmware-names: the firmware -> /run -> consumer contract broke." >&2
-                  ${lib.concatMapStringsSep "\n" (e: ''echo "  ✘ ${e.name}" >&2'') broken}
-                  echo "" >&2
-                  echo "These names are agreed by STRING across hosts/nixpi.nix," >&2
-                  echo "modules/features/cloudflared-connector/ and" >&2
-                  echo "modules/features/firmware-secrets/. A break here evaluates fine" >&2
-                  echo "and --dry-activates fine on an" >&2
-                  echo "ALREADY-PROVISIONED card; it only surfaces on the next flash, as a" >&2
-                  echo "Pi that never brings its tunnel up. Fix the name, do not relax this." >&2
-                  exit 1
-                ''
-            );
-
           # ---- Determinate owns this daemon TOO — and `nix.*` stays LIVE ------
           #
           # The mirror of the darwin `determinate-daemon-macos` above, and the whole
@@ -953,7 +869,7 @@ in
           # without a single eval error and without failing `nix flake check`.
           #
           # Every lookup goes through `or`, for the reason nixpi-firmware-names
-          # states directly above: drop the module and `config.determinate` stops
+          # states (in the ungated block below): drop the module and `config.determinate` stops
           # existing, so a direct read degrades into "attribute 'determinate'
           # missing" inside a trivial-builder stack trace instead of the
           # explanation below. A guard whose message nobody reads is not a guard.
@@ -1692,7 +1608,7 @@ in
           #
           # Every lookup goes through `or`, with the default chosen to FAIL —
           # `allowedTCPPorts or null`, never `or [ ]` — for the reason
-          # nixpi-firmware-names gives above: a dropped module must produce THIS
+          # nixpi-firmware-names gives below: a dropped module must produce THIS
           # message, not "attribute missing" from inside a trivial-builder stack
           # trace.
           #
@@ -1710,7 +1626,7 @@ in
           # measured), and the rendered-ListenAddress leg is the one thing here
           # that forces extraConfig.
           #
-          # Ungated, like secrets-sync below and unlike the two nixpi checks in
+          # Ungated, like secrets-sync below and unlike determinate-daemon-nixpi in
           # the isLinux block above: this is an eval plus an echo, with nothing
           # aarch64-linux about either half. Both legs are worth paying for
           # because the edits it guards are made ON the Mac — Linux-gating it
@@ -1828,6 +1744,106 @@ in
                 ''
             );
 
+          # ---- The four names a reflash depends on, pinned ---------------------
+          #
+          # ADR-002 wave 3 moved the Cloudflare Tunnel connector in-tree as a
+          # capsule. The dangerous edit there is not a behaviour change — it is a
+          # RENAME, because three separate modules agree on strings and nothing
+          # type-checks the agreement:
+          #
+          #   hosts/nixpi.nix orders the firmware-planted token
+          #     `before`/`requiredBy` "cloudflared-connector.service", a name the
+          #     CAPSULE owns.
+          #   local.firmwareProvisioning derives "firmware-file-<key>.service"
+          #     from each attribute key, and hosts/nixpi.nix's supplicant override
+          #     names "firmware-file-wifi.service" back by hand.
+          #   The /run targets are the handoff between the firmware partition and
+          #     the two consumers.
+          #
+          # A rename anywhere in that triangle still EVALUATES, still passes
+          # `nix flake check`, and still passes `--dry-activate` on a card that was
+          # provisioned before the rename — the units are already on disk. It only
+          # bites on the NEXT FLASH, when the ordering edge silently no longer
+          # exists: the connector starts before its token is copied, or the Wi-Fi
+          # supplicant before its conf. On a headless Pi reachable REMOTELY only
+          # through that connector, that is a ~40-minute trip to the shelf and a full
+          # verified re-flash (docs/nixpi-sd-flashing-runbook.md).
+          #
+          # Values measured against the live config on 2026-09-12, before the
+          # capsule move. Ungated for the reason uplink-watchdog-paths-agree
+          # gives: the rename it catches is made on the Mac.
+          nixpi-firmware-names =
+            let
+              c = config.flake.nixosConfigurations.nixpi.config;
+              svc = c.systemd.services;
+
+              # EVERY lookup goes through these, and that is the point. Reading
+              # `svc.cloudflared-connector` directly makes the FIRST failure mode
+              # this check exists to catch — a renamed unit — come out as
+              # `error: attribute 'cloudflared-connector' missing` from inside a
+              # trivial-builder stack trace, instead of the explanation below.
+              # Measured: it does exactly that. A guard that degrades into an
+              # eval error is a guard whose message nobody reads.
+              unit = n: svc.${n} or { };
+              has = n: svc ? ${n};
+              orders = n: field: lib.elem "cloudflared-connector.service" ((unit n).${field} or [ ]);
+
+              expect = [
+                {
+                  name = "unit firmware-file-cloudflared-token.service exists";
+                  ok = has "firmware-file-cloudflared-token";
+                }
+                {
+                  name = "unit firmware-file-wifi.service exists";
+                  ok = has "firmware-file-wifi";
+                }
+                {
+                  name = "unit cloudflared-connector.service exists";
+                  ok = has "cloudflared-connector";
+                }
+                {
+                  name = "connector reads /run/cloudflared-token as its EnvironmentFile";
+                  ok =
+                    (unit "cloudflared-connector").serviceConfig.EnvironmentFile or null == "/run/cloudflared-token";
+                }
+                {
+                  name = "the planted token is ordered before cloudflared-connector.service";
+                  ok = orders "firmware-file-cloudflared-token" "before";
+                }
+                {
+                  name = "cloudflared-connector.service requires the planted token";
+                  ok = orders "firmware-file-cloudflared-token" "requiredBy";
+                }
+                {
+                  name = "supplicant reads /run/wpa_supplicant-firmware.conf";
+                  ok = c.networking.supplicant.wlan0.configFile.path == "/run/wpa_supplicant-firmware.conf";
+                }
+                {
+                  name = "supplicant is gated on /run/wpa_supplicant-firmware.conf existing";
+                  ok =
+                    (unit "supplicant-wlan0").unitConfig.ConditionPathExists or null
+                    == "/run/wpa_supplicant-firmware.conf";
+                }
+                {
+                  name = "supplicant is ordered after firmware-file-wifi.service";
+                  ok = lib.elem "firmware-file-wifi.service" ((unit "supplicant-wlan0").after or [ ]);
+                }
+              ];
+            in
+            mkHostContract {
+              inherit pkgs expect;
+              name = "nixpi-firmware-names";
+              subject = "nixpi firmware/connector contract";
+              advice = [
+                "These names are agreed by STRING across hosts/nixpi.nix,"
+                "modules/features/cloudflared-connector/ and"
+                "modules/features/firmware-secrets/. A break here evaluates fine"
+                "and --dry-activates fine on an"
+                "ALREADY-PROVISIONED card; it only surfaces on the next flash, as a"
+                "Pi that never brings its tunnel up. Fix the name, do not relax this."
+              ];
+            };
+
           # THE SCRIPTED INITRD IS ON AN UPSTREAM DEADLINE, AND NOTHING GATED IT.
           #
           # hosts/nixpi.nix forces `boot.initrd.systemd.enable = false` because
@@ -1863,7 +1879,7 @@ in
           #   is named here rather than papered over — the tell would be a deploy
           #   that never comes back, and magicRollback is what has to catch it.
           #
-          # Ungated for the same reason as the two checks above: the edit that breaks
+          # Ungated for the same reason as uplink-watchdog-paths-agree above: the edit that breaks
           # it is made on the Mac, so Linux-gating would let `/eval` pass clean.
           nixpi-initrd-posture =
             let
@@ -3000,74 +3016,6 @@ in
                 "bare nixpkgs binaries and npx invocations are excluded by construction."
               ];
             };
-
-          # CONTAINMENT ONLY, over THIS repo's own tree (#654). It used to also parse
-          # page-lab's scripts and run its envelope self-test out of
-          # `${inputs.kattakath-skills}`, and those two halves are GONE — not because
-          # they stopped mattering, but because they already run where the content
-          # lives. `kattakath/skills`' own validate.yml does both verbatim:
-          #   step "Scripts parse"               -> node --check + bash -n
-          #   step "page-lab envelope self-test" -> the same pick-validate.mjs
-          #                                         --self-test, same fixtures path
-          #
-          # So keeping them here was a SECOND COPY of one gate, and worse than
-          # redundant: the two copies read DIFFERENT revisions — skills CI runs HEAD,
-          # this one ran whatever flake.lock pinned — so they could disagree while both
-          # looked green, and the stale one would be believed. One source of truth; a
-          # second copy is a bug with a delayed fuse. Same principle the userscript
-          # note above records: one rulebook, run where the content is.
-          #
-          # What remains cannot move there, because it is about THIS tree: a stale
-          # pre-merge plugin path or a pre-extraction source literal in nix-config's own
-          # prose and Nix. skills CI cannot see those.
-          page-lab = pkgs.runCommand "page-lab" { } ''
-            rc=0
-
-            # Two gates over THIS repo. page-lab's tree moved out; nix-config's
-            # prose and its source literals did not, and a stale one is exactly
-            # the drift this catches.
-            #
-            #  (a) pre-merge plugin PATHS — `plugins/userscript-author` and
-            #      `plugins/chrome-devtools`, from the 2026-09 merge that produced
-            #      page-lab. Both are unambiguous: neither resolves to anything in
-            #      any tree now, and neither is a plugin ID, so a live reference
-            #      cannot collide with them.
-            #
-            #      The bare `chrome-devtools@` alternative was DROPPED (2026-09-30).
-            #      Its job is done — the rename landed in #504 and no `@`-form of
-            #      the pre-merge id was ever written down here, so the literal only
-            #      ever matched the guard's own source. It is now actively harmful:
-            #      `chrome-devtools@<marketplace>` is the CORRECT way to name a live
-            #      plugin, and the MCP-ownership split (#657) has to name exactly
-            #      that. A guard that fails the build on a mere mention of a live
-            #      plugin id is a false positive by construction — the same trap the
-            #      relative-literal note below already calls out for
-            #      `plugins/page-lab`. The path half keeps the containment value;
-            #      the id half had none left to keep.
-            #  (b) pre-EXTRACTION source literals — a `../plugins/…` or
-            #      `../../skills/rag` still resolves to NOTHING in this tree after
-            #      2026-09-12. Matched as RELATIVE LITERALS on purpose, not as bare
-            #      substrings: `${inputs.kattakath-skills}/plugins/page-lab`
-            #      is the CORRECT new form and contains "plugins/page-lab", so a
-            #      substring grep would flag the fix as the bug.
-            #
-            # This file CARRIES the grep, so it matches its own source.
-            cd ${self}
-            if grep -rn 'plugins/userscript-author\|plugins/chrome-devtools' \
-                 --exclude-dir=.git --exclude=checks.nix . ; then
-              echo "  ✘ stale pre-merge plugin PATH above" >&2
-              rc=1
-            fi
-            if grep -rn '\.\./plugins/\|\.\./skills/rag\|\.\./skills/nix-dev-toolkit\|\.\./skills/android-phone\|\.\./userscripts/' \
-                 --exclude-dir=.git --exclude=checks.nix . ; then
-              echo "  ✘ repo-relative literal pointing at an EXTRACTED tree above" >&2
-              echo "    those live in pinned inputs now — see flake.nix" >&2
-              rc=1
-            fi
-
-            [ "$rc" = 0 ] || { echo "page-lab integrity check FAILED" >&2; exit 1; }
-            touch "$out"
-          '';
         };
     };
 }
