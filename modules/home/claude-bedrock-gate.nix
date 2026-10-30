@@ -1,7 +1,6 @@
 {
   pkgs,
   lib,
-  config,
   ...
 }:
 # Claude Code's Bedrock routing: the runtime gate that makes selecting Bedrock
@@ -75,9 +74,6 @@
 # Select a non-default profile with `secret set AWS_PROFILE <name>`.
 # This is ADR-003's split (docs/externalization-boundary-adr.md): identity is
 # content and may live outside every repo; the gate is governance and stays here.
-# `adoptAwsConfig` (section (c)) turned the leftover store symlink into a real
-# file on the first activation after aws-sso.nix stopped being evaluated, so
-# that transition could not delete the operator's profiles.
 let
   # Offline and CLI-free on purpose: `aws` is not reliably on PATH during shell
   # init, and a network call (`aws sts get-caller-identity`) would tax every new
@@ -312,70 +308,23 @@ in
   # must stay in the macOS login Keychain (see the header): a Nix-declared
   # `settings.json` `env` entry would apply to EVERY session and permanently
   # kill the runtime toggle. Do not add one.
-  config = lib.mkMerge [
-    # ---- (a) the gate ------------------------------------------------------
-    # Darwin-only: the Keychain loader that exports the variable is itself
-    # darwin-only, so on the NixOS hosts there is nothing to gate. The guard is
-    # isDarwin ONLY — adding `programs.claude-code.enable` here would newly
-    # disable the gate on a darwin host that does not enable claude-code.
-    (lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-      home.packages = [ gate ];
+  #
+  # The gate is darwin-only: the Keychain loader that exports the variable is itself
+  # darwin-only, so on the NixOS hosts there is nothing to gate. The guard is
+  # isDarwin ONLY — adding `programs.claude-code.enable` here would newly
+  # disable the gate on a darwin host that does not enable claude-code.
+  config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
+    home.packages = [ gate ];
 
-      # mkOrder 1600 > mkAfter (1500), which is what keychain-secrets uses for its own
-      # loader on these exact three options. Ordering is the whole correctness argument:
-      # running before the loader would see an unset variable and do nothing at all.
-      # All three are needed because Claude Code inherits whichever shell launched it —
-      # zsh's `.zshenv` (envExtra) is the only file a NON-interactive zsh reads, and
-      # bash splits the same job across profileExtra (login) and bashrcExtra (rest).
-      # Checked by `checks.aarch64-darwin.bedrock-gate-after-loader`.
-      programs.zsh.envExtra = lib.mkOrder 1600 gateShell;
-      programs.bash.profileExtra = lib.mkOrder 1600 gateShell;
-      programs.bash.bashrcExtra = lib.mkOrder 1600 gateShell;
-    })
-
-    # (b), the identity section, went with `local.claudeBedrock` (2026-09-15): the
-    # region is runtime state in `~/.aws/config`, exported by the shell hook above.
-
-    # ---- (c) migration: adopt a store-symlinked ~/.aws/config --------------
-    # The day no module declared ~/.aws/config any more (nix-personal's
-    # `aws-sso.nix` retired with it, 2026-09-15), home-manager's orphan cleanup
-    # would DELETE the old generation's symlink — and with it every profile, since the content existed
-    # only in the store. Upstream has no "stop managing, keep the content" option
-    # (pinned home-manager modules/files.nix: `home.file.<name>` offers `force`
-    # and `onChange`, and `legacyCleanup` rm's any orphan that "links into a Home
-    # Manager generation"). The same cleanup explicitly SKIPS a regular file
-    # ("does not link into a Home Manager generation. Skipping delete."), so
-    # replacing the link with a real copy just before `linkGeneration` hands the
-    # file to its runtime owner, the `aws` CLI, with nothing lost.
-    #
-    # Gated on "no home.file entry targets it", evaluated in the SAME config: while
-    # any layer still manages the path this is absent, so it can never fight
-    # `checkLinkTargets` over a file home-manager is about to link. One-shot by
-    # construction — after the first run there is no store symlink left to match.
-    # SPENT, not dead: nix-personal went 2026-09-15 and the first activation
-    # after it converted the symlink to a real file, so the runtime match can no
-    # longer fire. Removing the section is a behaviour change — that call is the
-    # operator's, who alone knows whether every Mac has activated since.
-    (lib.mkIf
-      (
-        pkgs.stdenv.hostPlatform.isDarwin
-        && !lib.any (f: f.enable && f.target == ".aws/config") (lib.attrValues config.home.file)
-      )
-      {
-        home.activation.adoptAwsConfig = lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ] ''
-          awsCfg="$HOME/.aws/config"
-          hmFiles="$(readlink -e ${builtins.storeDir})/*-home-manager-files/*"
-          if [[ -L "$awsCfg" && "$(readlink "$awsCfg")" == $hmFiles ]]; then
-            if [[ -r "$awsCfg" ]]; then
-              run cp -L $VERBOSE_ARG "$awsCfg" "$awsCfg.adopt"
-              run chmod 600 "$awsCfg.adopt"
-              run mv -f $VERBOSE_ARG "$awsCfg.adopt" "$awsCfg"
-            else
-              warnEcho "~/.aws/config links into a dead home-manager generation; run \`aws configure sso\` to recreate it."
-            fi
-          fi
-        '';
-      }
-    )
-  ];
+    # mkOrder 1600 > mkAfter (1500), which is what keychain-secrets uses for its own
+    # loader on these exact three options. Ordering is the whole correctness argument:
+    # running before the loader would see an unset variable and do nothing at all.
+    # All three are needed because Claude Code inherits whichever shell launched it —
+    # zsh's `.zshenv` (envExtra) is the only file a NON-interactive zsh reads, and
+    # bash splits the same job across profileExtra (login) and bashrcExtra (rest).
+    # Checked by `checks.aarch64-darwin.bedrock-gate-after-loader`.
+    programs.zsh.envExtra = lib.mkOrder 1600 gateShell;
+    programs.bash.profileExtra = lib.mkOrder 1600 gateShell;
+    programs.bash.bashrcExtra = lib.mkOrder 1600 gateShell;
+  };
 }

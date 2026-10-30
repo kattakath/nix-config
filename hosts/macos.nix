@@ -133,9 +133,9 @@ in
   # choice (checked: absent from the official policy docs, and grepped the
   # installed Chromium Framework binary itself for any PerScript*/font-policy
   # string — none), so Chromium is pointed at these faces by
-  # `local.ungoogledChromium.malayalamFontSetter` instead — a repo-authored sideloaded
-  # extension, the only mechanism that can (`chrome.fontSettings.setFont` is
-  # extension-only). That option's description carries the full why, including
+  # the malayalam-font-setter extension (modules/home/chromium.nix) instead — a
+  # repo-authored sideloaded extension, the only mechanism that can
+  # (`chrome.fontSettings.setFont` is extension-only). Its comment there carries the full why, including
   # the two non-extension routes that were tried and failed.
   fonts.packages = [ pkgs.noto-fonts ];
 
@@ -382,10 +382,7 @@ in
     # account ids and an SSO start-URL id — reconnaissance in a public repo
     # (ADR-004 §7, inventory #1). The cloud-cli capsule now installs the CLI and
     # writes ~/.aws/config.example; the real ~/.aws/config is the operator's,
-    # written by `aws configure sso` / by hand, outside Nix and git. The first
-    # activation after this change keeps the existing profiles: `adoptAwsConfig`
-    # (modules/home/claude-bedrock-gate.nix) turns the leftover store symlink
-    # into a real 0600 file instead of letting orphan cleanup delete it.
+    # written by `aws configure sso` / by hand, outside Nix and git.
     # Claude Code's Bedrock profile is still selected at runtime with
     # `secret set AWS_PROFILE <profile>`.
     local.cloudCli.aws.enable = true;
@@ -499,6 +496,10 @@ in
   # File Provider mount. Delete both caps on each activation so sync always runs
   # at full speed (absent key = unlimited). Runs as the login user: the domain
   # lives in ~/Library/Preferences, and postActivation runs as root.
+  # upstream-first: nix-darwin `system.defaults` (defaults-write.nix `writeDefault`) and
+  # home-manager `targets.darwin.defaults` (`defaults import`) only WRITE — a null value
+  # is dropped, never deleted; nix-plist-manager deletes only keys of its typed
+  # domains (`canUnset` → `ops.delete`), and com.google.drivefs.settings is not one.
   system.activationScripts.postActivation.text = lib.mkAfter ''
     for k in BandwidthRxKBPS BandwidthTxKBPS; do
       /usr/bin/sudo -u ${loginName} /usr/bin/defaults delete com.google.drivefs.settings "$k" 2>/dev/null || true
