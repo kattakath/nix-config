@@ -259,6 +259,10 @@ let
   # lookup; nothing is hand-rolled. Guarded so an existing socket (a Terminal shell,
   # or a forwarded agent over SSH) is never overridden. Runs for EVERY shell:
   # zsh envExtra (.zshenv) and bash profileExtra (login), not just interactive ones.
+  # upstream-first: home-manager/modules/misc/ssh-auth-sock.nix (`sshAuthSock`) does
+  # not fit — `systemd.socketProviderUnit` has no default (a required systemd option
+  # on darwin), and its `-z "$SSH_AUTH_SOCK" -o -z "$SSH_CONNECTION"` guard re-runs
+  # in every LOCAL shell (overriding a live socket), while this fills only an empty one.
   sshAuthSockFromLaunchd = ''
     if [ -z "''${SSH_AUTH_SOCK:-}" ] && [ -x /bin/launchctl ]; then
       __sock="$(/bin/launchctl getenv SSH_AUTH_SOCK 2>/dev/null)"
@@ -955,7 +959,7 @@ in
         # The fleet-specific half stays in .claude/skills/userscript-author — it is about
         # THIS repo, not about userscripts. The MCP servers page-lab drives are declared in the plugin's
         # own .mcp.json; this repo owns only the browser half (modules/home/chromium.nix's
-        # debugLauncher / kaptureMcp).
+        # debugLauncher and the Kapture extension).
         "page-lab"
         # claude-code-nix: the two Nix PostToolUse hooks this repo used to carry in
         # .claude/hooks — auto-stage a .nix write (flakes evaluate the GIT tree, so an
@@ -1320,8 +1324,8 @@ in
     # stays out until the operator says otherwise. The repo map records NOTHING about
     # it — `brag` appears 0 times across docs/repo-map.md and all eleven docs/map/
     # files; the two places that do record the removal, and that nothing replaced it,
-    # are .claude/skills/fleet-doctor/fleet-repos.txt (the retired `brags` fleet line)
-    # and the declarative-plugin-floor ADR.
+    # are git history (the retired `brags` fleet-repos.txt line) and the
+    # declarative-plugin-floor ADR.
   };
 
   # Spotlight-launchable "Android Emulator" — click (or re-click) like any
@@ -2470,6 +2474,9 @@ in
   # Login oneshot: load Keychain SSH identities into the agent for GUI git signing
   # (shells use sshKeychainLoadShell). First-time: ssh-add --apple-use-keychain
   # on the operator private key. launchd-launcher.nix → nix-ssh-keychain-load.
+  # upstream-first: home-manager `services.ssh-agent` runs a NIX-built agent
+  # (`mkPackageOption pkgs "openssh"`), not Apple's Keychain-backed /usr/bin one that
+  # `--apple-load-keychain` needs — so it cannot replace this.
   launchd.agents.ssh-keychain-load = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     enable = true;
     config = {
@@ -2498,8 +2505,7 @@ in
   };
 
   home.activation = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    # The one-shot adoption, same shape as claude-bedrock-gate.nix's `adoptAwsConfig`:
-    # when a file we USED to manage is still a symlink into a home-manager
+    # The one-shot adoption: when a file we USED to manage is still a symlink into a home-manager
     # generation, copy it out as a real 0600 file BEFORE linkGeneration's orphan
     # cleanup would delete it. A no-op on a machine where the file is already real
     # or absent, so it is safe to leave in place forever (and it is what a
