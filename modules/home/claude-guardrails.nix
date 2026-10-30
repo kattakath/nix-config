@@ -359,10 +359,12 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # denies above are the shape that holds; a broad one would undo them.
 
     # ── Irreversible remote actions an unattended agent must not take ──
-    # A merge is a production trigger in more than one repo this Mac works on
-    # (e.g. a `main` with no required reviewers). Review and merge stay human.
-    "Bash(gh pr merge *)"
-    # Both flag positions. `--force-with-lease` stays allowed on purpose: it is
+    # NO `gh pr merge` deny, on purpose (operator, 2026-10-30): it cost real time
+    # on repos where an admin merge is permitted, and it never held anyway — the
+    # GitHub MCP's `merge_pull_request` was loaded in every session. Branch
+    # protection on the forge is the merge gate; a repo that needs a human merge
+    # says so in its own CLAUDE.md or ruleset.
+    # Force-push, both flag positions. `--force-with-lease` stays allowed on purpose: it is
     # the safe way to update an agent's own rebased PR branch, and protected
     # branches are already force-push-proof server-side (GitHub rulesets).
     "Bash(git push --force *)"
