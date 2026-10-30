@@ -149,7 +149,7 @@
 # slip in under a rule that never contemplated it.
 #
 # Admitted, on three grounds that the excluded workflow-narrowing entries below
-# (`gh pr merge *`, the `--force` spellings, the imperative-MCP group) do NOT share:
+# (the `--force` spellings, the imperative-MCP group) do NOT share:
 #
 #  1. WHO IS RESTRAINED. Those entries restrain the OPERATOR, to protect him from
 #     his own slip — and on his own repos his judgement beats the rule, which is
@@ -378,7 +378,7 @@ let
       # they already work, because they narrow a WORKFLOW rather than protect a
       # value, and a wrong one here has no in-session undo: the imperative-MCP
       # group (`claude mcp add *`, `Edit(~/.claude.json)`) and the irreversible
-      # remote group (`gh pr merge *`, the four `git push --force` spellings).
+      # remote group (the four `git push --force` spellings).
     ];
 
     # ── SUPPLY-CHAIN GATE: which marketplace SOURCES may be added at all ───────
