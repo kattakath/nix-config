@@ -172,7 +172,11 @@ and, above it on `macos`, root-owned managed scope in
   here and only activates there), and **Rule 1e** (a command that dumps the whole
   environment — `env`, `printenv`, bare `set`/`export`, `declare -x` — piped or not, because
   the Keychain loader makes every bound secret ambient in the Bash tool; added after a
-  `env | grep -E '^(LANG|LC_)'` printed three API keys on 2026-10-21). Rule 1b — which
+  `env | grep -E '^(LANG|LC_)'` printed three API keys on 2026-10-21), and **Rule 1f** (a
+  decrypted-secret PATH anywhere in a command's words, `@`-prefixed included — the user-scope
+  `Read()` deny binds only readers Claude Code recognises, and `curl --data-binary @<path>`
+  ran past it on 2026-10-30; the list is READ at runtime from
+  `modules/_lib/secret-read-paths.nix`, never copied). Rule 1b — which
   blocked `deploy` and public-`#macos` activation while a private layer existed — was
   RETIRED 2026-09-15 with that layer.
 - **`.claude/hooks/tests/*.sh`** — the case suites for BOTH hooks: one per guard rule
@@ -230,6 +234,8 @@ and, above it on `macos`, root-owned managed scope in
   [`claude-code-observability-runbook.md`](../claude-code-observability-runbook.md).
 - **`fleet-doctor-digest.js`** — SessionStart nudge when `/fleet-doctor` hasn't run in a while;
   reads only a local timestamp, no network/git calls, so it stays fast on every session start.
+  Both digests keep their state PER USER under `${XDG_STATE_HOME:-~/.local/state}/nix-config/`,
+  not in the checkout, so a worktree session does not read a false "never run".
 - **`autostage-nix`** — PostToolUse git-purity net. EXTRACTED 2026-09-12 to the
   [`claude-code-nix`](https://github.com/kattakath/skills/tree/main/plugins/claude-code-nix) plugin; it arrives as a
   plugin hook, which is why `.claude/settings.json` no longer lists it (keeping both would
