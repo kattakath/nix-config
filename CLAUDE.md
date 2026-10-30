@@ -272,7 +272,7 @@ lane is `local.claudeDesktop.extraServers` (`github` only; client servers come f
     `gitlab-runner-token.age` (the `glrt-` token). Recipients are operator **+** the `macos`
     host key → `/run/agenix/…`. So "nothing is host-decrypted" is **false** — that path is live.
   - The two `gh-app-*` files hold **identical key material on purpose** (same App, different
-    owning user: `_github-runner` daemons vs. the login-user Tart agents) — rotating the App key
+    owning user: root for the runner daemons vs. the login-user Tart agents) — rotating the App key
     means re-encrypting **both**. `secrets/secrets.nix` carries the full why.
   - Edit one inside `nix develop` with `AGENIX_RULES=secrets/secrets.nix agenix -e <name>.age` (the
     `gh-app-*` pair takes `age -R` instead, per `secrets/secrets.nix`); re-key with `-r`.

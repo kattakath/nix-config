@@ -138,8 +138,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
       Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile PR is the symptom,
       not the fault.
   - `local.gmailMcp.enable` → ONE `nix-mcp-gmail <address>` launcher; the account arrives in
-    argv from a plugin's `.mcp.json` (public `gmail`, private `gmail-private`), so no mailbox is
-    written here (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys
+    argv from a plugin's `.mcp.json` (public `gmail`, private `gmail-private`, plus a separate
+    private `gmail-persona` plugin), so no mailbox is written here (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys
     FILE with `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
   - `local.pluginMcp.servers` → `nix-mcp-{wordpress,postgres}`, the CREDENTIALED
     servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26),
@@ -181,39 +181,40 @@ in the repo can catch that; see that fixture file's header for the measurement.
   cask; this module contributes only the files Chromium reads out of its user-data dir, via
   upstream HM `programs.chromium`, plus one recommended-level policy (`BookmarkBarEnabled`). The
   LaunchServices default-browser claim is NOT here any more — it left with `local.defaultBrowser`
-  when Chromium stopped being the default (`chromium.nix`'s header). Surfaces (the sideload toggles
-  are `options.local.ungoogledChromium`):
+  when Chromium stopped being the default (`chromium.nix`'s header). Surfaces (the options are
+  `options.local.ungoogledChromium`):
   - **`External Extensions/<id>.json`** — pinned `fetchurl` CRXes installed as
     `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
     (ungoogled's `disable-webstore-urls.patch`), so a local CRX is the only path; the official
     extension ID survives because it derives from the signed CRX3 public key, not the path.
-    One option per extension, all defaulting on:
+    Every extension is unconditional except Violentmonkey, which `userScripts.enable` gates
+    (the per-extension toggles were deleted; why: the comment above it in `chromium.nix`):
 
-    | Option | Extension | MV | Note |
-    |---|---|---|---|
-    | `applePasswords` | iCloud Passwords | 3 | also plants the native host below |
-    | `adBlock` | uBlock Origin | **2** | the **real** MV2 build, not uBO Lite |
-    | `userScripts.enable` | Violentmonkey | 3 | also materialises `userScripts.scripts` |
-    | `claudeInChrome` | Claude in Chrome | 3 | native host is claude-code's, not ours |
-    | `kaptureMcp` | Kapture MCP Browser Automation | 3 | browser end only; per-tab gate is **DevTools** |
-    | `darkTheme` | Into The Black Hole | 2 | code-free theme (a `theme` key, nothing else) |
+    | Extension | MV | Note |
+    |---|---|---|
+    | iCloud Passwords | 3 | also plants the native host below |
+    | uBlock Origin | **2** | the **real** MV2 build, not uBO Lite |
+    | Violentmonkey | 3 | the manager only — the fleet declares no scripts |
+    | Claude in Chrome | 3 | native host is claude-code's, not ours |
+    | Kapture MCP Browser Automation | 3 | browser end only; per-tab gate is **DevTools** |
+    | Into The Black Hole | 2 | code-free theme (a `theme` key, nothing else) |
 
-    `adBlock` gets the **real MV2** uBlock Origin — with blocking `webRequest`, not
+    uBlock Origin gets the **real MV2** uBlock Origin — with blocking `webRequest`, not
     `declarativeNetRequest` — because ungoogled's `extensions-manifestv2.patch` makes
     `ShouldDisableLegacyExtensions()` return false unconditionally. Chrome and Brave cannot.
     **Two browser-automation extensions, on purpose.** Both hold `debugger` +
     `<all_urls>`; they differ in *who can reach them*, which is the whole point:
 
-    | | `claudeInChrome` | `kaptureMcp` |
+    | | Claude in Chrome | Kapture |
     |---|---|---|
     | Transport | native messaging | DevTools panel → local bridge |
     | Reachable by | the one CLI its host manifest names | any MCP client that speaks to the bridge |
     | Per-tab gate | none | **must open DevTools + connect** |
     | Fails when | its tools never load into the session | the `npx` bridge isn't running |
 
-    `claudeInChrome`'s `com.anthropic.claude_code_browser_extension` native host is written
+    Claude in Chrome's `com.anthropic.claude_code_browser_extension` native host is written
     by claude-code itself (its `path` must track the current CLI install), so this module must
-    **not** re-declare it — only Apple's host needs replanting. `kaptureMcp` needs no host at
+    **not** re-declare it — only Apple's host needs replanting. Kapture needs no host at
     all, but its **server half is not declared here**: `~/.claude.json` runs
     `npx -y kapture-mcp@latest bridge` at user scope — imperative and unpinned, so it can
     change under a session with no rebuild. Its declarative home is the `page-lab` plugin's
@@ -228,40 +229,12 @@ in the repo can catch that; see that fixture file's header for the measurement.
     manifest, re-pointed at Chromium. macOS ships it to **Chrome and Firefox only**; replanting
     it is what makes Passwords.app autofill here, and it is safe because the manifest gates on
     **extension ID** (`allowed_origins`), not on browser brand.
-  - **`userScripts.scripts`** — an `attrsOf (nullOr path)`, attr name → `.user.js` source, each
-    materialised to `~/.local/share/userscripts/<name>.user.js` (an **XDG runtime** path;
-    deliberately not `~/Documents`/`~/Desktop`, which are TCC-walled and would need Chromium a
-    Full Disk Access grant to read a `file://` from) plus a generated `index.html` of install
-    links. `null` (e.g. `lib.mkForce null`) keeps a declaration but skips the file.
-
-    **EMPTY since 2026-09-14, and kept on purpose.** No host declares a script any more —
-    every one was published to Greasy/Sleazy Fork instead (see [`packages.md`](packages.md)
-    § Userscripts for the trade). `xdg.dataFile` is gated on the attrset being non-empty, so an empty one writes
-    nothing at all; `enable` still sideloads Violentmonkey itself, which is what the published
-    scripts install into. The option stays because it is a free seam and a private script that
-    must not reach a public fork is still a real case. It remains the public/private merge
-    point, so if both repos ever repopulate it, **keys must be distinct** — the module system
-    treats a repeated key as a **conflict**, not an override.
-
-    **Nix owns the files, never Violentmonkey's database**, and that is a Chromium wall rather
-    than a shortcut. bitbloxhub's Firefox pattern (enterprise policy → `browser.storage.managed`
-    → a Violentmonkey *fork* that parses it at startup) does **not** port: the fork's hook is
-    Firefox-gated, Chromium only populates `chrome.storage.managed` for extensions declaring a
-    `storage.managed_schema` (Violentmonkey declares none), and the *forced* policy level the
-    fork would need lives in MDM-owned `/Library/Managed Preferences/org.chromium.Chromium.plist`,
-    unreachable from Home Manager (the **recommended** level is reachable — see
-    `hideBookmarkBar` below — but it cannot lock a value, which is what that trick relies on).
-    A userscript is installed by **navigating** to it, so a declared script cost one click per
-    script off the index page and had **no update channel** — `checks.<system>.userscripts`
-    banned `@downloadURL`/`@updateURL`/`@installURL` outright (pointed at this repo they would
-    let a push to `main` mutate an installed script with no activation), so every change was a
-    `@version` bump plus that same click-through. That gate is gone with the scripts; a
-    fork-published copy gets the `@updateURL` the declared one was forbidden, which is exactly
-    why the fleet stopped declaring them.
-    **Never put a secret in a userscript** — `source` is
-    copied into the world-readable store, private flake or not.
-  - **`hideBookmarkBar`** — one of two *policy* surfaces, and the place this repo writes
-    Chromium's own preferences domain: HM `targets.darwin.defaults."org.chromium.Chromium"` sets
+  - **No declared userscripts.** Violentmonkey is sideloaded empty; scripts are published to
+    Greasy/Sleazy Fork and installed from there ([`packages.md`](packages.md) § Userscripts).
+    The `userScripts.scripts` seam that once materialised `.user.js` files was deleted
+    2026-10-30. **Never put a secret in a userscript.**
+  - **`BookmarkBarEnabled`** (no option; always written) — one of two *policy* surfaces, and
+    the place this repo writes Chromium's own preferences domain: HM `targets.darwin.defaults."org.chromium.Chromium"` sets
     `BookmarkBarEnabled = false`, so **View ▸ Always Show Bookmarks Bar** starts OFF (it seeds
     the `bookmark_bar.show_on_all_tabs` pref). macOS has **no** policies-JSON directory — that is
     the Linux path; Chromium's platform loader reads CFPreferences and grades every key by
@@ -339,13 +312,11 @@ in the repo can catch that; see that fixture file's header for the measurement.
     mutable state Nix must not seed → one click in **Customize Chrome ▸ Shortcuts ▸ Hide
     shortcuts**. ungoogled's `--custom-ntp` flag is not a route either: `chromium-flags.conf` is
     Linux-only, so on macOS it needs `chrome://flags`.
-  - **Three manual, one-time clicks Nix cannot do:** Chromium parks every *externally* installed
+  - **Manual, one-time clicks Nix cannot do:** Chromium parks every *externally* installed
     extension disabled pending acknowledgement on macOS (enable once → `ack_external` sticks;
     `ExtensionInstallForcelist` can't help, it needs the patched-out Web Store), and Chrome 138+
     gates Violentmonkey's `userScripts` permission behind a per-extension "Allow User Scripts"
-    toggle that is deliberately not settable by policy, plus its sibling "Allow access to file
-    URLs" toggle, without which it refuses a `file://` install off the index page (fallback:
-    paste the script into Violentmonkey's own editor). The theme rides the same gate — until
+    toggle that is deliberately not settable by policy. The theme rides the same gate — until
     it is enabled once, Chromium unpacks it but leaves `extensions.theme` unset and the browser
     still looks stock.
 - **The media stack is a CAPSULE, not a module in this directory.** `media-queue.nix`, the
@@ -511,11 +482,6 @@ in the repo can catch that; see that fixture file's header for the measurement.
     which is the exact failure this module exists to prevent. There is deliberately no
     `enable` option either — `CLAUDE_CODE_USE_BEDROCK` stays in the login Keychain so it
     remains a runtime toggle.
-  - **`adoptAwsConfig` — the one-shot migration.** When no `home.file` entry targets
-    `.aws/config`, an activation step between `writeBoundary` and `linkGeneration` replaces a
-    leftover store symlink with a real `0600` copy. Ran once, when nix-personal's `aws-sso.nix`
-    (which store-symlinked the file) stopped being evaluated — home-manager's orphan cleanup
-    would otherwise have deleted the symlink and every profile with it.
   - **The trap it closes** is unchanged: the Keychain flag survives every activation, a
     missing identity does not. It
     degrades to Claude Code's default provider rather than erroring. Offline and CLI-free by
