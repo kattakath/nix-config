@@ -24,7 +24,7 @@ binary the plugin merely names.
 
 | Piece | Role | Lives |
 |---|---|---|
-| Google Cloud OAuth client (**Desktop app** type) | ONE shared client (`client_id`/`client_secret`) authenticates every account — Google allows the same Desktop client across arbitrary accounts | Your Google Cloud Console; secret in the login Keychain |
+| Google Cloud OAuth client (**Desktop app** type) | ONE shared client (`client_id`/`client_secret`) authenticates every account — all of them in the operator's Workspace org, because the client is Internal (setup step 2); the google-tasks MCP shares it | Your Google Cloud Console; secret in the login Keychain |
 | the alias | Sanitizes an email (`lower`, `@`/`.`/`+` → `_`) into a tool-prefix/filename-safe token — computed at runtime from argv, never part of the config surface | `packages/gmail-mcp.nix` (the launcher script) |
 | the launcher (`nix-mcp-gmail <address>`) | `writeShellApplication` wrapper (shellchecked at build; `set -u` only, so a missing Keychain entry warns instead of aborting): reads the shared client id/secret from Keychain at launch, materializes `~/.gmail-mcp/gcp-oauth.keys.json`, execs the server with `--tool-prefix=<alias>_`. `npx` is baked as an absolute store path so the launcher is immune to whatever Node the calling session has on PATH — which matters, because the plugin lane gets fnm's Node, not the fleet default | `packages/gmail-mcp.nix` |
 | `local.gmailMcp.enable` | installs the one launcher; holds **no** addresses | `modules/home/gmail-mcp.nix`; set in `hosts/macos.nix` |
@@ -43,47 +43,23 @@ address never goes in a public plugin.
 
 1. **Google Cloud Console → APIs & Services → Library** → enable the **Gmail
    API** for your project.
-2. **Google Auth Platform → Audience**:
-   - If the project's user type is **Internal**, it can *only* authenticate
-     accounts in that exact Workspace org — fine for a single-domain setup,
-     but it structurally cannot authenticate accounts on other domains
-     (`gmail.com`, a different Workspace, etc.). For a real multi-domain
-     roster, click **Make external**, choose **Testing** (not "In
-     production" — Testing skips Google's app-verification review, which
-     Gmail's scopes would otherwise require).
-   - **Add every account you intend to authenticate as a test user here**,
-     under "Test users". Cap is 100 per app, for the app's lifetime. An
-     account NOT listed here will be rejected at authorization regardless of
-     anything else being correct.
-   - **VERIFY the "Make external" step actually stuck — nothing else detects
-     it.** Attempt an auth for an account OUTSIDE the client's own Workspace
-     org; Google's consent screen must NOT say *"Access blocked: &lt;org&gt; can
-     only be used within its organization"*. If it does, the app is still
-     Internal and **no amount of test-user configuration will help** — an
-     Internal app cannot authenticate an out-of-org account at all.
-     Measured 2026-09-29: the shared client had drifted back to (or never
-     left) Internal, and **3 of the 4 accounts declared in
-     roster had no working credential** — exactly
-     the three that live outside the client's org. Nothing warned; the
-     declared roster and reality disagreed silently for weeks.
-
-   > **Cost of "Testing" that decides your ops burden, not just your setup:**
-   > Google expires **refresh tokens after 7 days** for an app whose user type
-   > is External and whose publishing status is Testing — "unless the only
-   > OAuth scopes requested are a subset of name, email address, and user
-   > profile"
-   > ([Google, *Refresh token expiration*](https://developers.google.com/identity/protocols/oauth2#expiration)).
-   > Gmail's `gmail.modify`/`gmail.settings.basic` are restricted scopes, far
-   > outside that subset, so **the expiry applies to every account here** and
-   > each one needs periodic re-auth. That is the likeliest explanation for a
-   > directory full of dead credentials (see § Troubleshooting).
-   >
-   > The alternative shape — one **Internal** client per Workspace org — has no
-   > Testing expiry and is exempt from verification even for restricted scopes,
-   > at the cost of one OAuth client per org. It is **not** adoptable as-is:
-   > `packages/gmail-mcp.nix` assumes a single shared client (it reads one
-   > `GMAIL_OAUTH_CLIENT_ID`/`_SECRET` pair from the Keychain), so this would need a per-account
-   > client id. Recorded here as the trade-off, not as a supported option.
+2. **Google Auth Platform → Audience: the user type is Internal, and it stays
+   Internal.** **Never click "Make external".** The one Desktop client serves
+   both the gmail and google-tasks MCPs, and the same project holds the
+   Cloudflare One client, so flipping the audience changes that too (operator
+   decision, 2026-10-26).
+   - Consequence: **only accounts in the operator's Workspace org are
+     supported.** An out-of-org account (`gmail.com`, another Workspace) gets
+     *"Access blocked: &lt;org&gt; can only be used within its organization"*,
+     and nothing on this client fixes it — do not declare such an account.
+     Measured 2026-09-29: **3 of the 4 declared accounts had no working
+     credential** — exactly the three outside the client's org. Nothing
+     warned; the declared roster and reality disagreed silently for weeks.
+   - An Internal app needs no test-user list, is exempt from Google's
+     app-verification review even for restricted scopes, and is exempt from
+     the 7-day refresh-token expiry that applies only to External apps in
+     Testing status
+     ([Google, *Refresh token expiration*](https://developers.google.com/identity/protocols/oauth2#expiration)).
 3. **Google Auth Platform → Data Access → Add or remove scopes**: register
    `.../auth/gmail.modify` and `.../auth/gmail.settings.basic` (the tool's
    default scope request) — they only appear in the picker *after* step 1
@@ -108,8 +84,8 @@ address never goes in a public plugin.
 
 ## Per-account procedure (repeat for each new account)
 
-1. **Add the email as a Console test user** (Audience → Add users) — do this
-   *before* attempting auth, or it fails outright.
+1. **Confirm the address is in the operator's Workspace org** — the client is
+   Internal (setup step 2), so any other address cannot authenticate.
 2. **Add a server entry for the email** to the right plugin's `.mcp.json` (the public `gmail`
    plugin only for an already-public address, otherwise the private overlay), as
    `{"command":"nix-mcp-gmail","args":["<address>"]}`. The server NAME becomes part of the
@@ -178,9 +154,7 @@ unset) on the *next* invocation.
 3. Optionally revoke the grant from the account's own Google Account →
    Security → Third-party access page (this is the account holder's own
    action, not something scriptable from here).
-4. Remove the email from the Console's test-user list if it should no longer
-   be able to authenticate at all (e.g. an account you no longer manage).
-5. To rotate the **shared** OAuth client itself: repeat "One-time setup"
+4. To rotate the **shared** OAuth client itself: repeat "One-time setup"
    steps 4–5 with a new client, `secret set` the new Keychain values (old
    ones are simply overwritten), then every account needs its one-time auth
    re-run against the new `gcp-oauth.keys.json` (the launcher rewrites it from the
@@ -191,9 +165,8 @@ unset) on the *next* invocation.
 | Symptom | Cause | Fix |
 |---|---|---|
 | `redirect_uri_mismatch` at the consent screen | OAuth client is **Web application** type, not Desktop | Create a new **Desktop app** client (see setup step 4) |
-| Auth flow rejects the account / "app not available to this user" | Email isn't in the Console's test-user list | Audience → Add users, then retry |
-| `Access blocked: <org> can only be used within its organization` | The client is **Internal**, and the account is out-of-org. A test-user entry CANNOT fix this | Audience → **Make external** → Testing, then re-verify per setup step 2 |
-| An account works for weeks, then `invalid_grant` on refresh | Testing-status **7-day refresh-token expiry** (setup step 2) — not corruption | Re-run that account's auth. A directory of dead credentials is this, not a bug |
+| `Access blocked: <org> can only be used within its organization` | The account is outside the operator's Workspace org; the client is **Internal** by design (setup step 2) | Unsupported — remove the account from the plugin roster. **Never** flip the audience to External |
+| An account works for weeks, then `invalid_grant` on refresh | Not the Testing 7-day expiry (an Internal client is exempt) — the grant was revoked or otherwise invalidated (Google, *Refresh token expiration*, lists the causes) | Re-run that account's auth |
 | Account is declared in a plugin `.mcp.json` but was never usable | Declared roster ≠ credentials on disk; nothing reconciles them | Compare the plugin entries against `ls ~/.gmail-mcp/credentials-*.json` (names only — never print contents) |
 | `HTTP 403` on the profile check, `insufficientPermissions`-shaped error | Gmail API not enabled on the project, or the scope isn't registered on the consent screen | Setup steps 1 and 3 |
 | One account's server exits immediately at spawn | That account's `credentials-<alias>.json` doesn't exist yet (no completed auth) | Run the per-account auth procedure. It cannot take the others down — every account is its own process, and since 2026-10-01 its own per-session child, so there is no shared proxy left to dark |
@@ -206,10 +179,9 @@ unset) on the *next* invocation.
   never in git, the Nix store, or command argv history beyond the single
   `security add-generic-password -w` call that stores them.
 - `~/.gmail-mcp/*.json` files are `chmod 600`.
-- **Testing** (not "In production") publishing status is the deliberate
-  choice — it avoids Google's app-verification review (which Gmail's
-  restricted scopes would otherwise require) while still working for any
-  account you explicitly list as a test user, regardless of domain.
+- The **Internal** audience is the deliberate choice: no app-verification
+  review for Gmail's restricted scopes, no refresh-token expiry, and no
+  out-of-org account can ever be granted. Never make it External.
 - If an agent is doing this setup on your behalf: it should never transcribe
   a client secret, access token, or refresh token into a chat message — pipe
   values directly between tools (Keychain ↔ file ↔ curl) and only ever report

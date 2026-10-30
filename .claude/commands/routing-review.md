@@ -61,4 +61,4 @@ node -e 'const f=".claude/hooks/.routing-review-state.json";const fs=require("fs
 
 ## 6. Note on log hygiene
 
-Unlike `superhook.log`, `events.jsonl` is rotated automatically by the collector's file exporter (`max_megabytes: 50`, `max_backups: 5`) — no manual truncation step is needed here. Old rotated files live alongside it under `~/.local/state/claude-otel/`; safe to delete after review if disk space matters, but not required.
+Unlike `superhook.log`, `events.jsonl` is rotated automatically by the collector's file exporter (its `rotation` settings live in `modules/home/claude-otel.nix`) — no manual truncation step is needed here. Old rotated files live alongside it under `~/.local/state/claude-otel/`; safe to delete after review if disk space matters, but not required.

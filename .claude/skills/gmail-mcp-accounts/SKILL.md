@@ -32,18 +32,18 @@ session never sees a new account**, so start a fresh one. Claude Desktop loads n
   already-public address may sit in the public `gmail` plugin; every other mailbox
   goes in the private overlay. Anyone else's address never goes in a public plugin.
   If unsure, ask — do not add.
-- **A Console test user MUST exist before auth is attempted** — Audience →
-  Add users, or the flow rejects the account outright.
-- **A test user cannot rescue an INTERNAL client.** If the consent screen says
-  "can only be used within its organization", the app's user type is Internal
-  and an out-of-org account is hard-blocked no matter how the test-user list is
-  configured — check that first for any account outside the client's own
-  Workspace org. Measured 2026-09-29: 3 of 4 declared accounts had never had a
-  working credential for exactly this reason.
-- **Testing status expires refresh tokens after 7 days** (External + restricted
-  Gmail scopes), so a working account going `invalid_grant` is expected
-  maintenance, not corruption — see the runbook's setup step 2 for the citation
-  and the per-org-Internal-client alternative.
+- **The OAuth client is INTERNAL, and stays Internal — never flip its audience
+  to External.** The one Desktop client serves both the gmail and google-tasks
+  MCPs, and its project also holds the Cloudflare One client, so changing the
+  audience changes that too (operator decision, 2026-10-26). Consequence:
+  **only accounts in the operator's Workspace org are supported.** An
+  out-of-org account is hard-blocked ("can only be used within its
+  organization") and nothing on this client can fix that — do not declare it.
+  Measured 2026-09-29: 3 of 4 declared accounts had never had a working
+  credential for exactly this reason.
+- Internal apps are exempt from the Testing-status 7-day refresh-token expiry,
+  so an in-org account going `invalid_grant` is NOT routine — re-auth it and
+  check whether the grant was revoked.
 - **The OAuth client must be Desktop app type**, not Web application — Web
   clients don't support the loopback redirect this tool uses.
 - **ALWAYS verify the result of a one-time auth run with a direct API call**
@@ -69,12 +69,12 @@ issue".
 
 ```bash
 # One-time OAuth client setup (per Google Cloud project) — see runbook for
-# the full Console walkthrough (Desktop app type, External+Testing, enable
+# the full Console walkthrough (Desktop app type, Internal audience, enable
 # Gmail API, register gmail.modify + gmail.settings.basic scopes).
 secret set GMAIL_OAUTH_CLIENT_ID <client_id>
 secret set GMAIL_OAUTH_CLIENT_SECRET <client_secret>
 
-# Per-account: after adding as a Console test user AND a server entry in the
+# Per-account (in-org addresses only): after adding a server entry in the
 # right plugin's .mcp.json (public `gmail` or the private overlay) —
 GMAIL_OAUTH_PATH="$HOME/.gmail-mcp/gcp-oauth.keys.json" \
   GMAIL_CREDENTIALS_PATH="$HOME/.gmail-mcp/credentials-<alias>.json" \
@@ -96,8 +96,8 @@ names the per-account credentials file and the `--tool-prefix`.
 | Symptom | Action |
 |---|---|
 | `redirect_uri_mismatch` | Client is Web-app type — create a Desktop app client instead |
-| Auth rejects the account | Add it as a Console test user first — but if the screen says "can only be used within its organization", the client is Internal and a test user cannot fix it (Audience → Make external) |
-| Worked before, now `invalid_grant` | Testing-status 7-day refresh-token expiry — just re-auth that account |
+| "can only be used within its organization" | The account is outside the operator's Workspace org — unsupported. Remove it from the plugin roster. **Never** flip the client's audience to External |
+| Worked before, now `invalid_grant` | Not the Testing 7-day expiry (an Internal client is exempt) — the grant was revoked or otherwise invalidated (Google, *Refresh token expiration*, lists the causes); re-auth that account |
 | Declared in a plugin `.mcp.json` but never worked | Roster ≠ credentials on disk; nothing reconciles them. Compare against `ls ~/.gmail-mcp/credentials-*.json` (names only) |
 | Verified email doesn't match target | Known failure mode above — check the default-path file before re-running |
 | One account's server exits immediately at spawn | No completed auth for that account yet — cannot affect the others, each is its own process and (since 2026-10-01) its own per-session child, so there is no shared proxy left to dark |
