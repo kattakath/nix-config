@@ -25,6 +25,7 @@ name: build-installers
 on:
   push:
     branches: [main]
+    # TWIN LIST: warm-nixpi-cache.yml watches the same nixpi closure — edit both together.
     paths:
       - "flake.nix"
       - "flake.lock"
