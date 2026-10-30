@@ -203,7 +203,10 @@ in
       unreliable: the identity and perceptual extras pull torch and insightface,
       on the order of a gigabyte, which uv downloads once and then caches. Warm
       it deliberately with `fidelity-enhance capabilities` before wiring the MCP
-      server into an agent, or the first tool call will look like a hang
+      server into an agent, or the first tool call will look like a hang.
+
+      PARKED: no host enables it. Kept as a ready opt-in; deleting it is the
+      operator's call
     '';
 
     obsFacebookSetup.enable = lib.mkEnableOption ''
@@ -213,7 +216,10 @@ in
 
       OFF BY DEFAULT because it is inert until you put the stream key in the
       login Keychain as `FB_PERSISTENT_STREAM_KEY`. The key is read live at run
-      time and never enters git or the Nix store
+      time and never enters git or the Nix store.
+
+      PARKED: no host enables it. Kept as a ready opt-in; deleting it is the
+      operator's call
     '';
 
     extraSearchPackages = lib.mkOption {

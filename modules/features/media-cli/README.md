@@ -51,6 +51,9 @@ Every one takes `--help`. All of them stay on `PATH` under their own names;
 
 ### Two more, opt-in
 
+**Parked: no host enables either one.** They stay as ready opt-ins; deleting them is the
+operator's call.
+
 | Command | Option | Why it is off by default |
 |---|---|---|
 | `fidelity-enhance` / `-mcp` | `fidelityEnhance.enable` | the referee for an agentic image-editing loop — judges a generated image against the original and answers retry / next-step / done. First run pulls ~1 GB of torch + insightface |
@@ -111,8 +114,8 @@ which is what runs shellcheck over them. The one-line path back is in `flake-mod
 | `ollamaHost` | `127.0.0.1:11434` | exported as `OLLAMA_HOST` |
 | `logRelPath` | `Library/Logs/nix-media-queue.log` | where Console.app looks |
 | `extraSearchPackages` | `[ pkgs.exiftool ]` | companion tools; `[ ]` for none |
-| `fidelityEnhance.enable` | `false` | the agentic-loop referee (~1 GB first run) |
-| `obsFacebookSetup.enable` | `false` | the OBS Facebook Live profile writer |
+| `fidelityEnhance.enable` | `false` | the agentic-loop referee (~1 GB first run); parked, no host enables it |
+| `obsFacebookSetup.enable` | `false` | the OBS Facebook Live profile writer; parked, no host enables it |
 
 ## Requirements
 
