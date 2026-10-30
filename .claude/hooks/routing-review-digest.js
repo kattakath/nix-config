@@ -22,8 +22,12 @@
  * still sweep the backups by hand when a full picture is wanted.
  *
  * The /routing-review command writes a top-level "reviewedAt" ISO timestamp
- * into .claude/hooks/.routing-review-state.json; events at or before that
- * are considered seen.
+ * into ${XDG_STATE_HOME:-~/.local/state}/nix-config/routing-review-state.json;
+ * events at or before that are considered seen. PER USER, not per checkout
+ * (2026-10-30): events.jsonl above is already global, so a review stamped in one
+ * checkout used to leave every other checkout and worktree re-reporting the same
+ * backlog. The old `.claude/hooks/.routing-review-state.json` is still READ
+ * (never written) when the new file is absent.
  *
  * NUDGE_THRESHOLD is a provisional placeholder (no real usage data existed
  * when this was written, 2026-08-20) — retune once a few weeks of real
@@ -66,9 +70,11 @@ const nanoToIso = (timeUnixNano) => {
 };
 
 try {
-  const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
-  const hooksDir = path.join(projectDir, ".claude", "hooks");
-  const statePath = path.join(hooksDir, ".routing-review-state.json");
+  const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), ".local", "state"), "nix-config");
+  const statePaths = [
+    path.join(stateDir, "routing-review-state.json"),
+    path.join(process.env.CLAUDE_PROJECT_DIR || process.cwd(), ".claude", "hooks", ".routing-review-state.json"),
+  ];
   // Same CLAUDE_OTEL_EVENTS_FILE override as packages/claude-otel-doctor.nix —
   // both are generic, non-Nix-templated consumers of local.claudeOtel's
   // eventsFile default and need to agree if it's ever overridden.
@@ -84,12 +90,16 @@ try {
   }
   if (!logRaw.trim()) process.exit(0);
 
+  // First readable file wins: the per-user one, else the legacy per-checkout one.
   let reviewedAt = null;
-  try {
-    const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
-    if (state && typeof state.reviewedAt === "string") reviewedAt = state.reviewedAt;
-  } catch {
-    /* missing or malformed state — treat as never reviewed */
+  for (const statePath of statePaths) {
+    try {
+      const state = JSON.parse(fs.readFileSync(statePath, "utf8"));
+      if (state && typeof state.reviewedAt === "string") reviewedAt = state.reviewedAt;
+      break;
+    } catch {
+      /* missing or malformed — try the next; none means never reviewed */
+    }
   }
 
   // Flatten every logRecord across every line into {ts, attrs}.
