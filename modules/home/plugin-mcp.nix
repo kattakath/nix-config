@@ -364,7 +364,7 @@ let
     # THAT IS ALSO ITS RISK, STATED PLAINLY. Routing around the Bash tool routes
     # around every Bash rule in ./claude-guardrails.nix, not just the worktree
     # guard: `secret reveal`, `security find-generic-password -w`, `agenix -d`,
-    # `git push --force` and `gh pr merge` are all Bash-TEXT denies with no
+    # and `git push --force` are all Bash-TEXT denies with no
     # filesystem component, so Seatbelt cannot reproduce them and does not. The
     # fence covers the FILE axis only — writes outside ~/Developer and reads of the
     # secret PATHS. Keychain reads in particular go through securityd over mach
