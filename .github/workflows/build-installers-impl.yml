@@ -34,8 +34,9 @@ on:
   workflow_call:
     inputs:
       # false = BUILD-ONLY: build the image, inspect its layout, and touch NO GitHub
-      # state -- the retire, attest and publish steps below all carry
-      # `if: inputs.publish`. The caller passes true on push-to-main and on a dispatch
+      # state -- the stage, retire, attest and publish steps below all carry
+      # `if: inputs.publish`. The layout inspection runs on EVERY call, so the image
+      # that gets published is the one that was checked. The caller passes true on push-to-main and on a dispatch
       # that ticks `publish`. Default true, so a caller that omits it keeps the old
       # publish-always behaviour instead of silently publishing nothing.
       publish:
@@ -91,12 +92,13 @@ jobs:
         # a separate `nix log` on the runner.
         run: nix build .#packages.aarch64-linux.nixpi-sd-image --out-link result --print-build-logs
 
-      # BUILD-ONLY: prove the image's LAYOUT, which a green `nix build` does not.
-      # Partition table (p1 FAT, p2 bootable), labels, FIRMWARE contents (u-boot.bin
-      # and a config.txt that boots it) and extlinux.conf on the root partition.
-      # Read-only loop mounts on the runner; nothing is uploaded.
-      - name: Inspect the image layout (build-only)
-        if: ${{ !inputs.publish }}
+      # Prove the image's LAYOUT, which a green `nix build` does not: partition table
+      # (p1 FAT, p2 bootable), labels, FIRMWARE contents (u-boot.bin and a config.txt
+      # that boots it) and extlinux.conf on the root partition. UNCONDITIONAL and
+      # BEFORE every publish step, so a broken image fails the job instead of
+      # replacing the rolling installer-latest asset. Read-only loop mounts; the
+      # decompressed copy is deleted on exit to give the disk back to the upload.
+      - name: Inspect the image layout
         run: |
           set -euo pipefail
           shopt -s nullglob
@@ -113,7 +115,7 @@ jobs:
           sfdisk -d "$img" | tee /mnt/inspect/table.txt
           grep -Eq 'nixpi\.img2 : .*bootable' /mnt/inspect/table.txt || { echo "::error::p2 is not bootable"; exit 1; }
           loop=$(sudo losetup -P -r -f --show "$img")
-          trap 'sudo umount /mnt/inspect/fw /mnt/inspect/root 2>/dev/null || true; sudo losetup -d "$loop"' EXIT
+          trap 'sudo umount /mnt/inspect/fw /mnt/inspect/root 2>/dev/null || true; sudo losetup -d "$loop"; rm -f "$img"' EXIT
           sudo blkid "${loop}p1" "${loop}p2"
           [ "$(sudo blkid -s LABEL -o value "${loop}p1")" = FIRMWARE ] || { echo "::error::p1 label is not FIRMWARE"; exit 1; }
           [ "$(sudo blkid -s LABEL -o value "${loop}p2")" = NIXOS_SD ] || { echo "::error::p2 label is not NIXOS_SD"; exit 1; }

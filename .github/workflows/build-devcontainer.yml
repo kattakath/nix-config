@@ -54,7 +54,13 @@ on:
       # suppresses no-op runs by drvPath.
       - "modules/parts/**"
       - ".devcontainer/**"
+      # treefmt.nix is imported by modules/parts/devshell.nix, whose treefmt wrapper
+      # is in `devPackages` — so it is baked into the image too.
+      - "treefmt.nix"
       - ".github/workflows/build-devcontainer.yml"
+      # The build matrix and the Nix setup it runs live in these, not above.
+      - ".github/workflows/build-devcontainer-impl.yml"
+      - ".github/actions/nix-setup/**"
   push:
     branches: [main]
     paths:
@@ -77,7 +83,13 @@ on:
       # suppresses no-op runs by drvPath.
       - "modules/parts/**"
       - ".devcontainer/**"
+      # treefmt.nix is imported by modules/parts/devshell.nix, whose treefmt wrapper
+      # is in `devPackages` — so it is baked into the image too.
+      - "treefmt.nix"
       - ".github/workflows/build-devcontainer.yml"
+      # The build matrix and the Nix setup it runs live in these, not above.
+      - ".github/workflows/build-devcontainer-impl.yml"
+      - ".github/actions/nix-setup/**"
   workflow_dispatch:
 
 # Default token scope is READ-ONLY for every job. `packages: write` is NOT granted
@@ -193,8 +205,11 @@ jobs:
       contents: read
       packages: write
     # PR = eval-only (the `gate` job's pure eval is the PR signal). The expensive
-    # build+smoke+publish run ONLY at merge (push to main) or manual dispatch.
-    if: needs.gate.outputs.is_publish == 'true'
+    # build+smoke+publish run ONLY at merge (push to main) or manual dispatch, and
+    # only when the gate saw new content — the same condition `manifest` carries, so
+    # an unchanged drvPath pair no longer rebuilds both arches just to skip the push.
+    # A dispatch always reads changed=true, so it still forces a full run.
+    if: needs.gate.outputs.is_publish == 'true' && needs.gate.outputs.changed == 'true'
     uses: ./.github/workflows/build-devcontainer-impl.yml
     with:
       ref: ${{ needs.gate.outputs.ref }}
