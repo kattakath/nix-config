@@ -325,7 +325,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     in `claude-guardrails.nix` AND be pure "never print a secret value" / "never sign work as
     an AI". Nothing that merely narrows a workflow, because there is no in-session override
     here — undoing a wrong entry is a rebuild, not a `/permissions` click. That is why the
-    imperative-MCP and irreversible-remote groups (`gh pr merge`, force-push) stay at user
+    imperative-MCP and irreversible-remote groups (force-push) stay at user
     scope.
   - **Path spellings are load-bearing:** only `//` and `~/`. A single leading `/` anchors at
     the settings SOURCE, and what that resolves to for the managed tier is undocumented — a
