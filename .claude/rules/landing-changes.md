@@ -67,8 +67,9 @@ below fails that test:
 | `Scan for secrets` | `nix develop -c gitleaks git --log-opts="origin/main..HEAD" --redact --no-banner` scans every unpushed COMMIT. The push publishes each one, so a secret that one commit added and a later one removed still leaks |
 | `Lint .claude config` (when `.claude/` or any `CLAUDE.md` changed — cclint's `context` lints CLAUDE.md, and CI runs it on every PR) | both `run:` steps of `.github/workflows/claude-config-lint.yml`, VERBATIM from that file: three `cclint` lines plus every `.claude/hooks/tests/*.sh` |
 
-Then push: `git push origin HEAD:main`. It must be a fast-forward. Never force: force is
-denied, see `claude-guardrails.nix`. The post-push CI on `main` is the backstop, and a RED
+Then push: `git push origin HEAD:main`. It must be a fast-forward — no force of any kind in
+this lane, `--force-with-lease` included. (`claude-guardrails.nix` denies only bare
+`--force`/`-f`; the lease form stays allowed for an agent's own PR branch, never for `main`.) The post-push CI on `main` is the backstop, and a RED
 there gets fixed forward in a PR. Watch it in the background, per §1.
 
 **Not a commit hook.** gitleaks runs inside `nix flake check`. The devShell installs no git
