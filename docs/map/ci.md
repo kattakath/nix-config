@@ -2,11 +2,10 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## CI, release, publishing
 
-**Four checks exist ONLY on `aarch64-linux`**, so the documented local gate — a bare
+**Some checks exist ONLY on `aarch64-linux`**, so the documented local gate — a bare
 `nix flake check`, which is darwin-native on the Mac — never builds them:
-`cloudflared-connector-module`, `determinate-daemon-nixpi`, `firmware-secrets-module`,
-`nixpi-firmware-names` (re-measured 2026-10-18: 27 linux checks, 52 darwin, 4 linux-only, 29
-darwin-only, 23 shared). Every other linux check shares ONE source block with its darwin twin,
+`cloudflared-connector-module`, `determinate-daemon-nixpi`, `firmware-secrets-module`
+(list them with `nix flake show --json --all-systems`). Every other linux check shares ONE source block with its darwin twin,
 so the bare command does exercise those. (`determinate-daemon-nixpi` was named
 `determinate-daemon` until 2026-10-18 — the same NAME as the macos contract, which is how it
 was miscounted as a twin here.)
@@ -15,7 +14,7 @@ Build them locally when you touch what they cover — Determinate's native Linux
 builder runs them fine, verified with `--rebuild` so they genuinely executed:
 
 ```bash
-nix build --no-link .#checks.aarch64-linux.{cloudflared-connector-module,determinate-daemon-nixpi,firmware-secrets-module,nixpi-firmware-names}
+nix build --no-link .#checks.aarch64-linux.{cloudflared-connector-module,determinate-daemon-nixpi,firmware-secrets-module}
 ```
 
 **Not** `nix flake check --all-systems` (builds on). It does reach the linux checks —

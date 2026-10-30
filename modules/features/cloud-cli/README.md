@@ -6,10 +6,9 @@ CLI (upstream `programs.awscli`) and `aws-sso-util`, and writes `~/.aws/config.e
 
 > **Provenance.** Born in-tree, 2026-09-20 (ADR-004 phase 3). It replaced the operator's
 > committed `programs.awscli.settings` block in `hosts/macos.nix`, which carried two real
-> account ids and an SSO start-URL id into a public repo (ADR-004 §7, inventory #1). The first
-> activation after that block left Nix keeps the operator's profiles: `adoptAwsConfig` in
-> `modules/home/claude-bedrock-gate.nix` turns the leftover store symlink into a real
-> `0600` file rather than letting home-manager's orphan cleanup delete it.
+> account ids and an SSO start-URL id into a public repo (ADR-004 §7, inventory #1). A one-shot
+> `adoptAwsConfig` activation step turned the leftover store symlink into a real `0600` file so
+> home-manager's orphan cleanup could not delete it; it ran once and was removed 2026-10-30.
 
 ## Use
 

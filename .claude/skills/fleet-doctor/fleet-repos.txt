@@ -8,7 +8,11 @@
 # a scaffold, a published bundle, or a client/personal repo with no Nix/fleet
 # relationship is not fleet, however closely related; fleet-doctor is scoped to
 # declarative-infra hygiene, not general dev-repo housekeeping. Adding a line needs
-# a reason that survives that sentence. An archived repo never goes here — the
+# a reason that survives that sentence. The one exception: an ORBIT repo — one
+# nix-config pins as an input or loads at runtime (a plugin marketplace, the
+# repo whose CI now runs a gate this one dropped) — is fleet even though it is a
+# published bundle, because a red there breaks this Mac. Each orbit line carries
+# its reason as a comment. An archived repo never goes here — the
 # working copy outlives the repo, and a doctor sweeping it reports branches nobody
 # can merge. Retirement history lives in git log, not in this file.
 #
@@ -16,3 +20,9 @@
 # line here. Nothing else needs to change — the skill iterates this file.
 
 github.com/kattakath/nix-config
+# orbit: the `kattakath-skills` flake input + the auto-updating public marketplace
+github.com/kattakath/skills
+# orbit: the PRIVATE overlay marketplace (client + private plugins)
+github.com/ismailkattakath/skills
+# orbit: where the userscript lint runs since this repo's gate left (checks.nix)
+github.com/ismailkattakath/userscripts

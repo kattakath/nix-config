@@ -8,8 +8,8 @@
 > its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
-> as `kattakath-skills`, for the `page-lab-pick` PATH package (+ `checks.<system>.page-lab`) and
-> `checks.<system>.mcp-launcher-parity` (the two checks in `modules/parts/checks.nix`) — **TWO uses since 2026-10-02**,
+> as `kattakath-skills`, for the `page-lab-pick` PATH package and
+> `checks.<system>.mcp-launcher-parity` (its consumers: grep `kattakath-skills` in `modules/`) — narrowed 2026-10-02,
 > when `mcp.nix`'s `mcpCatalog` went with the gateway (`superhook` had already become a plugin hook
 > 2026-09-30). It was **four consumers, not the "two PATH
 > packages" this document said until 2026-09-30**. A plugin's `bin/` reaches the Bash tool's
@@ -131,7 +131,7 @@ altogether, to Greasy/Sleazy Fork — and all three gates were deleted in the sa
 than left green over nothing. The gate went where the content went; here that destination
 enforces its own rules at upload, so the gate had no operand left to hold.
 
-Same for `checks.<system>.page-lab`, and for `packages/page-lab-pick.nix`, whose
+Same for `checks.<system>.page-lab` (since deleted, 2026-10-30), and for `packages/page-lab-pick.nix`, whose
 repo-relative `plugins/page-lab/scripts/pick-element.mjs` source literal was the one genuinely
 eval-breaking reference in the move.
 

@@ -28,7 +28,7 @@ inventory, a verification command per item, and the two things that must never b
 | Admin-SDK automation identity | `ws-domain-admin@kattakath-family.iam.gserviceaccount.com` | account **declared**; its power is not — see §2 |
 | Terraform automation identity | `tofu-fleet@kattakath-family.iam.gserviceaccount.com` | **declared**, impersonated, no key |
 | Workspace-facing APIs | `admin`, `drive`, `gmail` | **not** declared — absent from `infra/gcp/foundation.nix`'s `services`; §3's `gcloud services list` is the check |
-| Gmail MCP accounts | several, each its own process | **declared** in plugin `.mcp.json` files (public `gmail`, private `gmail-private`) since 2026-10-20; one stdio child **per session**, not a long-lived gateway process |
+| Gmail MCP accounts | several, each its own process | **declared** in plugin `.mcp.json` files (public `gmail`, private `gmail-private`, plus a separate private `gmail-persona` plugin) since 2026-10-20; one stdio child **per session**, not a long-lived gateway process |
 
 Everything marked *declared* re-plans clean. Everything else is in this document because there
 is nowhere else to put it.
