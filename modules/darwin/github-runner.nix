@@ -13,19 +13,28 @@
 # `nix.enable = true` (it pulls the runner's `nix` from `config.nix.package`),
 # but this Mac runs **Determinate Nix** (`nix.enable = false`; determinate-nixd
 # owns the daemon). The two are mutually exclusive, so we reproduce the module's
-# launchd setup here and substitute `pkgs.nix` for `config.nix.package`. Nothing
-# else differs — same `_github-runner` user, `RUNNER_ROOT` state dir per instance,
-# ephemeral re-registration via launchd `KeepAlive.SuccessfulExit`.
+# launchd setup here and substitute `pkgs.nix` for `config.nix.package`. Same
+# `_github-runner` job uid, `RUNNER_ROOT` state dir per instance, ephemeral
+# re-registration via launchd `KeepAlive.SuccessfulExit` — plus the privilege
+# split below, which nix-darwin's module does not have.
 #
 # AUTH: a GitHub App (2026-08-23, upgraded from a static PAT — see git history for
-# the PAT version). Rather than a long-lived bearer credential sitting in a public
-# repo's git history forever, the agenix secret here is the App's RS256 PRIVATE KEY
-# (`config.age.secrets."gh-app-${org}-key"`), which every registration attempt uses
-# to mint a fresh, ~1-hour-lived installation access token on the spot (JWT →
-# `POST /app/installations/{id}/access_tokens`, GitHub's own documented flow) — the
-# thing that ever touches the runner's `--pat` is a short-lived derived token, never
-# the long-lived key itself. The App's permission set is the shared fleet App's,
-# recorded with its id in hosts/macos.nix (App-GLOBAL, wider than this lane needs).
+# the PAT version). The agenix secret is the App's RS256 PRIVATE KEY
+# (`config.age.secrets."gh-app-${org}-key"`). It is LONG-LIVED and App-WIDE: any
+# holder can mint tokens carrying the shared fleet App's full permission set on
+# every installation (recorded with its id in hosts/macos.nix — App-GLOBAL, far
+# wider than this lane needs). So the uid that runs JOBS must never read it.
+#
+# PRIVILEGE SPLIT. Until 2026-10-30 the key was owned by `_github-runner` and the
+# daemon ran as `_github-runner` — the uid every CI job runs as — so any job could
+# read the key, and the `--pat` it registered with was a full installation token.
+# Now the key is root-only and each daemon starts as ROOT (`runDaemon`): it mints
+# JWT → ~1h installation token → ~1h REGISTRATION token, then exec-drops to
+# `_github-runner` (`runAsRunner`) holding only the registration token, which can
+# register a runner and nothing else. Precedent: nixpkgs' NixOS github-runner
+# module makes this exact split for `githubApp` — a root (`+`) ExecStartPre fetches
+# the registration token and the key sits in `InaccessiblePaths`. launchd has
+# neither, so a root daemon plus an exec privilege drop is the analog.
 # OUTBOUND-only — the runner polls GitHub, opens no port.
 #
 # SECURITY: `--ephemeral` (one job per registration; launchd restarts + the script
@@ -33,9 +42,12 @@
 # run just comes back on its own, no manual `svc.sh start`). Only trusted push
 # jobs should target `runs-on: [self-hosted, ...]` — never fork-PR workflows,
 # because a fork-PR job still runs with real credentials: the daemon has no
-# login environment to inherit (it runs as uid 533 `_github-runner` from
+# login environment to inherit (the job runs as uid 533 `_github-runner` from
 # /Library/LaunchDaemons with a bare PATH this module sets itself), but it
-# DOES still hold the org token and repo access for its job's duration.
+# DOES still hold its job's GITHUB_TOKEN and repo access for its duration.
+# Jobs also share that one uid with each other and with the next registration,
+# so a malicious job can tamper with later jobs on this host — the privilege
+# split protects the App KEY, not job-to-job isolation (that is the Tart lane).
 {
   config,
   pkgs,
@@ -264,20 +276,37 @@ let
     '';
   };
 
-  # Mints a fresh, short-lived (~1hr) installation access token from the App's
-  # long-lived private key — GitHub's own documented JWT-then-exchange flow
-  # (https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
-  # Shared by every instance's `configure` script (each calls this fresh on every
-  # re-registration, not a shared cached token — ephemeral re-registration means
-  # this runs often enough that a 1hr token never goes stale mid-use anyway).
-  mintInstallationToken = pkgs.writeShellApplication {
-    name = "mint-installation-token-${host}-${cfg.org}";
+  # RUNS AS ROOT (from `runDaemon`, before the privilege drop) — the only code
+  # that reads the App key. Prints a ~1h org REGISTRATION token on stdout.
+  #
+  # Two hops, both GitHub's documented flow:
+  #   JWT (10 min, signed with the key) → POST /app/installations/{id}/access_tokens
+  #     https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
+  #   installation token → POST /orgs/{org}/actions/runners/registration-token
+  #     https://docs.github.com/en/rest/actions/self-hosted-runners#create-a-registration-token-for-an-organization
+  # The second hop is the point: an installation token carries the App's whole
+  # permission set (Contents RW on every installed repo) for an hour, while a
+  # registration token can only register a runner. nixpkgs' NixOS module stops
+  # at the same boundary (`fetchRegistrationToken` in its githubApp mode).
+  #
+  # Bearer headers go to curl on STDIN (`-H @-`), never argv: `ps -ww` shows
+  # every user's arguments on macOS, so a JWT or installation token on a curl
+  # command line is readable by the job uid for the life of the request — and
+  # with `count = 2` the other instance's job is running at that moment. The
+  # Tart lane's `gh_curl` avoids argv for the same reason.
+  mintRegistrationToken = pkgs.writeShellApplication {
+    name = "mint-registration-token-${host}-${cfg.org}";
     runtimeInputs = with pkgs; [
       openssl
       curl
       jq
     ];
     text = ''
+      gh_post() { # $1 = bearer token, $2 = URL; prints the response body
+        printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\n' "$1" \
+          | curl -sf -X POST -H @- "$2"
+      }
+
       now=$(date +%s)
       iat=$((now - 60)) # 60s in the past, tolerates clock skew
       exp=$((now + 600)) # 10 minutes — the max GitHub allows for the JWT itself
@@ -293,12 +322,18 @@ let
       )
       jwt="$header.$payload.$signature"
 
-      curl -sf -X POST \
-        -H "Authorization: Bearer $jwt" \
-        -H "Accept: application/vnd.github+json" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        "https://api.github.com/app/installations/${toString cfg.installationId}/access_tokens" \
-        | jq -r .token
+      install_token=$(
+        gh_post "$jwt" "https://api.github.com/app/installations/${toString cfg.installationId}/access_tokens" \
+          | jq -r '.token // empty'
+      )
+      [ -n "$install_token" ] || { echo "mint: installation token request failed" >&2; exit 1; }
+
+      reg_token=$(
+        gh_post "$install_token" ${lib.escapeShellArg "https://api.github.com/orgs/${cfg.org}/actions/runners/registration-token"} \
+          | jq -r '.token // empty'
+      )
+      [ -n "$reg_token" ] || { echo "mint: registration token request failed" >&2; exit 1; }
+      printf '%s\n' "$reg_token"
     '';
   };
 
@@ -313,16 +348,18 @@ let
       logDir = "/var/log/github-runner-${host}-${cfg.org}-${suffix}";
       configure = pkgs.writeShellApplication {
         name = "configure-github-runner-${host}-${cfg.org}-${suffix}";
-        runtimeInputs = [
-          runner
-          mintInstallationToken
-        ];
+        runtimeInputs = [ runner ];
         # `--labels` WITHOUT `--no-default-labels` is additive: GitHub's own
         # {self-hosted, macOS, ARM64} survive alongside cfg.extraLabels. See the
         # `extraLabels` option below for the vocabulary and the flip order.
+        #
+        # `--token`, not `--pat`: what arrives here is the REGISTRATION token
+        # root minted in `runDaemon` (see `mintRegistrationToken`), passed in
+        # this one call's environment by `runAsRunner`.
         text = ''
           export RUNNER_ROOT
-          token=$(${lib.getExe mintInstallationToken})
+          token=''${RUNNER_REG_TOKEN:?configure: no registration token from the root half of runDaemon}
+          unset RUNNER_REG_TOKEN
           ${lib.getExe' runner "config.sh"} \
             --unattended \
             --disableupdate \
@@ -332,7 +369,36 @@ let
             --labels ${lib.escapeShellArg (lib.concatStringsSep "," cfg.extraLabels)} \
             --replace \
             --ephemeral \
-            --pat "$token"
+            --token "$token"
+        '';
+      };
+      # THE UNPRIVILEGED HALF — everything from here on runs as `_github-runner`,
+      # including every job. The registration token arrives in the environment
+      # from `runDaemon` and is UNSET before `exec Runner.Listener`, because a
+      # same-uid process (a job) can read the Listener's environment.
+      #
+      # Why env and not a file: a token file would have to be written by ROOT
+      # into RUNNER_ROOT, a directory `_github-runner` owns — and a leftover
+      # process from an earlier job could plant a symlink there for root's
+      # write to follow. The environment has no path to race.
+      runAsRunner = pkgs.writeShellApplication {
+        name = "github-runner-unprivileged-${instanceName}";
+        runtimeInputs = [
+          pkgs.findutils
+          runner
+        ];
+        text = ''
+          reg_token=''${RUNNER_REG_TOKEN:?no registration token from the root half of runDaemon}
+          unset RUNNER_REG_TOKEN
+          # Always clean the working directory.
+          ${lib.getExe pkgs.findutils} ${lib.escapeShellArg workDir} -mindepth 1 -delete || true
+          # Ephemeral: wipe RUNNER_ROOT so each start is a fresh registration.
+          echo "Cleaning $RUNNER_ROOT"
+          ${lib.getExe pkgs.findutils} "$RUNNER_ROOT" -mindepth 1 -delete || true
+          if [[ ! -f "$RUNNER_ROOT/.runner" ]]; then
+            RUNNER_REG_TOKEN="$reg_token" ${lib.getExe configure}
+          fi
+          exec ${lib.getExe' runner "Runner.Listener"} run --startuptype service
         '';
       };
       # ARG0 IS DELIBERATELY /bin/sh HERE — the one sanctioned exception to
@@ -370,26 +436,33 @@ let
       #
       # The rule's LOAD-BEARING half does not apply here anyway: it exists so an
       # adhoc-signed /nix/store arg0 keeps TCC read access to ~/Desktop,
-      # ~/Documents and ~/Downloads. This is a system DAEMON running as
-      # `_github-runner` that only ever touches /var/lib — it reads none of
+      # ~/Documents and ~/Downloads. This is a system DAEMON (root, dropping
+      # to `_github-runner`) that only ever touches /var/lib — it reads none of
       # those. Only BTM legibility is lost, and the exec'd process is still
       # nix-github-runner-<instance>.
+      #
+      # THE ROOT HALF. It does exactly two things as root: mint the
+      # registration token (the only read of the App key), then exec-drop.
+      # Directory cleanup is deliberately NOT here — `find -delete` as root in a
+      # tree `_github-runner` can write is a traversal race for nothing.
+      #
+      # `chpst -u` (runit, `platforms = linux ++ darwin` in the pinned
+      # nixpkgs) sets gid, supplementary groups and uid, then EXECs in the same
+      # pid — so launchd keeps tracking the real process and
+      # `KeepAlive.SuccessfulExit` sees Runner.Listener's own exit status — and
+      # it leaves the environment alone, so PATH, RUNNER_ROOT and
+      # ACTIONS_RUNNER_HOOK_JOB_STARTED survive. Rejected:
+      #   sudo -u           env_reset scrubs all three (the wake hook would
+      #                     silently stop firing), and it forks a monitor
+      #                     process instead of exec'ing.
+      #   launchctl asuser  switches the Mach bootstrap namespace only; it
+      #                     does not change the uid at all.
       runDaemon = pkgs.writeShellApplication {
         name = "nix-github-runner-${instanceName}";
-        runtimeInputs = [
-          pkgs.findutils
-          runner
-        ];
         text = ''
-          # Always clean the working directory.
-          ${lib.getExe pkgs.findutils} ${lib.escapeShellArg workDir} -mindepth 1 -delete || true
-          # Ephemeral: wipe RUNNER_ROOT so each start is a fresh registration.
-          echo "Cleaning $RUNNER_ROOT"
-          ${lib.getExe pkgs.findutils} "$RUNNER_ROOT" -mindepth 1 -delete || true
-          if [[ ! -f "$RUNNER_ROOT/.runner" ]]; then
-            ${lib.getExe configure}
-          fi
-          exec ${lib.getExe' runner "Runner.Listener"} run --startuptype service
+          reg_token=$(${lib.getExe mintRegistrationToken})
+          RUNNER_REG_TOKEN="$reg_token" exec ${lib.getExe' pkgs.runit "chpst"} \
+            -u ${user}:${user} ${lib.getExe runAsRunner}
         '';
       };
     in
@@ -516,12 +589,13 @@ in
 
   config = lib.mkIf cfg.enable {
     # The App's private key (agenix), decrypted at activation with this Mac's SSH
-    # host key into a `_github-runner`-owned file every instance mints tokens
-    # from. Declared HERE (under the enable guard) rather than in hosts/macos.nix,
-    # so a disabled runner leaves no secret owned by a user that no longer exists.
+    # host key into a ROOT-only file — only `runDaemon`'s root half reads it,
+    # never the `_github-runner` uid that runs jobs (see § PRIVILEGE SPLIT in
+    # this file's header). Declared HERE (under the enable guard) rather than in
+    # hosts/macos.nix, so a disabled runner leaves no secret behind.
     age.secrets."gh-app-${cfg.org}-key" = {
       file = ../../secrets/gh-app-${cfg.org}-key.age;
-      owner = user;
+      owner = "root";
       mode = "0400";
     };
 
@@ -616,6 +690,11 @@ in
           environment = {
             HOME = i.stateDir;
             RUNNER_ROOT = i.stateDir;
+            # Pinned explicitly because the daemon no longer sets `UserName`, so
+            # launchd no longer derives them; `chpst` changes the uid, not the
+            # environment. Jobs that read $USER keep seeing the job uid.
+            USER = user;
+            LOGNAME = user;
             # Holds a host wake assertion for the life of each JOB — see the long
             # note at `wakeAssertionHook`. Set in the DAEMON's environment rather
             # than in the runner's `.env` file because that is the half this
@@ -638,8 +717,11 @@ in
             };
             ProcessType = "Interactive";
             ThrottleInterval = 30;
-            UserName = user;
-            GroupName = user;
+            # NO UserName/GroupName: the daemon starts as ROOT so it can read
+            # the App key, and `runDaemon` drops to `_github-runner` itself.
+            # Consequence worth knowing before "fixing" it: launchd now opens the
+            # two log files below as root. The dropped process still writes them
+            # through the inherited fds, so their ownership is not a bug.
             StandardOutPath = "${i.logDir}/launchd-stdout.log";
             StandardErrorPath = "${i.logDir}/launchd-stderr.log";
             WorkingDirectory = i.stateDir;
