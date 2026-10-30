@@ -270,10 +270,13 @@ jobs:
       # when darwin is advisory.
       eval-categories: nixosConfigurations darwinConfigurations
 
-  # THE OPERATOR PREDICATE, written in three places that MUST stay identical:
+  # THE OPERATOR PREDICATE, written in three places here that MUST stay identical:
   # this job's `if` (negated), build-darwin-advisory's `if`, and
-  # required-checks' OPERATOR_PR. It names the PR AUTHOR by immutable numeric id
-  # (8927166 = ismailkattakath, `gh api users/ismailkattakath`), not:
+  # required-checks' OPERATOR_PR. The same id also gates auto-merge.yml (the
+  # `auto-merge` job's `if` and the `explain` job's AUTHOR_ID test) and claude.yml
+  # (comment.user.id) — change it in all of them together. It names the PR
+  # AUTHOR by immutable numeric id (8927166 = ismailkattakath,
+  # `gh api users/ismailkattakath`), not:
   #   * `author_association == 'OWNER'` — NEVER matches: the repo is owned by the
   #     `kattakath` ORGANIZATION, and 96/96 operator PRs sampled read `MEMBER`
   #     (bots read `CONTRIBUTOR`). An OWNER test would be a silent no-op policy.

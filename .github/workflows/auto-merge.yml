@@ -103,12 +103,13 @@ jobs:
           EVENT: ${{ github.event.action }}
           DRAFT: ${{ github.event.pull_request.draft }}
           AUTHOR: ${{ github.event.pull_request.user.login }}
+          AUTHOR_ID: ${{ github.event.pull_request.user.id }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          printf 'pr=%s event=%s draft=%s author=%s\n' "$PR" "$EVENT" "$DRAFT" "$AUTHOR"
+          printf 'pr=%s event=%s draft=%s author=%s (id %s)\n' "$PR" "$EVENT" "$DRAFT" "$AUTHOR" "$AUTHOR_ID"
           if [ "$DRAFT" = "true" ]; then
             echo "arm will SKIP: PR is a draft (correct — arming a draft is the race #567 lost commits to)"
-          elif [ "$AUTHOR" != "ismailkattakath" ]; then
+          elif [ "$AUTHOR_ID" != "8927166" ]; then
             echo "arm will SKIP: author is not the operator (correct — dependabot is armed by arm-dependabot.yml, the CI bot arms itself)"
           else
             echo "arm will RUN"
@@ -122,9 +123,14 @@ jobs:
     # is NOT usable: this repo lives under the `kattakath` owner while PRs are
     # authored by the `ismailkattakath` account. The guard also means a fork PR
     # never reaches the App-token step, which needs a secret a fork cannot read.
+    # The author is matched by immutable numeric id (8927166 = ismailkattakath),
+    # never by login: a login can be renamed and re-registered by someone else,
+    # which would hand them this App token. This is the operator predicate that
+    # nix-ci.yml keeps in sync (see its THE OPERATOR PREDICATE comment); the
+    # `explain` job above mirrors it.
     if: >-
       github.event.pull_request.draft == false &&
-      github.event.pull_request.user.login == 'ismailkattakath'
+      github.event.pull_request.user.id == 8927166
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
