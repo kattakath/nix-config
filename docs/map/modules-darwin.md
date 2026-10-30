@@ -107,7 +107,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   tick, which is how `checks.<system>.launchd-log-rotation` already read it; the mapping is
   sound in the direction that matters, since a `launchd.daemons` unit that set `UserName`
   would still land on the root tick, and root can truncate any owner's file. Two mechanisms,
-  because macOS gives two different physics.
+  because macOS gives two different physics. It also declares `local.launchdLogRotation`, a
+  read-only, internal export of what each mechanism ended up covering, which
+  `checks.<system>.launchd-log-rotation` compares against its own re-walk.
   **Mechanism 1 — the logs that re-exec:** `system.newsyslog.{enable,files}` (pinned
   `modules/system/newsyslog.nix:11-160`, registered `module-list.nix:45`). Upstream, and
   **never used by this fleet** until 2026-09-22 — which is how `~/Library/Logs` reached
