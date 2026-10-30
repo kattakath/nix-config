@@ -461,7 +461,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     state**: `home-manager rollback` does not revert `com.apple.Terminal`.
   - The **custom wallpaper** stays behind `local.desktopAesthetics.enable` (default true;
     a sandbox guest can set it false as a visual tell).
-- **`wireguard-configs.nix`** — operator-managed WG confs synced to `~/.config/wireguard`, no
+- **`wireguard-configs.nix`** — `local.wireguardConfigs`: operator-managed WG confs synced to `~/.config/wireguard`, no
   autostart; import-only for the `WireGuard.app` GUI.
 - **`containers.nix`** — `local.containers`, darwin-only: the **per-user** container runtime,
   Colima declared through home-manager's own `services.colima` (upstream-first — the pinned
