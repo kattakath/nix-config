@@ -320,5 +320,9 @@ public key they all share is single-sourced in **`secrets/operator-key.nix`** (a
   `gitlab-runner-token.age` (the `glrt-` token `local.tart.gitlabRunner` renders its `config.toml`
   from). The host-decryption path is live; do not describe it as unused.
 
+`checks.<system>.secrets-sync` gates that this rules file and the committed `secrets/*.age`
+name the same files (an unlisted file is skipped by `agenix -r`; a declared-but-absent one is
+silently created on first edit). It compares NAMES only, never real recipients.
+
 All four are safe to commit. Full rules: [`secrets-and-keychain.md`](../secrets-and-keychain.md).
 
