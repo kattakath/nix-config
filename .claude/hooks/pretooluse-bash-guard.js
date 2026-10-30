@@ -30,11 +30,12 @@
  *
  * RULE NUMBERING — the "4 rules" above are the ORIGIN SET, not the current one.
  * Rules 1-4 are what the retired prompt gate carried and what this file first
- * ported; every number since is an addition made here. The code implements SIX
+ * ported; every number since is an addition made here. The code implements SEVEN
  * rules today: Rule 1 (Cloudflare API — terranix apply/destroy, wrangler,
  * api.cloudflare.com), Rule 1c (printing a secret VALUE), Rule 1d (building ON
  * nixpi), Rule 1e (dumping the environment, which holds the ambient Keychain
- * secrets), Rule 2 (Cloudflare docs fetches) and Rule 4 (default approve + the
+ * secrets), Rule 1f (a decrypted-secret PATH in any command's words), Rule 2
+ * (Cloudflare docs fetches) and Rule 4 (default approve + the
  * approved-CLI allowlist). Rule 3 was REMOVED 2026-10-07 (see below); its number
  * is left unused so the removal stays legible. Rule 1b was added after
  * the port and retired 2026-09-15 (see below). Numbers and letters are frozen
@@ -155,6 +156,8 @@
  */
 "use strict";
 const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
 
 const RULE1_API_HOST_BLOCKING = false; // see 2026-08-19 POLICY CHANGE above; true = restore hard block
 const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE above; true = restore hard block
@@ -446,6 +449,218 @@ function envDump(segment) {
       if (named) return null;
       return flags.length && flags.every((f) => /^-[fF]+$/.test(f)) ? null : verb;
   }
+}
+
+// ---- Rule 1f: a decrypted-secret PATH in a command's words (2026-10-30) ------
+// The user-scope `Read()` denies on these paths (claude-guardrails.nix) bind only
+// the readers Claude Code RECOGNISES. A 2026-10-30 audit probed two that it does
+// not, against a nonexistent file so nothing leaked: `curl --data-binary @<path>`
+// and `openssl dgst <path>` both RAN — and this project allows `Bash(curl:*)`.
+// That file already names this hook as "the deeper, tested layer", and a deny
+// rule "has no command-position anchor to reach for"; this rule is that layer.
+//
+// ONE SOURCE OF TRUTH. The paths are READ at runtime from
+// modules/_lib/secret-read-paths.nix (its `absolute` and `underHome` lists — the
+// same data the Read() denies and the desktop-commander Seatbelt fence render),
+// never restated here. That file sits two directories up from this one in every
+// checkout that carries this hook, because superhook finds the hook by
+// convention in the repo root; `__dirname` is used, not CLAUDE_PROJECT_DIR, which
+// is the session's LAUNCH cwd. The wider credential tiers in that file
+// (`agentCredentialDirs`, `fence`) are deliberately NOT read: they hold files the
+// fleet's own tools need, which is why they exist as a separate tier.
+// A parse that comes back EMPTY is the silent-vacuum failure that file warns
+// about, so it is LOUD here: every Bash call then carries a "DISARMED" message,
+// and the rule1f suite fails in CI (it asserts the parse against an awk count of
+// the same file, and against nix-instantiate where nix exists).
+//
+// WHAT COUNTS. Each segment (and every `sh -c`/`eval` payload, and every `$(…)`/
+// backtick body — see substitutionBodies) is split into quote-aware WORDS, and a
+// word is a hit when, after peeling a redirection, a `--opt=`/`VAR=`/`k=` prefix,
+// a glued short flag, an `@`/`<` and a `file://`, it BEGINS with a listed path
+// followed by `/` or nothing. Word-level, not substring, and that is what keeps
+// prose safe: a quoted commit message is ONE word that begins with prose, so the
+// path inside it never begins a word. (Rule 1c blocked its own carrier commit
+// twice by matching a substring; this rule's test suite asserts it does not.)
+//
+// DIRECTORY VS CONTENT, decided: the secret is the CONTENT. Names are public —
+// every one is spelled out in secrets/secrets.nix — so the commands that only
+// LIST or STAT (`ls`, `stat`, `test`/`[`, `readlink`, `realpath`) may name the
+// directory or a file in it. Every other command blocks on the bare directory
+// too, because `cp -r`, `tar`, `grep -r` and `cd` all reach the content from it.
+// A search tool's PATTERN is text, not a file, so the pattern word of grep/rg/
+// `git grep` is skipped — and only that word: `grep . <path>` still blocks.
+//
+// WHAT THIS DOES NOT CLAIM — the same habit-guard caveat as Rule 1c:
+//   - a path BUILT at runtime (`cat /run/$X/key`, `cd /run && cat agenix/key`, a
+//     relative path from a cwd inside the directory) or written in a spelling the
+//     list does not carry (a symlink of the operator's own);
+//   - a substitution inside a command that ALSO has a heredoc: the heredoc body is
+//     data (Claude Code's own commit shape), and this file does not parse
+//     heredocs, so no `$(…)` is unpacked from such a command;
+//   - a program that opens the file itself (`python3 -c 'open(…)'` with the path
+//     assembled, a script of the operator's own).
+// And one known FALSE POSITIVE: a top-level heredoc body line that BEGINS with a
+// listed path blocks (splitTopLevel splits it into its own segment), the same
+// limit Rule 1e documents. The block message routes that case to the Write tool.
+const SECRET_PATHS_FILE = path.join(__dirname, "..", "..", "modules", "_lib", "secret-read-paths.nix");
+function loadSecretPaths() {
+  let src;
+  try {
+    src = fs.readFileSync(SECRET_PATHS_FILE, "utf8");
+  } catch {
+    return { absolute: [], underHome: [] };
+  }
+  // Line comments first: the header prose quotes Nix syntax. No string in either
+  // list contains `#`, so a whole-line strip cannot cut one.
+  const code = src.replace(/#.*$/gm, "");
+  const list = (name) => {
+    const m = code.match(new RegExp(String.raw`\b${name}\s*=\s*\[([^\]]*)\]`));
+    return m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : [];
+  };
+  return { absolute: list("absolute"), underHome: list("underHome") };
+}
+const SECRET_PATHS = loadSecretPaths();
+const SECRET_PATHS_LOADED = SECRET_PATHS.absolute.length > 0 && SECRET_PATHS.underHome.length > 0;
+// Every spelling a home-relative path arrives in. `"$HOME"/…` lands here too,
+// because quotes are removed from a word before it is compared.
+const SECRET_PREFIXES = [
+  ...SECRET_PATHS.absolute,
+  ...SECRET_PATHS.underHome.flatMap((p) => ["~", "$HOME", "${HOME}", os.homedir()].map((h) => `${h}/${p}`)),
+].map((p) => p.replace(/\/+$/, ""));
+// Commands that never open a file's CONTENT. See DIRECTORY VS CONTENT above.
+const NAME_ONLY_ARGV0 = new Set(["ls", "stat", "test", "[", "readlink", "realpath"]);
+const PATTERN_ARGV0 = new Set(["grep", "egrep", "fgrep", "rg", "ag", "ack"]);
+
+// Quote-aware whitespace split, quotes kept (they are removed per word later).
+function shellWords(s) {
+  const out = [];
+  let cur = "";
+  let quote = null;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quote) {
+      if (ch === "\\" && quote === '"' && i + 1 < s.length) {
+        cur += ch + s[++i];
+        continue;
+      }
+      if (ch === quote) quote = null;
+      cur += ch;
+      continue;
+    }
+    if (ch === "'" || ch === '"') {
+      quote = ch;
+      cur += ch;
+      continue;
+    }
+    if (ch === "\\" && i + 1 < s.length) {
+      cur += ch + s[++i];
+      continue;
+    }
+    if (/\s/.test(ch)) {
+      if (cur) out.push(cur);
+      cur = "";
+      continue;
+    }
+    cur += ch;
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+// The path a word names, with its argument decoration peeled, or null if none.
+// Returns "bare" for the directory itself, "inside" for anything under it.
+function secretPathIn(word) {
+  let w = word.replace(/['"]/g, "");
+  w = w.replace(/^\d*[<>]+&?/, ""); // glued redirection: <f, >f, 2>f
+  w = w.replace(/^[({]+/, "").replace(/[)};]+$/, ""); // subshell / group / substitution edges
+  w = w.replace(/^-{0,2}[A-Za-z_][\w.-]*=/, ""); // --opt=, VAR=, if=, k= (curl -F k=@f)
+  w = w.replace(/^-[A-Za-z](?=[@/~$<])/, ""); // glued short flag: -d@f, -o/path
+  w = w.replace(/^[@<]+/, "");
+  w = w.replace(/^file:\/\//, "");
+  for (const p of SECRET_PREFIXES) {
+    if (w === p) return "bare";
+    if (w.startsWith(`${p}/`)) return /[^/]/.test(w.slice(p.length)) ? "inside" : "bare";
+  }
+  return null;
+}
+// The pattern word of a search tool is text, not a file. Returns the index set
+// of words to skip: every `-e`/`--regexp` value, else the first operand.
+function patternWordIndexes(words, start) {
+  const skip = new Set();
+  let sawE = false;
+  for (let i = start; i < words.length; i++) {
+    const w = words[i];
+    if (w === "-e" || w === "--regexp") {
+      skip.add(++i);
+      sawE = true;
+    } else if (/^--regexp=/.test(w) || /^-e./.test(w)) sawE = true;
+  }
+  if (sawE) return skip;
+  for (let i = start; i < words.length; i++) {
+    if (words[i] === "--") {
+      skip.add(i + 1);
+      break;
+    }
+    if (!words[i].startsWith("-")) {
+      skip.add(i);
+      break;
+    }
+  }
+  return skip;
+}
+// "bare" | "inside" | null for one segment.
+function secretPathSegment(seg) {
+  const words = shellWords(seg);
+  const tailWords = shellWords(unwrap(seg).tail);
+  const a0 = tailWords.length ? tailWords[0].replace(/^[({]+/, "").split("/").pop().toLowerCase() : "";
+  if (NAME_ONLY_ARGV0.has(a0)) return null;
+  let skip = new Set();
+  // The tail is the suffix of the segment, so its word i is the segment's word
+  // (offset + i) — the skip set is computed in tail space, then shifted.
+  const offset = words.length - tailWords.length;
+  if (PATTERN_ARGV0.has(a0)) skip = patternWordIndexes(tailWords, 1);
+  else if (a0 === "git" && tailWords[1] === "grep") skip = patternWordIndexes(tailWords, 2);
+  let hit = null;
+  words.forEach((w, i) => {
+    if (hit === "inside" || skip.has(i - offset)) return;
+    hit = secretPathIn(w) || hit;
+  });
+  return hit;
+}
+// `$(…)` and backtick bodies, outside single quotes. Skipped entirely for a
+// command carrying a heredoc: see WHAT THIS DOES NOT CLAIM above.
+function substitutionBodies(cmd) {
+  if (/<<(?!<)/.test(cmd)) return [];
+  const out = [];
+  let single = false;
+  // Tracked so an apostrophe INSIDE double quotes (`"don't $(…)"`) does not read
+  // as opening a single-quoted region and hide the substitution after it.
+  let double = false;
+  for (let i = 0; i < cmd.length; i++) {
+    const ch = cmd[i];
+    if (ch === "\\" && !single) {
+      i++;
+      continue;
+    }
+    if (ch === "'" && !double) single = !single;
+    if (single) continue;
+    if (ch === '"') double = !double;
+    if (ch === "$" && cmd[i + 1] === "(") {
+      let depth = 1;
+      let j = i + 2;
+      for (; j < cmd.length && depth; j++) {
+        if (cmd[j] === "(") depth++;
+        else if (cmd[j] === ")") depth--;
+      }
+      out.push(cmd.slice(i + 2, depth ? j : j - 1));
+      i += 1; // re-scan the body too, so nested substitutions are reached
+    } else if (ch === "`") {
+      const j = cmd.indexOf("`", i + 1);
+      out.push(cmd.slice(i + 1, j < 0 ? cmd.length : j));
+      if (j < 0) break;
+      i = j;
+    }
+  }
+  return out;
 }
 
 // `switch` vs `build`/`check`/`--dry-run` — only `switch` actually activates.
@@ -901,6 +1116,24 @@ function main() {
       );
     }
   }
+  // ---- Rule 1f: a decrypted-secret path in a command's words -----------------
+  // Ranked with 1c/1e: a read of these files succeeds silently and its damage is
+  // a value in a transcript, or one sent off the machine. See the constants.
+  if (!SECRET_PATHS_LOADED) {
+    nudges.push(
+      `Rule 1f DISARMED: no secret paths parsed from ${SECRET_PATHS_FILE}, so a decrypted-secret path in a command is NOT being blocked. Fix the file or loadSecretPaths().`,
+    );
+  } else {
+    const pathViews = [...rawSegs, ...substitutionBodies(cmd).flatMap((b) => segments(b))];
+    const hits = pathViews.map(secretPathSegment).filter(Boolean);
+    if (hits.length) {
+      emit(
+        "block",
+        `This command names a path whose content is a DECRYPTED SECRET (the list in modules/_lib/secret-read-paths.nix). The Read() deny on those paths binds only the readers Claude Code recognises; \`curl --data-binary @<path>\` and \`openssl dgst <path>\` both ran past it (2026-10-30 audit), so this rule blocks the path in ANY command's words.`,
+        "To check a secret is present, list or stat it: `ls`, `stat`, `test -r` are allowed (names are public in secrets/secrets.nix). To prove which value a Keychain secret holds without disclosing it: `secret fp KEY`; to hand one to a program: `secret exec KEY -- CMD`. To edit an agenix secret: `agenix -e` inside `nix develop`. If this is text rather than a command — a heredoc body, a file you are writing — write it with the Write tool. If you genuinely need the content, run it yourself.",
+      );
+    }
+  }
   // A legitimate activation (`darwin-rebuild switch`, `home-manager switch`)
   // is approved — but if the AWS identity vars are live while the Keychain switch
   // is currently OFF, the trap is merely disarmed, not gone: restoring that one
@@ -958,6 +1191,13 @@ function main() {
     process.exit(0);
   }
   emit("approve");
+}
+
+// Test seam: print the parsed path lists, so the suite asserts the parse against
+// the Nix file instead of restating the list. superhook never passes arguments.
+if (process.argv[2] === "--list-secret-paths") {
+  process.stdout.write(JSON.stringify(SECRET_PATHS));
+  process.exit(0);
 }
 
 try {

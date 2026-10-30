@@ -82,7 +82,8 @@ source. Never prompt or response content.
 `routing-review-digest.js` runs at every `SessionStart` (same mechanism as
 `superhook-digest.js`): it reads `events.jsonl`, filters to
 `user_temporary`/`user_permanent` `tool_decision` events newer than
-`.claude/hooks/.routing-review-state.json`'s `reviewedAt`, and — only once
+`${XDG_STATE_HOME:-~/.local/state}/nix-config/routing-review-state.json`'s
+`reviewedAt` (per user, like `events.jsonl`), and — only once
 that count crosses `NUDGE_THRESHOLD` (currently **3**, a provisional
 placeholder chosen before any real usage data existed) — prints a one-line
 summary into context suggesting `/routing-review`. Below threshold, or if
@@ -126,4 +127,4 @@ human-judgment decisions; there was zero real data when `3` was picked.
 | `packages/claude-otel-doctor.nix` | Health check, wired as `nix run .#claude-otel-doctor` |
 | `.claude/commands/routing-review.md` | The analysis/hardening-proposal loop |
 | `.claude/hooks/routing-review-digest.js` | `SessionStart` nudge, registered in `.claude/settings.json` |
-| `.claude/hooks/.routing-review-state.json` | Gitignored — `reviewedAt` bookkeeping shared by the digest and the review command |
+| `${XDG_STATE_HOME:-~/.local/state}/nix-config/routing-review-state.json` | `reviewedAt` bookkeeping shared by the digest and the review command — per user, so every checkout and worktree agrees; the digest still reads the old per-checkout `.claude/hooks/.routing-review-state.json` when it is absent |
