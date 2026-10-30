@@ -304,7 +304,7 @@ let
     text = ''
       gh_post() { # $1 = bearer token, $2 = URL; prints the response body
         printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\nX-GitHub-Api-Version: 2022-11-28\n' "$1" \
-          | curl -sf -X POST -H @- "$2"
+          | curl -q -sf -X POST -H @- "$2" # -q MUST be first: it disables .curlrc
       }
 
       now=$(date +%s)
@@ -459,8 +459,16 @@ let
       #                     does not change the uid at all.
       runDaemon = pkgs.writeShellApplication {
         name = "nix-github-runner-${instanceName}";
+        #
+        # INVARIANT: the root half reads NOTHING the job uid can write. The
+        # daemon's HOME and WorkingDirectory are both `stateDir`, which
+        # `_github-runner` owns — and curl reads `$HOME/.curlrc`, jq loads
+        # `$HOME/.jq`. A job that left a `.curlrc` there could make root POST
+        # the key anywhere or write any file. So the mint runs with
+        # HOME=/var/empty (root-owned on every macOS) from `/`, and curl also
+        # gets `-q` (no .curlrc at all). PATH is store paths only.
         text = ''
-          reg_token=$(${lib.getExe mintRegistrationToken})
+          reg_token=$(cd / && HOME=/var/empty ${lib.getExe mintRegistrationToken})
           RUNNER_REG_TOKEN="$reg_token" exec ${lib.getExe' pkgs.runit "chpst"} \
             -u ${user}:${user} ${lib.getExe runAsRunner}
         '';
