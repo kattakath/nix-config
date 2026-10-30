@@ -314,8 +314,9 @@ How a host gets composed — change these knobs, not the hosts' internals:
   switch: `local.mediaCli.enable = false` removes the CLIs, both launchd agents, the Finder
   Services and the companion tools together — no orphaned package, no dangling session variable,
   no stale menu item to hunt down. **They no longer arrive as flake INPUTS.** ADR-002 absorbed
-  all seven satellites as `modules/features/<name>/` capsules (waves 3-6) and the origin repos
-  are archived, so "feature X plugs in as an input" is false for every one of them.
+  the satellites as `modules/features/<name>/` capsules and the origin repos are archived, so
+  "feature X plugs in as an input" is false for every one of them (history:
+  [`docs/repo-map.md`](docs/repo-map.md)).
 - **Binary cache:** the public `kattakath` Cachix cache is consumed tokenless by every host
   (`modules/nixos/nix-cache.nix`); only CI and the operator's Keychain hold the write token.
 - **`macos` runs self-hosted CI runners — two kinds, neither for this repo's CI.**
@@ -404,7 +405,8 @@ Only the pointers whose absence would cause a WRONG ACTION are duplicated here:
 - [`docs/repo-map.md`](docs/repo-map.md) — the **index** to the full fleet architecture: it
   routes every one-liner above to its per-domain file under [`docs/map/`](docs/map/). When in
   doubt, start here.
-- **ADRs** — [`ADR-001`](docs/flake-architecture-strategy-adr.md) (superseded in part),
+- **ADRs** (full list: [`docs/map/docs-index.md`](docs/map/docs-index.md)) — the ones whose
+  status prevents a wrong action: [`ADR-001`](docs/flake-architecture-strategy-adr.md) (superseded in part),
   [`ADR-002`](docs/monoflake-capsule-adr.md) (**read §9 first** — what execution found the
   design got wrong), [`ADR-003`](docs/externalization-boundary-adr.md) (decided, NOT
   implemented), [`ADR-004`](docs/secrets-recovery-and-identity-adr.md) (**IMPLEMENTED**),
