@@ -4,98 +4,15 @@
 # path shape every repo already lives under (see root CLAUDE.md, global
 # ~/.claude/CLAUDE.md "repos live under ~/Developer/<forge>/<owner>/<repo>").
 #
-# The manifest is exactly the fleet's COMPOSITION repos — today that is one line,
-# nix-config itself. It is NOT "every repo on disk" — client/personal repos with no
-# Nix/fleet relationship (client orgs, dontsell-ai, deepjobseek,
-# etc.) are deliberately excluded; fleet-doctor is scoped to declarative-infra
-# hygiene, not general dev-repo housekeeping.
-#
-# ircc-whatsapp-bot LEFT this list on 2026-09-12, and unlike every other removal
-# it was not absorbed and not archived. It is a live product repo that simply
-# stopped being wired into the fleet: nix-personal dropped its input, its module
-# import and its service block. It is still maintained, just not from here — and
-# a doctor sweeping it would be housekeeping someone else's product, which is
-# exactly what the scoping rule above excludes.
-#
-# Deliberately NOT listed: character-mcp (extracted from nix-personal 2026-09-06)
-# is a deployed Node/Cloudflare-Worker product with no Nix surface at all —
-# personal, not declarative infra, so it fails the scoping rule above.
+# A fleet repo is a COMPOSITION repo. It is NOT "every repo on disk" — a product,
+# a scaffold, a published bundle, or a client/personal repo with no Nix/fleet
+# relationship is not fleet, however closely related; fleet-doctor is scoped to
+# declarative-infra hygiene, not general dev-repo housekeeping. Adding a line needs
+# a reason that survives that sentence. An archived repo never goes here — the
+# working copy outlives the repo, and a doctor sweeping it reports branches nobody
+# can merge. Retirement history lives in git log, not in this file.
 #
 # Maintenance: when a new fleet repo appears (extracted or greenfield), add one
 # line here. Nothing else needs to change — the skill iterates this file.
-#
-# ADR-002 ran this list the OTHER way, and it is DONE: every satellite absorbed into
-# nix-config as a capsule is archived and its line came OUT, because a doctor that sweeps
-# an archived repo reports stale branches nobody can merge. All seven left, in wave order:
-#   wave 3  nix-cloudflared-connector  -> modules/features/cloudflared-connector/
-#   wave 4  nix-firmware-secrets       -> modules/features/firmware-secrets/
-#   wave 4  nix-keychain-secrets       -> modules/features/keychain-secrets/
-#   wave 4  nix-vast-provision         -> capsule GONE (removed wholesale 2026-09-12 with the
-#                                         rest of the GPU control plane, see below). Absorbed
-#                                         then deleted, so modules/features/ holds SIX of these
-#                                         seven today (+ cloud-cli, born in-tree 2026-09-20).
-#   wave 5  nix-tart-vms               -> modules/features/tart-vms/
-#   wave 5  nix-media-cli              -> modules/features/media-cli/
-#   wave 6  nix-local-rag              -> modules/features/local-rag/
-# Do not re-add one because it is still on disk — the working copy outlives the repo.
-# The satellite count is 0.
-#
-# TWO MORE LINES CAME OUT on 2026-09-12, for a DIFFERENT reason. These were never
-# satellites and never became capsules: they were extraction candidates nix-config never
-# adopted, so nothing arrived in-tree when they left. Archived, not deleted (ADR-002 §7.8)
-# — both stay public and readable, which is where the "why it wasn't adopted" lives:
-#   nix-mcp-gateway  — a THIN, GENERIC `local.mcpGateway` broker module. The fleet kept its
-#                      own fully-wired concrete deployment in modules/shared/mcp.nix (one
-#                      generic module vs. one concrete deployment — never two competing
-#                      options). BOTH are gone now: that module, the gateway and its
-#                      Cloudflare portal were deleted/destroyed 2026-10-02, so there is no
-#                      GATEWAY surface left to sweep (what remains is the packages/*-mcp.nix
-#                      launchers + checks.*.mcp-launcher-parity). docs/mcp-gateway.md is history.
-#   nix-inngest      — never wired into any host. The `inngest` CLI that IS on PATH comes
-#                      from nixpkgs, not from this repo; do not confuse the two.
-# Same rule as the seven above: do not re-add either because a working copy is on disk.
-#
-# A THIRD LINE CAME OUT the same day, for a THIRD reason — REMOVED, not absorbed:
-#   brags            — the brag-doc pipeline (the two skills, the kattakath.brag.engineDir
-#                      seam, the redaction gate, $BRAG_DATA_DIR). The repo was archived and
-#                      then the whole subsystem was deleted from both nix-config and
-#                      nix-personal on 2026-09-12, at the operator's request. Nothing in
-#                      either flake references it any more, so nothing replaces this line.
-#                      The operator's own mined data still sits in ~/Developer/local/brags,
-#                      a deliberately REMOTE-LESS repo that was never a fleet repo, is not
-#                      listed here, and must not be added.
-# THE LAST TWO NON-COMPOSITION LINES CAME OUT on 2026-09-12, leaving the composition pair
-# (nix-config + nix-personal) and nothing else — which held for three days, until the
-# 2026-09-15 retirement below. Both were distribution endpoints rather than declarative
-# infra, and both are ARCHIVED:
-#   provisioner-template  — a 3-file scaffold that nothing fetched. The tooling that used
-#                           it seeded new provisioner repos from IN-TREE assets, never by
-#                           cloning this repo — which is why the GitHub copy had already
-#                           drifted (no provision-lib.sh) without anything noticing. The
-#                           whole GPU control plane was removed from nix-config the same
-#                           day, so nothing references any of it now.
-#   hyperframes-selfhost  — the published Kinocut+HyperFrames self-host bundle. REMOVED
-#                           WHOLESALE, not just unwired: the 42-file vendored tree under
-#                           packages/hyperframes-selfhost/, the hf-export/hf-apply/hf-doctor
-#                           apps, infra/hyperframes/stack.nix, the identity `operatorEmail`
-#                           seam that existed only for its Access policy, and all three
-#                           docs are gone from nix-config. v0.1.0 stays readable in the
-#                           archived repo; do not re-add either from a working copy on disk.
-#
-# So the rule this file now encodes is simple: a fleet repo is a COMPOSITION repo. Anything
-# else — a product, a scaffold, a published bundle — is not fleet, however closely related.
-# Adding a line needs a reason that survives that sentence.
-#
-# THE COUNT WENT TO ONE on 2026-09-15. nix-personal is fully RETIRED — every value it held
-# (AWS SSO profiles, extra gmail accounts, git identities, the OpenAI gateway, the real
-# `hostedSites`) is folded directly into nix-config (`hosts/macos.nix`,
-# `modules/parts/identity.nix`) — there is only one checkout to activate now. Its line
-# came out of this manifest and steps D and G of SKILL.md, which existed only to serve
-# it, were collapsed to match.
-#
-# What was retired was nix-personal's FRESHNESS-GATED `activate` (lib.mkActivateCli),
-# which reconciled two checkouts. nix-config grew its own `activate` the same day
-# (packages/activate.nix, 114c9a4) and that one is live and on PATH: a self-elevating
-# `darwin-rebuild switch` that works from any directory. Use it.
 
 github.com/kattakath/nix-config
