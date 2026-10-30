@@ -27,19 +27,10 @@ and are worth sweeping when a longer window matters.
 
 ## 2. Flatten and filter
 
-Each line is a full OTLP LogsData payload, **not** a flat record. Flatten
-`resourceLogs[].scopeLogs[].logRecords[]` and turn each record's `attributes[]` array into a
-plain map:
-
-```bash
-jq -c '.resourceLogs[].scopeLogs[].logRecords[]
-       | {attrs: (.attributes | map({(.key): (.value.stringValue // .value.intValue // .value.boolValue)}) | add)}' \
-   ~/.local/state/claude-otel/events.jsonl
-```
-
-Filter to records whose `event.name` attribute is `tool_decision` — **bare, no `claude_code.`
-prefix**; the prefixed spelling exists only in `body.stringValue` and matching it yields
-nothing. Then narrow to `tool_name` in `Bash` / `Write` / `Edit`.
+Each line is a full OTLP payload, not a flat record. Flatten it and filter to `tool_decision`
+exactly as `/routing-review` § 2 does (`.claude/commands/routing-review.md` owns the shape, the
+`jq` one-liner and the bare-`event.name` trap). Then narrow to `tool_name` in `Bash` / `Write` /
+`Edit`.
 
 Relevant attributes:
 
@@ -84,5 +75,6 @@ the problem, the wording diff) and **ask for confirmation** before editing.
 
 ## 5. Log hygiene
 
-Nothing to truncate. The collector rotates `events.jsonl` itself (`max_megabytes: 50`,
-`max_backups: 5`), and the stream lives under `~/.local/state/`, never inside the repo.
+Nothing to truncate. The collector rotates `events.jsonl` itself (the file exporter's
+`rotation` settings in `modules/home/claude-otel.nix`), and the stream lives under
+`~/.local/state/`, never inside the repo.
