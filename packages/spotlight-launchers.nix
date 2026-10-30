@@ -40,6 +40,12 @@
   libicns,
 }:
 let
+  # LaunchServices starts every bundle's launcher with a minimal PATH; both kinds
+  # share this one. `$(id -un)` is expanded at RUN time, so no /Users/<name> is
+  # hardcoded. /run/current-system/sw/bin is where darwin-rebuild lives,
+  # /opt/homebrew/bin where `code` does.
+  launcherPath = "/etc/profiles/per-user/$(id -un)/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+
   # Simplified robot-head glyph on Android's brand green — evocative, not a
   # trace of the copyrighted "bugdroid" mascot artwork.
   androidIconSvg = ''
@@ -237,11 +243,7 @@ let
       launcher = writeShellApplication {
         name = "launcher";
         text = ''
-          # Spotlight/LaunchServices launches this with a minimal PATH — put the
-          # per-user Nix profile + Homebrew ahead of the base system dirs. $(id -un)
-          # keeps this free of a hardcoded username (identical trick used nowhere
-          # else needs to hardcode /Users/<name>; this is a runtime lookup).
-          PATH="/etc/profiles/per-user/$(id -un)/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+          PATH="${launcherPath}"
           export PATH
 
           # `|| true` + the fallback assign: a denied/not-yet-granted Automation
@@ -339,10 +341,7 @@ let
       launcher = writeShellApplication {
         name = "launcher";
         text = ''
-          # LaunchServices starts this with a minimal PATH. $(id -un) keeps it
-          # free of a hardcoded /Users/<name>; /run/current-system/sw/bin is
-          # where darwin-rebuild lives, /opt/homebrew/bin where `code` does.
-          PATH="/etc/profiles/per-user/$(id -un)/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+          PATH="${launcherPath}"
           export PATH
 
           ${lib.optionalString usesFlakeDir ''
