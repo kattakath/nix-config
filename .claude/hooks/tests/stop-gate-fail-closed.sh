@@ -18,6 +18,7 @@
 # message is not "not a git repository". Probed 2026-09-16 — a malformed .git
 # file, an empty .git directory and a bogus GIT_DIR ALL report "not a git
 # repository" and so correctly still approve; a bad config line does not.
+# git 2.56 (2026-10-30) words the malformed-.git-file case "gitfile does not point to a valid repository".
 # The real dubious-ownership case was verified by hand against the cross-owned
 # clone at /Users/izzy/…/nix-config the same day.
 set -uo pipefail
@@ -45,7 +46,7 @@ ck approve "$TMP/plain" "a directory with no .git at all"
 echo "== must APPROVE: git is confused but still says \"not a git repository\" =="
 mkdir -p "$TMP/broken"
 printf 'gitdir: /nonexistent/nowhere\n' > "$TMP/broken/.git"
-ck approve "$TMP/broken" "a malformed .git file — git still calls it not-a-repo"
+ck approve "$TMP/broken" "a malformed .git file — git calls it not-a-repo / gitfile invalid"
 
 echo "== must BLOCK: git fails for any OTHER reason =="
 printf '[bad\n' > "$TMP/badcfg"

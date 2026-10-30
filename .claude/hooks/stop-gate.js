@@ -224,7 +224,11 @@ try {
   // suite) and the fallthrough would silently turn the legitimate no-op into a
   // hard block on every non-git directory: fail-CLOSED everywhere. An explicit
   // else costs nothing and does not depend on what approve() does.
-  if (/not a git repository/i.test(msg)) {
+  // The second phrase is the same class: a .git FILE whose gitdir is missing.
+  // git <=2.55 worded it "not a git repository: (null)" — a NULL-pointer bug
+  // that 2.56 fixed (RelNotes 2.56.0, jk/setup-gitfile-diag-fix), restoring
+  // setup.c's READ_GITFILE_ERR_NOT_A_REPO text. Other gitfile errors stay closed.
+  if (/not a git repository|gitfile does not point to a valid repository/i.test(msg)) {
     approve();
   } else {
     block(
