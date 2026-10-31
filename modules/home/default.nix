@@ -1920,7 +1920,7 @@ in
       };
 
       # Global excludes — upstream option programs.git.ignores (pinned
-      # programs/git.nix:182, written to $XDG_CONFIG_HOME/git/ignore, git's default
+      # home-manager/modules/programs/git.nix:182, written to $XDG_CONFIG_HOME/git/ignore, git's default
       # core.excludesFile). Measured 2026-10-30: 21 of 22 checkouts under
       # ~/Developer read as dirty ONLY because of an untracked .DS_Store, so every
       # clean-tree guard (`git-tidy`) refused them. The settings.local.json line was
