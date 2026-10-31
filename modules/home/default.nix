@@ -696,6 +696,10 @@ in
     # QTBUG-147602: the first phone notification with an icon traps kdeconnectd in
     # QImage::toCGImage -> CGImageCreate, which takes the whole link (clipboard too) down.
     # Crash captured 2026-10-31. Re-enable after checking the bundled QtGui version.
+    # 26.08.2 and the master nightly (build 6836) still bundle Qt 6.11.1, measured 2026-10-31.
+    # AirSync (the obvious alternative) was REJECTED the same day: its Android app falls back to
+    # plaintext when decryption fails, takes an unauthenticated "connect to this Mac" POST on
+    # :8888, and the Mac writes received files under an unsanitised name.
     plugins.kdeconnect_notifications = false;
     pluginSettings.kdeconnect_clipboard = {
       autoShare = true;
