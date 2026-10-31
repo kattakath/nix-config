@@ -284,6 +284,9 @@ let
   # `mermaid-ascii` — render Mermaid graphs as ASCII in the terminal. Packaged from
   # upstream (not in nixpkgs); see packages/mermaid-ascii.nix.
   mermaidAscii = pkgs.callPackage ../../packages/mermaid-ascii.nix { };
+  # `git-tidy` — default branch, fast-forwarded, merged-PR branches deleted via gh-poi;
+  # see packages/git-tidy.nix.
+  gitTidy = pkgs.callPackage ../../packages/git-tidy.nix { };
   androidPhone = pkgs.callPackage ../../packages/android-phone.nix { };
   claudeWork = pkgs.callPackage ../../packages/claude-work.nix { };
   nixosVm = pkgs.callPackage ../../packages/nixos-vm.nix { };
@@ -1474,6 +1477,7 @@ in
       # names bare `uvx`.
       uv # `uv`/`uvx` — ephemeral Python tool runner; on PATH for an enabled plugin whose `.mcp.json` names bare `uvx`
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
+      gitTidy # `git-tidy` — switch to the default branch, fast-forward, delete branches whose GitHub PR merged (gh-poi, so squash merges count) (packages/git-tidy.nix)
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
       resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
