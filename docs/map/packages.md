@@ -181,6 +181,11 @@ Smaller, single-purpose CLIs:
   `jsonresume-tailor` skill.
 - **`mermaid-ascii.nix`** — packages `AlexanderGrooff/mermaid-ascii`, not in nixpkgs, for the
   diagrams-as-ASCII convention.
+- **`git-tidy.nix`** — `git-tidy [gh-poi flags]`: refuses a dirty tree, switches to the
+  default branch, fast-forwards it (never resets a diverged one), then runs nixpkgs `gh-poi`,
+  which deletes branches whose GitHub PR MERGED — squash merges included — plus their clean,
+  inactive worktrees. The wrapper exists because a hand-typed `&&`/`;` one-liner let its
+  branch sweep run past a failed clean-tree guard (2026-10-30).
 - **`metube.nix`** — MeTube from source; nixpkgs has no package for it. The Angular UI must
   land at `ui/dist/metube/browser`, the path `app/main.py` actually serves. Python deps come
   from nixpkgs rather than `uv sync`: the app is a handful of imports and the lockfile would
