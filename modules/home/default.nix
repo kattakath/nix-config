@@ -513,6 +513,7 @@ in
     ./spotlight-actions.nix
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
+    ./kdeconnect.nix # local.kdeConnect — merges declared keys into the kde-connect cask's INI files
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
     # The two loopback download servers. They were nix-darwin `launchd.user.agents`
     # until 2026-09-22; moved here because Home Manager re-bootstraps an agent that
@@ -682,6 +683,20 @@ in
   # does PASSWORDS (and verification codes). On macOS a passkey comes from the OS
   # AuthenticationServices API the browser itself calls, never through an extension.
   local.defaultBrowser = lib.mkIf isMacosHost "chrome";
+
+  # KDE Connect (the `kde-connect` cask in hosts/macos.nix). These values pin what the
+  # Mac already runs, so an upstream default change cannot silently flip them:
+  # only loopback is on the disabled-provider list (upstream also lists bluetooth), and clipboard
+  # auto-share stays on, including password-manager copies (`sendPassword`). The
+  # device name is left to the app, which derives it from the hostname.
+  local.kdeConnect = lib.mkIf isMacosHost {
+    enable = true;
+    settings.General.disabled_providers_v2 = [ "loopback" ];
+    pluginSettings.kdeconnect_clipboard = {
+      autoShare = true;
+      sendPassword = true;
+    };
+  };
 
   # The userscript set. Keying it is what lets a layer composed in through
   # `extraHomeModules` add its own without touching this file; keys must stay

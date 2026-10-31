@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
+`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -348,6 +348,12 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `RCLIP_USE_ONNX_ON_MACOS`): it is a third-party search tool this repo merely installs, and
   the VECTOR half of retrieval, deliberately independent of the XMP half. It reaches the stack
   through that module's `extraSearchPackages` seam, alongside `exiftool` and `auge`.
+- **`kdeconnect.nix`** — `local.kdeConnect`, macOS-only. It merges the declared keys into
+  the `kde-connect` cask's INI files under `~/Library/Preferences/kdeconnect`, one key at a
+  time with `crudini`. Pairing files and undeclared keys stay the app's. Per-device settings
+  go to every device in `trusted_devices`, so no device ID is in the repo. home-manager's
+  `services.kdeconnect` is Linux-only. The phone half (the Android 10+ clipboard grants) is
+  `android-phone kdeconnect-grants`.
 - **`default-browser.nix`** — `local.defaultBrowser`, a fleet-level concern rather than a
   Chromium one: the HTTP/HTTPS handler is a LaunchServices property any installed browser can
   hold, so it moved out of `chromium.nix` once Chromium stopped being the daily browser and
