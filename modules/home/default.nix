@@ -692,6 +692,11 @@ in
   local.kdeConnect = lib.mkIf isMacosHost {
     enable = true;
     settings.General.disabled_providers_v2 = [ "loopback" ];
+    # OFF until the cask bundles Qt >= 6.11.2. On macOS 27.2 its Qt 6.11.1 hits
+    # QTBUG-147602: the first phone notification with an icon traps kdeconnectd in
+    # QImage::toCGImage -> CGImageCreate, which takes the whole link (clipboard too) down.
+    # Crash captured 2026-10-31. Re-enable after checking the bundled QtGui version.
+    plugins.kdeconnect_notifications = false;
     pluginSettings.kdeconnect_clipboard = {
       autoShare = true;
       sendPassword = true;
