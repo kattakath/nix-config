@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,wireguard-configs.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
+`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -433,8 +433,6 @@ in the repo can catch that; see that fixture file's header for the measurement.
     state**: `home-manager rollback` does not revert `com.apple.Terminal`.
   - The **custom wallpaper** stays behind `local.desktopAesthetics.enable` (default true;
     a sandbox guest can set it false as a visual tell).
-- **`wireguard-configs.nix`** — `local.wireguardConfigs`: operator-managed WG confs synced to `~/.config/wireguard`, no
-  autostart; import-only for the `WireGuard.app` GUI.
 - **`containers.nix`** — `local.containers`, darwin-only: the **per-user** container runtime,
   Colima declared through home-manager's own `services.colima` (upstream-first — the pinned
   nix-darwin has no `virtualisation.*` namespace at all, so a system-level answer does not

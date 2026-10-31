@@ -497,7 +497,6 @@ in
     ./claude-desktop.nix
     ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
     ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
-    ./wireguard-configs.nix # operator-managed WG confs → ~/.config/wireguard (no autostart)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     # Makes ~/.claude/settings.json LAYERED — a real writable file the app and
     # the operator can edit, with Nix's own keys (the permissions.deny floor,
@@ -604,12 +603,6 @@ in
     "com.mitchellh.ghostty"."NSWindowTabbingShoudShowTabBarKey-Ghostty.TitlebarTabsTahoeTerminalWindow-Ghostty.TerminalWindow" =
       true;
   };
-
-  # WireGuard confs: sync ~/.local/share/wireguard-configs → ~/.config/wireguard
-  # on darwin. Confs stay outside git (private keys). Copy-only — it NEVER
-  # runs wg-quick / starts a tunnel. On macos (GUI-only, no CLI) these are there
-  # to IMPORT into WireGuard.app; no shell can raise a tunnel (hosts/macos.nix).
-  local.wireguardConfigs.enable = pkgs.stdenv.hostPlatform.isDarwin;
 
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
 
