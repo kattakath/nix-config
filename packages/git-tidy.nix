@@ -17,6 +17,11 @@
 # or local commits), it stops and says so rather than resetting anything.
 #
 # Usage: git-tidy [gh-poi flags]   e.g. `git-tidy --dry-run`, `git-tidy --state closed`
+#
+# `--dry-run` is dry for the WHOLE run, not just gh-poi: it reports the switch and
+# fast-forward it would make and changes no branch. Before 2026-10-30 the flag
+# reached gh-poi only, so a "dry" run still switched branches and fast-forwarded.
+# `git fetch --prune` still runs — the report would be stale without it.
 # gh-poi takes its GitHub auth from the `gh` on PATH (programs.gh).
 {
   writeShellApplication,
@@ -43,14 +48,31 @@ writeShellApplication {
     fi
     branch=''${def#origin/}
 
-    git switch "$branch"
-    if ! git merge --ff-only "$def"; then
-      echo "git-tidy: $branch has DIVERGED from $def — not resetting it; resolve by hand" >&2
-      exit 1
+    dry=0
+    for a in "$@"; do [ "$a" = --dry-run ] && dry=1; done
+
+    if [ "$dry" = 1 ]; then
+      cur=$(git branch --show-current)
+      [ "$cur" = "$branch" ] || echo "git-tidy (dry run): would switch ''${cur:-detached HEAD} -> $branch"
+      if ! git rev-parse --verify --quiet "refs/heads/$branch" >/dev/null; then
+        echo "git-tidy (dry run): would create $branch from $def"
+      elif [ "$(git rev-parse "$branch")" = "$(git rev-parse "$def")" ]; then
+        echo "git-tidy (dry run): $branch is up to date with $def"
+      elif git merge-base --is-ancestor "$branch" "$def"; then
+        echo "git-tidy (dry run): would fast-forward $branch to $def"
+      else
+        echo "git-tidy (dry run): $branch has DIVERGED from $def — a real run stops here" >&2
+      fi
+    else
+      git switch "$branch"
+      if ! git merge --ff-only "$def"; then
+        echo "git-tidy: $branch has DIVERGED from $def — not resetting it; resolve by hand" >&2
+        exit 1
+      fi
     fi
 
     gh-poi "$@"
-    git worktree prune
+    [ "$dry" = 1 ] || git worktree prune
 
     git branch -vv
     git worktree list
