@@ -305,7 +305,7 @@ How a host gets composed — change these knobs, not the hosts' internals:
 - **Per-host divergence is a gate, not a fork.** Use an option flag gating `lib.mkIf` (`isMacosHost` for
   the operator's Mac, `local.*` enables elsewhere; never the hostname) inside `modules/`; never a second identity, never a copy-pasted host block.
 - **No private NIX layer** (nix-personal retired 2026-09-15; `extraHomeModules`/`hostedSites` stay
-  generic hooks defaulting to `[ ]`). The repo ships shape; the operator's content stays on the Mac
+  generic hooks defaulting to `[ ]`). The repo ships shape; the operator's content stays out of the repo
   in hand-placed files (`~/.aws/config`, `~/.config/git/local.inc`, `allowed_signers`, two settings
   overlays) and a PRIVATE overlay marketplace (`<handle>/skills`) for client config —
   [`engine.md`](docs/map/engine.md), [`agent-resource-externalization.md`](docs/agent-resource-externalization.md).
