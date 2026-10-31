@@ -262,6 +262,8 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
 These are the operator's CONTENT; the flake ships only their shape. A fresh Mac needs them
 written by hand (or restored from your own backup) — a missing one degrades silently:
 
+**Since 2026-10-31 the git identity files, `~/.aws/config`, `~/.gnupg/gpg.conf` and the WireGuard confs live ONCE, in the operator's Google Drive**, and each local path is a symlink into it. On a fresh Mac, sign in to Google Drive for desktop, mark that folder *Available offline*, then recreate the symlinks. The two Claude overlays are symlinks into the private overlay repo's clone instead, because git already holds them.
+
 | File | Why it is not in Nix | Shape |
 |---|---|---|
 | `~/.aws/config` | account ids / start-URL ids are reconnaissance; every user's differs | copy `~/.aws/config.example` (written by `local.cloudCli.aws`) or `aws configure sso` |
