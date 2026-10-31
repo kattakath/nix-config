@@ -138,7 +138,7 @@ the `curl … | bash` bytes are gated exactly like every in-flake script.
 Smaller, single-purpose CLIs:
 
 - **`android-phone.nix`** — macOS-only: deterministic wired/wireless ADB operator
-  (`list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor`) plus scrcpy mirroring
+  (`list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor|kdeconnect-grants`) plus scrcpy mirroring
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache
   staleness and duplicate-transport device listings. Its operator knowledge is also the
   `android-phone` plugin in
