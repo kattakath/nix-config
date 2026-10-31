@@ -179,7 +179,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
   null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
   cask; this module contributes only the files Chromium reads out of its user-data dir, via
-  upstream HM `programs.chromium`, plus one recommended-level policy (`BookmarkBarEnabled`). The
+  upstream HM `programs.chromium`, plus recommended-level policies (`targets.darwin.defaults."org.chromium.Chromium"`). The
   LaunchServices default-browser claim is NOT here any more — it left with `local.defaultBrowser`
   when Chromium stopped being the default (`chromium.nix`'s header). Surfaces (the options are
   `options.local.ungoogledChromium`):
@@ -233,10 +233,11 @@ in the repo can catch that; see that fixture file's header for the measurement.
     Greasy/Sleazy Fork and installed from there ([`packages.md`](packages.md) § Userscripts).
     The `userScripts.scripts` seam that once materialised `.user.js` files was deleted
     2026-10-30. **Never put a secret in a userscript.**
-  - **`BookmarkBarEnabled`** (no option; always written) — one of two *policy* surfaces, and
+  - **Recommended policies** (no option; always written) — one of two *policy* surfaces, and
     the place this repo writes Chromium's own preferences domain: HM `targets.darwin.defaults."org.chromium.Chromium"` sets
     `BookmarkBarEnabled = false`, so **View ▸ Always Show Bookmarks Bar** starts OFF (it seeds
-    the `bookmark_bar.show_on_all_tabs` pref). macOS has **no** policies-JSON directory — that is
+    the `bookmark_bar.show_on_all_tabs` pref), and `PromptForDownloadLocation = false`, which undoes
+    ungoogled's ask-where-to-save default (its why is a comment on that attrset). macOS has **no** policies-JSON directory — that is
     the Linux path; Chromium's platform loader reads CFPreferences and grades every key by
     `CFPreferencesAppValueIsForced`: forced → **mandatory** (greys the menu item out, and only an
     MDM configuration profile in `/Library/Managed Preferences/` can set it), everything else →
@@ -301,7 +302,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `NTPSharepointCardVisible`, `NTPContentSuggestionsEnabled` and both `NTPFooter*` all **omit**
     `can_be_recommended` in their upstream `policy_definitions/**.yaml`, which defaults it to
     false. Absence is the answer, not a metadata gap — the flag is written explicitly when true,
-    and the one policy this repo *does* ship (`BookmarkBarEnabled`) carries
+    and `BookmarkBarEnabled`, which this repo *does* ship, carries
     `can_be_recommended: true`. `NewTabPageLocation`'s own
     `desc` says it outright: "configures the default New Tab page URL **and prevents users from
     changing it**". A padlocked new-tab page is worse than a click, so it stays unset. Nor is

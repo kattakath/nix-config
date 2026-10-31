@@ -33,7 +33,8 @@
 #      Framework 152 imports `_CFPreferencesAppValueIsForced` + `_CFPreferencesCopyAppValue`,
 #      and none of ungoogled's ~111 patches touch policy loading.) Home Manager applies it
 #      with `defaults import`, which MERGES, so Chromium's own state in that domain survives.
-#      One policy rides this: `BookmarkBarEnabled`. It is a narrow tier — see the
+#      The policies riding it are the `targets.darwin.defaults` attrset at the end of
+#      this file. It is a narrow tier — see the
 #      default-search note below for a policy set that arrives and is then REFUSED.
 # Why a local-crx install keeps each extension's official ID: the ID is derived from
 # the public key in the signed CRX3 header, not from the install path. A sideloaded
