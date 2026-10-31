@@ -260,18 +260,20 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
 ## Hand-placed files that never come back from a rebuild (ADR-004, 2026-09-20)
 
 These are the operator's CONTENT; the flake ships only their shape. A fresh Mac needs them
-written by hand (or restored from your own backup) — a missing one degrades silently:
-
-**Since 2026-10-31 the git identity files, `~/.aws/config`, `~/.gnupg/gpg.conf` and the WireGuard confs live ONCE, in the operator's Google Drive**, and each local path is a symlink into it. On a fresh Mac, sign in to Google Drive for desktop, mark that folder *Available offline*, then recreate the symlinks. The two Claude overlays are symlinks into the private overlay repo's clone instead, because git already holds them.
+restored — a missing one degrades silently. A row marked **Drive** has ONE copy, in the
+operator's Google Drive (`Machine Config`), and its local path is a symlink into it: sign in to
+Google Drive for desktop, mark that folder *Available offline* (a missing `local.inc` makes git
+commit as the default identity without a word), then recreate the symlink. The **Shape** column
+is for writing one from scratch.
 
 | File | Why it is not in Nix | Shape |
 |---|---|---|
-| `~/.aws/config` | account ids / start-URL ids are reconnaissance; every user's differs | copy `~/.aws/config.example` (written by `local.cloudCli.aws`) or `aws configure sso` |
-| `~/.config/git/local.inc` | which org/folder authors as which identity is the operator's alone | the ONE include `modules/home/default.nix` names unconditionally; holds `[includeIf "gitdir:…"]` / `[includeIf "hasconfig:remote.*.url:…"]` blocks, each `path = <identity>.inc`. Template: the private overlay repo's README |
-| `~/.config/git/<identity>.inc` (each one `local.inc` routes to) | personal/work/client mailboxes | `[user]` + `email` (+ `name` where the identity's name differs) |
-| `~/.config/git/allowed_signers` | lists every mailbox you author as | `<mailbox> namespaces="git" <your ssh public key>`, one line per address; signing works without it, only VERIFYING needs it |
-| `~/.config/nix-config/claude-settings.overlay.json`, `claude-desktop.overlay.json` | client plugins/servers are the operator's alone | copy (or symlink) from the private overlay repo's `overlay/` and `desktop/`, then `activate` |
+| `~/.aws/config` | account ids / start-URL ids are reconnaissance; every user's differs | **Drive.** copy `~/.aws/config.example` (written by `local.cloudCli.aws`) or `aws configure sso` |
+| `~/.config/git/local.inc` | which org/folder authors as which identity is the operator's alone | **Drive.** the ONE include `modules/home/default.nix` names unconditionally; holds `[includeIf "gitdir:…"]` / `[includeIf "hasconfig:remote.*.url:…"]` blocks, each `path = <identity>.inc`. Template: the private overlay repo's README |
+| `~/.config/git/<identity>.inc` (each one `local.inc` routes to) | personal/work/client mailboxes | **Drive.** `[user]` + `email` (+ `name` where the identity's name differs) |
+| `~/.config/git/allowed_signers` | lists every mailbox you author as | **Drive.** `<mailbox> namespaces="git" <your ssh public key>`, one line per address; signing works without it, only VERIFYING needs it |
+| `~/.config/nix-config/claude-settings.overlay.json`, `claude-desktop.overlay.json` | client plugins/servers are the operator's alone | SYMLINK (never copy — a copy drifted, 2026-10-31) into a clone of the private overlay repo's `overlay/` and `desktop/`, then `activate` |
 | the login Keychain's secrets | never in Nix | `macos` runs `local.keychainSecrets.backend.type = "gcp"` (since 2026-10-17): `gcloud auth login` → `secrets-rehydrate`, both under `CLOUDSDK_CONFIG=~/.config/gcloud-nix-config`. Or `secret set …` by hand |
 | the PGP secret key (GnuPG keyring) | a private key; it travels as a Keychain entry instead | AFTER `secrets-rehydrate`: `secret exec V=<pgp-key-entry> -- sh -c 'printf %s "$V" \| base64 -d \| gpg --import'` (find the entry with `secret ls`; swap `--import` for `--show-keys` to check the entry without importing — that is the form tested 2026-10-17; the `pgp-ops` plugin's skill carries the full procedure). `~/.gnupg/gpg-agent.conf` is DECLARED (`hosts/macos.nix`) and comes back by itself |
-| WireGuard tunnel confs | each holds a private key | ONE copy, in the operator's Google Drive. Import into WireGuard.app (or the `nixos` guest's GNOME Settings › VPN) straight from Drive. No local copy; `local.wireguardConfigs`, which synced three, was deleted 2026-10-31 |
-| `~/.gnupg/gpg.conf` | names the key id, and the public repo must not | `encrypt-to <your fingerprint>` + `default-key <your fingerprint>` — `encrypt-to` makes every message also readable by you later |
+| WireGuard tunnel confs | each holds a private key | **Drive**, with NO local symlink: import into WireGuard.app (or the `nixos` guest's GNOME Settings › VPN) straight from the Drive folder |
+| `~/.gnupg/gpg.conf` | names the key id, and the public repo must not | **Drive.** `encrypt-to <your fingerprint>` + `default-key <your fingerprint>` — `encrypt-to` makes every message also readable by you later |
