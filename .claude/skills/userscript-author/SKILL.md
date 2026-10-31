@@ -89,9 +89,29 @@ its gates the same day.
       `listings/<f>.md` for the additional info).
       A **new** script never triggers one: the hook reads only *modified* files, not *added*
       ones. So publish the first version by hand, then set both sync URLs on its admin page.
-- [ ] Install from the fork page, once. `@updateURL` then does the rest — **this is the whole
-      reason the fleet stopped materialising files**, so never hand the operator a raw file to
-      install when a fork listing is possible.
+- [ ] Install from the fork page, once. `@updateURL` is MEANT to do the rest — **this is the
+      whole reason the fleet stopped materialising files**, so never hand the operator a raw file
+      to install when a fork listing is possible.
+- [ ] **But do not rely on Violentmonkey's update check to land a release** (measured
+      2026-10-31): with the fork already serving the new version, both the dashboard's "check for
+      updates" and its internal `CheckUpdate` command left civitai-declutter on the OLD version, with
+      no error in the service-worker console. So after each push, install the release yourself:
+      1. Wait until the fork's API reports the new version
+         (`api.greasyfork.org/en/scripts/<id>.json` or `api.sleazyfork.org/...`, field `version`).
+      2. In a fresh `about:blank` tab, open the script's `update.(greasy|sleazy)fork.org/.../*.user.js`
+         URL. The stored `custom.lastInstallURL` in Violentmonkey's `scr:<n>` record holds it.
+         Starting from an extension page swallows the navigation.
+      3. Violentmonkey's confirm page opens. Take a snapshot and make one trusted `click` on
+         **Reinstall**. Wait for the heading to show the new version first; it reads
+         "Loading script data…" briefly.
+      4. Verify from the service worker: `chrome.storage.local` `scr:<n>` `meta.version` and the
+         `@version` inside `code:<n>`.
+      This needs `chrome-devtools` with extension access (see Install reality below).
+- [ ] **A changed `@name` installs a NEW entry** (Violentmonkey matches by namespace + name), so
+      the old version keeps running beside it. Remove the old entry from the dashboard: its trash
+      icon is the row's last `.btn-ghost` (`<use href="#trash">`). That moves it to the recycle bin
+      (`config.removed = 1`), so it can be restored. Confirm with the operator first; it is their
+      extension.
 - [ ] The script's source of truth is its own repo/listing, **not this tree**. The old sync URL
       `raw.githubusercontent.com/kattakath/nix-config/main/userscripts/<kebab>.user.js` is
       **dead** — there is no `userscripts/` directory here.
