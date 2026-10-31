@@ -1919,6 +1919,19 @@ in
         pull.rebase = true;
       };
 
+      # Global excludes — upstream option programs.git.ignores (pinned
+      # programs/git.nix:182, written to $XDG_CONFIG_HOME/git/ignore, git's default
+      # core.excludesFile). Measured 2026-10-30: 21 of 22 checkouts under
+      # ~/Developer read as dirty ONLY because of an untracked .DS_Store, so every
+      # clean-tree guard (`git-tidy`) refused them. The settings.local.json line was
+      # the file's whole content before this took it over (unmanaged, most likely
+      # written by Claude Code) and is kept so nothing needs to re-append it.
+      ignores = [
+        ".DS_Store"
+        ".claude/worktrees/"
+        "**/.claude/settings.local.json"
+      ];
+
       # SSH commit/tag signing (GitHub/GitLab Verified). The forge still needs
       # the pubkey as a *Signing* key (docs/new-mac-runbook.md).
       # upstream option home-manager.programs.git.signing exists → using it
