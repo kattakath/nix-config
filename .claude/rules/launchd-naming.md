@@ -125,7 +125,8 @@ a nix-darwin `launchd.user.agents` entry must spell out by hand.
 
 **Why the cost is acceptable here:** this rule's load-bearing half is TCC — an
 adhoc-signed `/nix/store` `arg0` keeps read access to `~/Desktop`, `~/Documents`
-and `~/Downloads`. The runner daemons run as `_github-runner` and touch only
+and `~/Downloads`. The runner daemons (root, dropping to `_github-runner` —
+`github-runner.nix` § PRIVILEGE SPLIT) touch only
 `/var/lib`; they read none of those. Only BTM legibility is lost, and the process
 after `exec` is still `nix-github-runner-<instance>`.
 
