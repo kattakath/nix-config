@@ -1,5 +1,11 @@
 # Deterministic ADB wired/wireless operator + scrcpy mirroring.
 #
+# Plus ONE per-app fix that also lives on ADB: `kdeconnect-grants`. Android 10+
+# blocks background clipboard reads, so KDE Connect can push Mac -> phone but never
+# phone -> Mac. Its documented workaround is two ADB grants (READ_LOGS, so it sees
+# the clipboard-changed log line; the overlay app-op, so it can read the clipboard
+# then). A reinstall drops both. The Mac side is modules/home/kdeconnect.nix.
+#
 # adb/scrcpy already do the real work (mDNS discovery, TLS pairing, TCP/IP
 # bootstrap) — this wrapper just gives their scattered primitives one
 # consistent CLI surface instead of remembering which of six adb subcommands
@@ -144,6 +150,11 @@ writeShellApplication {
       doctor                  tool paths, which mDNS backend is live, adb's view
                               vs the SYSTEM's view (they disagree when adb goes
                               blind), and connected devices
+      kdeconnect-grants [serial]
+                              let KDE Connect sync the clipboard phone -> Mac:
+                              grant READ_LOGS + the overlay app-op for Android
+                              user 0, restart the app, then verify both (exit 1
+                              if either is missing). Re-run after a reinstall
 
     Examples:
       android-phone list
@@ -452,6 +463,34 @@ writeShellApplication {
       "$SCRCPY" "$@"
     }
 
+    # User 0 only, on purpose: a work profile or Samsung Secure Folder is a separate
+    # Android user with its own copy of the app, and a grant does not cross users.
+    cmd_kdeconnect_grants() {
+      require_adb
+      local serial="''${1:-}" pkg=org.kde.kdeconnect_tp authorized n
+      if [ -z "$serial" ]; then
+        authorized=$(dedup_authorized_devices)
+        n=$(echo "$authorized" | grep -c . || true)
+        [ "''${n:-0}" -eq 1 ] || die "need exactly one authorized device (found ''${n:-0}) — pass a serial: android-phone kdeconnect-grants <serial>"
+        serial=$(echo "$authorized" | awk 'NF {print $1; exit}')
+      fi
+      local a=("$ADB" -s "$serial")
+      "''${a[@]}" shell pm path --user 0 "$pkg" >/dev/null 2>&1 || die "$pkg is not installed for Android user 0 on $serial"
+      "''${a[@]}" shell pm grant --user 0 "$pkg" android.permission.READ_LOGS
+      "''${a[@]}" shell appops set --user 0 "$pkg" SYSTEM_ALERT_WINDOW allow
+      # Grants only reach a fresh process: stop it, then start it again.
+      "''${a[@]}" shell am force-stop --user 0 "$pkg"
+      "''${a[@]}" shell monkey -p "$pkg" -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1 || true
+      # Verify against the device, not the commands' exit codes. dumpsys lists one
+      # READ_LOGS line per Android user; user 0's line carries no `userId=` suffix.
+      local logs overlay
+      logs=$("''${a[@]}" shell dumpsys package "$pkg" | grep -E 'android.permission.READ_LOGS: granted=true$' || true)
+      overlay=$("''${a[@]}" shell appops get --user 0 "$pkg" SYSTEM_ALERT_WINDOW | grep -E '^SYSTEM_ALERT_WINDOW: allow' || true)
+      [ -n "$logs" ] || die "READ_LOGS is NOT granted for user 0 — check: adb -s $serial shell dumpsys package $pkg | grep READ_LOGS"
+      [ -n "$overlay" ] || die "SYSTEM_ALERT_WINDOW is NOT allowed for user 0"
+      ok "KDE Connect on $serial: READ_LOGS granted, overlay allowed, app restarted — phone -> Mac clipboard sync is on"
+    }
+
     cmd_doctor() {
       echo "adb:            ''${ADB:-MISSING}"
       echo "scrcpy:         ''${SCRCPY:-MISSING}"
@@ -494,6 +533,7 @@ writeShellApplication {
       wireless) cmd_wireless "$@" ;;
       mirror) cmd_mirror "$@" ;;
       doctor) cmd_doctor ;;
+      kdeconnect-grants) cmd_kdeconnect_grants "$@" ;;
       *) die "unknown command: $cmd (try: android-phone --help)" ;;
     esac
   '';
