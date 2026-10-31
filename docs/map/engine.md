@@ -48,7 +48,8 @@ files left Nix again for hand-placed local files (`~/.aws/config`, `~/.config/gi
 `allowed_signers`), and on 2026-10-20 every client identifier left the repo for a PRIVATE overlay
 marketplace plus two hand-placed settings overlays
 ([`agent-resource-externalization.md`](../agent-resource-externalization.md)). The rule is the
-same each time: the repo ships shape, the operator's content stays on the Mac.
+same each time: the repo ships shape, the operator's content stays out of the repo. Where each
+file lives now (Google Drive, or the overlay repo's clone): [`new-mac-runbook.md`](../new-mac-runbook.md) § Hand-placed files.
 
 ## `modules/features/` — the seven capsules
 
