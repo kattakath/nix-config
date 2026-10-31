@@ -211,6 +211,32 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     "Bash(claude mcp add-from-claude-desktop *)"
     "Edit(~/.claude.json)"
 
+    # ── Login persistence and credential config (Edit covers Write too) ──
+    # Each of these runs code or grants access at the NEXT login, shell or git
+    # call — the persistence shape an injected instruction reaches for. And every
+    # one is declared: Home Manager owns ~/.zshrc, ~/.zshenv, ~/.ssh/config and
+    # ~/.config/git/config as store symlinks, and launchd agents come from
+    # `launchd.agents`. An agent write would swap a declared file for a mutable
+    # copy that the next `activate` refuses to clobber. The operator-hand-placed
+    # files beside them (`~/.config/git/local.inc`, `~/.ssh/allowed_signers`) are
+    # his by CLAUDE.md § Configuration. A change to any of them goes through Nix,
+    # or through the operator's own terminal.
+    #
+    # Added 2026-10-31 after the project Write|Edit validator (.claude/settings.json)
+    # was found approving "any file under HOME": that prompt is project-scoped
+    # and judged by a model, so it was never the floor for these paths.
+    "Edit(~/Library/LaunchAgents/**)"
+    "Edit(~/.ssh/**)"
+    "Edit(~/.zshrc)"
+    "Edit(~/.zshenv)"
+    "Edit(~/.zprofile)"
+    "Edit(~/.zlogin)"
+    "Edit(~/.bashrc)"
+    "Edit(~/.bash_profile)"
+    "Edit(~/.profile)"
+    "Edit(~/.gitconfig)"
+    "Edit(~/.config/git/**)"
+
     # ── Secret VALUES reaching the transcript (claude/CLAUDE.md § Redact) ──
     # Mirrors Rule 1c of the project guard at floor strength. Using a secret is
     # still fine: `secret exec`, passwordCommand wrappers, launchd.
