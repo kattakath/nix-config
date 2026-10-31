@@ -603,8 +603,9 @@ in
       # NB: no `wireguard-tools` here — macos manages WireGuard through the GUI
       # (masApps.WireGuard) ONLY. Deliberately no `wg`/`wg-quick` CLI and no `vpn`
       # operator on this host, so nothing can bring a tunnel up from a shell (a
-      # botched tunnel = no-internet on the sole client Mac). Confs are synced for
-      # IMPORT into the app, never run (local.wireguardConfigs, modules/home/default.nix).
+      # botched tunnel = no-internet on the sole client Mac). The confs live in ONE
+      # place, the operator's Google Drive, and are imported into the app from there
+      # (docs/new-mac-runbook.md § Hand-placed files).
 
       "xcodes"
       "yq"
