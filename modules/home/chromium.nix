@@ -441,8 +441,16 @@ in
     # tick wins for good. Its sibling *Always Show Toolbar in Full Screen* is
     # `browser.show_fullscreen_toolbar`, a profile pref with NO policy behind it (this
     # build's policy table has none touching it), so that one stays a manual click.
+    #
+    # `PromptForDownloadLocation = false` undoes ungoogled's
+    # `prefs-always-prompt-for-download-directory-by-defaul.patch`, which flips
+    # "Ask where to save each file" ON (upstream ships it off). Unlike the search set,
+    # this one IS honoured at the recommended level: chrome://policy read
+    # `Platform | Recommended | OK` on 2026-10-31. Files land in the profile's
+    # `savefile.default_directory` (~/Downloads); the settings toggle still wins.
     targets.darwin.defaults."org.chromium.Chromium" = {
       BookmarkBarEnabled = false;
+      PromptForDownloadLocation = false;
     };
   };
 }
