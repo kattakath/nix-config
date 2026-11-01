@@ -332,9 +332,9 @@ Four files, and the layer exists for their shape rather than their count:
   `packages/devcontainer-image.nix` (`NIX_LD_LIBRARY_PATH`/`LD_LIBRARY_PATH` baked into the
   distroless image). Widen HERE and both follow.
 - **`modules/_lib/secret-read-paths.nix`** — the secret paths no agent may read, as DATA: one
-  copy, two renderers that need incompatible spellings — Claude's `permissions.deny` globs
-  (`modules/home/claude-guardrails.nix`, `modules/home/default.nix`) and desktop-commander's
-  Seatbelt `subpath`s (`modules/home/plugin-mcp.nix`). The root-owned managed copy in
+  copy, rendered as Claude's `permissions.deny` globs (`modules/home/claude-guardrails.nix`) and
+  grok's sandbox deny list (`modules/home/default.nix`); desktop-commander's Seatbelt renderer
+  retired with its fenced launcher on 2026-11-01. The root-owned managed copy in
   `modules/darwin/claude-managed-settings.nix` stays hand-written on purpose (its comment says why).
 - **`modules/_lib/tor-browser-alpha.nix`** — an overlay pointing `tor-browser` at the aarch64
   ALPHA build, because the pinned nixpkgs' stable one THROWS at eval on aarch64-linux. Imported
