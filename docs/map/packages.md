@@ -186,6 +186,8 @@ Smaller, single-purpose CLIs:
   which deletes branches whose GitHub PR MERGED — squash merges included — plus their clean,
   inactive worktrees. The wrapper exists because a hand-typed `&&`/`;` one-liner let its
   branch sweep run past a failed clean-tree guard (2026-10-30).
+- **`smart-importer.nix`** — smart_importer 1.2 (MIT) from its PyPI wheel, sha256 checked against PyPI; nixpkgs has none. Consumed only by `local.beancount.smartImporter` (off everywhere: on the entries that need review it mostly guesses the largest class).
+
 - **`metube.nix`** — MeTube from source; nixpkgs has no package for it. The Angular UI must
   land at `ui/dist/metube/browser`, the path `app/main.py` actually serves. Python deps come
   from nixpkgs rather than `uv sync`: the app is a handful of imports and the lockfile would
