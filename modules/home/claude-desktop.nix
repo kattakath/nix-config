@@ -237,8 +237,8 @@ in
       defaultText = lib.literalExpression ''"''${config.xdg.configHome}/nix-config/claude-desktop.overlay.json"'';
       description = ''
         Optional, hand-placed `{ "mcpServers": { … } }` merged at activation (and on
-        every Desktop rewrite) for servers this PUBLIC repo must not name — typically a
-        symlink into the operator's private marketplace clone. Same hub shape as
+        every Desktop rewrite) for servers this PUBLIC repo must not name (none placed on
+        `macos` since 2026-11-01). Same hub shape as
         `extraServers`; a `url` entry gets the same mcp-remote shim. Never read at eval,
         so it reaches neither the store nor `renderedServers` (and so not the
         config-shape check either). A Nix-declared name wins over an overlay one.

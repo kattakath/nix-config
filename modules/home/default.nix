@@ -433,7 +433,7 @@ in
     # home.packages below). The gateway (modules/shared/mcp.nix) was deleted in #734;
     # these launchers are how the servers that had no plugin owner survived it. Each
     # puts a binary on PATH that a plugin's `.mcp.json` names as its `command` (in
-    # github:kattakath/skills, or the operator's private overlay), because that file can
+    # github:kattakath/skills), because that file can
     # set `env` only to literals or passthroughs and cannot run a Keychain read or a
     # `sandbox-exec` fence (desktop-commander's, until 2026-11-01). See each module's header.
     ./plugin-mcp.nix # wordpress, postgres (+ desktop-commander's planted config)
@@ -443,7 +443,7 @@ in
     # Client side D: the writer for Claude Desktop's stateful
     # claude_desktop_config.json — it merges ONE key, `mcpServers`, and what it
     # renders there is `local.claudeDesktop.extraServers` (set below) plus the
-    # operator's private overlay. Desktop CHAT runs no plugin stdio server, so the plugin lane above cannot reach it; the
+    # an optional hand-placed overlay (none placed on `macos`). Desktop CHAT runs no plugin stdio server, so the plugin lane above cannot reach it; the
     # module stays enabled because Desktop's server set is a state something must WRITE. NOT gated on any gateway option —
     # that gating was the 2026-10-01 regression `checks.*.claude-desktop-config-shape`
     # now has a leg for.
@@ -498,7 +498,7 @@ in
     # `aws` CLI — so a Mac carrying the flag without a usable identity degrades
     # Claude Code to its default provider instead of leaving it unable to reach
     # any model at all. Must live in this public repo: a gate shipped from a
-    # private overlay would be dropped by the activation it defends against.
+    # hand-placed overlay would be dropped by the activation it defends against.
     ./claude-bedrock-gate.nix
     # "Brain Signals" — the answer-shape kit for Claude Code (output style +
     # calibration rule + /explain-family skills + cartographer + /task). Public
@@ -719,9 +719,8 @@ in
         #   aws-core          17 AWS skills + a secret-safety PreToolUse hook + `aws-mcp`,
         #                     the AWS MCP Server proxy pinned at ==1.7.0 but run with
         #                     --skip-auth: docs/skill tools work, AWS API calls are
-        #                     UNSIGNED. A signed twin, and the folder routing that keeps
-        #                     the model off this one where the twin applies, belong in
-        #                     the operator's private overlay marketplace.
+        #                     UNSIGNED, so its server is denied below; the signed path
+        #                     is the official claude.ai AWS connector.
         #   aws-serverless    7 Lambda/SAM/Step Functions skills + a SAM-validate
         #                     PostToolUse hook + `awslabs.aws-serverless-mcp-server@latest
         #                     --allow-write`. UNPINNED (PyPI @latest at every spawn) and
@@ -979,6 +978,9 @@ in
         # GTD on eight Google Workspace apps — Tasks + Calendar, daily shutdown, drafted
         # Friday review, employer as a free/busy adapter, no alarms (kattakath/skills#102).
         "workspace-gtd"
+        # Its dependency: the Google Workspace MCP server (Tasks + Chat here), auto-installed
+        # with workspace-gtd and declared below so its settings have a home.
+        "google-workspace-mcp"
         "jsonresume-tailor"
         "github-release-gate"
         "skill-curator"
@@ -1207,6 +1209,7 @@ in
     # is life-wide: every session in every repo must load it, and a fresh Mac must too.
     # It moved here from agentic-nomad, whose rules only load inside that repo.
     "workspace-gtd@kattakath" = true;
+    "google-workspace-mcp@kattakath" = true;
 
     # desktop-commander: the OFFICIAL plugin since 2026-11-01 (operator: official only, risk
     # accepted — upstream runs it unpinned `@latest`, with no Seatbelt fence and no guard hook,
@@ -1231,8 +1234,8 @@ in
 
     # AWS: the official plugins bring the skills (catalogue entries above say what each
     # one really ships). Declared, not clicked, for the reason the block above records:
-    # a clicked toggle does not survive a fresh machine. Client-account servers come
-    # from the operator's private overlay marketplace, never from this file.
+    # a clicked toggle does not survive a fresh machine. Client-account sign-ins are the
+    # official claude.ai connectors (account-level), never named in this file.
     # GitLab over MCP, gitlab.com's hosted server with its own OAuth (operator request
     # 2026-10-21). No glab token is reused — the first `/mcp` connect asks for approval.
     "gitlab@claude-plugins-official" = true;
@@ -1623,8 +1626,8 @@ in
 
       # An EXPLICIT empty array (the reason is in the note below): the Slack draft-redirect
       # hook that lived here was RETIRED 2026-11-01 by the operator, who chose direct posts
-      # with the hosted server's footer. Client folder ROUTING hooks are not here: they ride
-      # in the operator's private overlay plugins, which fire only while enabled.
+      # with the hosted server's footer. There are no client folder ROUTING hooks any more
+      # (the private plugins that carried them were deleted 2026-11-01).
       # ./claude-code-settings.nix merges arrays WHOLESALE (jq `*`): a PreToolUse hook
       # added by hand to ~/.claude/settings.json is replaced at the next rebuild —
       # declare it here, or in a plugin's hooks.json, instead.
@@ -1632,8 +1635,8 @@ in
 
       # An EXPLICIT empty array, not an absent key: the wholesale merge keeps whatever
       # the live file holds for a key Nix does not name, so dropping the key would leave
-      # a retired hook pointing at a stale store path. Session-start hooks for client
-      # folders come from the private overlay plugins.
+      # a retired hook pointing at a stale store path. A client folder's context is a
+      # hand-placed `CLAUDE.md` at its root, which Claude Code loads natively.
       settings.hooks.SessionStart = lib.mkIf isMacosHost [ ];
 
       # Marketplaces and `settings.enabledPlugins` are NOT declared here — the
@@ -1666,6 +1669,16 @@ in
         #   aws-serverless  `@latest --allow-write` from PyPI at every spawn, no AWS identity,
         #                   0 calls ever. Its 7 skills + SAM-validate hook stay.
         # The guard against a silent upstream server rename is fleet-doctor's MCP-owner step.
+        # google-workspace-mcp's settings, declared (they lived in the operator's private overlay
+        # repo until it was deleted 2026-11-01: the fleet keeps only public repos). Nothing here
+        # is a secret: `credential_command` reads the OAuth client from the login Keychain at
+        # launch, and the account is the fleet's own Workspace identity.
+        pluginConfigs."google-workspace-mcp@kattakath".options = lib.mkIf isMacosHost {
+          tools = "tasks,chat";
+          email = "${config.home.username}@${domainName}";
+          credential_command = "secret exec GOOGLE_OAUTH_CLIENT_ID=GMAIL_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET=GMAIL_OAUTH_CLIENT_SECRET --";
+        };
+
         deniedMcpServers = [
           { serverName = "plugin:aws-core:aws-mcp"; }
           { serverName = "plugin:aws-serverless:aws-serverless-mcp"; }
@@ -1775,7 +1788,7 @@ in
           # Declared user-level rather than per-repo so there is ONE copy — a
           # second project-local copy would drift from this one.
           CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
-          # A PRIVATE marketplace (the operator overlay) refreshes over git with the
+          # A PRIVATE marketplace (none on `macos` since 2026-11-01) refreshes over git with the
           # Mac's own credentials. If a background check cannot reach or authenticate to
           # the remote, keep the last checkout instead of attempting a re-clone, so
           # plugins keep working from the last synced state. Documented behaviour:

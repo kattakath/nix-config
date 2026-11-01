@@ -25,8 +25,8 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
   takes plugins from the claude.ai account (claude.com/docs/plugins/platform-support), so **no plugin server reaches Desktop chat**
   or Cowork. Desktop chat's only lane is `local.claudeDesktop.extraServers`
   (empty in public) plus the operator's hand-placed Desktop overlay; see `claude-desktop.nix`.
-- **Client plugins live in a PRIVATE overlay marketplace** (`<your-handle>/skills`), never in
-  `kattakath/skills` or this repo — see `docs/agent-resource-externalization.md`.
+- **No client plugins anywhere** since 2026-11-01: client sign-ins are the official
+  connectors/plugins — see `docs/agent-resource-externalization.md`.
 - **A launcher that needs a Keychain read is a PATH package in this repo.** A plugin's
   `.mcp.json` can set `env` to literals and passthroughs but cannot run
   `security find-generic-password`, so the credential work stays in a Nix-installed wrapper the
@@ -461,9 +461,8 @@ already-enabled plugin ships from a merge there. Validate with `claude plugin va
 **A SECOND source costs one input and its own entries — no new mechanism.**
 `local.claudePlugins.marketplaces` is `attrsOf` and `programs.claude-code.skills` is a
 plain attrset, so both already take N. The operator's `ismailkattakath/ai` is
-deliberately NOT pinned here. Add it as one more entry, or scope it to a project instead. (The operator's PRIVATE client overlay,
-`<handle>/skills`, is not one of these: it is enabled by a hand-placed settings overlay, never
-named here — [`agent-resource-externalization.md`](../agent-resource-externalization.md).)
+deliberately NOT pinned here. Add it as one more entry, or scope it to a project instead. (The operator's private client overlay was deleted 2026-11-01 —
+[`agent-resource-externalization.md`](../agent-resource-externalization.md).)
 
 Everything in [`kattakath/skills`](https://github.com/kattakath/skills) is a plugin under
 `plugins/` (no bare `skills/` tree) — a lone skill ships as a one-skill
