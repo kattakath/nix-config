@@ -328,21 +328,13 @@ in
     home = "/Users/${loginName}";
   };
 
-  # ---- Per-session MCP launchers (modules/home/{gmail-mcp,plugin-mcp}.nix,
+  # ---- Per-session MCP launchers (modules/home/plugin-mcp.nix,
   # home-manager options — set via home-manager.users)
-  # NO mailbox roster here any more (2026-10-20): the generic `nix-mcp-gmail <address>`
-  # takes the account from the naming plugin's `.mcp.json` args — the operator's own
-  # public address in github:kattakath/skills, every other one in the private overlay
-  # marketplace. The address list is identity, and identity that is not already
-  # public does not belong in this public tree.
+  # No Gmail launcher (retired 2026-11-01): email is the claude.ai Gmail connector.
   #
   # A FUNCTION, not a bare attrset, matching modules/home/default.nix's own
   # signature: home-manager passes module args here (none read today).
   home-manager.users.${loginName} = _: {
-    # The generic Gmail launcher; Claude Code spawns one stdio server per account per
-    # session — nothing shared, nothing listening.
-    local.gmailMcp.enable = true;
-
     # The CREDENTIALED servers the gateway owned that no EXISTING plugin could
     # carry — the "wordpress, … local postgres" part of the cost the purge
     # accepted. Launchers land on PATH as `nix-mcp-<name>`; in

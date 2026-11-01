@@ -15,8 +15,8 @@
 # THAT COUNTER-EXAMPLE IS GONE; THE REASON TO BE GLOBAL IS NOT. The gateway was
 # purged 2026-10-01 — modules/shared/mcp.nix deleted, the Cloudflare portal destroyed, the
 # terranix stack removed in #737 — so nothing global ships an MCP server any
-# more: servers arrive ONLY as Claude Code plugins (./plugin-mcp.nix,
-# ./gmail-mcp.nix), which are per-session and carry no fleet-wide write tool.
+# more: servers arrive ONLY as Claude Code plugins (./plugin-mcp.nix),
+# which are per-session and carry no fleet-wide write tool.
 # The project-scope gap in the paragraph above is untouched by that, and it was
 # always the load-bearing half: a session in a work repo still gets no hook.
 #
@@ -138,8 +138,8 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
 
   programs.claude-code.settings.permissions.deny = [
     # ── Imperative MCP adoption (mcp-scout: "installation IS declaration") ──
-    # Servers arrive ONLY as Claude Code plugins now (./plugin-mcp.nix,
-    # ./gmail-mcp.nix) — the gateway that used to be the single source is gone.
+    # Servers arrive ONLY as Claude Code plugins now (./plugin-mcp.nix) —
+    # the gateway that used to be the single source is gone.
     # The rule is unchanged by that: a runtime add lands in ~/.claude.json,
     # outside flake.lock, Cachix and every check that can see a declared server.
     # THE PREFIX IS THE WHOLE RULE. A deny naming a tool that does not exist is

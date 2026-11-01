@@ -2880,7 +2880,7 @@ in
           #
           # MCP servers in this fleet are declared in TWO repos BY DESIGN, and the
           # split is right: Nix builds the launcher BINARIES (`local.pluginMcp`,
-          # `local.gmailMcp`, packages/mcpfinder-mcp.nix -> `nix-mcp-*` on PATH)
+          # packages/mcpfinder-mcp.nix -> `nix-mcp-*` on PATH)
           # because they read the login Keychain, and `github:kattakath/skills`'
           # plugin `.mcp.json` files NAME those binaries because only a plugin can
           # declare a server to Claude Code. Different artifacts, different repos.
@@ -2938,12 +2938,11 @@ in
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
 
               # BUILT, read off the COMPOSED package list rather than re-deriving the
-              # naming rule — especially gmail's address sanitisation, which lives in
-              # packages/gmail-mcp.nix. A check that re-derived it would agree with a
-              # broken rule by sharing it. Derivation name == binary name for all
-              # four builders, each `writeShellApplication` (packages/keychain-mcp.nix,
-              # packages/gmail-mcp.nix, packages/mcpfinder-mcp.nix,
-              # packages/slack-post-mcp.nix) emitting exactly one `$out/bin/<name>`.
+              # naming rule — a check that re-derived it would agree with a broken
+              # rule by sharing it. Derivation name == binary name for all three
+              # builders, each `writeShellApplication` (packages/keychain-mcp.nix,
+              # packages/mcpfinder-mcp.nix, packages/slack-post-mcp.nix) emitting
+              # exactly one `$out/bin/<name>`.
               built = lib.naturalSort (
                 lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") (map (p: p.name or "") hm.home.packages))
               );
@@ -2953,13 +2952,23 @@ in
               # network. A plugin without an `.mcp.json` declares no server and is
               # skipped rather than being an error: most plugins have none.
               pluginsDir = "${inputs.kattakath-skills}/plugins";
+              # A portable plugin names its launcher as `''${VAR:-nix-mcp-x}` so another
+              # machine can swap it (skills #150); Claude Code expands that at spawn, so
+              # the binary THIS fleet must build is the fallback. Read literally, the
+              # `nix-mcp-` filter drops it and the launcher reads as an orphan.
+              resolveDefault =
+                c:
+                let
+                  m = builtins.match "[$][{][A-Za-z_][A-Za-z0-9_]*:-(.*)[}]" c;
+                in
+                if m == null then c else builtins.head m;
               commandsIn =
                 plugin:
                 let
                   f = "${pluginsDir}/${plugin}/.mcp.json";
                 in
                 lib.optionals (builtins.pathExists f) (
-                  map (s: s.command or "") (
+                  map (s: resolveDefault (s.command or "")) (
                     lib.attrValues ((builtins.fromJSON (builtins.readFile f)).mcpServers or { })
                   )
                 );
@@ -2974,7 +2983,6 @@ in
               # only) — so "no public plugin names it" is expected, not an orphan.
               # Exempted BY GENERIC NAME, so no private plugin or workspace is named
               # here; the `missing` leg and both non-empty legs still run over everything.
-              # `nix-mcp-gmail` is NOT exempt: the public gmail plugin names it.
               namedOutsidePublicTree = [ "nix-mcp-slack" ];
 
               missing = lib.subtractLists built declared;
@@ -3005,7 +3013,7 @@ in
               advice = [
                 "A MISSING launcher means a plugin in github:kattakath/skills names a binary"
                 "this fleet does not build: that server cannot start. Add the name to"
-                "local.pluginMcp.servers / local.gmailMcp.enable in hosts/macos.nix, or"
+                "local.pluginMcp.servers in hosts/macos.nix, or"
                 "build it as a package the way packages/mcpfinder-mcp.nix does."
                 "An ORPHAN launcher means the reverse — a binary on PATH that no plugin"
                 "declares, so the capability does not exist in any session. Either declare"

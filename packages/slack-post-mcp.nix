@@ -13,8 +13,7 @@
 # UPSTREAM FIRST, both checked:
 #   * packages/keychain-mcp.nix (this repo's factory) bakes each Keychain service name
 #     in at BUILD time and execs a fixed argv — there is no runtime-selected service, so
-#     it cannot serve a host chosen in argv. Own file, on the same precedent as
-#     ./gmail-mcp.nix, whose key is likewise chosen per account.
+#     it cannot serve a host chosen in argv. So it gets its own file.
 #   * `envchain` already does "Keychain -> env, then exec", but stores items under its
 #     own `envchain-<namespace>` service names, which the `secret` index and the GCP
 #     backend (local.keychainSecrets) cannot see. Not used; revisit if keychain-secrets

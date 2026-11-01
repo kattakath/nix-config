@@ -475,18 +475,17 @@ in
     # exists on no Linux host. PRE-EMPTIVE: there is no TM destination configured today;
     # see the file's header for what it does and does NOT cover.
     ./tor-browser-backup-exclusion.nix
-    # THESE TWO MODULES BUILD MCP LAUNCHERS (other plugin-named MCP binaries sit in
+    # THIS MODULE BUILDS MCP LAUNCHERS (other plugin-named MCP binaries sit in
     # home.packages below). The gateway (modules/shared/mcp.nix) was deleted in #734;
     # these launchers are how the servers that had no plugin owner survived it. Each
     # puts a binary on PATH that a plugin's `.mcp.json` names as its `command` (in
     # github:kattakath/skills, or the operator's private overlay), because that file can
     # set `env` only to literals or passthroughs and cannot run a Keychain read or a
     # `sandbox-exec` fence. See each module's header.
-    ./gmail-mcp.nix # the generic nix-mcp-gmail <address> launcher
     ./plugin-mcp.nix # wordpress, postgres, desktop-commander, github, slack
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
-    # silently inert — `local.gmailMcp` was, until it was added.
+    # silently inert.
     # Client side D: the writer for Claude Desktop's stateful
     # claude_desktop_config.json — it merges ONE key, `mcpServers`, and what it
     # renders there is `local.claudeDesktop.extraServers` (set below) plus the

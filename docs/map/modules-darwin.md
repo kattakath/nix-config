@@ -346,7 +346,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     the user. Anthropic's own channel is an MDM configuration profile; this fleet has no MDM.
   - **No `managed-mcp.json` here, deliberately** — deploying that file suppresses the
     claude.ai connectors Claude Code fetches for itself unless `allowAllClaudeAiMcps` is set
-    alongside, and this fleet runs four Gmail connectors plus Drive, Calendar and Slack. **That
+    alongside, and this fleet runs the claude.ai Gmail connector plus Drive, Calendar and Slack. **That
     reason survived the gateway's death and the other one did not.** This bullet used to add that
     "for every server with no plugin owner, MCP's source of truth stays `modules/shared/mcp.nix`";
     since 2026-10-02 there is no such file and no such server — **every** MCP server lives in a

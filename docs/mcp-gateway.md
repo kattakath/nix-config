@@ -26,6 +26,7 @@
 > read is a PATH package in nix-config — `local.gmailMcp` + `packages/gmail-mcp.nix` is the live
 > pattern, paired with the `gmail` plugin in `github:kattakath/skills`. See
 > [`map/claude-code.md`](map/claude-code.md) § MCP after the gateway.
+> (Gmail lane: Retired 2026-11-01 — the claude.ai Gmail connector replaced it. The live example is now `local.pluginMcp`.)
 >
 > **Why this file still exists rather than being deleted:** it is the only record of several
 > measurements that outlived the gateway and still bind the plugin lane. Those are hoisted into
@@ -40,11 +41,11 @@ history.
 | Still-true finding | Where it is written up below | Why it still binds |
 |---|---|---|
 | **Spawn-test the exact spec against the PATH runtime BEFORE declaring.** The plugin lane gets whatever `npx` resolves to — measured fnm's **Node 20.20.2**, which lacks `node:sqlite` (arrived 22.5). `mcpfinder` was declared, died with `CONNECTION_CLOSED`, and had to be reverted across two PRs. | § Spawn-test against the PATH runtime | The plugin lane is now the ONLY lane, so this trap is no longer one lane's weakness — it is the whole surface's |
-| **A server whose runtime arrives via a nix-config package is not spawn-testable until ACTIVATED.** Merged is not enough. | same § | Unchanged, and it is exactly how `local.gmailMcp`'s launchers now reach PATH |
+| **A server whose runtime arrives via a nix-config package is not spawn-testable until ACTIVATED.** Merged is not enough. | same § | Unchanged, and it is exactly how `local.gmailMcp`'s launchers reached PATH (Retired 2026-11-01 — the claude.ai Gmail connector replaced it.) |
 | **To add a marketplace under an allowed owner, use `owner/repo`, NOT the https URL.** The shorthand creates a `github:` source that the managed `strictKnownMarketplaces` wildcard matches; the full URL creates a `git:` source and is refused as *"blocked by enterprise policy"* — an error that blames policy for a syntax problem. | § Adding a marketplace under an allowed owner | The managed allowlist is untouched by the purge |
 | **The recipe for proving a plugin-owned server actually answers** — confirm the plugin SHA refreshed, `claude mcp list` in a **fresh** process, then invoke a tool with the **plugin-lane** `--allowedTools` spelling. Judge against a criterion written *before* the test; an empty result is often the pass. | § How to verify a plugin-owned server actually answers | **This is now the ONLY proof a server ANSWERS.** The one check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) is a name join over the pinned public tree, so this runtime procedure replaces the parity check outright |
-| **A plugin `.mcp.json` cannot run a Keychain read** — it interpolates `${VAR}`/`${VAR:-default}`, `${user_config.KEY}` with `sensitive: true`, and `headersHelper` for remote servers, and that is all. | § Counting convention, § Which lane | It is the whole reason `packages/gmail-mcp.nix` exists |
-| **Identity-bearing rosters are not a plugin's business.** Four real Google/Workspace addresses, one process and one OAuth session each, tokens from the login Keychain. | § Which lane → the three stuck groups | Resolved by splitting it: the ADDRESSES stay in `hosts/macos.nix` (`local.gmailMcp.accounts`), the DECLARATION moved to the plugin |
+| **A plugin `.mcp.json` cannot run a Keychain read** — it interpolates `${VAR}`/`${VAR:-default}`, `${user_config.KEY}` with `sensitive: true`, and `headersHelper` for remote servers, and that is all. | § Counting convention, § Which lane | It is the whole reason `packages/gmail-mcp.nix` existed, and `packages/keychain-mcp.nix` still does (Retired 2026-11-01 — the claude.ai Gmail connector replaced it.) |
+| **Identity-bearing rosters are not a plugin's business.** Four real Google/Workspace addresses, one process and one OAuth session each, tokens from the login Keychain. | § Which lane → the three stuck groups | Resolved by splitting it: the ADDRESSES stay in `hosts/macos.nix` (`local.gmailMcp.accounts`), the DECLARATION moved to the plugin. Retired 2026-11-01 — the claude.ai Gmail connector replaced it. |
 | **Call-volume measurement, 2026-09-23** (every MCP tool call across 21 days of transcripts): gateway **~3,200 / 94%**, nine claude.ai connectors **218 / 6%**, marketplace plugins **76** (Neon alone 70). | § Which lane | The baseline against which the purge's cost gets judged. It says plainly that the **94% lane is the one that was removed** — so if the plugin lane proves worse, this is the number that proves it, and nothing else measures it |
 | **Verify at the surface clients use, not the one easiest to curl.** Three Cloudflare objects were needed per published server and a missing one failed SILENTLY — the origin answered `200` throughout while the server was invisible to every client. | [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) | Generalises to any proxied/gated surface this fleet builds next |
 
@@ -77,7 +78,7 @@ The detail behind what `CLAUDE.md` § Navigating the Codebase used to point at a
 `config.fleet.publicMcpServers`) were deleted 2026-10-02, so **every number in this section is
 now zero**. The convention is kept because the distinction itself recurs: `gmail` is still **one
 capability and four entries** under `local.gmailMcp.accounts`, and conflating the two is still
-how count drift starts.
+how count drift starts. (`local.gmailMcp`: Retired 2026-11-01 — the claude.ai Gmail connector replaced it.)
 
 Settle this before reading any number in this repo; three docs disagreed because they mixed the
 two.
@@ -396,6 +397,7 @@ model and the three-objects-per-publish trap are in
 > one-process-per-account design and the same shared-OAuth-client + per-account-browser-auth
 > pattern, moved to `local.gmailMcp` + the `gmail` plugin on 2026-10-01. Read it as the spec that
 > `packages/gmail-mcp.nix` now implements.
+> Retired 2026-11-01 — the claude.ai Gmail connector replaced it.
 
 - **`telegram`** — chaindead/telegram-mcp. Needs a one-time phone auth **before** activating,
   or it darks the gateway. **Enabling it now also fails `nix flake check`**, deliberately: it
@@ -421,8 +423,8 @@ model and the three-objects-per-publish trap are in
   `extraHomeModules` was fully retired 2026-09-15, and **two** of the four above are what
   survived its list of seven — so those four are the WHOLE roster now, not a public subset of
   a longer private one (the per-address reasoning lives in `hosts/macos.nix`'s own comment on
-  the option, #524). Runbook:
-  [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md).
+  the option, #524). Runbook: `gmail-mcp-multi-account-runbook.md` (deleted 2026-11-01 with the
+  Gmail MCP).
 
 ## Auth caches
 
@@ -501,8 +503,8 @@ answers** (§ How to verify …). There is only one declaration target now:
   the plugin. It names a **bare command on PATH** — never a store path, which rotates every
   rebuild and would be meaningless in another repo.
 - **Plus a nix-config PATH package, if and only if the server needs something `.mcp.json` cannot
-  express** — in practice a login-Keychain read. `packages/gmail-mcp.nix` + `local.gmailMcp` is
-  the worked example; `page-lab-pick` and `mcp-nixos` are the same shape for other plugins. Keep
+  express** — in practice a login-Keychain read. `local.pluginMcp` + `packages/keychain-mcp.nix` is
+  the worked example (`local.gmailMcp` was until 2026-11-01); `page-lab-pick` and `mcp-nixos` are the same shape for other plugins. Keep
   the credential logic in the Nix wrapper, never duplicated into the plugin repo.
 - **Nothing else in this repo.** No gateway entry (there is no gateway), no
   `fleet.publicMcpServers` (deleted), no Cloudflare registration (destroyed), no
@@ -526,9 +528,8 @@ in a fresh session.
 
 - [`map/claude-code.md`](map/claude-code.md) § **MCP after the gateway** — the LIVE architecture. Start there,
   not here.
-- [`gmail-mcp-multi-account-runbook.md`](gmail-mcp-multi-account-runbook.md) — **LIVE.**
-  Multi-account Gmail setup, auth, and a documented silent-wrong-account failure mode. The one
-  capability that crossed the purge intact.
+- `gmail-mcp-multi-account-runbook.md` (deleted 2026-11-01 with the Gmail MCP) — multi-account
+  Gmail setup and auth. Retired 2026-11-01 — the claude.ai Gmail connector replaced it.
 - [`osascript-accessibility-tcc.md`](osascript-accessibility-tcc.md) — **still accurate.** The
   one-time Accessibility (TCC) grant `macos-automator` needs; TCC scopes it to
   `/usr/bin/osascript`, not to the parent, which is why it carried unchanged when that server
