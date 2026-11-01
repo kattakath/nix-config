@@ -704,7 +704,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
 - **`beancount.nix`** (macos only, since 2026-11-01) — `local.beancount`: ONE
   `python3.withPackages` env (beancount 3.2.3, beangulp 0.2.0, beanquery 0.2.0, fava 1.30.16, fava-dashboards 2.0.2)
   so the plugin's build code and `bean-check`/`fava` share an interpreter. Only the four CLIs
-  reach PATH, plus `beancount-language-server`; the env's `python3` does not, so it shadows
+  reach PATH, plus `beancount-language-server` and `pricehist` 1.4.16 (exchange rates for `build --prices`); the env's `python3` does not, so it shadows
   nothing. Exports `BEANCOUNT_PYTHON`, `BEANCOUNT_JOURNAL` (default: a path under the
   operator-made symlink `~/.local/share/ledger`, so no data path enters this repo) and
   `FAVA_PORT`. **No launchd agent** — Fava runs on demand through the plugin's fava skill.
