@@ -1038,6 +1038,9 @@ in
         "jsonresume-tailor"
         "github-release-gate"
         "skill-curator"
+        # Deterministic, reconcile-gated statement extraction (QFX/OFX, CSV, PDF) to masked,
+        # deduplicated JSONL; stdlib Python + poppler (kattakath/skills#117-#122).
+        "statement-extract"
         # Rebuild a raster/auto-traced logo from measured construction geometry (kattakath/skills#23).
         "logo-construction-geometry"
         # The answer-shape kit: output style, the /explain family, cartographer, /task.
@@ -1296,6 +1299,8 @@ in
     # to-recipient / key-backup flow, harvested 2026-10-17. Declared, not clicked, so a
     # fresh machine has it alongside the brew GnuPG and keychain-secrets lane it names.
     "pgp-ops@kattakath" = true;
+
+    "statement-extract@kattakath" = true;
 
     # AWS: the official plugins bring the skills (catalogue entries above say what each
     # one really ships). Declared, not clicked, for the reason the block above records:
