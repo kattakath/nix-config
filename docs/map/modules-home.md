@@ -513,7 +513,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     replacement: this file is the only tier that reaches the devcontainer and machines this
     Home Manager config never touched. See [`modules-darwin.md`](modules-darwin.md)
     § `modules/darwin/`.
-- **`claude-desktop.nix`** — `local.claudeDesktop`. Desktop loads no plugins, so its ONLY lane is
+- **`claude-desktop.nix`** — `local.claudeDesktop`. Desktop CHAT runs no plugin stdio server (its Code tab does load plugins), so chat's ONLY lane is
   `extraServers` (`github`) plus a hand-placed Desktop overlay for client servers (the gateway portal
   it used to dial was destroyed 2026-10-02). **The module stays ENABLED on purpose** — the set
   Desktop should see is a state something must *write*. Switching the writer off leaves whatever

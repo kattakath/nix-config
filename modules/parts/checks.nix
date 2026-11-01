@@ -324,8 +324,8 @@ in
                 ) "non-stdio or unmarked entries: ${toString (builtins.attrNames badShape)}"
                 ++
                   # DESKTOP RENDERS ONLY THE NAMED SERVERS. The gateway it used to dial is
-                  # gone (purged 2026-10-02, 65 Cloudflare objects), and Desktop loads no
-                  # plugins.
+                  # gone (purged 2026-10-02, 65 Cloudflare objects), and Desktop chat runs no
+                  # plugin stdio server.
                   #
                   # This is the leg that catches the regression worth catching: a portal
                   # entry sneaking back in and quietly reinstating a central shared

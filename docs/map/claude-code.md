@@ -21,8 +21,9 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
         v  reaped when the session ends
 ```
 
-- **Claude Code only.** Claude Desktop loads no plugins, so **no plugin server reaches Desktop**
-  or the Cowork bridge behind it. Desktop's only lane is `local.claudeDesktop.extraServers`
+- **Claude Code only (CLI and Desktop's Code tab).** Desktop CHAT ignores a plugin's local MCP and Cowork
+  takes plugins from the claude.ai account (claude.com/docs/plugins/platform-support), so **no plugin server reaches Desktop chat**
+  or Cowork. Desktop chat's only lane is `local.claudeDesktop.extraServers`
   (`github`) plus the operator's hand-placed Desktop overlay; see `claude-desktop.nix`.
 - **Client plugins live in a PRIVATE overlay marketplace** (`<your-handle>/skills`), never in
   `kattakath/skills` or this repo — see `docs/agent-resource-externalization.md`.
