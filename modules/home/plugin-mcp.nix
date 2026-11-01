@@ -502,6 +502,26 @@ in
           force = true;
         };
 
+    # A plugin that STARTS the launcher its operator names (kattakath/skills `rag` and
+    # `wordpress`, since 2026-11-01: no fleet default in a public `.mcp.json`) gets that
+    # name seeded into its `launcher` setting HERE, next to the binary it names, so the
+    # two cannot drift apart. `pluginConfigs.<id>.options` is the store
+    # `claude plugin configure` writes (measured, CLI 2.1.296), so this is that command,
+    # declared.
+    programs.claude-code.settings.pluginConfigs = lib.mkMerge (
+      lib.mapAttrsToList
+        (
+          name: plugin:
+          lib.mkIf (builtins.elem name cfg.servers) {
+            "${plugin}@kattakath".options.launcher = "nix-mcp-${name}";
+          }
+        )
+        {
+          postgres = "rag";
+          wordpress = "wordpress";
+        }
+    );
+
     # An entry that brings its own `package` is installed as-is; every other entry is
     # built by the keychain-mcp.nix factory.
     home.packages = map (
