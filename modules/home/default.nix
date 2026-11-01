@@ -436,7 +436,7 @@ in
     # github:kattakath/skills), because that file can
     # set `env` only to literals or passthroughs and cannot run a Keychain read or a
     # `sandbox-exec` fence (desktop-commander's, until 2026-11-01). See each module's header.
-    ./plugin-mcp.nix # wordpress, postgres (+ desktop-commander's planted config)
+    ./plugin-mcp.nix # PATH launcher shapes; see its header
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
     # silently inert.

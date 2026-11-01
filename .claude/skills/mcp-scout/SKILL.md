@@ -40,8 +40,7 @@ proof a server works is invoking one of its tools.
 ## Hard rules
 
 - **Never install imperatively.** No `npx add-mcp`, no `@getmcp/cli`, no
-  `claude mcp add`, no mcpfinder write tool (it ships none; none of its tools
-  is pre-approved, so every call prompts), no
+  `claude mcp add`, no
   edits to `~/.claude.json` / client config files. `claude mcp add` is **denied** at user scope
   (`claude-guardrails.nix`; `claude-managed-settings.nix` says why it is NOT elevated). If asked to "install" a server, do this
   pipeline instead and say why.

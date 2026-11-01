@@ -57,12 +57,8 @@
 # LOCAL AND UNBACKED, ON PURPOSE — the fourth member of ADR-004 phase 3's class
 # (~/.aws/config, ~/.config/git/*.inc, allowed_signers), not an exception to it. If
 # this file is lost, the OPERATOR's preferences go with it; the Nix baseline below
-# does not, because the merge re-asserts it on the next activation. THE TRIGGER, so
-# this is not re-litigated every time someone notices it is unbacked: when a SECOND
-# piece of operator content genuinely needs restoring after machine loss, create ONE
-# private operator-content repo for all of them at once — not one repo for the first
-# file that raises the question. Reasoning and the nix-config disqualifier:
-# docs/secrets-recovery-and-identity-adr.md § 9.7.
+# does not, because the merge re-asserts it on the next activation. Where such
+# hand-placed files live now: docs/new-mac-runbook.md § Hand-placed files.
 #
 # RESIDUAL EXPOSURE, stated rather than hidden. Between rebuilds the file is
 # writable, so a session could edit the workflow-narrowing denies. Two things

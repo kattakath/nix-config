@@ -269,7 +269,7 @@ is for writing one from scratch.
 | File | Why it is not in Nix | Shape |
 |---|---|---|
 | `~/.aws/config` | account ids / start-URL ids are reconnaissance; every user's differs | **Drive.** copy `~/.aws/config.example` (written by `local.cloudCli.aws`) or `aws configure sso` |
-| `~/.config/git/local.inc` | which org/folder authors as which identity is the operator's alone | **Drive.** the ONE include `modules/home/default.nix` names unconditionally; holds `[includeIf "gitdir:…"]` / `[includeIf "hasconfig:remote.*.url:…"]` blocks, each `path = <identity>.inc`. Template: the private overlay repo's README |
+| `~/.config/git/local.inc` | which org/folder authors as which identity is the operator's alone | **Drive.** the ONE include `modules/home/default.nix` names unconditionally; holds `[includeIf "gitdir:…"]` / `[includeIf "hasconfig:remote.*.url:…"]` blocks, each `path = <identity>.inc`. |
 | `~/.config/git/<identity>.inc` (each one `local.inc` routes to) | personal/work/client mailboxes | **Drive.** `[user]` + `email` (+ `name` where the identity's name differs) |
 | `~/.config/git/allowed_signers` | lists every mailbox you author as | **Drive.** `<mailbox> namespaces="git" <your ssh public key>`, one line per address; signing works without it, only VERIFYING needs it |
 | `~/.config/nix-config/claude-settings.overlay.json`, `claude-desktop.overlay.json` | optional local settings | **None needed since 2026-11-01** (no private repo; client sign-ins are official connectors). Hand-place only if you want a local override, then `activate` |

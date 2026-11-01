@@ -1,7 +1,7 @@
 # The secret PATHS no agent may read, as DATA — one copy, rendered by each importer.
 #
-# WHY DATA AND NOT RULES. Two enforcement layers need these paths in two
-# incompatible spellings, and until 2026-10-07 only one layer existed:
+# WHY DATA AND NOT RULES. Two enforcement layers once needed these paths in two
+# incompatible spellings (the Seatbelt one is retired; the reasoning stands):
 #
 #   Claude Code `permissions.deny`  ->  "Read(~/.aws/sso/cache/**)"
 #     (the claude-guardrails.nix home module) — a glob in Claude's own syntax,
@@ -16,9 +16,9 @@
 # twin: a match-based derivation yields `[ ]` the moment a rule is reworded, and
 # `[ ]` is a well-formed, completely EMPTY floor that nothing reports. Going the
 # other way — data to strings — cannot fail that way: there is no pattern to
-# miss. Both consumers additionally ASSERT this list is non-empty, so the silent
-# vacuum that file warns about is mechanically impossible here rather than merely
-# unlikely.
+# miss. An EMPTY list is still caught loudly by the consumers themselves — see
+# claude-guardrails.nix's assertion and the Bash guard hook's "Rule 1f DISARMED"
+# message.
 #
 # WHAT BELONGS HERE: only paths whose CONTENT is a decrypted secret. NOT a
 # command shape (`agenix -d`, `secret reveal`, `security find-generic-password
@@ -31,14 +31,13 @@
 # convention). Consumers `import` it explicitly.
 {
   # Absolute paths. Rendered `Read(//<p>/**)` for Claude (its absolute spelling
-  # doubles the leading slash) and `(subpath "<p>")` for Seatbelt.
+  # doubles the leading slash).
   #
   # ALL FOUR AGENIX SPELLINGS, because `/run` is a SYMLINK on darwin: measured
   # 2026-10-07, `/run -> private/var/run` and `/run/agenix -> /run/agenix.d/1`.
-  # The two layers disagree about symlinks, which is why both forms are needed:
-  #   Seatbelt resolves them. Measured the same day with a decoy symlink: a deny
-  #     naming EITHER the link path or the resolved target blocks a read through
-  #     the link, so for the fence either form alone would have sufficed.
+  # Layers disagree about symlinks, which is why both forms are needed:
+  #   Seatbelt (the retired fence) resolved them — measured the same day with a
+  #     decoy symlink, so for it either form alone would have sufficed.
   #   Claude's `Read()` glob does NOT resolve them — it matches the path text the
   #     tool call carries. So the single `Read(//run/agenix/**)` that stood here
   #     before never covered a read spelled `/private/var/run/agenix.d/1/…`.
@@ -51,9 +50,7 @@
   ];
 
   # Paths under $HOME, written WITHOUT a leading slash. Rendered `Read(~/<p>/**)`
-  # for Claude and `(subpath "${homeDirectory}/<p>")` for Seatbelt — a package may
-  # not read Home Manager's config, so the fence is handed the home directory
-  # rather than reaching for it (see ../../packages/keychain-mcp.nix).
+  # for Claude.
   underHome = [
     ".local/state/nix-config-cf-tunnel"
     ".local/state/nix-config-mcp-public"
@@ -97,7 +94,7 @@
   #                                    already denied at every layer above
   #
   # grok's sandbox has no file-level granularity, so it denies whole directories.
-  # That is why it gets the wide list and Seatbelt gets the priced subset.
+  # That is why it gets the wide list (the retired Seatbelt fence got the priced subset).
 
   # Home-relative credential DIRECTORIES. grok denies all of these outright.
   agentCredentialDirs = [
