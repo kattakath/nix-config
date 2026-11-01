@@ -228,8 +228,8 @@ claude mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # 
 The first line asks whether the two server-denied plugins start ANY server, not whether a
 name is gone: a renamed server key would slip past a name check but still shows up here.
 Non-zero means a deny no longer matches, so read `claude mcp list` and update the
-`serverName` entry. Same-named pairs elsewhere are deliberate and are NOT findings: the
-per-workspace Slack `post` servers, and hosted `slack`/`stripe` connectors per account.
+`serverName` entry. Same-named hosted pairs elsewhere (`stripe` per account) are deliberate
+and are NOT findings: Claude Code dedups HTTP servers by URL.
 
 ### F. Host re-activation
 
