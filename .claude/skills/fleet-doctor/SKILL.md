@@ -193,7 +193,7 @@ across four activations that each reported success. Report only; every remedy ne
 nix run .#launchd-doctor        # exit 1 = findings; LAUNCHD_DOCTOR_WARN_KB tunes the log threshold
 ```
 
-It prints **six** `--- … ---` sections carrying **seven** kinds of finding — the section and
+It prints **six** `--- … ---` sections carrying **seven** kinds of finding (plus one expected `ok` row) — the section and
 finding counts are not the same number, and `--- loaded ---` alone reports two. Read the
 section column, not the row count:
 
@@ -201,6 +201,7 @@ section column, not the row count:
 |---|---|---|---|
 | `--- loaded ---` | `NOT LOADED` | **act now** — a fleet unit is silently absent | `sudo launchctl bootstrap <domain> <plist>`; `modules/darwin/launchd-reconcile.nix` makes the next activation do it. The doctor offers that remedy **only** when a current generation declares the unit — otherwise it points you at `ORPHANED` instead of resurrecting something deliberately retired |
 | `--- loaded ---` | `EXIT <n>` | investigate — loaded but failing every spawn | read the unit's log; `exit 78` is the boot/mount race, not a crash |
+| `--- loaded ---` | `ok … expected agenix boot race` | **none** — a runner daemon that exited 1 once at boot and is now running with `runs = 2` | nothing; left unfixed on purpose (`launchd-naming.md` § A CRASH is retried). Any other shape stays `EXIT <n>` |
 | `--- orphaned plists ---` | `ORPHANED` | **act now after any rename/removal** — a plist installed that NO current generation declares | `launchctl bootout <domain>/<label> ; rm <plist>`. nix-darwin's removal loop is **single-transition** (pinned `modules/system/launchd.nix:150-161`), so an orphan it missed at that one generation boundary stays orphaned **permanently** and keeps running — re-activating never clears it. Check it on the first `activate` after a rename — e.g. `metube`/`yt-dlp-web-ui` moving to Home Manager on 2026-09-22 renamed `org.nixos.*` → `org.nix-community.home.*`. An orphan that exits 0 is invisible everywhere else |
 | `--- log size ---` | a log over `LAUNCHD_DOCTOR_WARN_KB` | **investigate — NOT routine since 2026-09-22** | every declared launchd log now reaches a rotator (`modules/darwin/logging.nix`): `system.newsyslog` rename+create for the jobs that re-exec, hourly `logrotate --copytruncate` for the long-lived `KeepAlive` ones, which newsyslog by design can never reclaim. An oversized log therefore means a **broken rotator**, not physics — check the two ticks are in their domains (`launchctl print gui/$UID/org.nix-community.home.file-rotation-logs`, `sudo launchctl print system/org.nixos.file-rotation-logs-system`), then their own logs and state files (`~/.local/state/logrotate/agents.state`, `/var/lib/logrotate/daemons.state`) |
 | `--- launchd disabled-DB (fleet labels reading 'disabled') ---` | a fleet label launchd has DISABLED | **not** cosmetic: its `bootstrap` fails with **error 119** | run the `remedy: launchctl enable …` line the doctor prints, before blaming the plist |
