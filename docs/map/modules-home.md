@@ -137,8 +137,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
       not the fault.
   - `local.pluginMcp.servers` → `nix-mcp-{wordpress,postgres}`, the CREDENTIALED
     servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26),
-    **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**,
-    plus `github` (gh's token via `ghTokenEnv`).
+    **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**.
     One generic `packages/keychain-mcp.nix` builds all of them —
     it is the extracted form of the gateway's own `mkGeneratedStdio`, so there is no second copy
     of "export N variables, exec a pinned interpreter". It writes NO file, so it needs no umask;
@@ -514,7 +513,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     Home Manager config never touched. See [`modules-darwin.md`](modules-darwin.md)
     § `modules/darwin/`.
 - **`claude-desktop.nix`** — `local.claudeDesktop`. Desktop CHAT runs no plugin stdio server (its Code tab does load plugins), so chat's ONLY lane is
-  `extraServers` (`github`) plus a hand-placed Desktop overlay for client servers (the gateway portal
+  `extraServers` (empty in public since 2026-11-01) plus a hand-placed Desktop overlay for client servers (the gateway portal
   it used to dial was destroyed 2026-10-02). **The module stays ENABLED on purpose** — the set
   Desktop should see is a state something must *write*. Switching the writer off leaves whatever
   is on disk, which is exactly how a stale `kattakath-portal` entry pointing at destroyed
