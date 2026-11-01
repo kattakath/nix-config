@@ -247,8 +247,8 @@ jq -rn --slurpfile nix /tmp/declared.json \
    | $live[0] | to_entries[] | select(.value and ((.key|IN($d[]))|not)) | .key'   # must print nothing
 ```
 
-Each line is a finding. Declare it (catalogue entry + `declared` key in the same commit, or the
-overlay for a client plugin), or switch it off. A dependency that Claude Code auto-enabled
+Each line is a finding. Declare it (catalogue entry + `declared` key in the same commit), or
+switch it off. A dependency that Claude Code auto-enabled
 (e.g. `google-workspace-mcp` under `workspace-gtd`) shows up here too: declare it as well.
 
 ### F. Host re-activation

@@ -1,6 +1,6 @@
 # Claude Desktop / Cowork — MCP (2026-09-15, rewritten 2026-10-02)
 
-> # ⚠ CURRENT STATE (2026-10-21): this repo renders NO public MCP server into Claude Desktop (the local `github` server gave way to claude.ai's official GitHub Integration, 2026-11-01) — and no private overlay is placed. Desktop Commander reaches Desktop separately, as a Desktop Extension this repo does not render.
+> # ⚠ CURRENT STATE (2026-11-01): this repo renders NO public MCP server into Claude Desktop (the local `github` server gave way to claude.ai's official GitHub Integration, 2026-11-01) — and no private overlay is placed. Desktop Commander reaches Desktop separately, as a Desktop Extension this repo does not render.
 >
 > The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Desktop chat runs no
 > plugin stdio server** (claude.com/docs/plugins/platform-support; its Code tab DOES load plugins, like the CLI), so no plugin-owned
@@ -143,8 +143,8 @@ Ordering no longer matters: you can activate with Desktop open. It still needs a
 
 `checks.aarch64-darwin.claude-desktop-config-shape` reads the real macos rendering. **Inverted
 2026-10-02**: it used to fail if no rendered entry dialled the gateway's own `portalEndpoint` (two
-modules, one URL); it now asserts the render holds **no server but `github`** (and never
-`desktop-commander`), paired with a leg asserting
+modules, one URL); it now asserts the render contract its own legs state (`modules/parts/checks.nix`,
+including never `desktop-commander`), paired with a leg asserting
 `claudeDesktop.enable` is still **true**. Both legs are needed, and a deleted check would have
 caught neither direction — an empty set from a disabled module is a different claim from an empty
 set from an enabled one, and the disabled case leaves stale content on disk (#732). The shape rules

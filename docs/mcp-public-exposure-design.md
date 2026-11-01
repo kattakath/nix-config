@@ -470,7 +470,7 @@ and the 19-then-17 end state).
 
 **What is still traded away.** Desktop renders exactly one connector and the portal is
 all-or-nothing, so a plugin-owned server is **Claude-Code-only and silently absent from Desktop**
-(`modules/shared/claude-desktop.nix` § THE PLUGIN CONSEQUENCE). The operator accepted that for the
+(`modules/home/claude-desktop.nix` § WHAT THIS DOES). The operator accepted that for the
 eight servers of #657. A plugin-owned server also loses its `flake.lock` pin and cannot carry a
 Keychain credential — `.mcp.json` interpolates `${ENV_VAR}` only — which is why `github` and
 `postgres` are held back pending #656.

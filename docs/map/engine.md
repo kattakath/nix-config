@@ -49,7 +49,7 @@ files left Nix again for hand-placed local files (`~/.aws/config`, `~/.config/gi
 marketplace that was itself deleted 2026-11-01, when client sign-ins became official connectors)
 ([`agent-resource-externalization.md`](../agent-resource-externalization.md)). The rule is the
 same each time: the repo ships shape, the operator's content stays out of the repo. Where each
-file lives now (Google Drive, or the overlay repo's clone): [`new-mac-runbook.md`](../new-mac-runbook.md) § Hand-placed files.
+file lives now (Google Drive): [`new-mac-runbook.md`](../new-mac-runbook.md) § Hand-placed files.
 
 ## `modules/features/` — the seven capsules
 

@@ -299,6 +299,10 @@ a run.
   the question. A private repo for a single preferences file would re-open the private layer
   retired 2026-09-15 and be bigger than its problem.
 
+  **Superseded 2026-11-01:** no private repo is created — operator content lives in Google
+  Workspace; see [`agent-resource-externalization.md`](agent-resource-externalization.md) § Client
+  config without a private repo.
+
   **`nix-config` is not a candidate at any size**, and the reason is not what the file contains.
   Its `env` today is `CLAUDE_CODE_ENABLE_TELEMETRY` plus four `OTEL_*` vars — no secrets, no
   account material, measured by reading the live file's keys. The disqualifier is that the UI

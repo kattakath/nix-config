@@ -23,10 +23,8 @@
 >
 > **What replaced it:** every MCP server now comes from an enabled plugin's own `.mcp.json`,
 > spawned per session, nothing shared and nothing long-lived. A launcher that needs a Keychain
-> read is a PATH package in nix-config — `local.gmailMcp` + `packages/gmail-mcp.nix` is the live
-> pattern, paired with the `gmail` plugin in `github:kattakath/skills`. See
-> [`map/claude-code.md`](map/claude-code.md) § MCP after the gateway.
-> (Gmail lane: Retired 2026-11-01 — the claude.ai Gmail connector replaced it. The live example is now `local.pluginMcp`.)
+> read is a PATH package in nix-config — `local.pluginMcp` + `packages/keychain-mcp.nix` is the live
+> pattern. See [`map/claude-code.md`](map/claude-code.md) § MCP after the gateway.
 >
 > **Why this file still exists rather than being deleted:** it is the only record of several
 > measurements that outlived the gateway and still bind the plugin lane. Those are hoisted into
@@ -41,11 +39,10 @@ history.
 | Still-true finding | Where it is written up below | Why it still binds |
 |---|---|---|
 | **Spawn-test the exact spec against the PATH runtime BEFORE declaring.** The plugin lane gets whatever `npx` resolves to — measured fnm's **Node 20.20.2**, which lacks `node:sqlite` (arrived 22.5). `mcpfinder` was declared, died with `CONNECTION_CLOSED`, and had to be reverted across two PRs. | § Spawn-test against the PATH runtime | The plugin lane is now the ONLY lane, so this trap is no longer one lane's weakness — it is the whole surface's |
-| **A server whose runtime arrives via a nix-config package is not spawn-testable until ACTIVATED.** Merged is not enough. | same § | Unchanged, and it is exactly how `local.gmailMcp`'s launchers reached PATH (Retired 2026-11-01 — the claude.ai Gmail connector replaced it.) |
+| **A server whose runtime arrives via a nix-config package is not spawn-testable until ACTIVATED.** Merged is not enough. | same § | Unchanged, and it is exactly how `local.pluginMcp`'s launchers reach PATH |
 | **To add a marketplace under an allowed owner, use `owner/repo`, NOT the https URL.** The shorthand creates a `github:` source that the managed `strictKnownMarketplaces` wildcard matches; the full URL creates a `git:` source and is refused as *"blocked by enterprise policy"* — an error that blames policy for a syntax problem. | § Adding a marketplace under an allowed owner | The managed allowlist is untouched by the purge |
 | **The recipe for proving a plugin-owned server actually answers** — confirm the plugin SHA refreshed, `claude mcp list` in a **fresh** process, then invoke a tool with the **plugin-lane** `--allowedTools` spelling. Judge against a criterion written *before* the test; an empty result is often the pass. | § How to verify a plugin-owned server actually answers | **This is now the ONLY proof a server ANSWERS.** The one check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) reads files in the pinned public tree and spawns nothing, so this runtime procedure replaces the parity check outright |
-| **A plugin `.mcp.json` cannot run a Keychain read** — it interpolates `${VAR}`/`${VAR:-default}`, `${user_config.KEY}` with `sensitive: true`, and `headersHelper` for remote servers, and that is all. | § Counting convention, § Which lane | It is the whole reason `packages/gmail-mcp.nix` existed, and `packages/keychain-mcp.nix` still does (Retired 2026-11-01 — the claude.ai Gmail connector replaced it.) |
-| **Identity-bearing rosters are not a plugin's business.** Four real Google/Workspace addresses, one process and one OAuth session each, tokens from the login Keychain. | § Which lane → the three stuck groups | Resolved by splitting it: the ADDRESSES stay in `hosts/macos.nix` (`local.gmailMcp.accounts`), the DECLARATION moved to the plugin. Retired 2026-11-01 — the claude.ai Gmail connector replaced it. |
+| **A plugin `.mcp.json` cannot run a Keychain read** — it interpolates `${VAR}`/`${VAR:-default}`, `${user_config.KEY}` with `sensitive: true`, and `headersHelper` for remote servers, and that is all. | § Counting convention, § Which lane | It is the whole reason `packages/keychain-mcp.nix` exists |
 | **Call-volume measurement, 2026-09-23** (every MCP tool call across 21 days of transcripts): gateway **~3,200 / 94%**, nine claude.ai connectors **218 / 6%**, marketplace plugins **76** (Neon alone 70). | § Which lane | The baseline against which the purge's cost gets judged. It says plainly that the **94% lane is the one that was removed** — so if the plugin lane proves worse, this is the number that proves it, and nothing else measures it |
 | **Verify at the surface clients use, not the one easiest to curl.** Three Cloudflare objects were needed per published server and a missing one failed SILENTLY — the origin answered `200` throughout while the server was invisible to every client. | [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) | Generalises to any proxied/gated surface this fleet builds next |
 
@@ -53,8 +50,7 @@ One correction to carry forward, because it is the reason a *right* answer can s
 this file once said `github` and `postgres` were both held back from the plugin lane because
 "each needs a Keychain credential". **That was false for `postgres`** — its `DATABASE_URI` is a
 loopback **trust-auth** URI with no password. The conclusion was right, the premise wasn't, and a
-right answer resting on a wrong reason breaks the moment someone checks the reason. It is why
-`postgres` can sit in the plugin lane today with no wrapper while `gmail` cannot.
+right answer resting on a wrong reason breaks the moment someone checks the reason.
 
 ---
 
@@ -375,7 +371,7 @@ safety argument — do it exactly this way, one batch at a time:
    .#mcp-public-apply` drops the batch's Cloudflare objects.
 6. **`nix run .#mcp-public-sync`** so the portal re-polls and stops advertising the dropped tools.
 7. **Say what Desktop lost.** Each moved server leaves Claude Desktop and the Cowork bridge
-   entirely (`modules/shared/claude-desktop.nix` § THE PLUGIN CONSEQUENCE). Record it in the PR
+   entirely (`modules/home/claude-desktop.nix` § WHAT THIS DOES). Record it in the PR
    body; nothing detects it.
 
 After any `activate` that restarts the gateway, run `nix run .#mcp-public-sync` to ask the
@@ -529,8 +525,6 @@ in a fresh session.
 
 - [`map/claude-code.md`](map/claude-code.md) § **MCP after the gateway** — the LIVE architecture. Start there,
   not here.
-- `gmail-mcp-multi-account-runbook.md` (deleted 2026-11-01 with the Gmail MCP) — multi-account
-  Gmail setup and auth. Retired 2026-11-01 — the claude.ai Gmail connector replaced it.
 - [`osascript-accessibility-tcc.md`](osascript-accessibility-tcc.md) — **still accurate.** The
   one-time Accessibility (TCC) grant `macos-automator` needs; TCC scopes it to
   `/usr/bin/osascript`, not to the parent, which is why it carried unchanged when that server

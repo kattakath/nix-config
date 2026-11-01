@@ -161,9 +161,9 @@ and, above it on `macos`, root-owned managed scope in
   as the deliberate way AROUND the Bash tool, going through it bypassed this very hook, so the
   nudge was steering routine work off the guarded path. It also named a prefix that cannot
   exist (plugin tools are `mcp__plugin_<plugin>_<server>__<tool>`) and was the ONLY rule here
-  with no test coverage — which is how it inverted unnoticed. The opposite rule now lives in the
-  desktop-commander plugin, because superhook registers this hook with matcher `"Bash"` and it
-  therefore cannot see an MCP tool at all. Also carries **Rule 1c** (a `secret reveal` /
+  with no test coverage — which is how it inverted unnoticed. No opposite rule exists: superhook registers this hook
+  with matcher `"Bash"`, so it cannot see an MCP tool, and the official desktop-commander
+  plugin ships no guard. Also carries **Rule 1c** (a `secret reveal` /
   `security …-w` that would print a secret VALUE into the transcript) and **Rule 1d** (any shape
   that BUILDS on nixpi — `--build-host <pi>`, `deploy --remote-build`, `ssh <pi> nix build`,
   `--builders ssh://<pi>`; the `--target-host` form is deliberately allowed, since it builds
