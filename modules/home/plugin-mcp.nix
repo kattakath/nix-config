@@ -29,12 +29,9 @@
 # to re-adopt. Same split, same cause: the launcher does what a JSON file cannot. Its
 # own entry below carries the why, the risk it does NOT cover, and the measurements.
 #
-# ONE MORE, with its own entry below: `github` (gh's own token via `ghTokenEnv`).
-#
 # This is NOT the gateway returning: no long-lived process, no listening socket, no
 # tunnel, no portal. Desktop CHAT runs no plugin stdio server (its Code tab does), so none of
-# these reach chat through a plugin — the one exception is `github`, which Desktop gets separately
-# via `local.claudeDesktop.extraServers` (modules/home/default.nix).
+# these reach chat through a plugin.
 {
   config,
   lib,
@@ -395,23 +392,6 @@ let
       ];
       sandboxProfile = desktopCommanderProfile;
     };
-  }
-  # GitHub's official MCP server (github/github-mcp-server, nixpkgs-pinned — no npx/uvx
-  # download at spawn), authenticated with the gh CLI's own token via `ghTokenEnv`, so
-  # its reach is exactly gh's: the same user, the same scopes. `--toolsets all` and no
-  # `--read-only`: the operator asked for maximum privilege (2026-10-16). Not folder-
-  # routed — gh itself works in every folder, and this is the same credential.
-  // {
-    github = {
-      interpreter = pkgs.github-mcp-server;
-      args = [
-        "stdio"
-        "--toolsets"
-        "all"
-      ];
-      ghTokenEnv = "GITHUB_PERSONAL_ACCESS_TOKEN";
-    };
-
   };
 in
 {

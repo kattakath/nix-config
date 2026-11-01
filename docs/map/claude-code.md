@@ -24,7 +24,7 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
 - **Claude Code only (CLI and Desktop's Code tab).** Desktop CHAT ignores a plugin's local MCP and Cowork
   takes plugins from the claude.ai account (claude.com/docs/plugins/platform-support), so **no plugin server reaches Desktop chat**
   or Cowork. Desktop chat's only lane is `local.claudeDesktop.extraServers`
-  (`github`) plus the operator's hand-placed Desktop overlay; see `claude-desktop.nix`.
+  (empty in public) plus the operator's hand-placed Desktop overlay; see `claude-desktop.nix`.
 - **Client plugins live in a PRIVATE overlay marketplace** (`<your-handle>/skills`), never in
   `kattakath/skills` or this repo — see `docs/agent-resource-externalization.md`.
 - **A launcher that needs a Keychain read is a PATH package in this repo.** A plugin's
