@@ -8,19 +8,12 @@
 #   nix-darwin     launchd.agents        -> /Library/LaunchAgents    gui/<uid>
 #   nix-darwin     launchd.daemons       -> /Library/LaunchDaemons   system
 #
-# WHY A FILE AND NOT A LIST IN EACH CONSUMER. Three modules walk this surface and
-# each one fails SILENTLY on a dropped source — no build goes red, the unit simply
-# stops being covered:
-#
-#   checks.<system>.launchd-log-rotation  a log that reaches no rotator grows
-#                                         unbounded (modules/parts/checks.nix)
-#   launchd-reconcile.nix                 a unit outside its domain is never
-#                                         re-bootstrapped (./launchd-reconcile.nix)
-#   logging.nix                           a unit's log is never rotated
-#                                         (./logging.nix, `sources`)
+# WHY A FILE AND NOT A LIST IN EACH CONSUMER. Every consumer of this surface
+# (`git grep launchd-sources.nix`) fails SILENTLY on a dropped source — no build
+# goes red, the unit simply stops being covered.
 #
 # A list typed twice is two lists; the drift between them is invisible precisely
-# because the failure mode of BOTH consumers is doing nothing. nix-darwin's
+# because the failure mode of every consumer is doing nothing. nix-darwin's
 # `launchd.agents` is the one that proves it: it is a DIFFERENT option from
 # `launchd.user.agents` (pinned nix-darwin modules/launchd/default.nix:139 vs
 # :171, rendered to environment.launchAgents and environment.userLaunchAgents

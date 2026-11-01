@@ -25,6 +25,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 > § The `mcp-public` teardown below records the one object that refused to die and why that
 > refusal was correct.
 
+`checks.access-service-token-duration` (in `modules/parts/terranix.nix`) fails any rendered
+Access service token that leaves its expiry to the provider.
+
 **Run every one of these inside `nix develop`.** Not a style preference — `CLOUDSDK_CONFIG`
 scopes `gcloud`, but it does **not** scope Terraform: the Go auth library ignores it and reads
 the well-known ADC path instead, so only the devShell's `GOOGLE_APPLICATION_CREDENTIALS`

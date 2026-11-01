@@ -160,25 +160,9 @@ in
       Installs no browser — declare the `ungoogled-chromium` cask on the host
     '';
 
-    # Every extension below is unconditional: each used to sit behind its own
-    # default-true toggle that no host ever set, so the toggles were deleted
-    # and the build did not change. `userScripts.enable` is the one that stayed
-    # an option. The per-extension WHY is a comment on its entry in
-    # `programs.chromium.extensions`.
-
-    userScripts.enable = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = ''
-        Sideload Violentmonkey, the userscript manager. The fleet declares no
-        userscripts (they are published to Greasy/Sleazy Fork and installed
-        from there), so this installs the manager only.
-
-        Violentmonkey declares the MV3 `userScripts` permission, which Chrome
-        138+ gates behind a per-extension "Allow User Scripts" toggle that is
-        deliberately not settable by policy. Flip it once in chrome://extensions.
-      '';
-    };
+    # Every extension below is unconditional: a default-true toggle that no host
+    # ever set is not an option. The per-extension WHY is a comment on its entry
+    # in `programs.chromium.extensions`.
 
     debugLauncher = lib.mkOption {
       type = lib.types.bool;
@@ -187,12 +171,9 @@ in
         Install `nix-chromium-debug [port]` — a hand-run command that launches Chromium
         with `--remote-debugging-port` (default 9222, loopback only).
 
-        MOVED HERE from `local.mcpGateway.chromeDevtools.enable` on 2026-09-30, when
-        chrome-devtools stopped being a gateway-hosted server and became `page-lab`'s
-        plugin-owned one (#657 batch 2). The MCP server left; opening the port did not,
-        and it was never an MCP concern — it is a browser concern, which is this module.
-        The Kapture extension below is the same shape: this file owns the browser half of a
-        browser-automation server whose client lives elsewhere.
+        Opening the port is a browser concern, not an MCP one, which is why it lives
+        in this module. The Kapture extension below is the same shape: this file owns
+        the browser half of a browser-automation server whose client lives elsewhere.
 
         Deliberately a hand-run command and NOT a launchd agent or login item: the port
         is an unauthenticated control channel over a browser holding live logins and the
@@ -209,8 +190,7 @@ in
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
     # `nix-chromium-debug` — the CLASSIC, launch-flag route to the CDP port.
     #
-    # NO LONGER THE ONLY ROUTE, and no longer the one the server assumes
-    # (that server is page-lab's now — #657 batch 2).
+    # NO LONGER THE ONLY ROUTE, and no longer the one page-lab's server assumes.
     # A running browser CAN now be switched into debugging mode from
     # `chrome://inspect/#remote-debugging` (Chrome/Chromium M144+),
     # which is how the browser page-lab's chrome-devtools server attaches to is enabled — it
@@ -398,13 +378,18 @@ in
           version = "1.0";
           crxPath = ./chromium-extensions/malayalam-font-setter.crx;
         })
-      ]
-      ++ lib.optional cfg.userScripts.enable (crxExtension {
-        name = "violentmonkey";
-        id = "jinjaccalgkegednnccohejagnlnfdag";
-        version = "2.48.0";
-        hash = "sha256-yRTrkG3wgVKXMLPT+1cOWMHpdhXEat3wAmiSD0Z6lc8=";
-      });
+        # Violentmonkey, the userscript manager. The fleet declares no userscripts
+        # (they are published to Greasy/Sleazy Fork and installed from there), so
+        # this installs the manager only. Its MV3 `userScripts` permission sits
+        # behind Chrome 138+'s per-extension "Allow User Scripts" toggle, which
+        # policy deliberately cannot set: flip it once in chrome://extensions.
+        (crxExtension {
+          name = "violentmonkey";
+          id = "jinjaccalgkegednnccohejagnlnfdag";
+          version = "2.48.0";
+          hash = "sha256-yRTrkG3wgVKXMLPT+1cOWMHpdhXEat3wAmiSD0Z6lc8=";
+        })
+      ];
 
       nativeMessagingHosts = [ applePasswordsHost ];
     };

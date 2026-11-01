@@ -37,7 +37,7 @@ is installed (`curl -fsSL https://install.determinate.systems/nix | sh -s -- ins
 
 `hostname = "generic-darwin"` imports the engine's neutral darwin layer — the system
 modules, the shared Home Manager profile and its capsules, **nothing operator-specific**:
-no CI runners, no Gmail accounts, no Homebrew cask list of someone else's.
+no CI runners, no Homebrew cask list of someone else's.
 Your `hosts/macos.nix` merges on top: add to lists, flip a `local.*` switch, or
 `lib.mkForce` to replace an engine value. Browse the engine's `modules/` to see what
 there is; most capsules are off until you enable them (`local.keychainSecrets` is on).
