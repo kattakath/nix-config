@@ -38,7 +38,7 @@ re-add it.
 this repo (`hosts/macos.nix`, `modules/parts/identity.nix`). The cross-repo pin-bump step
 existed only to serve it and collapsed with it; the letter it held is now **D. Nix-config's
 own hygiene**, and there is no step G. **Host re-activation did NOT collapse** — it is step
-F below. The checklist runs A, B, C, D, E, E2, E3, E4, F.
+F below. The checklist runs A, B, C, D, E, E2, E3, E4, E5, F.
 
 `activate` did NOT go with it. The CLI that was retired was nix-personal's
 freshness-gated one; this repo grew its own the same day (`packages/activate.nix`,
@@ -230,6 +230,26 @@ name is gone: a renamed server key would slip past a name check but still shows 
 Non-zero means a deny no longer matches, so read `claude mcp list` and update the
 `serverName` entry. Same-named hosted pairs elsewhere (`stripe` per account) are deliberate
 and are NOT findings: Claude Code dedups HTTP servers by URL.
+
+### E5. Enablement drift: clicked but undeclared plugins (macos)
+
+A `/plugin` toggle writes only the live `~/.claude/settings.json`, so a plugin turned on by
+click is lost on a fresh Mac. Until 2026-11-01, 27 of 50 enabled plugins lived only there.
+Report every live-`true` id that neither Nix (`local.claudePlugins.declared` + the always-on
+three) nor the operator's overlay declares:
+
+```bash
+nix eval --json .#darwinConfigurations.macos.config.home-manager.users.$USER.programs.claude-code.settings.enabledPlugins > /tmp/declared.json
+jq -rn --slurpfile nix /tmp/declared.json \
+  --slurpfile ov <(jq '.enabledPlugins // {}' ~/.config/nix-config/claude-settings.overlay.json 2>/dev/null || echo '{}') \
+  --slurpfile live <(jq '.enabledPlugins' ~/.claude/settings.json) \
+  '(($nix[0]|keys)+($ov[0]|keys)|unique) as $d
+   | $live[0] | to_entries[] | select(.value and ((.key|IN($d[]))|not)) | .key'   # must print nothing
+```
+
+Each line is a finding. Declare it (catalogue entry + `declared` key in the same commit, or the
+overlay for a client plugin), or switch it off. A dependency that Claude Code auto-enabled
+(e.g. `google-workspace-mcp` under `workspace-gtd`) shows up here too: declare it as well.
 
 ### F. Host re-activation
 
