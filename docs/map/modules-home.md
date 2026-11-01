@@ -100,13 +100,12 @@ in the repo can catch that; see that fixture file's header for the measurement.
     (`builtins.readDir`/`readFile` over a realised input — no import-from-derivation, no
     network) and asserts SET EQUALITY between the `nix-mcp-*` commands those plugins name and
     the `nix-mcp-*` derivations `macos` actually composes into `home.packages`. Measured
-    2026-10-02 at pin `5ba108f`: **8 = 8**. `nix-mcp-slack` is exempt because only the private
-    overlay names it.
+    2026-10-02 at pin `5ba108f`: **8 = 8**. Launchers named outside the public tree (the private
+    overlay's `desktop-commander`, Desktop's `github`, seeded `launcher` settings) count as named.
     - **The built side is read off the composed package list, not re-derived.** A check that
       re-applied a launcher's naming rule would agree with a broken rule by sharing it.
-      Derivation name == binary name for every builder — each one `writeShellApplication`
-      (`packages/keychain-mcp.nix`; `packages/slack-post-mcp.nix` since its 2026-10-20 birth),
-      each emitting exactly one `$out/bin/<name>` and shellchecked at build. Both keep
+      Derivation name == binary name: the one builder, `packages/keychain-mcp.nix`, is a
+      `writeShellApplication` emitting exactly one `$out/bin/<name>`, shellchecked at build. It keeps
       `bashOptions = [ "nounset" ]`, the `set -u`
       they always ran under, so a missing Keychain entry still warns rather than aborts.
     - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Out of this lane:
@@ -139,8 +138,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   - `local.pluginMcp.servers` → `nix-mcp-{wordpress,postgres}`, the CREDENTIALED
     servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26),
     **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**,
-    plus `github` (gh's token via `ghTokenEnv`) and `slack` (its own `packages/slack-post-mcp.nix`).
-    One generic `packages/keychain-mcp.nix` builds all but `slack` —
+    plus `github` (gh's token via `ghTokenEnv`).
+    One generic `packages/keychain-mcp.nix` builds all of them —
     it is the extracted form of the gateway's own `mkGeneratedStdio`, so there is no second copy
     of "export N variables, exec a pinned interpreter". It writes NO file, so it needs no umask;
     credentials reach the server through its environment, never argv.

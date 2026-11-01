@@ -362,11 +362,6 @@ in
       "wordpress"
       "postgres"
       "desktop-commander"
-      # Post as the operator with a user token, so Slack adds no `Sent using Claude`
-      # footer: the generic `nix-mcp-slack <workspace>.slack.com`. The workspace comes
-      # from the naming plugin's `.mcp.json` args, so none is written here. Tokens:
-      # `secret set mcp:<workspace>.slack.com:xoxp`. 2026-10-16.
-      "slack"
       # GitHub MCP with the gh CLI's token (no stored secret). Used by Claude Desktop's
       # `github` server; the github-gh plugin that also used it retired 2026-11-01.
       "github"

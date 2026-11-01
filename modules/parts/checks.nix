@@ -2875,7 +2875,7 @@ in
           #
           # MCP servers in this fleet are declared in TWO repos BY DESIGN, and the
           # split is right: Nix builds the launcher BINARIES (`local.pluginMcp`,
-          # packages/slack-post-mcp.nix -> `nix-mcp-*` on PATH)
+          # packages/keychain-mcp.nix -> `nix-mcp-*` on PATH)
           # because they read the login Keychain, and `github:kattakath/skills`'
           # plugin `.mcp.json` files NAME those binaries because only a plugin can
           # declare a server to Claude Code. Different artifacts, different repos.
@@ -2934,9 +2934,9 @@ in
 
               # BUILT, read off the COMPOSED package list rather than re-deriving the
               # naming rule — a check that re-derived it would agree with a broken
-              # rule by sharing it. Derivation name == binary name for both
-              # builders, each `writeShellApplication` (packages/keychain-mcp.nix,
-              # packages/slack-post-mcp.nix) emitting
+              # rule by sharing it. Derivation name == binary name for the one
+              # builder, a `writeShellApplication` (packages/keychain-mcp.nix)
+              # emitting
               # exactly one `$out/bin/<name>`.
               built = lib.naturalSort (
                 lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") (map (p: p.name or "") hm.home.packages))
@@ -2972,14 +2972,9 @@ in
               );
               declared = lib.naturalSort (lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") allCommands));
 
-              # The GENERIC Slack launcher, which takes its workspace from argv. Only
-              # plugins in the operator's PRIVATE overlay marketplace name it — which
-              # this check cannot read (CI has no access, and the pin is the public tree
-              # only) — so "no public plugin names it" is expected, not an orphan.
-              # Exempted BY GENERIC NAME, so no private plugin or workspace is named
-              # here; the `missing` leg and both non-empty legs still run over everything.
-              # Two more namers this check cannot see in the public tree (2026-11-01):
-              # `desktop-commander` moved to that same private marketplace, and Claude
+              # Namers this check cannot see in the public tree (2026-11-01):
+              # `desktop-commander` moved to the operator's PRIVATE overlay marketplace
+              # (CI cannot read it), and Claude
               # Desktop's `github` server (`local.claudeDesktop.extraServers`) still runs
               # `nix-mcp-github` after the github-gh plugin retired.
               # And the launchers a plugin is POINTED at through a seeded `launcher`
@@ -2990,7 +2985,6 @@ in
                 )
               );
               namedOutsidePublicTree = [
-                "nix-mcp-slack"
                 "nix-mcp-desktop-commander"
                 "nix-mcp-github"
               ]
@@ -3030,7 +3024,7 @@ in
                 "A MISSING launcher means a plugin in github:kattakath/skills names a binary"
                 "this fleet does not build: that server cannot start. Add the name to"
                 "local.pluginMcp.servers in hosts/macos.nix, or"
-                "build it as a package the way packages/slack-post-mcp.nix does."
+                "build it with packages/keychain-mcp.nix the way the other launchers are."
                 "An ORPHAN launcher means the reverse — a binary on PATH that no plugin"
                 "declares, so the capability does not exist in any session. Either declare"
                 "the server in its owning plugin, or drop the launcher from hosts/macos.nix."
