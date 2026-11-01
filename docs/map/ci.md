@@ -105,7 +105,7 @@ bare-metal ephemeral runners on the **`dontsell-ai`** org
 (`local.tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
 
 Also in `.github/workflows/`: `auto-merge.yml`, `build-devcontainer.yml`,
-`build-installers.yml`, `claude*.yml`, `gitleaks.yml`, and `flakehub-publish.yml` — the last
+`build-installers.yml`, `claude*.yml` (`claude-config-lint.yml` is a REQUIRED check — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, and `flakehub-publish.yml` — the last
 publishes each push to `main` as a rolling release to FlakeHub via
 `DeterminateSystems/flakehub-push`, authenticated by OIDC/`id-token: write` with **no** stored
 token; per FlakeHub's trusted-platform model, flakes publish only from CI, never ad-hoc from a

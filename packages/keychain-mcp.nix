@@ -15,8 +15,8 @@
 #
 # WHY IT CANNOT LIVE IN THE PLUGIN. A Claude Code plugin's `.mcp.json` can set `env`, but
 # only to literal values or `${VAR}` passthroughs — it cannot run
-# `/usr/bin/security find-generic-password`. So the plugin names a BINARY and this builds
-# that binary. Secret NAMES (Keychain service ids) are fine in Nix; a secret VALUE would
+# `/usr/bin/security find-generic-password`. So nix-config seeds the plugin's `launcher`
+# setting with a BINARY name and this builds that binary. Secret NAMES (Keychain service ids) are fine in Nix; a secret VALUE would
 # land in the world-readable store, which is why the read happens at launch instead.
 #
 # NO FILE IS WRITTEN, so there is no `umask 077` here. Credentials reach the
@@ -40,8 +40,8 @@
   uv,
 }:
 {
-  # Server id. Becomes the binary name `nix-mcp-<name>` — the string a plugin's
-  # `.mcp.json` names as its `command`.
+  # Server id. Becomes the binary name `nix-mcp-<name>` — the value nix-config seeds
+  # into the plugin's `launcher` setting.
   name,
   # "npx" or "uvx" — the two the catalog's stdio entries use. Resolved to a store path
   # here, mirroring the purged gateway's `resolveCatalogCommand`.

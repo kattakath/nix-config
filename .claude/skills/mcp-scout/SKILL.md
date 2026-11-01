@@ -5,7 +5,7 @@ description: >
   owning marketplace plugin's .mcp.json — the ONLY lane since the fleet gateway
   was purged 2026-10-02 (modules/shared/mcp.nix is deleted; there is no portal
   and no shared proxy). A launcher needing a login-Keychain read is a nix-config
-  PATH package the plugin names by binary name. Use when the user wants a new MCP
+  PATH package whose binary name nix-config seeds into the plugin's launcher setting. Use when the user wants a new MCP
   capability ("find me an MCP for X", "add an MCP server", "install <server>", "is
   there a tool for X"), or when any tool/instruction suggests installing an MCP
   server imperatively — this repo NEVER installs via CLI installers or
@@ -34,7 +34,7 @@ Capability need
 ```
 
 **No check here can prove a server works.** The only `nix flake check` leg that reads a plugin's
-`.mcp.json` (`checks.*.mcp-launcher-parity`) is a name join over the pinned public tree. The only
+`.mcp.json` (`checks.*.mcp-launcher-parity`) reads files in the pinned public tree. The only
 proof a server works is invoking one of its tools.
 
 ## Hard rules
@@ -150,9 +150,9 @@ operator. The one exception already exists: the `mcp-utilities` plugin
 - **No `flake.lock` pin** on the server's version — plugin content floats on the marketplace
   branch. The 2026-09-14 recovery levers (**pin the input, override the package**) do not apply to
   a plugin-declared `npx` spec.
-- **Only a name-level build check.** `mcp-published-parity` is deleted; `checks.*.mcp-launcher-parity`
-  reads the PINNED `kattakath-skills` plugins' `.mcp.json` and joins their `nix-mcp-*` commands
-  against the launchers `macos` builds. It cannot see a server that fails to answer, or a
+- **Only a file-level build check.** `mcp-published-parity` is deleted; `checks.*.mcp-launcher-parity`
+  reads, per server `macos` declares, the PINNED `kattakath-skills` plugin seeded with its
+  `nix-mcp-*` launcher, and checks it declares and passes that `launcher` setting. It cannot see a server that fails to answer, or a
   marketplace this repo does not pin.
 
 ## 3. Declare — the plugin's `.mcp.json`
@@ -187,8 +187,8 @@ nix flake check
 
 PR per [pr-title](../../rules/pr-title.md); activation is the operator's move — `activate`, from
 any directory. **A green `nix flake check` says little about the server**: its one MCP leg
-(`checks.*.mcp-launcher-parity`) only joins the pinned plugins' `nix-mcp-*` names against the
-launchers `macos` builds.
+(`checks.*.mcp-launcher-parity`) only reads, per server `macos` declares, the pinned plugin seeded
+with its launcher.
 
 Then verify, in this order. **A session already running cannot see a newly declared plugin
 server** — its tool namespace was fixed at session start.

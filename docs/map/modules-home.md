@@ -100,13 +100,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
     seeded `launcher`, the built binary, and the pinned `kattakath-skills` plugin that must
     declare a `launcher` setting and pass `${user_config.launcher}` to its server. Its legs are
     the check's own `subject`/assertions — read them there, not restated here.
-    - **The cost, stated:** `kattakath-skills` is now load-bearing for a second thing, so an
-      MCP server added over there needs this pin bumped here to stay green.
-      `.github/workflows/update-flake-lock.yml` bumps every input weekly and arms auto-merge,
-      so the join is re-checked on a reviewable PR rather than never — the lag is bounded at
-      one week, not unbounded. When a leg goes red, the plugin is **already** broken on this
-      Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile PR is the symptom,
-      not the fault.
+    - **The cost, stated:** `kattakath-skills` is load-bearing for this check; what an upstream
+      rename or a new upstream server does to it is in the `mcp-launcher-parity` header comment
+      in `modules/parts/checks.nix`.
   - `local.pluginMcp.servers` → `nix-mcp-<name>` (macos declares `postgres` only; `wordpress`
     stays defined but undeclared since 2026-11-01), the CREDENTIALED servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26).
     One generic `packages/keychain-mcp.nix` builds all of them —
