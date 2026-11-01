@@ -2,8 +2,9 @@
 
 > # ⚠ CURRENT STATE (2026-10-21): this repo renders ONE public MCP server into Claude Desktop — `github` — plus whatever the operator's private overlay adds. Desktop Commander reaches Desktop separately, as a Desktop Extension this repo does not render.
 >
-> The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Claude Desktop loads
-> no plugins**, so no plugin-owned server reaches it or the Cowork bridge behind it. `github`
+> The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Desktop chat runs no
+> plugin stdio server** (claude.com/docs/plugins/platform-support; its Code tab DOES load plugins, like the CLI), so no plugin-owned
+> server reaches chat, and Cowork reads the claude.ai account's plugins. `github`
 > arrives through `local.claudeDesktop.extraServers` (`modules/home/default.nix`); client servers
 > arrive through the hand-placed Desktop overlay (`claude-desktop.nix`, merged at activation, so
 > this public repo names none). A `url` overlay entry goes through the `mcp-remote` shim.

@@ -444,7 +444,7 @@ in
     # Client side D: the writer for Claude Desktop's stateful
     # claude_desktop_config.json — it merges ONE key, `mcpServers`, and what it
     # renders there is `local.claudeDesktop.extraServers` (set below) plus the
-    # operator's private overlay. Desktop loads no plugins, so the plugin lane above cannot reach it; the
+    # operator's private overlay. Desktop CHAT runs no plugin stdio server, so the plugin lane above cannot reach it; the
     # module stays enabled because Desktop's server set is a state something must WRITE. NOT gated on any gateway option —
     # that gating was the 2026-10-01 regression `checks.*.claude-desktop-config-shape`
     # now has a leg for.
@@ -1593,7 +1593,7 @@ in
   # that stops managing them.
 
   # ---- Claude Desktop: extra servers ------------------------------------------
-  # Desktop loads no plugins (./claude-desktop.nix says why that is the only lane).
+  # Desktop CHAT runs no plugin stdio server (./claude-desktop.nix says why that is its only lane).
   # Client servers are NOT declared here: they come from the operator's hand-placed
   # Desktop overlay (claude-desktop.nix), so this public file names none. The
   # `claude-desktop-config-shape` check allows `github` and no other name.
