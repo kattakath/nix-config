@@ -236,6 +236,22 @@ back from tool output. Refer to a secret by its **name/handle** only. Reading a 
 it (env var, `passwordCommand`) is fine; **displaying** it is not. When unsure whether a string
 is sensitive, treat it as sensitive.
 
+## No data in any repository — every project, including future ones
+
+Ismail, 2026-11-01: repos are built to **go public** once mature, so **no repository ever
+carries data**. Repos hold procedures, code and generic config. Every fact — documents,
+balances, transactions, journals, decisions, run logs, per-person config — lives in **Google
+Workspace / Google Cloud**, chosen precisely because it keeps the data portable.
+
+- **The test:** would this line read the same for a different person? No → it is data → its
+  home is Drive, Sheets, Tasks or Calendar, never a repo file.
+- **Paths to personal data stay out too.** Reach a Drive folder through an env var or a
+  symlink the operator creates, never a path written into the repo.
+- **Tool state that defaults into `~/.local/state`** (run logs, caches) is pointed at Drive
+  when it carries figures.
+- **Prefer derived artifacts.** Human decisions go in Google-native files (Sheets keep version
+  history); generated files are rebuilt from them, so they hold no fact of their own.
+
 ## Git authorship — no AI attribution, honor per-repo identity
 
 - **Never add AI attribution to git artifacts.** No `Co-Authored-By:` trailer for Claude or
