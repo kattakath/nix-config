@@ -135,8 +135,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
       one week, not unbounded. When a leg goes red, the plugin is **already** broken on this
       Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile PR is the symptom,
       not the fault.
-  - `local.pluginMcp.servers` → `nix-mcp-{wordpress,postgres}`, the CREDENTIALED
-    servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26).
+  - `local.pluginMcp.servers` → `nix-mcp-<name>` (macos declares `postgres` only; `wordpress`
+    stays defined but undeclared since 2026-11-01), the CREDENTIALED servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26).
     One generic `packages/keychain-mcp.nix` builds all of them —
     it is the extracted form of the gateway's own `mkGeneratedStdio`, so there is no second copy
     of "export N variables, exec a pinned interpreter". It writes NO file, so it needs no umask;
