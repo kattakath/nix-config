@@ -2970,9 +2970,6 @@ in
               );
               declared = lib.naturalSort (lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") allCommands));
 
-              # A namer this check cannot see in the public tree (2026-11-01):
-              # `desktop-commander` moved to the operator's PRIVATE overlay marketplace
-              # (CI cannot read it).
               # And the launchers a plugin is POINTED at through a seeded `launcher`
               # setting (plugin-mcp.nix `pluginConfigs`) are named there, not in `.mcp.json`.
               seededLaunchers = lib.filter (lib.hasPrefix "nix-mcp-") (
@@ -2980,10 +2977,7 @@ in
                   hm.programs.claude-code.settings.pluginConfigs or { }
                 )
               );
-              namedOutsidePublicTree = [
-                "nix-mcp-desktop-commander"
-              ]
-              ++ seededLaunchers;
+              namedOutsidePublicTree = seededLaunchers;
 
               # Since 2026-11-01 the public tree names NO fleet launcher (every plugin
               # starts a launcher its operator names), so `declared` is legitimately empty;

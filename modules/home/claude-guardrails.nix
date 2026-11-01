@@ -65,7 +65,7 @@
 # Top-level `lib.mkIf isDarwin`, matching ./claude-brain.nix: programs.claude-code
 # is darwin-only (default.nix), and the gate keeps nixpi/nixvm byte-identical.
 let
-  # The secret-path COORDINATES, shared with the Seatbelt fence in ./plugin-mcp.nix
+  # The secret-path COORDINATES (once also rendered into a Seatbelt fence, retired 2026-11-01)
   # so the two layers cannot drift. See that file for why this is data rather than
   # a second copy of the rules, and why a match-based derivation was rejected.
   secretReadPaths = import ../_lib/secret-read-paths.nix;
@@ -314,10 +314,10 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # THE PATHS MOVED OUT, THE RULES DID NOT. These `Read(...)` globs (seven: four
     # agenix spellings plus three under home) are
     # now rendered from modules/_lib/secret-read-paths.nix, because a second
-    # enforcement layer needs the same coordinates in a spelling a glob cannot
-    # express: the macOS Seatbelt profile that fences desktop-commander
-    # (./plugin-mcp.nix) wants `(subpath "/abs/path")`. Data with two renderers,
-    # not two lists — and the `assertions` at the top of this file makes an empty
+    # enforcement layer needed the same coordinates in a spelling a glob cannot
+    # express (desktop-commander's Seatbelt fence, retired 2026-11-01, wanted
+    # `(subpath "/abs/path")`). Data with renderers,
+    # not lists — and the `assertions` at the top of this file makes an empty
     # render a build error, which is the objection the group above raises about
     # its managed-settings twin. The RENDER also widened the agenix rule from one
     # spelling to four, because `/run` is a symlink on darwin and a `Read()` glob
