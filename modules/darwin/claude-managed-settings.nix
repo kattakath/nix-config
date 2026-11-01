@@ -434,8 +434,8 @@ let
     # silently kill the ~/.claude/skills/ auto-load the moment this key appears.
     #
     # `trustedMarketplaceOwners` is the "trust a NEW OWNER" rebuild § 3 prices, as
-    # an option, so the operator's own handle (a private client-overlay marketplace,
-    # docs/agent-resource-externalization.md) is a host value, not an engine literal.
+    # an option, so an owner handle (for a consumer's private marketplace; `macos` sets
+    # none since 2026-11-01) is a host value, not an engine literal.
     # Prepended, never the whole list, so it can never empty it.
     strictKnownMarketplaces =
       map (owner: {
@@ -600,8 +600,8 @@ in
     example = [ "your-github-handle" ];
     description = ''
       Extra GitHub owners whose every repository is an allowed plugin marketplace
-      (`strictKnownMarketplaces` owner wildcard), on top of the fixed list. For an
-      operator's own private overlay marketplace.
+      (`strictKnownMarketplaces` owner wildcard), on top of the fixed list. For a
+      consumer's own private marketplace (the fleet runs none).
     '';
   };
 
