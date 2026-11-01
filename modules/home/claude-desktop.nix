@@ -2,10 +2,12 @@
 #
 # WHAT THIS DOES
 # Renders `extraServers` into Claude Desktop's own config file,
-# ~/Library/Application Support/Claude/claude_desktop_config.json. Desktop reads
-# none of ~/.claude/*, .mcp.json or the home-manager MCP hub, and it loads NO
-# PLUGINS — so a plugin-owned MCP server never reaches Desktop, nor the Cowork
-# bridge behind it. `extraServers` is the public lane: it carries `github`
+# ~/Library/Application Support/Claude/claude_desktop_config.json. Desktop CHAT
+# takes plugins from the claude.ai account and IGNORES their hooks and local MCP
+# (claude.com/docs/plugins/platform-support), so a plugin-owned stdio server never reaches chat, and Cowork
+# reads the account's plugins, not these marketplaces. Desktop's CODE TAB is
+# Claude Code: it reads ~/.claude like the CLI and loads every plugin (measured
+# 2026-11-01: 114 of 398 Desktop-launched transcripts call plugin MCP tools). `extraServers` is the public lane: it carries `github`
 # (modules/home/default.nix).
 # A second, PRIVATE lane rides the same merge: `overlayFile`, a hand-placed JSON
 # the operator keeps out of this public repo, read at activation only.

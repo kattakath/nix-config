@@ -32,8 +32,8 @@
 # ONE MORE, with its own entry below: `github` (gh's own token via `ghTokenEnv`).
 #
 # This is NOT the gateway returning: no long-lived process, no listening socket, no
-# tunnel, no portal. Claude Desktop loads no plugins, so none of these reach it
-# through a plugin — the one exception is `github`, which Desktop gets separately
+# tunnel, no portal. Desktop CHAT runs no plugin stdio server (its Code tab does), so none of
+# these reach chat through a plugin — the one exception is `github`, which Desktop gets separately
 # via `local.claudeDesktop.extraServers` (modules/home/default.nix).
 {
   config,
