@@ -1708,6 +1708,10 @@ in
           # removes the connector and keeps `plugin:aws-infin8:aws-mcp` (stdio, so a URL
           # deny cannot match it).
           { serverUrl = "https://aws-mcp.us-east-1.api.aws/mcp"; }
+          # The claude.ai Microsoft 365 connector: never usable here (the tenant blocks
+          # consent, so it only ever showed "Needs authentication"); operator removed it
+          # 2026-11-01. Measured the same way: the URL deny drops it from `claude mcp list`.
+          { serverUrl = "https://microsoft365.mcp.claude.com/mcp"; }
         ];
 
         theme = "auto";
