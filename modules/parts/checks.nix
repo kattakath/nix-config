@@ -392,7 +392,10 @@ in
                   !(config.flake.nixosConfigurations ? ${piName})
                 ) "nixosConfigurations.${piName} is gone — rule 1d guards a host that no longer exists"
                 ++
-                  lib.optional (!(lib.hasInfix piName guard && lib.hasInfix escapedDomain guard))
+                  # ONE joined needle: the host and its domain as they sit side by side
+                  # in the regex. Two separate substrings pass on the ~20 comment
+                  # mentions of the host even when the PI_HOSTS literal is broken.
+                  lib.optional (!(lib.hasInfix "${piName}(?:\\.${escapedDomain}" guard))
                     "the guard's PI_HOSTS does not name ${piName}.${domainName} — it now matches NOTHING, and the hook fails open"
                 ++
                   lib.optional (!(lib.hasInfix "${piName}.${domainName}" suite))
@@ -1067,6 +1070,10 @@ in
                 indexes = docIndexPaths;
               }
               ''
+                ${lib.optionalString (hostFiles == [ ] || docIndexPaths == [ ]) ''
+                  echo "hosts-documented: VACUOUS — ${toString (lib.length hostFiles)} host files, ${toString (lib.length docIndexPaths)} indexes. An empty side is never a pass." >&2
+                  exit 1
+                ''}
                 undocumented=()
                 for f in ${lib.escapeShellArgs hostFiles}; do
                   hit=
@@ -1137,27 +1144,10 @@ in
           #     and describes it wrongly passes. This catches absence, not rot —
           #     the shared "NOT COVERED" note above applies unchanged.
           #
-          # HOW IT GOES VACUOUS, and this half is NOT guarded — unlike
-          # docs-links-resolve, which asserts a non-zero link total and treats
-          # lychee's "no files found" as fatal. Both subject lists come from
-          # `builtins.readDir` filtered on `t == "regular"`, and that filter DROPS
-          # DIRECTORY ENTRIES. `map` is a directory, so until it was named
-          # explicitly the eleven domain files were invisible to this check — the
-          # 2026-10-02 split would have shrunk this gate's scope by the very
-          # commit that created them. Measured, with the arithmetic rather than
-          # the intention: docs/ holds 39 `.md` regulars (38 subjects after
-          # dropping repo-map.md) and docs/map/ holds 11, which is the 49 above.
-          # Re-nest docs/map/ one level deeper and `mapIndexNames` evaluates to
-          # `[ ]`, docFiles falls 49 -> 38, and this builder still finds nothing
-          # unlinked, writes a success line and EXITS 0 — eleven documents (22% of
-          # coverage) leave the gate with it still green. The loss is VISIBLE but
-          # not FATAL: both counts are interpolated into the success message at
-          # eval time, so the output reads "all 38 documents … 2 indexes" instead
-          # of 49 and 13. Reading that number is the only thing standing in for a
-          # non-empty assertion here. If this check is ever extended again, the
-          # cheap fix is the one docs-links-resolve already made: assert the
-          # subject and index counts are non-zero AND that docs/map contributed at
-          # all, rather than trusting a reader to notice a smaller number.
+          # NON-EMPTY, asserted: `readDir` filtered on `t == "regular"` drops
+          # directories, so re-nesting docs/map/ would empty `mapIndexNames` and
+          # shrink this gate's scope while it stayed green. The builder now fails
+          # on an empty subject list, an empty index list, or no docs/map/ entries.
           docs-indexed =
             let
               docFiles =
@@ -1171,6 +1161,10 @@ in
                 ++ map (n: "map/${n}") mapIndexNames;
             in
             pkgs.runCommand "docs-indexed" { nativeBuildInputs = [ pkgs.coreutils ]; } ''
+              ${lib.optionalString (docFiles == [ ] || docIndexNames == [ ] || mapIndexNames == [ ]) ''
+                echo "docs-indexed: VACUOUS — ${toString (lib.length docFiles)} documents, ${toString (lib.length docIndexNames)} indexes, ${toString (lib.length mapIndexNames)} docs/map entries. An empty side is never a pass." >&2
+                exit 1
+              ''}
               cd ${self}
 
               # Collect every link target the two indexes carry, each resolved
