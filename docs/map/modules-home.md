@@ -518,7 +518,10 @@ in the repo can catch that; see that fixture file's header for the measurement.
     Three assertions, each measured firing via `extendModules`: a malformed key, an overlap with
     the always-on three, and a plugin absent from its own marketplace's catalogue — the last
     skipped when the marketplace is not declared here, because `<plugin>@synced` (claude.ai
-    sync) is live and unknowable at eval. **Full ids, not bare names, for that reason.** The
+    sync) is live and unknowable at eval. **Full ids, not bare names, for that reason.** A
+    `<plugin>@synced` copy is SHADOWED, not doubled, by a same-named plugin from a declared
+    marketplace (`claude plugin list --json` note `synced-plugin-shadowed`) — which is why
+    `cloudflare@cloudflare` could be declared over the live `cloudflare@synced`. The
     `assured` (managed-settings) lane of ADR-008 §6 is **NOT built**.
   - **Why it exists.** This was a single-marketplace mechanism inlined in `home.nix`
     (`claudePluginIds` / `localPluginsMarketplace` / `home.activation.claudeCodePlugins`)
