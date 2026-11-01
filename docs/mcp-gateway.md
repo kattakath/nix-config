@@ -501,12 +501,12 @@ answers** (§ How to verify …). There is only one declaration target now:
   would be meaningless in another repo.
 - **Plus a nix-config PATH package, if and only if the server needs something `.mcp.json` cannot
   express** — in practice a login-Keychain read. `local.pluginMcp` + `packages/keychain-mcp.nix` is
-  the worked example (`local.gmailMcp` was until 2026-11-01); `page-lab-pick` and `mcp-nixos` are the same shape for other plugins. Keep
+  the worked example (`local.gmailMcp` was until 2026-11-01). Keep
   the credential logic in the Nix wrapper, never duplicated into the plugin repo.
 - **Nothing else in this repo.** No gateway entry (there is no gateway), no
   `fleet.publicMcpServers` (deleted), no Cloudflare registration (destroyed), no
   `mcp-published-parity` (deleted) — but a new `nix-mcp-*` launcher DOES need the
-  `kattakath-skills` pin bumped here once its plugin names it, or `checks.*.mcp-launcher-parity`
+  `kattakath-skills` pin bumped here once upstream `kattakath/skills` carries its plugin, or `checks.*.mcp-launcher-parity`
   goes red. `.claude/settings.json` permission rules are still worth writing — allow read-only
   tools by name, deny anything that writes outside the server's remit.
 - `launchd-naming` does **not** apply to a per-session stdio child: it governs launchd units, and
