@@ -1,15 +1,14 @@
 # Claude Desktop / Cowork — MCP (2026-09-15, rewritten 2026-10-02)
 
-> # ⚠ CURRENT STATE (2026-10-21): this repo renders ONE public MCP server into Claude Desktop — `github` — plus whatever the operator's private overlay adds. Desktop Commander reaches Desktop separately, as a Desktop Extension this repo does not render.
+> # ⚠ CURRENT STATE (2026-10-21): this repo renders NO public MCP server into Claude Desktop (the local `github` server gave way to claude.ai's official GitHub Integration, 2026-11-01) — only whatever the operator's private overlay adds. Desktop Commander reaches Desktop separately, as a Desktop Extension this repo does not render.
 >
 > The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Desktop chat runs no
 > plugin stdio server** (claude.com/docs/plugins/platform-support; its Code tab DOES load plugins, like the CLI), so no plugin-owned
-> server reaches chat, and Cowork reads the claude.ai account's plugins. `github`
-> arrives through `local.claudeDesktop.extraServers` (`modules/home/default.nix`); client servers
-> arrive through the hand-placed Desktop overlay (`claude-desktop.nix`, merged at activation, so
+> server reaches chat, and Cowork reads the claude.ai account's plugins. `local.claudeDesktop.extraServers`
+> renders nothing public; client servers arrive through the hand-placed Desktop overlay (`claude-desktop.nix`, merged at activation, so
 > this public repo names none). A `url` overlay entry goes through the `mcp-remote` shim.
 > `checks.aarch64-darwin.claude-desktop-config-shape` asserts the module is enabled and that
-> no server but `github` is rendered from Nix.
+> no public server is rendered from Nix.
 >
 > **The module stays ENABLED. Do not "clean it up" by switching it off.** The set Desktop should
 > see is a state something must **write**. A disabled module writes nothing, which leaves
@@ -51,7 +50,7 @@ move the shim transform with it.
 ## What gets written
 
 **From 2026-10-02: an empty `mcpServers` object, until `local.claudeDesktop.extraServers` came back
-— today `github` only from Nix, plus the private overlay.** The flow below is the shape the
+— today nothing public from Nix, only the private overlay.** The flow below is the shape the
 renderer still has (and would use again if a `url` ever reappeared via `extraServers`), but there
 is no portal entry at the top of it any more. Read it as the mechanism, not the inventory.
 
@@ -78,8 +77,8 @@ programs.mcp.servers (hub)
 - **Shims, not servers.** The gateway hosted one instance of each; Desktop launched
   one thin `mcp-remote` bridge per server. ~27 node processes at launch; first launch after
   a pin bump fetched `mcp-remote@<pin>` into `~/.npm/_npx` (a runtime fetch, the same trade
-  the gateway's npx/uvx launchers made). **Zero such processes from Nix today** — the one server
-  it renders, `github`, is stdio (a `url` overlay entry would add one).
+  the gateway's npx/uvx launchers made). **Zero such processes from Nix today** — Nix renders
+  no server at all (a `url` overlay entry would add one).
 - **The marker is an env var** (`NIX_CONFIG_MANAGED`) because it is the one extra field
   Desktop's stdio schema tolerates and every server ignores. It is how the merge tells
   *ours* (rewrite, prune when stale) from *theirs* (a server added in Desktop's UI — never

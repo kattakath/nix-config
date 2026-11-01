@@ -362,9 +362,6 @@ in
       "wordpress"
       "postgres"
       "desktop-commander"
-      # GitHub MCP with the gh CLI's token (no stored secret). Used by Claude Desktop's
-      # `github` server; the github-gh plugin that also used it retired 2026-11-01.
-      "github"
     ];
     # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
     # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
