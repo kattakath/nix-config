@@ -1701,6 +1701,17 @@ in
         deniedMcpServers = [
           { serverName = "plugin:aws-core:aws-mcp"; }
           { serverName = "plugin:aws-serverless:aws-serverless-mcp"; }
+          # The claude.ai AWS connector (account-level, so it also serves claude.ai chat and
+          # Cowork, where [redacted] cannot run): denied in Claude Code ONLY, where it
+          # duplicated [redacted]'s tools. By URL, the vendor's stable endpoint, not the
+          # renameable display name. Measured 2026-11-01 with `claude --settings … mcp list`:
+          # removes the connector and keeps `plugin:[redacted]:aws-mcp` (stdio, so a URL
+          # deny cannot match it).
+          { serverUrl = "https://aws-mcp.us-east-1.api.aws/mcp"; }
+          # The claude.ai Microsoft 365 connector: never usable here (the tenant blocks
+          # consent, so it only ever showed "Needs authentication"); operator removed it
+          # 2026-11-01. Measured the same way: the URL deny drops it from `claude mcp list`.
+          { serverUrl = "https://microsoft365.mcp.claude.com/mcp"; }
         ];
 
         theme = "auto";
