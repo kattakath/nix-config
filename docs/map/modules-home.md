@@ -702,7 +702,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   two store paths with one name.
 
 - **`beancount.nix`** (macos only, since 2026-11-01) — `local.beancount`: ONE
-  `python3.withPackages` env (beancount 3.2.3, beangulp 0.2.0, beanquery 0.2.0, fava 1.30.16)
+  `python3.withPackages` env (beancount 3.2.3, beangulp 0.2.0, beanquery 0.2.0, fava 1.30.16, fava-dashboards 2.0.2)
   so the plugin's build code and `bean-check`/`fava` share an interpreter. Only the four CLIs
   reach PATH, plus `beancount-language-server`; the env's `python3` does not, so it shadows
   nothing. Exports `BEANCOUNT_PYTHON`, `BEANCOUNT_JOURNAL` (default: a path under the
