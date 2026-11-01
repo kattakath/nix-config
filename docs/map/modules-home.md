@@ -536,6 +536,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
     re-asserted every activation. Rendered as
     `enabledPlugins = cfg.declared // genAttrs alwaysOnIds (_: true)` — floor last, so the
     always-on three win the merge even without the assertion that already forbids an overlap.
+    **The whole map is `lib.mkIf isMacosHost`** in `default.nix`: every id in it is the operator's
+    choice, so a template consumer renders the always-on floor alone, and
+    `checks.<system>.template-consumer` fails if its rendered `enabledPlugins` keys are anything else.
     **The invariant it preserves, which is the real content of #648:** Nix may write an
     `enabledPlugins` key only for an id a human named ON PURPOSE — never one DERIVED from the
     catalogue — so the jq merge in `claude-code-settings.nix` (`.[0] * $nix[0]`, right operand
