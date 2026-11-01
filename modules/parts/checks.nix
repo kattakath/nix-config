@@ -861,7 +861,27 @@ in
                   exit 1
                 fi
 
-                echo "managed floor carries all ${toString (builtins.length secretRules)} secret-value rules from the user scope, and allows all ${toString (builtins.length gitMarketplaces)} declared git marketplaces" > "$out"
+                # The reverse leg: an exact `git` entry no declared marketplace uses is a
+                # stale trust grant — the restated list outlived the source it was for.
+                stale=0
+                while IFS= read -r url; do
+                  [ -n "$url" ] || continue
+                  if ! printf '%s\n' "${lib.concatStringsSep "\n" gitMarketplaces}" | grep -qxF "$url"; then
+                    echo "  NOT a declared marketplace: $url" >&2
+                    stale=1
+                  fi
+                done <<< "$allowedGit"
+
+                if [ "$stale" -ne 0 ]; then
+                  echo "" >&2
+                  echo "claude-managed-settings: modules/darwin/claude-managed-settings.nix's" >&2
+                  echo "strictKnownMarketplaces allows the git sources above, but" >&2
+                  echo "local.claudePlugins.marketplaces declares none of them. Remove the entry," >&2
+                  echo "or declare the marketplace it was added for." >&2
+                  exit 1
+                fi
+
+                echo "managed floor carries all ${toString (builtins.length secretRules)} secret-value rules from the user scope, and allows exactly the ${toString (builtins.length gitMarketplaces)} declared git marketplaces" > "$out"
               '';
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
@@ -2887,7 +2907,7 @@ in
           # Only the Violentmonkey sideload remains in modules/home/chromium.nix;
           # the `scripts` seam is gone. If a script is ever declared again, restore this gate with it.
 
-          # ---- the launcher<->plugin JOIN, across the repo boundary -------------
+          # ---- the launcher<->plugin CONTRACT, across the repo boundary ---------
           #
           # MCP servers in this fleet are declared in TWO repos BY DESIGN, and the
           # split is right: Nix builds the launcher BINARIES (`local.pluginMcp`,
@@ -2914,11 +2934,12 @@ in
           # could not go red; it never opened the plugin a launcher was seeded into.
           #
           # THE COST, stated rather than discovered: `kattakath-skills` is load-bearing
-          # here, so renaming a plugin or its `launcher` key over there needs this pin
-          # bumped here to stay green. Bounded and automatic —
+          # here, so renaming a plugin or its `launcher` key over there turns this check
+          # RED at the next pin bump (the old pin stays green). A server added over there
+          # is not read at all — only the servers macos declares are. Bounded and automatic —
           # .github/workflows/update-flake-lock.yml bumps it weekly (its
           # `updatable-inputs` step names the inputs it skips) and arms
-          # auto-merge on the result — so the join is re-checked on a reviewable PR
+          # auto-merge on the result — so the check is re-run on a reviewable PR
           # rather than never. A red leg there means a plugin is ALREADY broken on
           # this Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile
           # is the symptom, not the fault.

@@ -175,7 +175,7 @@ The discriminator is not purity, it is **what happens when the resource is wrong
 never this table (§10.1). **The servers row has no in-repo source any more** — it was
 `modules/shared/mcp.nix` / `modules/parts/identity.nix`, both of which lost it on 2026-10-02
 (§10.8); the only source now is each plugin's own `.mcp.json` (read here only by
-`checks.*.mcp-launcher-parity`, as a name join over the pinned public tree).
+`checks.*.mcp-launcher-parity`, as a name join over the pinned public tree; since #1014, a per-server contract check).
 
 | Surface | Decision | Failure blast radius |
 |---|---|---|

@@ -441,10 +441,10 @@ in
     # silently inert.
     # Client side D: the writer for Claude Desktop's stateful
     # claude_desktop_config.json — it merges ONE key, `mcpServers`, and what it
-    # renders there is `local.claudeDesktop.extraServers` (set below) plus the
+    # renders there is `local.claudeDesktop.extraServers` plus
     # an optional hand-placed overlay (none placed on `macos`). Desktop CHAT runs no plugin stdio server, so the plugin lane above cannot reach it; the
     # module stays enabled because Desktop's server set is a state something must WRITE. NOT gated on any gateway option —
-    # that gating was the 2026-10-01 regression `checks.*.claude-desktop-config-shape`
+    # that gating was the 2026-10-01 regression `checks.aarch64-darwin.claude-desktop-config-shape`
     # now has a leg for.
     ./claude-desktop.nix
     ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
@@ -1051,7 +1051,7 @@ in
     # ---- UPSTREAM marketplaces (some of their repos are also pinned as skill inputs)
     # (added 2026-09-30, kattakath/nix-config#650) -----------------------------
     #
-    # Four upstream repos (some of them also pinned as `agent-skills-*` inputs) publish their
+    # These upstream repos (some of them also pinned as `agent-skills-*` inputs) publish their
     # OWN .claude-plugin/marketplace.json. Declaring those marketplaces is the
     # off-the-shelf route to the same content: the upstream owns the packaging, the
     # skill set, and the release discipline, and this repo stops cherry-picking
@@ -1061,15 +1061,12 @@ in
     # `local.claudePlugins.declared` (step 2 below) — that is the whole point of #650
     # rather than an oversight. Registering a marketplace INSTALLS NOTHING — it
     # only makes `<plugin>@<marketplace>` resolvable. The plugins must be enabled
-    # before any of their skills appears — and today NONE of them is: measured
-    # 2026-09-30, the intersection of the 45 skill names declared in
-    # `programs.claude-code.skills` below with all 78 skill names the CURRENTLY
-    # INSTALLED marketplace plugins provide is EMPTY. So removing an input in the
+    # before any of their skills appears, so removing an input in the
     # same change would open a real capability gap between the two events, and even
     # a plugin whose skill directory looks identical (anthropic-agent-skills'
     # `document-skills` bundles pdf/docx/pptx/xlsx as one unit) has to be enabled
     # and SEEN in a session before the `skills` entry can go. The sequence is:
-    #   1. this PR — declare the marketplaces;
+    #   1. declare the marketplaces;
     #   2. operator enables the plugins he wants — `local.claudePlugins.declared`
     #      (ADR-008's lane, added 2026-10-02) or /plugin. NOT by adding a name to a
     #      `plugins` list: that is a catalogue and enables nothing, which is exactly
@@ -1078,7 +1075,7 @@ in
     #   4. a FOLLOW-UP PR removes the matching inputs + `skills` entries.
     # Nothing below removes an input or a skill entry; do not fold step 4 in here.
     #
-    # `autoUpdate` is left at its `false` default on all four, matching every other
+    # `autoUpdate` is left at its `false` default on every entry here, matching every other
     # third-party marketplace in this attrset (`claude-plugins-official`,
     # `context7-marketplace`) — only `kattakath` (the operator's own repo) is `true`.
     # These are other people's repos, and autoUpdate means whatever lands on their
@@ -1128,7 +1125,8 @@ in
     # obra/superpowers (MIT), input `agent-skills-superpowers`. The marketplace
     # publishes as `superpowers-dev`; its single `superpowers` plugin is the whole
     # skills library, of which this repo currently pins TWO skills
-    # (`systematic-debugging`, `verification-before-completion`) by subpath.
+    # (`systematic-debugging`, `verification-before-completion`) by subpath. Steps 2–4
+    # not taken; its input and `skills` entries stay until they are.
     superpowers-dev = {
       source = lib.mkDefault "https://github.com/obra/superpowers.git";
       plugins = [ ];
@@ -1139,7 +1137,8 @@ in
     # document skills (pdf/docx/pptx/xlsx) as ONE unit, and `example-skills`
     # carries mcp-builder + webapp-testing. DISTINCT from
     # `claude-plugins-official` above (anthropics/claude-plugins-official) — two
-    # different Anthropic repos, two different marketplaces.
+    # different Anthropic repos, two different marketplaces. Steps 2–3 not
+    # taken; there is no input or `skills` entry to remove.
     anthropic-agent-skills = {
       source = lib.mkDefault "https://github.com/anthropics/skills.git";
       plugins = [ ];
@@ -1197,7 +1196,8 @@ in
     # replaced the kattakath one. Declared so a fresh Mac gets it without a click.
     "apify@apify" = true;
     # Same-named as the claude.ai-synced copy, which this one hides rather than doubles
-    # (the `<name>@synced ... takes precedence` rule, measured 2026-11-01).
+    # (the declared copy takes precedence over the `@synced` one — `claude plugin list`'s
+    # shadow note, measured 2026-11-01).
     "cloudflare@cloudflare" = true;
 
     # ---- The same failure, four more times ---------------------------------
@@ -1296,9 +1296,8 @@ in
     # are git history (the retired `brags` fleet-repos.txt line) and the
     # declarative-plugin-floor ADR.
 
-    # CLICKED-ONLY until 2026-11-01: these 27 were `true` in the live settings.json and
-    # declared nowhere, so a fresh Mac came up without them (measured: 50 live-true ids,
-    # 28 declared by Nix + the overlay). Declared as they were, no pruning (operator).
+    # CLICKED-ONLY until 2026-11-01: these were `true` in the live settings.json and
+    # declared nowhere, so a fresh Mac came up without them. Declared as they were, no pruning (operator).
     # fleet-doctor's enablement-drift step reports any new id that appears only by click.
     "page-lab@kattakath" = true;
     "rag@kattakath" = true;
@@ -1840,7 +1839,7 @@ in
         # fleet already runs (see flake.nix `agent-skills-*` inputs). Additive,
         # git-pinned, bumped via `nix flake update`. ----
         # Cloudflare's skills come from the declared `cloudflare@cloudflare` plugin (the
-        # `cloudflare` marketplace above), not a flake input: one upstream, one pin.
+        # `cloudflare` marketplace above), not a flake input: one upstream.
         # The Anthropic skills (mcp-builder, webapp-testing, pdf/docx/pptx/xlsx) are NOT
         # here. Their heavy runtime deps still live in this repo: pandoc + poppler from nixpkgs
         # (home.packages above), LibreOffice/soffice from the macos-only Homebrew cask

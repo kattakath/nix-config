@@ -286,6 +286,3 @@ there is no client plugin left to host.
 | Client-literal leak patterns | a Google Drive file the operator keeps; checked before public pushes |
 | Optional local settings | `~/.config/nix-config/claude-settings.overlay.json` and `claude-desktop.overlay.json` still merge if hand-placed (`.[0] * $overlay * $nix`, Nix wins); none is needed |
 | Git identity routing | `~/.config/git/local.inc` (hand-placed) |
-
-`local.claudeManagedSettings.trustedMarketplaceOwners` stays as a generic host option for a
-consumer that does run a private marketplace; `macos` sets none.

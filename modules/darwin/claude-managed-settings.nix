@@ -432,91 +432,81 @@ let
     # `skills-dir` is NOT optional. Its own description: "In strictKnownMarketplaces:
     # opt the scan back IN (by default ANY allowlist blocks it)." Omitting it would
     # silently kill the ~/.claude/skills/ auto-load the moment this key appears.
-    #
-    # `trustedMarketplaceOwners` is the "trust a NEW OWNER" rebuild § 3 prices, as
-    # an option, so an owner handle (for a consumer's private marketplace; `macos` sets
-    # none since 2026-11-01) is a host value, not an engine literal.
-    # Prepended, never the whole list, so it can never empty it.
-    strictKnownMarketplaces =
-      map (owner: {
+    strictKnownMarketplaces = [
+      # Owners trusted wholesale — a new repo under these needs no rebuild.
+      {
         source = "github";
-        repo = "${owner}/*";
-      }) cfg.trustedMarketplaceOwners
-      ++ [
-        # Owners trusted wholesale — a new repo under these needs no rebuild.
-        {
-          source = "github";
-          repo = "kattakath/*";
-        }
-        {
-          source = "github";
-          repo = "anthropics/*";
-        }
-        {
-          source = "github";
-          repo = "upstash/*";
-        }
-        {
-          source = "github";
-          repo = "cloudflare/*";
-        }
-        {
-          source = "github";
-          repo = "trailofbits/*";
-        }
-        {
-          source = "github";
-          repo = "obra/*";
-        }
-        {
-          source = "github";
-          repo = "apify/*";
-        }
+        repo = "kattakath/*";
+      }
+      {
+        source = "github";
+        repo = "anthropics/*";
+      }
+      {
+        source = "github";
+        repo = "upstash/*";
+      }
+      {
+        source = "github";
+        repo = "cloudflare/*";
+      }
+      {
+        source = "github";
+        repo = "trailofbits/*";
+      }
+      {
+        source = "github";
+        repo = "obra/*";
+      }
+      {
+        source = "github";
+        repo = "apify/*";
+      }
 
-        # Every git-source marketplace modules/home/default.nix declares, spelled
-        # exactly as it declares them, so nothing in flight depends on the wildcard
-        # inference. A marketplace declared there but missing here is REFUSED at
-        # `marketplace add` ("blocked by enterprise policy") — measured 2026-10-26.
-        {
-          source = "git";
-          url = "https://github.com/kattakath/skills.git";
-        }
-        {
-          source = "git";
-          url = "https://github.com/anthropics/claude-plugins-official.git";
-        }
-        {
-          source = "git";
-          url = "https://github.com/anthropics/skills.git";
-        }
-        {
-          source = "git";
-          url = "https://github.com/upstash/context7.git";
-        }
-        {
-          source = "git";
-          url = "https://github.com/cloudflare/skills.git";
-        }
-        {
-          source = "git";
-          url = "https://github.com/trailofbits/skills.git";
-        }
-        {
-          source = "git";
-          url = "https://github.com/obra/superpowers.git";
-        }
-        {
-          source = "git";
-          url = "https://github.com/apify/apify-claude-code-plugin.git";
-        }
+      # Every git-source marketplace modules/home/default.nix declares, spelled
+      # exactly as it declares them, so nothing in flight depends on the wildcard
+      # inference. A marketplace declared there but missing here is REFUSED at
+      # `marketplace add` ("blocked by enterprise policy") — measured 2026-10-26.
+      {
+        source = "git";
+        url = "https://github.com/kattakath/skills.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/anthropics/claude-plugins-official.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/anthropics/skills.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/upstash/context7.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/cloudflare/skills.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/trailofbits/skills.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/obra/superpowers.git";
+      }
+      {
+        source = "git";
+        url = "https://github.com/apify/apify-claude-code-plugin.git";
+      }
 
-        # The store-path marketplace, and the ~/.claude/skills/ auto-load.
-        {
-          source = "pathPattern";
-          pathPattern = "^/nix/store/";
-        }
-        { source = "skills-dir"; }
-      ];
+      # The store-path marketplace, and the ~/.claude/skills/ auto-load.
+      {
+        source = "pathPattern";
+        pathPattern = "^/nix/store/";
+      }
+      { source = "skills-dir"; }
+    ];
   };
 
   # The install half of the ownership invariant. `install` on its own will happily
@@ -593,17 +583,6 @@ in
     outranks user, project and `--settings` scope. Disabling it REMOVES the file
     on the next activation, not merely stops rewriting it
   '';
-
-  options.local.claudeManagedSettings.trustedMarketplaceOwners = lib.mkOption {
-    type = lib.types.listOf (lib.types.strMatching "[A-Za-z0-9-]+");
-    default = [ ];
-    example = [ "your-github-handle" ];
-    description = ''
-      Extra GitHub owners whose every repository is an allowed plugin marketplace
-      (`strictKnownMarketplaces` owner wildcard), on top of the fixed list. For a
-      consumer's own private marketplace (the fleet runs none).
-    '';
-  };
 
   # Gated on isDarwin like modules/darwin/ollama-daemon.nix, even though only
   # hosts/macos.nix imports this: the path is macOS-specific (§ THE PATH above),

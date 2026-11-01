@@ -12,7 +12,7 @@ read → `.claude/settings.json` permissions → fresh session → **call one of
 
 **There is no gateway lane.** `modules/shared/mcp.nix`, `local.mcpGateway.*`,
 `fleet.publicMcpServers` and the Cloudflare portal were all destroyed/deleted 2026-10-02. The only
-check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) is a name join over the
+check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) reads files in the
 pinned public tree and cannot see whether a server answers — invoking a tool is the only proof. No server counts to update anywhere.
 
 **Never install imperatively** — no installer CLIs, no `claude mcp add` (denied at user scope,

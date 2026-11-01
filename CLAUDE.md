@@ -117,7 +117,7 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 # Companions: nixpi-wifi-creds (emit wpa_supplicant.conf from this Mac), nixpi-vault-token (re-encrypt a rotated token)
 
 # terranix — 5 stacks, 4 on one GCS backend. Run inside `nix develop` or tofu picks the WRONG ADC.
-# ALWAYS *-plan first — every stack has one. Every *-destroy is hard-blocked by the guard.
+# ALWAYS *-plan first — every stack has one. `cf-tunnel-destroy` is hard-blocked by the guard.
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-{import,plan,apply} # nixpi's tunnel + ingress + CNAME; `import` the SSH policy FIRST
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakath.com DNS records
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-access-org-{import,plan,apply}  # Zero Trust org; `import` FIRST or plan/apply refuse
@@ -227,7 +227,7 @@ as live, the doc is stale, not the code.
 Servers come from an enabled plugin's `.mcp.json`; a launcher doing what a JSON file CANNOT — a
 Keychain read — is a PATH package (`local.pluginMcp`;
 `desktop-commander` is now the official plugin, unfenced). **Desktop CHAT runs no plugin stdio server** (it takes plugins from the claude.ai account and ignores their local MCP; Desktop's Code tab loads plugins like the CLI), so its only
-lane is `local.claudeDesktop.extraServers` (EMPTY in public; client servers come from the operator's Desktop overlay file; GitHub there is claude.ai's official integration), pinned by `checks.*.claude-desktop-config-shape`.
+lane is `local.claudeDesktop.extraServers` (EMPTY in public; client servers come from the operator's Desktop overlay file; GitHub there is claude.ai's official integration).
 [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
 
 ## Code Style & Conventions
