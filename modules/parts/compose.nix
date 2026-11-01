@@ -28,7 +28,6 @@ let
     agenix
     nixos-hardware
     agent-skills-vercel
-    agent-skills-cloudflare
     agent-skills-jeffallan
     agent-skills-mac-automation
     agent-skills-excalidraw
@@ -101,7 +100,6 @@ let
         extraSpecialArgs = idArgs // {
           inherit
             agent-skills-vercel
-            agent-skills-cloudflare
             agent-skills-jeffallan
             agent-skills-mac-automation
             agent-skills-excalidraw
