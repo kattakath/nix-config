@@ -43,8 +43,8 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
     answers, and it is a **procedure**, not a gate.
   - **the three non-`nix-mcp-` lanes**, excluded by construction: `${CLAUDE_PLUGIN_ROOT}`-relative
     commands (which expand only inside the owning plugin), bare nixpkgs binaries, and `npx`
-    invocations. Which servers fall out of scope this way, per lane, is in [`modules-home.md`](modules-home.md) § `plugin-mcp.nix`.
-  - **anything in a marketplace this repo does not pin.** The join covers `kattakath/skills`
+    invocations.
+  - **anything in a marketplace this repo does not pin.** The check covers `kattakath/skills`
     only, and that pin lags the marketplace, which tracks HEAD.
 - **Adopting a server is still a declaration, never an imperative install.** `claude mcp add`
   and config-writing installer tools stay denied at user scope
@@ -310,8 +310,8 @@ only difference between "someone else's skill" and "mine" is now who can push to
   **No pin bump follows** since 2026-09-23: the marketplace is an https git source with
   `autoUpdate`, so a merge on `kattakath/skills` `main` ships by itself. A `flake.lock` bump is
   needed **only** when the thing you landed is consumed through the `kattakath-skills` INPUT —
-  i.e. the `page-lab-pick` PATH package, or a plugin `.mcp.json` that `checks.*.mcp-launcher-parity`
-  joins against. (`superhook` became a
+  i.e. the `page-lab-pick` PATH package, or a plugin that `checks.*.mcp-launcher-parity`
+  reads. (`superhook` became a
   plugin hook 2026-09-30; `mcp.nix`'s `mcpCatalog` was the other, and it went with `mcp.nix` on
   2026-10-02.)
 

@@ -192,8 +192,8 @@ in
       `nix-mcp-<name>`. An enum rather than free strings, so a typo fails here instead of
       shipping a plugin that names a binary nobody builds.
 
-      Each one is claimed by a plugin in github:kattakath/skills that declares a server
-      whose `command` is that binary name. Enabling a name here without the plugin
+      Each one is claimed by a plugin in github:kattakath/skills whose `launcher` setting
+      is seeded with that binary name (see this module's `pluginConfigs` block). Enabling a name here without the plugin
       installed just leaves an unused binary on PATH; installing the plugin without the
       name here leaves a server that cannot start.
 
