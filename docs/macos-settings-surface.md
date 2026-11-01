@@ -318,7 +318,7 @@ depend on.
 
 | Agents | Host |
 |---|---|
-| RAG (`ollama-local`, `postgres-pgvector`) — the MCP gateway shared this gate until it was deleted 2026-10-02 | **macos only** |
+| RAG (`ollama-local`, `postgres-pgvector`) — the `local-rag` capsule (`modules/features/local-rag/`); the shared `ollama serve` is `local.ollamaDaemon` | **macos only** |
 | `metube` / `yt-dlp-web-ui` (loopback download servers) | **macos only** |
 | `file-rotation-logs` / `file-rotation-logs-system` (launchd log rotation) | **macos only** |
 | `nix-file-rotation-desktop` / `nix-file-rotation-downloads` | **macos only** (a Tart guest whose `~/Downloads` is VirtioFS-shared with the host's would lose host files to a guest-side rotation — `mv` across filesystems is `cp`+`rm`) |

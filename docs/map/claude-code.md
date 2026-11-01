@@ -92,7 +92,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 | `/routing-review` | triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see [`claude-code-observability-runbook.md`](../claude-code-observability-runbook.md) |
 | `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server **into the owning plugin's `.mcp.json`** via skill `mcp-scout` (there is no gateway to adopt into since 2026-10-02); imperative installer CLIs / config-writing install tools are never used |
 | `/userscript` | measure → replay → **publish** a Violentmonkey userscript, via the `page-lab` plugin's method skill + the project skill `userscript-author` (delivery only since 2026-09-14 — nothing is declared or gated in Nix); **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
-| `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/cross-repo pins/GC/host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-title.md` |
+| `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/GC/host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-title.md` |
 
 ### `.claude/workflows/`
 
@@ -465,7 +465,7 @@ deliberately NOT pinned here. Add it as one more entry, or scope it to a project
 named here — [`agent-resource-externalization.md`](../agent-resource-externalization.md).)
 
 Everything in [`kattakath/skills`](https://github.com/kattakath/skills) is a plugin under
-`plugins/` (29 as of 2026-10-21, no bare `skills/` tree) — a lone skill ships as a one-skill
+`plugins/` (no bare `skills/` tree) — a lone skill ships as a one-skill
 plugin, as `gif-meme` does. An agent for ONE project belongs
 in that project's `.claude/agents/`, per the seargraph record above.
 

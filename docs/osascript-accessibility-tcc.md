@@ -57,8 +57,8 @@ as a **non-fatal preflight** and print the grant instructions if — and only if
 missing (`home.activation.macosAutomatorAccessibilityCheck` in `modules/shared/mcp.nix`). It never
 blocked activation, and it went with that module. **So nothing warns you any more**: a missing grant
 now surfaces as a `-1719` error inside a session, which is the failure this preflight existed to
-pre-empt. Run the probe by hand after a fresh Mac setup — it is a step in
-[`new-mac-runbook.md`](new-mac-runbook.md) territory, not something any check can cover.
+pre-empt. Run the probe by hand after a fresh Mac setup — no runbook
+carries it, and no check can cover it.
 
 ## Why granting `/usr/bin/osascript` is the correct, rebuild-proof fix
 

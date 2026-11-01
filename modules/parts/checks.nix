@@ -1500,191 +1500,8 @@ in
                 echo "file:line citations: $seen examined in living text, none into this repo's own files" > "$out"
               '';
 
-          # ---- nixpi's security posture, which until now only PROSE held ------
+          # ---- the uplink watchdog and firmware provisioning name the same file -
           #
-          # modules/nixos/core.nix's services.openssh block carries three careful paragraphs on why
-          # sshd binds loopback only, why `openFirewall = false` is the knob that
-          # actually keeps 22 shut, and why the TCP allow-list stays tiny. A
-          # comment cannot fail a build. Every one of those lines is a one-token
-          # edit away from reopening the LAN path that the Cloudflare Access
-          # application in front of nixpi.<domain> is meant to be the only REMOTE
-          # way through (the LAN path is local.lanRecovery's, scoped per interface) — and Access enforces at the EDGE, so a LAN connection to
-          # port 22 is not merely unauthenticated, it produces NO ACCESS LOG AT
-          # ALL. There is nothing to notice afterwards. That is what makes this
-          # worth an eval-time gate rather than a comment.
-          #
-          # Each leg names its own silent-failure mode:
-          #
-          #   openFirewall — upstream's default is TRUE (pinned nixpkgs
-          #     nixos/modules/services/networking/ssh/sshd.nix:312, and :874 feeds
-          #     cfg.ports straight into allowedTCPPorts). It is false ONLY because
-          #     core.nix's `openFirewall = false` says so, so deleting that one line reopens 22 on the
-          #     LAN with no other file changing.
-          #   listenAddresses NON-EMPTY is its own leg, and deliberately comes
-          #     before the all-loopback leg: an EMPTY list emits no ListenAddress
-          #     line at all, and OpenSSH then binds the WILDCARD. `all isLoopback
-          #     [ ]` is true — the vacuous pass would assert the exact opposite of
-          #     the truth. The loopback leg is then a sorted EQUALITY rather than
-          #     a subset test, so it also proves both families are still bound.
-          #   the RENDERED ListenAddress lines are a leg of their own, because
-          #     reading the listenAddresses OPTION is not the same as reading what
-          #     sshd will parse. `services.openssh.extraConfig` is where upstream
-          #     puts its OWN generated block (mkOrder 0, sshd.nix:893-902); an
-          #     operator's text merges AFTER it (types.lines, :749-752), and
-          #     sshd.nix:85-89 cats the whole string into sshd_config verbatim.
-          #     sshd treats ListenAddress CUMULATIVELY, so
-          #     `extraConfig = "ListenAddress 0.0.0.0"` adds a wildcard bind while
-          #     listenAddresses — and therefore every option-reading leg here —
-          #     stays exactly as it was. Measured: all thirteen legs this check
-          #     had before went green under precisely that override. The corollary
-          #     is why the leg PARSES rather than greps: `hasInfix "ListenAddress"
-          #     extraConfig` is TRUE on a healthy host, because upstream's own
-          #     generated block lives in the same string. Note the direction:
-          #     extraConfig is CUMULATIVE, so it can only ever ADD a bind. Now that
-          #     the expected pair IS the wildcard, this leg no longer catches a
-          #     widening — it catches a THIRD address appearing, and the option leg
-          #     beside it is what catches a narrowing.
-          #   no explicit `port` on a listen address, because nixpkgs renders
-          #     `ListenAddress ::1:22` UNBRACKETED (sshd.nix:901). OpenSSH reads
-          #     that as the address ::0.1.0.34, the v6 bind fails EADDRNOTAVAIL,
-          #     and sshd SURVIVES (a failed bind is fatal only if EVERY bind
-          #     fails) — so v6 loopback silently vanishes. Measured with
-          #     `sshd -G`; the transcript is in core.nix's listenAddresses comment.
-          #   the firewall allow-list is SEVERAL legs, not one. nixpi runs the
-          #     IPTABLES backend (networking.nftables.enable is false, measured),
-          #     and firewall-iptables.nix renders the same `-j nixos-fw-accept`
-          #     rule from three independent inputs: allowedTCPPorts (:164-165),
-          #     allowedTCPPortRanges (:182-183), and — for both of those — the
-          #     PER-INTERFACE sets, since every one of those loops walks
-          #     `cfg.allInterfaces`, which is `interfaces` merged under a
-          #     "default" key (firewall.nix:305-311). Measured: a
-          #     `[ { from = 22; to = 22; } ]` range and an
-          #     `interfaces.eth0.allowedTCPPorts = [ 22 ]` EACH reopened 22 with
-          #     the allowedTCPPorts leg still green. `trustedInterfaces` is the
-          #     bluntest: :149 accepts ALL traffic arriving on a named
-          #     interface, no port list consulted. Upstream sets it to [ "lo" ]
-          #     itself (firewall.nix:334), so the leg pins that value rather than
-          #     emptiness.
-          #     SINCE 2026-10-01 the per-interface path is no longer purely a
-          #     widening risk — it is where nixpi's LAN recovery ingress lives. So
-          #     it is read TWICE, in opposite directions: that a per-interface list
-          #     exists at all and names exactly what `local.lanRecovery` declares
-          #     (a narrowing guard), and that each entry carries nothing but the
-          #     sshd port on any protocol (the widening guard the leg always was).
-          #     The GLOBAL list stays pinned to [ 80 ] separately, because that one
-          #     renders with no `-i` and so has no interface scope to speak of.
-          #   buildMachines empty is a SEPARATE leg from distributedBuilds,
-          #     because upstream says in its own words that the latter does not
-          #     inhibit the former: nixos/modules/config/nix-remote-build.nix:227,
-          #     with :248 rendering /etc/nix/machines on `buildMachines != [ ]`
-          #     alone. A stale machines file then sits there for any later
-          #     `--builders @/etc/nix/machines` to pick up. `nix.settings.builders`
-          #     is a third leg because upstream nulls it only WHILE
-          #     distributedBuilds is false (:253) — reading the rendered value
-          #     catches an edit that re-enables one without the other.
-          #
-          # The TCP leg pins [ 80 ] rather than [ ], because that is the truth:
-          # hosts/nixpi.nix's allowedTCPPorts opens the Caddy ORIGIN port (443 omitted — TLS
-          # terminates at Cloudflare's edge) and core.nix's `allowedTCPPorts = [ ]` MERGES with
-          # it. Port 80 is therefore genuinely reachable on the LAN today; this
-          # check's job is to make WIDENING that list loud, not to bless its
-          # current width. A legitimate new port means editing this literal on
-          # purpose — that friction is the feature, so do not answer a failure
-          # here by deleting the leg.
-          #
-          # Why not nixpkgs' own `assertions`: its only natural home is
-          # modules/nixos/core.nix, which nixvm and every `lib.mkNixos` consumer
-          # also import — baking "exactly one open TCP port" in there breaks a
-          # stranger's host, the precise leak the template-consumer check above
-          # exists to prevent. `assertions` also reports one message where
-          # mkHostContract reports every broken leg. This is a FLEET contract
-          # about one named host, not a host contract.
-          #
-          # Every lookup goes through `or`, with the default chosen to FAIL —
-          # `allowedTCPPorts or null`, never `or [ ]` — for the reason
-          # nixpi-firmware-names gives below: a dropped module must produce THIS
-          # message, not "attribute missing" from inside a trivial-builder stack
-          # trace.
-          #
-          # `or` does NOT cover a listen address's `addr`, and assuming it did
-          # was a live bug here. The submodule declares `addr` as `nullOr str`
-          # with default null (sshd.nix:325-328), so the attribute always EXISTS:
-          # `a.addr or ""` never fires, and a malformed entry reached
-          # `null < "127.0.0.1"` — a throw, which is precisely the
-          # trivial-builder stack trace the paragraph above refuses to emit. The
-          # addresses are therefore collected, swept for null by a leg of their
-          # own, and only then compared. `&&` is lazy in its right operand, and
-          # BOTH guarded legs need that: the same malformed entry also makes
-          # upstream's own render throw, because sshd.nix:901 interpolates
-          # `addr` straight into a string ("cannot coerce null to a string",
-          # measured), and the rendered-ListenAddress leg is the one thing here
-          # that forces extraConfig.
-          #
-          # Ungated, like secrets-sync below and unlike determinate-daemon-nixpi in
-          # the isLinux block above: this is an eval plus an echo, with nothing
-          # aarch64-linux about either half. Both legs are worth paying for
-          # because the edits it guards are made ON the Mac — Linux-gating it
-          # would let an operator relax core.nix, run `/eval` clean, and learn
-          # otherwise only from CI minutes later. Cost measured 2026-09-21: one
-          # extra nixpi module eval on the darwin leg (~1 s here; nothing else on
-          # that leg forces this config — rule1d-guard-knows-the-pi above reads
-          # only whether the ATTRIBUTE exists), and no aarch64-linux build,
-          # because only numbers and strings escape into the derivation.
-          #
-          # NOT COVERED, and the 2026-10-01 outage is why this paragraph now comes
-          # with a warning rather than a footnote. THIS CHECK CANNOT TELL YOU THE
-          # PI IS UP. It is EVAL, not runtime — no `sshd -G`, no `iptables -S`, no
-          # TCP connect, no ping — and an already-flashed Pi keeps whatever its
-          # current generation has until the next deploy. On 2026-10-01 every leg
-          # here was GREEN while the host was unreachable by every route: the
-          # connector was dead, the site answered Cloudflare 1033, and SSH timed out
-          # at banner exchange. A green build means "the config still declares the
-          # posture it is supposed to", and nothing more. REACHABILITY IS NOT
-          # CHECKABLE FROM A DERIVATION: a fixed-output network probe would be
-          # cached, non-hermetic, and would make a router outage fail CI for every
-          # unrelated change. What IS checkable, and is the lesson that outage
-          # bought, is that the config still declares a SECOND ingress — so the next
-          # edit that quietly restores the single point of failure fails the build
-          # instead of waiting for the next outage to announce itself. Runtime
-          # health belongs to a monitor, not to `nix flake check`; there is none
-          # today, and that gap is real.
-          #
-          # Three further CONFIG paths are known and deliberately ungated:
-          #
-          #   `networking.firewall.extraCommands` — the iptables backend's raw
-          #     escape hatch (firewall-iptables.nix:235, option at :290). It is
-          #     already NON-EMPTY on nixpi (the nat module contributes its own
-          #     teardown preamble), so there is no empty-string baseline to
-          #     assert, and a hand-written
-          #     `ip46tables -A nixos-fw --dport 22 -j nixos-fw-accept` inside it
-          #     is invisible to every leg above.
-          #   `extraInputRules` — not a path on this host at all: it exists only
-          #     in firewall-nftables.nix (:24-26, rendered at :179), and nixpi is
-          #     on iptables. Flipping networking.nftables.enable moves the whole
-          #     rule set to a renderer none of these legs read, so that flip needs
-          #     new legs rather than an edit to these.
-          #   the rest of sshd_config. A `Port` smuggled through extraConfig is
-          #     harmless here — the binds are pinned and the allow-list is
-          #     pinned — but nothing above reads, say, a `Match` block that
-          #     relaxes one of the auth settings.
-          #
-          # It cannot see the MAC side either, so "nixpi must never BUILD" stays
-          # owned by .claude/hooks/pretooluse-bash-guard.js Rule 1d and
-          # deploy.nix's `remoteBuild = false`; note too that buildMachines ON
-          # nixpi would make it a build CLIENT dispatching work OUT, not a
-          # builder — the build legs here are about a leaf host growing outbound
-          # build trust (an SSH build key on an SD card, activation newly
-          # depending on a reachable builder) and about that stray
-          # /etc/nix/machines, NOT about the Pi compiling. Nothing here stops the
-          # Pi compiling locally either: nix.settings max-jobs is "auto" today,
-          # so a cache miss still grinds the SD card; `max-jobs = 0` in
-          # hosts/nixpi.nix is the change that would mechanise that, and it is
-          # deliberately not asserted from here. The Access application itself
-          # lives in Cloudflare's API (infra/cloudflare/nixpi-tunnel.nix) and its
-          # 2026-08-20 disappearance was invisible to eval then and still is. And
-          # it says nothing about nixvm, which shares modules/nixos/core.nix.
-          #
-          # Values measured against the live config on 2026-09-21.
           # The watchdog and the firmware-secrets capsule share three facts, and
           # NOTHING but this check makes them agree: the runtime wpa config path,
           # the card filename behind it, and the unit that consumes it. Rename any
@@ -1904,6 +1721,191 @@ in
               ];
             };
 
+          # ---- nixpi's security posture, which until now only PROSE held ------
+          #
+          # modules/nixos/core.nix's services.openssh block carries three careful paragraphs on why
+          # sshd binds loopback only, why `openFirewall = false` is the knob that
+          # actually keeps 22 shut, and why the TCP allow-list stays tiny. A
+          # comment cannot fail a build. Every one of those lines is a one-token
+          # edit away from reopening the LAN path that the Cloudflare Access
+          # application in front of nixpi.<domain> is meant to be the only REMOTE
+          # way through (the LAN path is local.lanRecovery's, scoped per interface) — and Access enforces at the EDGE, so a LAN connection to
+          # port 22 is not merely unauthenticated, it produces NO ACCESS LOG AT
+          # ALL. There is nothing to notice afterwards. That is what makes this
+          # worth an eval-time gate rather than a comment.
+          #
+          # Each leg names its own silent-failure mode:
+          #
+          #   openFirewall — upstream's default is TRUE (pinned nixpkgs
+          #     nixos/modules/services/networking/ssh/sshd.nix:312, and :874 feeds
+          #     cfg.ports straight into allowedTCPPorts). It is false ONLY because
+          #     core.nix's `openFirewall = false` says so, so deleting that one line reopens 22 on the
+          #     LAN with no other file changing.
+          #   listenAddresses NON-EMPTY is its own leg, and deliberately comes
+          #     before the all-loopback leg: an EMPTY list emits no ListenAddress
+          #     line at all, and OpenSSH then binds the WILDCARD. `all isLoopback
+          #     [ ]` is true — the vacuous pass would assert the exact opposite of
+          #     the truth. The loopback leg is then a sorted EQUALITY rather than
+          #     a subset test, so it also proves both families are still bound.
+          #   the RENDERED ListenAddress lines are a leg of their own, because
+          #     reading the listenAddresses OPTION is not the same as reading what
+          #     sshd will parse. `services.openssh.extraConfig` is where upstream
+          #     puts its OWN generated block (mkOrder 0, sshd.nix:893-902); an
+          #     operator's text merges AFTER it (types.lines, :749-752), and
+          #     sshd.nix:85-89 cats the whole string into sshd_config verbatim.
+          #     sshd treats ListenAddress CUMULATIVELY, so
+          #     `extraConfig = "ListenAddress 0.0.0.0"` adds a wildcard bind while
+          #     listenAddresses — and therefore every option-reading leg here —
+          #     stays exactly as it was. Measured: all thirteen legs this check
+          #     had before went green under precisely that override. The corollary
+          #     is why the leg PARSES rather than greps: `hasInfix "ListenAddress"
+          #     extraConfig` is TRUE on a healthy host, because upstream's own
+          #     generated block lives in the same string. Note the direction:
+          #     extraConfig is CUMULATIVE, so it can only ever ADD a bind. Now that
+          #     the expected pair IS the wildcard, this leg no longer catches a
+          #     widening — it catches a THIRD address appearing, and the option leg
+          #     beside it is what catches a narrowing.
+          #   no explicit `port` on a listen address, because nixpkgs renders
+          #     `ListenAddress ::1:22` UNBRACKETED (sshd.nix:901). OpenSSH reads
+          #     that as the address ::0.1.0.34, the v6 bind fails EADDRNOTAVAIL,
+          #     and sshd SURVIVES (a failed bind is fatal only if EVERY bind
+          #     fails) — so v6 loopback silently vanishes. Measured with
+          #     `sshd -G`; the transcript is in core.nix's listenAddresses comment.
+          #   the firewall allow-list is SEVERAL legs, not one. nixpi runs the
+          #     IPTABLES backend (networking.nftables.enable is false, measured),
+          #     and firewall-iptables.nix renders the same `-j nixos-fw-accept`
+          #     rule from three independent inputs: allowedTCPPorts (:164-165),
+          #     allowedTCPPortRanges (:182-183), and — for both of those — the
+          #     PER-INTERFACE sets, since every one of those loops walks
+          #     `cfg.allInterfaces`, which is `interfaces` merged under a
+          #     "default" key (firewall.nix:305-311). Measured: a
+          #     `[ { from = 22; to = 22; } ]` range and an
+          #     `interfaces.eth0.allowedTCPPorts = [ 22 ]` EACH reopened 22 with
+          #     the allowedTCPPorts leg still green. `trustedInterfaces` is the
+          #     bluntest: :149 accepts ALL traffic arriving on a named
+          #     interface, no port list consulted. Upstream sets it to [ "lo" ]
+          #     itself (firewall.nix:334), so the leg pins that value rather than
+          #     emptiness.
+          #     SINCE 2026-10-01 the per-interface path is no longer purely a
+          #     widening risk — it is where nixpi's LAN recovery ingress lives. So
+          #     it is read TWICE, in opposite directions: that a per-interface list
+          #     exists at all and names exactly what `local.lanRecovery` declares
+          #     (a narrowing guard), and that each entry carries nothing but the
+          #     sshd port on any protocol (the widening guard the leg always was).
+          #     The GLOBAL list stays pinned to [ 80 ] separately, because that one
+          #     renders with no `-i` and so has no interface scope to speak of.
+          #   buildMachines empty is a SEPARATE leg from distributedBuilds,
+          #     because upstream says in its own words that the latter does not
+          #     inhibit the former: nixos/modules/config/nix-remote-build.nix:227,
+          #     with :248 rendering /etc/nix/machines on `buildMachines != [ ]`
+          #     alone. A stale machines file then sits there for any later
+          #     `--builders @/etc/nix/machines` to pick up. `nix.settings.builders`
+          #     is a third leg because upstream nulls it only WHILE
+          #     distributedBuilds is false (:253) — reading the rendered value
+          #     catches an edit that re-enables one without the other.
+          #
+          # The TCP leg pins [ 80 ] rather than [ ], because that is the truth:
+          # hosts/nixpi.nix's allowedTCPPorts opens the Caddy ORIGIN port (443 omitted — TLS
+          # terminates at Cloudflare's edge) and core.nix's `allowedTCPPorts = [ ]` MERGES with
+          # it. Port 80 is therefore genuinely reachable on the LAN today; this
+          # check's job is to make WIDENING that list loud, not to bless its
+          # current width. A legitimate new port means editing this literal on
+          # purpose — that friction is the feature, so do not answer a failure
+          # here by deleting the leg.
+          #
+          # Why not nixpkgs' own `assertions`: its only natural home is
+          # modules/nixos/core.nix, which nixvm and every `lib.mkNixos` consumer
+          # also import — baking "exactly one open TCP port" in there breaks a
+          # stranger's host, the precise leak the template-consumer check above
+          # exists to prevent. `assertions` also reports one message where
+          # mkHostContract reports every broken leg. This is a FLEET contract
+          # about one named host, not a host contract.
+          #
+          # Every lookup goes through `or`, with the default chosen to FAIL —
+          # `allowedTCPPorts or null`, never `or [ ]` — for the reason
+          # nixpi-firmware-names gives above: a dropped module must produce THIS
+          # message, not "attribute missing" from inside a trivial-builder stack
+          # trace.
+          #
+          # `or` does NOT cover a listen address's `addr`, and assuming it did
+          # was a live bug here. The submodule declares `addr` as `nullOr str`
+          # with default null (sshd.nix:325-328), so the attribute always EXISTS:
+          # `a.addr or ""` never fires, and a malformed entry reached
+          # `null < "127.0.0.1"` — a throw, which is precisely the
+          # trivial-builder stack trace the paragraph above refuses to emit. The
+          # addresses are therefore collected, swept for null by a leg of their
+          # own, and only then compared. `&&` is lazy in its right operand, and
+          # BOTH guarded legs need that: the same malformed entry also makes
+          # upstream's own render throw, because sshd.nix:901 interpolates
+          # `addr` straight into a string ("cannot coerce null to a string",
+          # measured), and the rendered-ListenAddress leg is the one thing here
+          # that forces extraConfig.
+          #
+          # Ungated, like secrets-sync below and unlike determinate-daemon-nixpi in
+          # the isLinux block above: this is an eval plus an echo, with nothing
+          # aarch64-linux about either half. Both legs are worth paying for
+          # because the edits it guards are made ON the Mac — Linux-gating it
+          # would let an operator relax core.nix, run `/eval` clean, and learn
+          # otherwise only from CI minutes later. Cost measured 2026-09-21: one
+          # extra nixpi module eval on the darwin leg (~1 s here; nothing else on
+          # that leg forces this config — rule1d-guard-knows-the-pi above reads
+          # only whether the ATTRIBUTE exists), and no aarch64-linux build,
+          # because only numbers and strings escape into the derivation.
+          #
+          # NOT COVERED, and the 2026-10-01 outage is why this paragraph now comes
+          # with a warning rather than a footnote. THIS CHECK CANNOT TELL YOU THE
+          # PI IS UP. It is EVAL, not runtime — no `sshd -G`, no `iptables -S`, no
+          # TCP connect, no ping — and an already-flashed Pi keeps whatever its
+          # current generation has until the next deploy. On 2026-10-01 every leg
+          # here was GREEN while the host was unreachable by every route: the
+          # connector was dead, the site answered Cloudflare 1033, and SSH timed out
+          # at banner exchange. A green build means "the config still declares the
+          # posture it is supposed to", and nothing more. REACHABILITY IS NOT
+          # CHECKABLE FROM A DERIVATION: a fixed-output network probe would be
+          # cached, non-hermetic, and would make a router outage fail CI for every
+          # unrelated change. What IS checkable, and is the lesson that outage
+          # bought, is that the config still declares a SECOND ingress — so the next
+          # edit that quietly restores the single point of failure fails the build
+          # instead of waiting for the next outage to announce itself. Runtime
+          # health belongs to a monitor, not to `nix flake check`; there is none
+          # today, and that gap is real.
+          #
+          # Three further CONFIG paths are known and deliberately ungated:
+          #
+          #   `networking.firewall.extraCommands` — the iptables backend's raw
+          #     escape hatch (firewall-iptables.nix:235, option at :290). It is
+          #     already NON-EMPTY on nixpi (the nat module contributes its own
+          #     teardown preamble), so there is no empty-string baseline to
+          #     assert, and a hand-written
+          #     `ip46tables -A nixos-fw --dport 22 -j nixos-fw-accept` inside it
+          #     is invisible to every leg above.
+          #   `extraInputRules` — not a path on this host at all: it exists only
+          #     in firewall-nftables.nix (:24-26, rendered at :179), and nixpi is
+          #     on iptables. Flipping networking.nftables.enable moves the whole
+          #     rule set to a renderer none of these legs read, so that flip needs
+          #     new legs rather than an edit to these.
+          #   the rest of sshd_config. A `Port` smuggled through extraConfig is
+          #     harmless here — the binds are pinned and the allow-list is
+          #     pinned — but nothing above reads, say, a `Match` block that
+          #     relaxes one of the auth settings.
+          #
+          # It cannot see the MAC side either, so "nixpi must never BUILD" stays
+          # owned by .claude/hooks/pretooluse-bash-guard.js Rule 1d and
+          # deploy.nix's `remoteBuild = false`; note too that buildMachines ON
+          # nixpi would make it a build CLIENT dispatching work OUT, not a
+          # builder — the build legs here are about a leaf host growing outbound
+          # build trust (an SSH build key on an SD card, activation newly
+          # depending on a reachable builder) and about that stray
+          # /etc/nix/machines, NOT about the Pi compiling. Nothing here stops the
+          # Pi compiling locally either: nix.settings max-jobs is "auto" today,
+          # so a cache miss still grinds the SD card; `max-jobs = 0` in
+          # hosts/nixpi.nix is the change that would mechanise that, and it is
+          # deliberately not asserted from here. The Access application itself
+          # lives in Cloudflare's API (infra/cloudflare/nixpi-tunnel.nix) and its
+          # 2026-08-20 disappearance was invisible to eval then and still is. And
+          # it says nothing about nixvm, which shares modules/nixos/core.nix.
+          #
+          # Values measured against the live config on 2026-09-21.
           nixpi-security-posture =
             let
               pi = config.flake.nixosConfigurations.nixpi.config;
@@ -2866,9 +2868,8 @@ in
           # the content is: the same principle that moved the gate here in the
           # first place, applied once more.
           #
-          # Only `local.ungoogledChromium.userScripts.enable` (the Violentmonkey
-          # sideload) remains in modules/home/chromium.nix; the `scripts` seam is
-          # gone. If a script is ever declared again, restore this gate with it.
+          # Only the Violentmonkey sideload remains in modules/home/chromium.nix;
+          # the `scripts` seam is gone. If a script is ever declared again, restore this gate with it.
 
           # ---- the launcher<->plugin JOIN, across the repo boundary -------------
           #
