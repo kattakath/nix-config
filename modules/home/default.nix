@@ -1058,8 +1058,9 @@ in
     # skill set, and the release discipline, and this repo stops cherry-picking
     # subdirectories out of a tarball.
     #
-    # DELIBERATELY `plugins = [ ]` ON ALL FOUR, and that is the whole point of this
-    # PR rather than an oversight. Registering a marketplace INSTALLS NOTHING — it
+    # DELIBERATELY `plugins = [ ]` on every one of these whose plugin is not yet in
+    # `local.claudePlugins.declared` (step 2 below) — that is the whole point of #650
+    # rather than an oversight. Registering a marketplace INSTALLS NOTHING — it
     # only makes `<plugin>@<marketplace>` resolvable. The plugins must be enabled
     # before any of their skills appears — and today NONE of them is: measured
     # 2026-09-30, the intersection of the 45 skill names declared in
@@ -1107,9 +1108,15 @@ in
     # OFFICIAL Cloudflare (Apache-2.0), input `agent-skills-cloudflare`. One plugin,
     # `cloudflare`, whose skills include the two already declared below
     # (`cloudflare`, `cloudflare-one`) plus the rest of the product reference.
+    # Step 2 DONE for this one (2026-11-01): catalogued here AND declared in
+    # `local.claudePlugins.declared`. It was already live as `cloudflare@synced`
+    # (claude.ai account sync, no source of truth); a same-named plugin from a declared
+    # marketplace SHADOWS the synced copy rather than doubling it — `claude plugin list
+    # --json` notes `synced-plugin-shadowed`, as it already does for aws-core. Step 4
+    # (drop the input + the two `skills` entries) waits for step 3 on THIS copy.
     cloudflare = {
       source = lib.mkDefault "https://github.com/cloudflare/skills.git";
-      plugins = [ ];
+      plugins = [ "cloudflare" ];
     };
 
     # Trail of Bits (CC-BY-SA-4.0), no flake input. 44 plugins. See the licence note above — share-alike is a
@@ -1193,6 +1200,9 @@ in
     # Apify's official plugin — see the `apify` marketplace above for why it
     # replaced the kattakath one. Declared so a fresh Mac gets it without a click.
     "apify@apify" = true;
+    # Same-named as the claude.ai-synced copy, which this one hides rather than doubles
+    # (the `<name>@synced ... takes precedence` rule, measured 2026-11-01).
+    "cloudflare@cloudflare" = true;
 
     # ---- The same failure, four more times ---------------------------------
     # Measured on the live ~/.claude/settings.json, 2026-10-02, before this block:
