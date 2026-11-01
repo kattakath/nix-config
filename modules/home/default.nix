@@ -929,7 +929,7 @@ in
         # own .mcp.json; this repo owns only the browser half (modules/home/chromium.nix's
         # debugLauncher and the Kapture extension).
         "page-lab"
-        # claude-code-nix: the two Nix PostToolUse hooks this repo used to carry in
+        # nix-flake-kit: the two Nix PostToolUse hooks this repo used to carry in
         # .claude/hooks — auto-stage a .nix write (flakes evaluate the GIT tree, so an
         # unstaged file is invisible to the evaluator) and flag a hardcoded per-user home
         # path in a .nix VALUE. They arrive as PLUGIN hooks now (the plugin's own
@@ -937,10 +937,10 @@ in
         # were deleted from .claude/settings.json rather than repointed — leaving both
         # would fire each hook twice. Enabling globally is safe: both are no-ops in a repo
         # with no .nix files.
-        "claude-code-nix"
+        "nix-flake-kit"
         # superhook: the hook SUPERVISOR — crash safety so a throwing gate cannot wedge a
         # session, plus a 3-strikes loop breaker. Same plugin-hook delivery as
-        # claude-code-nix above, and the same DELETE-don't-repoint rule: the Stop,
+        # nix-flake-kit above, and the same DELETE-don't-repoint rule: the Stop,
         # PreToolUse:Bash and SessionStart-digest entries left .claude/settings.json in the
         # same commit that added this line, because a settings entry and a plugin entry
         # both fire — the gate would run TWICE. /superhook-review left .claude/commands/
@@ -1025,7 +1025,7 @@ in
         # WHY IT IS A PLUGIN AND NOT A nix-config RULE. The traps are repo-agnostic — they are
         # properties of bash, zsh, git and the GitHub API, not of this tree — so the home for
         # them is the marketplace, the same argument that moved the Nix hooks into
-        # claude-code-nix. Enabling globally is safe: its hook is PostToolUse, which has NO
+        # nix-flake-kit. Enabling globally is safe: its hook is PostToolUse, which has NO
         # permission authority, so unlike a PreToolUse hook it cannot allow, deny or re-prompt
         # anything. (A PreToolUse advisory would have had to set `permissionDecision: "allow"`,
         # documented as "proceeds WITHOUT permission prompt" — a global hook must never be able
@@ -1429,7 +1429,7 @@ in
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       # PREREQUISITE for the MCP ownership split (#657): the `nixos` server moves
-      # out of the gateway into the claude-code-nix plugin, and a plugin's
+      # out of the gateway into the nix-flake-kit plugin, and a plugin's
       # `.mcp.json` can only name a bare command on PATH — it cannot carry a
       # `/nix/store/...` path, which rotates on every rebuild, and the plugin file
       # lives in another repo besides. Measured 2026-09-30: `npx` resolves,

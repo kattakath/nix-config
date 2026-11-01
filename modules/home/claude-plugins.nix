@@ -69,7 +69,7 @@ let
   # The three plugins #648 decided Nix must assert, by bare name. Resolved against the
   # declared marketplaces so a name cannot drift from its source.
   alwaysOnNames = [
-    "claude-code-nix"
+    "nix-flake-kit"
     "superhook"
     "brain-signals"
   ];
@@ -360,7 +360,7 @@ in
     #
     # MEMBERSHIP RULE: what this repo structurally BREAKS without, not what is merely
     # useful. Widening the bar was considered and declined (#648).
-    #   claude-code-nix  the `autostage-nix` + `nix-home-path-lint` hooks.
+    #   nix-flake-kit  the `autostage-nix` + `nix-home-path-lint` hooks.
     #                    Without it a `.nix` edit can reach an eval unstaged, which is
     #                    the failure git-purity exists to prevent.
     #   superhook        the `Stop` + `PreToolUse:Bash` wrappers and the SessionStart

@@ -236,7 +236,7 @@ and, above it on `macos`, root-owned managed scope in
   Both digests keep their state PER USER under `${XDG_STATE_HOME:-~/.local/state}/nix-config/`,
   not in the checkout, so a worktree session does not read a false "never run".
 - **`autostage-nix`** — PostToolUse git-purity net. EXTRACTED 2026-09-12 to the
-  [`claude-code-nix`](https://github.com/kattakath/skills/tree/main/plugins/claude-code-nix) plugin; it arrives as a
+  [`nix-flake-kit`](https://github.com/kattakath/skills/tree/main/plugins/nix-flake-kit) plugin; it arrives as a
   plugin hook, which is why `.claude/settings.json` no longer lists it (keeping both would
   fire it twice).
 - **`nix-home-path-lint`** — same plugin, same extraction. PostToolUse, `.nix` only: flags a hardcoded
