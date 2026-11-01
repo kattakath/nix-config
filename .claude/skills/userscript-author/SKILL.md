@@ -64,8 +64,8 @@ its gates the same day.
 ## Hard rules (fleet-specific — the plugin carries the rest)
 
 1. **Never a secret.** A published script is world-readable; so was the Nix store copy. There is
-   no longer a private lane that changes this — the private userscripts repo and its gate are
-   both gone.
+   no longer a private lane that changes this: the Nix lane (a pinned input plus its gate) is
+   retired, and the scripts' own repo, `ismailkattakath/userscripts`, is public.
 2. **A script that must not be public has no path today.** Reviving the Nix lane needs all three
    back together (a pinned input holding the file, one line in `scripts`, the gate restored) —
    **ask the operator**, do not improvise a half of it.
@@ -137,9 +137,8 @@ its gates the same day.
 
 With `chrome-devtools-mcp` started with `--categoryExtensions` (**verified working in attach mode
 against this fleet's Chrome 152 on 2026-09-30**, despite upstream's own `--help` claiming
-otherwise — that measurement still stands). It was `local.mcpGateway.chromeDevtools.allowExtensions`
-in `hosts/macos.nix` until the gateway was deleted 2026-10-02; the flag is now set in the
-`page-lab` plugin's `.mcp.json`. With it on, chrome-devtools-mcp can navigate and drive
+otherwise — that measurement still stands; where the flag lives: § Install reality on this
+Mac). With it on, chrome-devtools-mcp can navigate and drive
 `chrome-extension://` pages — including Violentmonkey's own install/confirm dialog. This
 supersedes the Kapture-injection fallback below for any script being authored against a
 **local `file://` copy**; reach for that fallback only when `--categoryExtensions` is off, or the
