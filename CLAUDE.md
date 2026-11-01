@@ -206,7 +206,7 @@ the whole tree into the store — check for stray `.DS_Store`/etc. before commit
 
 **Hooks** (`.claude/hooks/`): `stop-gate.js` + `pretooluse-bash-guard.js`, plus the
 `*-digest.js` SessionStart nudges. **Neither gate is wired in `.claude/settings.json`** —
-`superhook`'s wrappers and `claude-code-nix`'s `autostage-nix`/`nix-home-path-lint` all arrive
+`superhook`'s wrappers and `nix-flake-kit`'s `autostage-nix`/`nix-home-path-lint` all arrive
 as PLUGIN hooks, finding these scripts BY CONVENTION. **Do not re-add any of them here, or each
 fires TWICE.** `.claude/hooks/tests/*.sh` covers BOTH hooks and is **a REQUIRED status check**
 (`Lint .claude config`, `claude-config-lint.yml`) — it BLOCKS a merge, because a throw
@@ -248,7 +248,7 @@ lane is `local.claudeDesktop.extraServers` (EMPTY in public; client servers come
   TARGET keys are `$HOME`-relative by definition; env vars like
   `BUKU_DEFAULT_DBDIR = "$HOME/Developer/…"`; data dirs). Those must be `$HOME`/XDG-relative,
   **never a hardcoded `/Users/<name>` or `/home/<name>`** (such a literal in a `.nix` *value* —
-  not a comment — is the real anti-pattern to reject, and the `claude-code-nix` plugin's
+  not a comment — is the real anti-pattern to reject, and the `nix-flake-kit` plugin's
   `nix-home-path-lint` hook flags it).
 - **Systems:** every new output must evaluate on both `aarch64-darwin` and `aarch64-linux`, or
   be explicitly gated.
