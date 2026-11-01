@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
+`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -83,11 +83,12 @@ in the repo can catch that; see that fixture file's header for the measurement.
   a cask — only its stdio MCP server is gone; [`open-design.md`](../open-design.md)).
   **DELETED 2026-10-02 (#734)** — 1,181 lines, gone with the Cloudflare stack. The paragraph
   above is kept as the record of what it did, not as a description of a file that exists. It
-  remains the SOURCE OF RECORD for every server's real command and version pins, which is where `gmail-mcp.nix` and `plugin-mcp.nix` read theirs from rather than
+  remains the SOURCE OF RECORD for every server's real command and version pins, which is where `plugin-mcp.nix` reads them from rather than
   re-deriving them off an upstream README — recover it with
   `git show 4f9ea50^:modules/shared/mcp.nix`, never from an upstream default.
-- **`gmail-mcp.nix` + `plugin-mcp.nix`** — the LIVE MCP lane, and the whole pattern in two
-  modules. Claude Code spawns a plugin-declared stdio server per session; a plugin's `.mcp.json`
+- **`plugin-mcp.nix`** — the LIVE MCP lane, and the whole pattern in one module
+  (its sibling `gmail-mcp.nix` was retired 2026-11-01 — the claude.ai Gmail connector replaced it).
+  Claude Code spawns a plugin-declared stdio server per session; a plugin's `.mcp.json`
   can set `env` only to literals or `${VAR}` passthroughs, so it **cannot** run a Keychain read.
   So the split is: the launcher BINARY here, the `.mcp.json` naming it by binary name in
   `github:kattakath/skills`. Same arrangement `page-lab` already has with `page-lab-pick`.
@@ -99,13 +100,12 @@ in the repo can catch that; see that fixture file's header for the measurement.
     (`builtins.readDir`/`readFile` over a realised input — no import-from-derivation, no
     network) and asserts SET EQUALITY between the `nix-mcp-*` commands those plugins name and
     the `nix-mcp-*` derivations `macos` actually composes into `home.packages`. Measured
-    2026-10-02 at pin `5ba108f`: **8 = 8**; 2026-10-21 at `e3e48a9`: **7** distinct commands
-    (the per-account gmail launchers became one `nix-mcp-gmail`), with `nix-mcp-slack` exempt
-    because only the private overlay names it.
+    2026-10-02 at pin `5ba108f`: **8 = 8**. `nix-mcp-slack` is exempt because only the private
+    overlay names it.
     - **The built side is read off the composed package list, not re-derived.** A check that
-      re-applied gmail's address sanitisation would agree with a broken rule by sharing it.
-      Derivation name == binary name for all four builders — every one `writeShellApplication`
-      (`packages/keychain-mcp.nix`, `packages/gmail-mcp.nix`, `packages/mcpfinder-mcp.nix` since
+      re-applied a launcher's naming rule would agree with a broken rule by sharing it.
+      Derivation name == binary name for every builder — each one `writeShellApplication`
+      (`packages/keychain-mcp.nix`, `packages/mcpfinder-mcp.nix` since
       2026-10-17; `packages/slack-post-mcp.nix` since its 2026-10-20 birth), each emitting exactly
       one `$out/bin/<name>` and shellchecked at build. All but mcpfinder keep
       `bashOptions = [ "nounset" ]`, the `set -u`
@@ -137,10 +137,6 @@ in the repo can catch that; see that fixture file's header for the measurement.
       one week, not unbounded. When a leg goes red, the plugin is **already** broken on this
       Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile PR is the symptom,
       not the fault.
-  - `local.gmailMcp.enable` → ONE `nix-mcp-gmail <address>` launcher; the account arrives in
-    argv from a plugin's `.mcp.json` (public `gmail`, private `gmail-private`, plus a separate
-    private `gmail-persona` plugin), so no mailbox is written here (`packages/gmail-mcp.nix` — its own file because it materialises an OAuth keys
-    FILE with `umask 077` set BEFORE creation, and derives a per-account `--tool-prefix`).
   - `local.pluginMcp.servers` → `nix-mcp-{wordpress,postgres}`, the CREDENTIALED
     servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26),
     **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**,
@@ -170,8 +166,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `@apify/actors-mcp-server` died with *"requires Node.js 22 or later (you have v20.20.2)"*
     under fnm's node, until the launcher PREPENDED the pinned `nodejs`/`uv` bin dir to `PATH`.
     The gateway never hit this because its launchd agent already carried `pkgs.nodejs` on PATH;
-    a plugin-spawned launcher has no such PATH control. `gmail-mcp.nix` bakes `npx` the same way
-    and does **not** prepend — it works today only because its server tolerates node 20.
+    a plugin-spawned launcher has no such PATH control.
   - Each was smoke-tested through a real MCP `initialize` before being declared, not just
     evaluated: wordpress reported `Connection successful` against the PROD site, postgres
     logged `Successfully connected to database`.
@@ -763,14 +758,14 @@ behind **one** `enable` — all of them in-tree capsules under `modules/features
   module consumes it — not that the Nix half went away: `modules/shared/mcp.nix` used to hand it
   to the gateway's `postgres` server as `env.DATABASE_URI`, and that file is deleted (#734).
   `postgres` takes no credential (a loopback **trust-auth** URI with no password), which is why
-  it can live in the plugin lane at all — unlike `gmail`, which needed `packages/gmail-mcp.nix`.
+  it can live in the plugin lane at all — unlike the Keychain-reading servers, which need `packages/keychain-mcp.nix`.
 
   **And a plugin's `.mcp.json` is NOT invisible to this repo** — the claim that it is was the
   reasoning behind calling this a loss of coupling, and it is false.
   `checks.<system>.mcp-launcher-parity` reads every `plugins/*/.mcp.json` out of the pinned
   `kattakath-skills` input at EVAL time and asserts set equality between the `nix-mcp-*`
-  commands those plugins name and the launchers `macos` builds (§ `gmail-mcp.nix` +
-  `plugin-mcp.nix` above, same file). The `rag` plugin declares `postgres` →
+  commands those plugins name and the launchers `macos` builds (§ `plugin-mcp.nix` above,
+  same file). The `rag` plugin declares `postgres` →
   `nix-mcp-postgres`, so this very server is inside that join, and `plugin-mcp.nix` ALSO asserts
   `local.rag.pgvector.enable` whenever `postgres` is listed. What genuinely no gate can assert
   is that the server ANSWERS at runtime, and the non-`nix-mcp-` lanes

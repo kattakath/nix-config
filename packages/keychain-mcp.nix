@@ -9,9 +9,7 @@
 # WHY A GENERIC FACTORY RATHER THAN ONE FILE PER SERVER. The servers
 # modules/home/plugin-mcp.nix builds through it need exactly the same shape: export N
 # variables, exec a pinned interpreter.
-# `packages/gmail-mcp.nix` is its own file because gmail genuinely differs — it
-# materialises an OAuth keys FILE and derives a per-account tool prefix. These do
-# not write anything, so another copy of "export then exec" per server would be the
+# These do not write anything, so another copy of "export then exec" per server would be the
 # "second copy is a bug with a delayed fuse" the repo motto names. The old gateway had
 # already proven one function covers them; this is that function, lifted.
 #
@@ -21,8 +19,7 @@
 # that binary. Secret NAMES (Keychain service ids) are fine in Nix; a secret VALUE would
 # land in the world-readable store, which is why the read happens at launch instead.
 #
-# NO FILE IS WRITTEN, so there is no `umask 077` here — unlike gmail-mcp.nix, which needs
-# one because it creates a file holding an OAuth client secret. Credentials reach the
+# NO FILE IS WRITTEN, so there is no `umask 077` here. Credentials reach the
 # server through its ENVIRONMENT, never through argv (visible in `ps`) and never through
 # a file. Saying so explicitly is cheaper than someone later "adding the missing umask"
 # and wondering what it protects.
@@ -106,7 +103,7 @@ let
     else if interpreter == "uvx" then
       uv
     else
-      throw "packages/keychain-mcp.nix: unknown interpreter '${interpreter}' for ${name} (only npx/uvx or a Nix-built package are resolved; anything else needs its own launcher, same as gmail)";
+      throw "packages/keychain-mcp.nix: unknown interpreter '${interpreter}' for ${name} (only npx/uvx or a Nix-built package are resolved; anything else needs its own launcher)";
   command = if isPackage then lib.getExe interpreter else lib.getExe' runtime interpreter;
 in
 # writeShellApplication rather than writeShellScriptBin, for the build-time shellcheck these
