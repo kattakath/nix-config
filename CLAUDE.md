@@ -226,7 +226,7 @@ proxy here, no `mcp.<domainName>/mcp`, Cloudflare stack destroyed. `modules/shar
 as live, the doc is stale, not the code.
 Servers come from an enabled plugin's `.mcp.json`; a launcher doing what a JSON file CANNOT — a
 Keychain read, or `sandbox-exec -f` — is a PATH package (`local.pluginMcp`;
-`desktop-commander` is the fenced, credential-FREE case). **Claude Desktop loads no plugins**, so plugin servers never reach it; its only
+`desktop-commander` is the fenced, credential-FREE case). **Desktop CHAT runs no plugin stdio server** (it takes plugins from the claude.ai account and ignores their local MCP; Desktop's Code tab loads plugins like the CLI), so its only
 lane is `local.claudeDesktop.extraServers` (`github` only; client servers come from the operator's Desktop overlay file), pinned by `checks.*.claude-desktop-config-shape`.
 [`docs/mcp-gateway.md`](docs/mcp-gateway.md).
 

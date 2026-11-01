@@ -383,7 +383,7 @@ so the same discriminator §5 used now produces a two-lane answer instead of a o
 
 1. **The `flake.lock` pin.** Plugin content floats on `github:kattakath/skills`' `main` — the same
    trade §10.5 already recorded for plugins, now extended to their MCP halves.
-2. **Presence in Claude Desktop** (and the Cowork bridge). Desktop loads no plugins and renders one
+2. **Presence in Claude Desktop** (and the Cowork bridge). Desktop chat runs no plugin stdio server (corrected 2026-11-01: its Code tab DOES load plugins; claude.com/docs/plugins/platform-support) and rendered one
    all-or-nothing portal connector, so a plugin-owned server is Claude-Code-only and silently
    absent there (`modules/home/claude-desktop.nix` § THE PLUGIN CONSEQUENCE).
 3. **Machine-checked parity.** `checks.<system>.mcp-published-parity` compares two *Nix* lists and
