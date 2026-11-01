@@ -505,10 +505,21 @@ in
   '';
 
   # ---- Homebrew apps for THIS host --------------------------------------------
-  # The framework (enable/onActivation/taps) lives in modules/darwin/homebrew.nix;
+  # The framework (enable/onActivation) lives in modules/darwin/homebrew.nix;
   # this is macos's app set. onActivation.cleanup = "uninstall" removes anything
   # installed but not listed here.
   homebrew = {
+    # ---- Taps ------------------------------------------------------------------
+    # Upstream's own tap for the escrcpy cask (absent from homebrew/cask AND nixpkgs);
+    # upstream bumps it on release. `trusted = true` is required for any non-official
+    # tap — why: modules/darwin/homebrew.nix § Taps.
+    taps = [
+      {
+        name = "viarotel-org/escrcpy";
+        trusted = true;
+      }
+    ];
+
     # ---- Formulae (brews) ----------------------------------------------------
     # Entries with special options use the attrset form.
     brews = [
@@ -679,13 +690,12 @@ in
       # generalise it to the whole casks list.
       #
       # FULLY-QUALIFIED on purpose (`<tap>/<cask>`, brew's own prescribed form). A
-      # bare `escrcpy` token aborted activation the moment the tap moved to our fork
-      # (measured 2026-09-29): the old viarotel-org clone is untapped by `cleanup`
-      # only AFTER the bundle runs, so mid-bundle brew sees the cask in two taps and
-      # refuses — "Cask escrcpy exists in multiple taps … Please use the
-      # fully-qualified name". Qualifying it is also what keeps this unambiguous on a
-      # machine where someone taps a second escrcpy cask by hand. The tap prefix must match
-      # modules/darwin/homebrew.nix's `taps` entry.
+      # bare `escrcpy` token aborted activation during a tap move (measured
+      # 2026-09-29): `cleanup` untaps the old tap only AFTER the bundle runs, so
+      # mid-bundle brew sees the cask in two taps and refuses — "Cask escrcpy exists
+      # in multiple taps … Please use the fully-qualified name". Qualifying it also
+      # keeps this unambiguous where someone taps a second escrcpy cask by hand. The
+      # tap prefix must match the `taps` entry at the top of this homebrew block.
       #
       # MOVING THIS CASK BETWEEN TAPS NEEDS A ONE-TIME MANUAL STEP, and qualifying the
       # name is NOT it: brew keys an installed cask to the tap it came from, refuses to
