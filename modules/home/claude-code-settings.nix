@@ -111,11 +111,9 @@ let
       fi
     fi
 
-    # THE OPERATOR OVERLAY: an optional, hand-placed JSON object (none on `macos` since
-    # 2026-11-01, when the operator's private repo was deleted) carrying what this
-    # public repo must not name — private marketplaces and the plugin ids they
-    # enable. The repo ships the shape, the content stays on the Mac: ADR-004's
-    # rule, and the "one private operator-content repo" its § 9.7 trigger names.
+    # THE OPERATOR OVERLAY: an optional, hand-placed JSON object (none on `macos` today)
+    # carrying per-person settings this public repo must not name. The repo ships the
+    # shape, the content stays on the Mac (ADR-004).
     # Missing = no-op; not a JSON object = warned and ignored, never fatal.
     overlay="${overlayPath}"
     ov=${emptyJson}
@@ -137,8 +135,8 @@ let
     # an overlay can never take back a `permissions.deny`. Like the live file,
     # a key DELETED from the overlay is not removed here; set it to `false`
     # instead. The cost of `*` replacing arrays: an overlay cannot ADD to an
-    # array Nix owns (hooks, permissions) — private hooks belong in the private
-    # plugins' hooks.json instead.
+    # array Nix owns (hooks, permissions) — extra hooks belong in a plugin's
+    # hooks.json instead.
     merged=$(printf '%s' "$base" | ${pkgs.jq}/bin/jq -s --slurpfile ov "$ov" --slurpfile nix ${nixSettings} '.[0] * $ov[0] * $nix[0]')
     # THE ONE LINE TWO CONCURRENT ACTIVATIONS CAN COLLIDE ON, and the error it
     # produces names the symptom rather than the cause — which cost two
