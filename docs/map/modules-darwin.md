@@ -318,8 +318,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     (`kattakath/*`, `anthropics/*`, …), the exact git URLs the fleet declares, the
     `^/nix/store/` path pattern and `skills-dir`. A new repo under a trusted owner needs no
     rebuild; a new OWNER does. `trustedMarketplaceOwners` (added 2026-10-20) is that rebuild as a
-    host option, prepended so it can never empty the list; `macos` sets the operator's handle for
-    the private client-overlay marketplace. The list must never reach `[]` — that means "allow
+    host option, prepended so it can never empty the list; `macos` sets none since the private
+    client-overlay marketplace was deleted (2026-11-01). The list must never reach `[]` — that means "allow
     nothing", not "unset".
   - **Scope rule for a new entry, one notch stricter than the user floor:** it must already be
     in `claude-guardrails.nix` AND be pure "never print a secret value" / "never sign work as

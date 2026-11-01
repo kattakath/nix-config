@@ -307,7 +307,8 @@ How a host gets composed — change these knobs, not the hosts' internals:
 - **No private NIX layer** (nix-personal retired 2026-09-15; `extraHomeModules`/`hostedSites` stay
   generic hooks defaulting to `[ ]`). The repo ships shape; the operator's content stays out of the repo
   in hand-placed files (`~/.aws/config`, `~/.config/git/local.inc`, `allowed_signers`, two settings
-  overlays) and a PRIVATE overlay marketplace (`<handle>/skills`) for client config —
+  overlays, a client folder's own `CLAUDE.md`); client FACTS live in Google Workspace — no
+  private repo since 2026-11-01 —
   [`engine.md`](docs/map/engine.md), [`agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 - **Whole features are ONE enable flag — and they are all IN-TREE now.** The media stack
   (`local.mediaCli`) and the Keychain secret store (`local.keychainSecrets`) are each one

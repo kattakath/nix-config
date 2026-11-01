@@ -22,7 +22,5 @@
 github.com/kattakath/nix-config
 # orbit: the `kattakath-skills` flake input + the auto-updating public marketplace
 github.com/kattakath/skills
-# orbit: the PRIVATE overlay marketplace (client + private plugins)
-github.com/ismailkattakath/skills
 # orbit: where the userscript lint runs since this repo's gate left (checks.nix)
 github.com/ismailkattakath/userscripts
