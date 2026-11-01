@@ -337,11 +337,19 @@ let
     # VERIFIED RUNNING 2026-10-02 before declaring it: postgres is listening on
     # 127.0.0.1:5433 and `postgresql://mcp@127.0.0.1:5433/ragdb` connects with the
     # `vector` extension at 0.8.5.
+    #
+    # `--overrides` (2026-11-01): 0.3.0, still the latest, pins `pglast==7.2.0`, and PyPI
+    # no longer serves a 7.2 release (7.20 is the oldest 7.2x), so uv refused to resolve
+    # and the server never started. Overriding to 7.20 measured: 9 tools, `list_schemas`
+    # and `explain_query` (pglast's parser path) both answer. Drop it once upstream
+    # re-pins.
     postgres = {
       interpreter = "uvx";
       args = [
         "--python"
         "3.12"
+        "--overrides"
+        "${pkgs.writeText "postgres-mcp-overrides.txt" "pglast==7.20\n"}"
         "--with"
         "mcp<2"
         "--from"
