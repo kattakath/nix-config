@@ -4,7 +4,7 @@
 # `services.fava`; nix-darwin has neither. nixpkgs ships every piece at the versions the
 # `beancount` plugin in kattakath/skills is tested against, measured on this flake's pin:
 # beancount 3.2.3, beangulp 0.2.0, beanquery 0.2.0, fava 1.30.16, fava-dashboards 2.0.2,
-# beancount-language-server 1.9.2.
+# beancount-language-server 1.9.2, pricehist 1.4.16.
 #
 # ONE interpreter for all four packages. The plugin's launcher runs
 # "$BEANCOUNT_PYTHON" -I, so the build code imports beancount from the same environment that
@@ -82,6 +82,10 @@ in
     home.packages = [
       clis
       pkgs.beancount-language-server
+      # Exchange rates as beancount `price` lines (the plugin's `build --prices`). nixpkgs
+      # 1.4.16, MIT; its `bankofcanada` source covers CAD pairs. A separate CLI, not a library
+      # the build imports, so it stays out of the shared interpreter.
+      pkgs.pricehist
     ];
     home.sessionVariables = {
       BEANCOUNT_PYTHON = "${env}/bin/python3";
