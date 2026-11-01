@@ -1042,6 +1042,9 @@ in
         # Deterministic, reconcile-gated statement extraction (QFX/OFX, CSV, PDF) to masked,
         # deduplicated JSONL; stdlib Python + poppler (kattakath/skills#117-#122).
         "statement-extract"
+        # Derived double-entry journal from statement-extract JSONL + rules + decisions,
+        # bean-query recipes, Fava on demand read-only; needs local.beancount (kattakath/skills#127).
+        "beancount"
         # Rebuild a raster/auto-traced logo from measured construction geometry (kattakath/skills#23).
         "logo-construction-geometry"
         # The answer-shape kit: output style, the /explain family, cartographer, /task.
@@ -1302,6 +1305,7 @@ in
     "pgp-ops@kattakath" = true;
 
     "statement-extract@kattakath" = true;
+    "beancount@kattakath" = true;
 
     # AWS: the official plugins bring the skills (catalogue entries above say what each
     # one really ships). Declared, not clicked, for the reason the block above records:
