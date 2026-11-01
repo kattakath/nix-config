@@ -367,7 +367,8 @@ in
       # from the naming plugin's `.mcp.json` args, so none is written here. Tokens:
       # `secret set mcp:<workspace>.slack.com:xoxp`. 2026-10-16.
       "slack"
-      # GitHub MCP with the gh CLI's token (no stored secret). Plugin: github-gh.
+      # GitHub MCP with the gh CLI's token (no stored secret). Used by Claude Desktop's
+      # `github` server; the github-gh plugin that also used it retired 2026-11-01.
       "github"
     ];
     # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
