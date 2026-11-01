@@ -142,7 +142,7 @@ to build the boundary machinery around it.
   CLI over the macOS login Keychain, plus a home-manager loader that exports registered secrets
   into **every** shell, including the non-login bash an AI coding agent spawns for its tools.
   Nothing secret — **not even the key names** — reaches the store or git.
-- **ADR-004 (2026-09-20), additive:** `local.keychainSecrets.backend.{type,project,prefix}` +
+- **ADR-004 (2026-09-20), additive:** `local.keychainSecrets.backend.*` (options: `module.nix`) +
   `refsRelPath`, four new packages (`secrets-status`, `secrets-rehydrate`, `secrets-push`,
   `secrets-resolve` — `modules/features/keychain-secrets/packages/secrets-backend.nix`, config read at RUNTIME so the perSystem
   packages and the module install the same drvs) and one new check
