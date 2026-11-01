@@ -256,7 +256,8 @@
   # /run file before its consumer starts, so the secret is never world-readable at
   # rest, on argv, or in the store.
   local.cloudflaredConnector.enable = true;
-  local.cloudflaredConnector.tokenFile = "/run/cloudflared-token";
+  local.cloudflaredConnector.tokenFile =
+    config.local.firmwareProvisioning.files.cloudflared-token.target;
 
   # nixpi runs exactly ONE connector — the primary, above. dontsell.ai's second,
   # independent connector was hand-written HERE, then moved to the private
@@ -344,7 +345,7 @@
   # loopback probe matches what the firewall already admits.
   local.serviceHeartbeat = {
     enable = true;
-    urlFile = "/run/heartbeat-url";
+    urlFile = config.local.firmwareProvisioning.files.heartbeat-url.target;
     httpPort = 80;
     # NAMED units, not a blanket `is-system-running`. `mnt-storage.mount` is
     # `nofail` on purpose and can fail while the host still serves, so a blanket
@@ -385,10 +386,10 @@
   #   3. Restart=on-failure/RestartSec — upstream sets only ExecStart
   #      (:83), no restart policy.
   # All three merge cleanly: upstream declares no unitConfig and no Restart.
-  networking.supplicant."wlan0".configFile.path = "/run/wpa_supplicant-firmware.conf";
+  networking.supplicant."wlan0".configFile.path = config.local.firmwareProvisioning.files.wifi.target;
 
   systemd.services."supplicant-wlan0" = {
-    unitConfig.ConditionPathExists = "/run/wpa_supplicant-firmware.conf";
+    unitConfig.ConditionPathExists = config.local.firmwareProvisioning.files.wifi.target;
     after = [ "firmware-file-wifi.service" ];
     wants = [ "firmware-file-wifi.service" ];
     serviceConfig = {

@@ -9,7 +9,7 @@ one command.
 
 Everything here is grounded in the repo files:
 
-- `modules/parts/hosts.nix` — exports `nixosConfigurations.nixpi` (the `sdImage` build target), also surfaced as the `nixpi-sd-image` package that CI prebuilds and publishes to the `installer-latest` release
+- `modules/parts/hosts.nix` — exports `nixosConfigurations.nixpi` (the `sdImage` build target); `modules/parts/packages.nix` surfaces it as the `nixpi-sd-image` package that CI prebuilds and publishes to the `installer-latest` release
 - `hosts/nixpi.nix` — the LIVE Pi profile, including the **scripted-initrd boot fix** (`boot.initrd.systemd.enable = lib.mkForce false`) that is the *other* thing that can hang stage-1
 - `hosts/nixpi.nix` + the in-tree `modules/features/cloudflared-connector/` capsule — what `nixpi` does once booted (the Cloudflare Tunnel connector carrying static-key SSH + the Caddy landing page)
 
@@ -62,7 +62,7 @@ The one-command path (`nix run .#nixpi-flash`, §4) handles acquisition for you:
   kernel/intermediates, but the *final* image assembly is an `aarch64-linux` build.
   The client Mac can now do this locally on **Determinate's native Linux builder**
   (except the step in `docs/map/hosts.md` § The one operation it cannot do),
-  but that runs on a small ephemeral VM (1 CPU / 8 GiB by default; `determinateNix.determinateNixd.builder.memoryBytes` raises it if the assembly OOMs), so a full SD-image assembly is
+  but that runs on an ephemeral VM (sized by `determinateNix.determinateNixd.builder.memoryBytes`; raise it if the assembly OOMs), so a full SD-image assembly is
   slow there — prefer `--release` unless you specifically want a from-source image.
   (It also completes on any other aarch64-linux builder, e.g. the devcontainer.)
 - **`--image FILE.img.zst`** — flash a local prebuilt image you already have.
@@ -470,8 +470,8 @@ work. **Two consequences for a flash:**
 
 - **A `--release` flash only carries it once CI has republished.** The image comes
   from the rolling `installer-latest` pre-release, rebuilt by
-  `build-installers.yml` on any push to `main` touching `hosts/nixpi.nix` or
-  `modules/nixos/**`. Flashing `--release` before that workflow finishes writes the
+  `build-installers.yml` on any push to `main` touching a path in its `on.push.paths`.
+  Flashing `--release` before that workflow finishes writes the
   OLD image — tunnel-only, no LAN path. Check the release is newer than the merge.
 - **Verify the LAN path on the FIRST boot, not during the next outage.** It is the
   one ingress a dead `cloudflared` cannot take away, and a flash is the only moment

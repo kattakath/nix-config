@@ -437,9 +437,9 @@ honours.
 that would make the import `packages/ → modules/nixos/`, a crossing this repo fences in the other
 direction.
 
-The 2 content directories (`wallpaper/` — two PNGs; `chromium-extensions/` — a `.crx` and its
-source) are a milder version of §9a: binary content inside a tree named for modules. Left alone;
-each sits next to the one module that reads it, which is the argument for keeping them.
+The content directory `chromium-extensions/` (a `.crx` and its source) is a milder version of
+§9a: binary content inside a tree named for modules. Left alone; it sits next to the one module
+that reads it, which is the argument for keeping them.
 
 ### 9c. `checks/` is split three ways and blueprint has one key for it
 

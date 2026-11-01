@@ -1,5 +1,8 @@
 # nixpi: leaving raspberry-pi-nix — in-place switch vs reflash
 
+> **Status: DONE** — nixpi now boots the nixos-hardware chain; the live config is `hosts/nixpi.nix`
+> § BOOT CHAIN. What follows is the pre-migration costing, kept as a record.
+
 Costing for moving `nixpi` (the LIVE Pi 4) off the archived `raspberry-pi-nix` input, written
 2026-10-21 alongside the prototype. Sources read at their pinned revs: raspberry-pi-nix
 `3e8100d5` (`sd-image/`, `rpi/default.nix`), nixos-hardware `efb6d0d5`

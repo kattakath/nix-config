@@ -1,4 +1,4 @@
-# macOS desktop "look" — Terminal.app's type + colours (macOS only).
+# Terminal.app's type + colours (macOS only).
 #
 # Type on EVERY profile, and the four colours the OS actually exposes on `Pro`,
 # which this block also forces as default/startup. UNGATED: every darwin host.
@@ -64,7 +64,7 @@ in
     # DETECTION IS `pgrep`, NOT A `ps | grep -q` PIPE: home-manager's activate
     # script runs under `set -o pipefail`, and `grep -q` closing the pipe early
     # makes the pipeline report 141 on a SUCCESSFUL match. Measured; the full
-    # story is docs/map/modules-home.md § desktop-aesthetics.nix.
+    # story is docs/map/modules-home.md § terminal-app.nix.
     #
     # Re-run every activation, and cheap: EVERY property is compared before it is
     # written, so a settled Mac is a true no-op — and a profile ADDED later gets

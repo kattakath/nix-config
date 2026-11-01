@@ -417,7 +417,7 @@ not evidence of this defect returning.
 | Drafted, marked ready, green, still unarmed | The draft conversion disarmed it (§3) and the ready transition's arm run did not land — the open tail of #683 | Confirm with `gh pr view <n> --json autoMergeRequest` **after** the arm run concludes; `gh pr ready` again, or arm by hand. Add the payload to #683 |
 | Merged, yet no `auto_squash_enabled` event and `autoMergeRequest: null` | Usually **not a fault**: the PR was green when the arm step ran, so gh merged it directly (§1). It **IS** the #683 fault if an EARLIER `ready_for_review` on the same PR got a skipped arm job (#673, #675) | Confirm `merged_by` is `ismailkattakath-ci[bot]` and the merge falls inside the arm job's run. Then list every `ready_for_review` on the PR and read each arm run's **job** conclusion; a skip on a non-draft transition goes to #683 |
 | Merged, but nothing published to FlakeHub | Something armed the PR with `GITHUB_TOKEN` | Restore the App token in `auto-merge.yml` |
-| Someone else's PR auto-merged | The author guard was widened | The guard is a literal login; keep it that way |
+| Someone else's PR auto-merged | The author guard was widened | The guard matches an immutable numeric user id, never a login; keep it that way |
 | PR merges against a `main` that moved under it | Expected — `strict_required_status_checks_policy` is off by choice (§3) | The `push: main` leg catches it; fix forward |
 
 ## Turning it off
