@@ -58,7 +58,8 @@ has a Google Workspace identity, so recovery is gated on that one login:
    later reads behave exactly as before.
 
 `secrets-status` shows what is cached, what is in the backend and whether they agree
-(hashes, never values). `secrets-push <SERVICE>` sends one Keychain item to the backend.
+(hashes, never values). `secrets-push <SERVICE>` sends one Keychain item to the backend, and refuses past
+`backend.maxVersions` billable versions (default: Secret Manager's free tier).
 None of these is ever run by activation. With the backend left at `"none"` the Keychain is
 the **only** copy of your secrets — back it up yourself before wiping a Mac.
 
