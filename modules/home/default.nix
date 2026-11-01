@@ -1698,6 +1698,22 @@ in
       # NOTE: editing any of these in the Claude UI won't persist — a rebuild
       # reverts them; change them HERE instead.
       settings = {
+        # ONE owner per stdio MCP server (2026-11-01). Claude Code never dedups stdio servers,
+        # so two plugins naming the same server both spawn it. A NAME deny drops just that
+        # server: the plugin's skills and hooks still load, and the name survives the plugin's
+        # own updates. Measured on CLI 2.1.296 with a scratch plugin: `serverName =
+        # "plugin:<plugin>:<server>"` removed exactly that server and nothing else.
+        #   aws-core        its `aws-mcp` runs `--skip-auth` (UNSIGNED). The operator's private
+        #                   `aws-infin8` runs the same proxy signed with SSO; the model picked
+        #                   the unsigned twin 1,644 times against 1,427 across all transcripts.
+        #   aws-serverless  `@latest --allow-write` from PyPI at every spawn, no AWS identity,
+        #                   0 calls ever. Its 7 skills + SAM-validate hook stay.
+        # The guard against a silent upstream server rename is fleet-doctor's MCP-owner step.
+        deniedMcpServers = [
+          { serverName = "plugin:aws-core:aws-mcp"; }
+          { serverName = "plugin:aws-serverless:aws-serverless-mcp"; }
+        ];
+
         theme = "auto";
         # DECLARED AND VALID, BUT NOT ALWAYS IN EFFECT — do not "fix" it by
         # deleting it. Verified 2026-09-22 against the published schema
