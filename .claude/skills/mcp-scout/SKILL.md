@@ -166,8 +166,9 @@ never a `/nix/store` path: it rotates on every rebuild and means nothing in anot
 
 Then:
 
-1. **If it needs a PATH package** (§2.6), add it here: `packages/<name>.nix` plus a
-   `modules/home/<name>.nix` option that puts it on PATH, wired in `hosts/macos.nix`. Give any
+1. **If it needs a PATH package** (§2.6), add it to the existing `local.pluginMcp` seam
+   (`modules/home/plugin-mcp.nix`, built through `packages/keychain-mcp.nix`) and list it in
+   `local.pluginMcp.servers` in `hosts/macos.nix` — never a new per-server module. Give any
    wrapper a `nix-*` `arg0` basename ([launchd-naming](../../rules/launchd-naming.md)) — that rule
    governs launchd units and a per-session stdio child declares none, but the convention keeps the
    binary identifiable, and the rule does bind any agent the package itself installs.
