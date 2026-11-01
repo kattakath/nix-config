@@ -126,7 +126,7 @@ TOKEN/SECRET/PASSWORD/KEY/AUTH from a plugin helper's environment.
 | The server needs | Where it goes |
 |---|---|
 | nothing secret — and a loopback **trust-auth** URI counts as nothing (e.g. `postgres`, whose `DATABASE_URI` has no password) | the plugin's `.mcp.json` alone |
-| a login-Keychain read | the plugin's `.mcp.json` **naming a `nix-*` wrapper this repo installs on PATH**. Worked example: `packages/gmail-mcp.nix` + `local.gmailMcp` (`modules/home/gmail-mcp.nix`); same shape as `page-lab-pick` and `mcp-nixos` |
+| a login-Keychain read | the plugin's `.mcp.json` **naming a `nix-*` wrapper this repo installs on PATH**. Worked example: `local.pluginMcp` (`modules/home/plugin-mcp.nix`) building its launchers through `packages/keychain-mcp.nix`; same shape as `page-lab-pick` and `mcp-nixos` |
 | a flag chosen by probing at spawn time | same — a `.mcp.json` names a command, it cannot decide a flag. Put the probe *inside* the wrapper (`nix-mcp-chrome-devtools` was the precedent: it probed `/json/version` and fell back to `DevToolsActivePort`) |
 
 Keep the credential logic in the Nix wrapper and **never** duplicate it into the plugin repo — a
@@ -139,8 +139,7 @@ the calling session has.
 > **Is this server the tool half of a skill this fleet already ships?**
 
 Precedents: `chrome-devtools` + `kapture` → `page-lab`; `mobile-mcp` → `android-phone`;
-`macos-automator` → `mac-app-send`; `nixos` → `claude-code-nix`; the Gmail accounts →
-`gmail` / `gmail-private`.
+`macos-automator` → `mac-app-send`; `nixos` → `claude-code-nix`.
 
 **If no plugin owns it, there is no ownerless home any more.** The honest options are to give it
 to the plugin whose work it serves, or **not to adopt it** — and say which, out loud, to the

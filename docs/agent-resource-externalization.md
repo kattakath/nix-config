@@ -281,12 +281,12 @@ marketplace under the operator's own handle, `<your-handle>/skills` (the operato
 
 | Piece | Where | Why there |
 |---|---|---|
-| Client plugins (Slack, AWS, Stripe, Gmail accounts) | private `<your-handle>/skills` | their names, URLs and `args` ARE the client data |
+| Client plugins (Slack, AWS, Stripe) | private `<your-handle>/skills` | their names, URLs and `args` ARE the client data |
 | Folder-routing hooks + org context | `hooks/hooks.json` in those private plugins | a plugin hook fires only while its plugin is enabled, so routing is scoped for free |
 | Which private plugins are on, and the marketplace source | `~/.config/nix-config/claude-settings.overlay.json` (hand-placed) | merged by `claude-code-settings.nix` as `.[0] * $overlay * $nix`, so Nix always wins and an overlay can never retract a `permissions.deny` |
 | Client Desktop servers | `~/.config/nix-config/claude-desktop.overlay.json` (hand-placed) | merged by `claude-desktop.nix` at activation; eval never sees it |
 | Trusting the overlay's owner | `local.claudeManagedSettings.trustedMarketplaceOwners` (per host) | the managed `strictKnownMarketplaces` allowlist refuses any other owner by design |
-| Generic launchers the private plugins name | `nix-mcp-slack <host>`, `nix-mcp-gmail <address>` | the account arrives in argv, so no account is written here |
+| Generic launchers the private plugins name | `nix-mcp-slack <host>` | the account arrives in argv, so no account is written here |
 | Git identity routing | `~/.config/git/local.inc` (hand-placed) | `includeIf` conditions name client orgs and folders |
 
 **Upstream-first:** a plugin's `settings.json` cannot enable plugins and a plugin cannot carry
