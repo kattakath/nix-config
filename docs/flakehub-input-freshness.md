@@ -91,8 +91,10 @@ Trigger the workflow by hand once both values exist:
 
 ```bash
 gh workflow run update-flake-lock.yml
-gh run watch
 ```
+
+Watch the run in the BACKGROUND, never in the foreground
+([`landing-changes.md`](../.claude/rules/landing-changes.md) §1).
 
 A successful run either opens/updates a `chore: bump flake inputs` PR (if any
 input moved) or no-ops (if everything was already current). Confirm the opened PR

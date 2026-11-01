@@ -17,7 +17,7 @@ Parse `$ARGUMENTS` loosely:
 |---|---|
 | `audit` | Read-only — report findings, fix nothing |
 | `fix` | Audit then apply the skill's auto-fix table (default if omitted) |
-| anything else | Scope: a manifest repo name (today only `nix-config` — `nix-personal` was RETIRED 2026-09-15) or a host (`macos`) |
+| anything else | Scope: a manifest repo name (any line of `.claude/skills/fleet-doctor/fleet-repos.txt`) or a host (`macos`) |
 
 Examples:
 
