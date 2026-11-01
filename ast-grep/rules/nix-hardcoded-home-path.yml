@@ -1,6 +1,6 @@
 # Mechanises the RUNTIME half of CLAUDE.md § Conventions "Paths — two axes".
 #
-# The advisory version of this already exists as the claude-code-nix plugin's
+# The advisory version of this already exists as the nix-flake-kit plugin's
 # `nix-home-path-lint` hook,
 # but that is a PostToolUse hook: it only ever fires on Claude's OWN .nix writes.
 # A human commit, a `git revert`, or a Dependabot/flake-bump PR carrying a
@@ -49,7 +49,7 @@ severity: error
 # KEEP IN SYNC with the companion hook `nix-home-path-lint.js`, which carries the
 # same names for the same reason.
 #
-# The hook is not in this tree: it arrives as a PLUGIN hook from `claude-code-nix`
+# The hook is not in this tree: it arrives as a PLUGIN hook from `nix-flake-kit`
 # in kattakath/skills (CLAUDE.md § Hooks — deliberately not re-added here, or it
 # would fire twice). This file records no sync status; read the hook's own
 # `scripts/nix-home-path-lint.js` (`HOME_PATH`, `EXEMPT_USER`, its "Last synced"
