@@ -114,10 +114,12 @@ in
     pluginSettings = lib.mkOption {
       type = lib.types.attrsOf (lib.types.attrsOf value);
       default = { };
-      example = {
-        kdeconnect_clipboard.autoShare = true;
-        kdeconnect_share.incoming_path = "/Users/me/Downloads";
-      };
+      example = lib.literalExpression ''
+        {
+          kdeconnect_clipboard.autoShare = true;
+          kdeconnect_share.incoming_path = "''${config.home.homeDirectory}/Downloads";
+        }
+      '';
       description = ''
         Per-plugin keys, as plugin → key → value, written to
         `<device-id>/<plugin>/config` for every paired device. They apply live. Key names

@@ -779,10 +779,12 @@ in
       "iina"
       # Inkscape is gone on purpose (2026-09-15) — do not re-add.
       # KDE Connect — the phone-as-TRACKPAD/keyboard for this Mac (its "Virtual
-      # touchpad" panel). A CASK because nixpkgs' `kdePackages.kdeconnect-kde` is
-      # Linux+FreeBSD in `meta.platforms` and does not evaluate on aarch64-darwin;
-      # the cask ships the SAME version, arm64-only, macOS >= 13. Same
-      # Homebrew-app/Nix-config split as the ghostty and ungoogled-chromium casks.
+      # touchpad" panel), plus clipboard and file sharing. Its settings are
+      # `local.kdeConnect` (modules/home/kdeconnect.nix). A CASK because nixpkgs'
+      # `kdePackages.kdeconnect-kde` is Linux+FreeBSD in `meta.platforms` and does
+      # not evaluate on aarch64-darwin; the cask ships the SAME version, arm64-only,
+      # macOS >= 13. Same Homebrew-app/Nix-config split as the ghostty and
+      # ungoogled-chromium casks.
       #
       # THE macOS BACKEND IS REAL, verified in upstream source (2026-10-06), not
       # inferred from the download page: plugins/mousepad/CMakeLists.txt gates
