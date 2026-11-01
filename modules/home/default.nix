@@ -1034,10 +1034,6 @@ in
         # field-splitting case — was closed as not planned.
         "silent-instruments"
 
-        # github-gh: RETIRED 2026-11-01, kept in the catalogue only so `declared` can
-        # assert it `false` (see there).
-        "github-gh"
-
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
         # the one thing they are for: a worktree-isolated session whose worktree was
         # DELETED refuses every Bash call, spawned agents inherit the lock, and
@@ -1252,10 +1248,6 @@ in
     # one really ships). Declared, not clicked, for the reason the block above records:
     # a clicked toggle does not survive a fresh machine. Client-account servers come
     # from the operator's private overlay marketplace, never from this file.
-    # github-gh RETIRED 2026-11-01 (operator): 77 MCP calls against 5,257 `gh` CLI calls
-    # across all transcripts. `false`, not deleted, so the live key flips. Its launcher went
-    # too (2026-11-01): Desktop uses claude.ai's official GitHub Integration instead.
-    "github-gh@kattakath" = false;
     # GitLab over MCP, gitlab.com's hosted server with its own OAuth (operator request
     # 2026-10-21). No glab token is reused — the first `/mcp` connect asks for approval.
     "gitlab@claude-plugins-official" = true;
