@@ -3,7 +3,7 @@
 # UPSTREAM FIRST (checked 2026-11-01): home-manager has no `programs.beancount` and no
 # `services.fava`; nix-darwin has neither. nixpkgs ships every piece at the versions the
 # `beancount` plugin in kattakath/skills is tested against, measured on this flake's pin:
-# beancount 3.2.3, beangulp 0.2.0, beanquery 0.2.0, fava 1.30.16,
+# beancount 3.2.3, beangulp 0.2.0, beanquery 0.2.0, fava 1.30.16, fava-dashboards 2.0.2,
 # beancount-language-server 1.9.2.
 #
 # ONE interpreter for all four packages. The plugin's launcher runs
@@ -35,6 +35,9 @@ let
       ps.beangulp
       ps.beanquery
       ps.fava
+      # Custom Fava dashboards (net worth, debt); config is dashboards.tsx next to the
+      # journal. nixpkgs 2.0.2, MIT; compiled in the browser, so no node toolchain here.
+      ps.fava-dashboards
     ]
     ++ lib.optional cfg.smartImporter (ps.callPackage ../../packages/smart-importer.nix { })
   );
