@@ -1173,7 +1173,12 @@ in
   # The three plugins this repo structurally breaks without are NOT here: they are
   # the always-on set in ./claude-plugins.nix, and the two lanes are asserted
   # disjoint.
-  local.claudePlugins.declared = {
+  #
+  # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a
+  # template consumer gets none of it. Every id below is the operator's choice, not fleet shape:
+  # nothing in the engine breaks without one (that bar is the always-on floor). A consumer starts
+  # from the floor alone; `checks.<system>.template-consumer` pins exactly that.
+  local.claudePlugins.declared = lib.mkIf isMacosHost {
     # The PostToolUse instrument layer under the verification gate — see the
     # `silent-instruments` entry in the kattakath catalogue above for what it is and
     # why it is a plugin. It is here rather than always-on because nothing in this

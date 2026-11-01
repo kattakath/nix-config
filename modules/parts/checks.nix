@@ -562,6 +562,16 @@ in
 
               fieldList = f: lib.concatStringsSep ", " f;
 
+              # `alwaysOnNames` in modules/home/claude-plugins.nix, as the ids it resolves
+              # to (sorted, so `==` against `attrNames` is a set comparison). Written out
+              # rather than read back: the check pins what a consumer MUST get, and a
+              # change to the floor should have to change this line on purpose.
+              consumerPluginFloor = [
+                "brain-signals@kattakath"
+                "nix-flake-kit@kattakath"
+                "superhook@kattakath"
+              ];
+
               problems =
                 lib.optional (!fieldsAgree)
                   "templates/default/flake.nix's 'identity' declares { ${fieldList templateFields} }, but fleet.identityArgs accepts { ${fieldList engineFields} } — a consumer scaffolded from this template cannot evaluate"
@@ -597,6 +607,14 @@ in
                         || namedHm.local.claudeOtel.enable
                       )
                       "a consumer whose host is NAMED 'macos' got operator-only behaviour — gate on local.operatorHost, never the hostname"
+                  # The operator's plugin choices (`local.claudePlugins.declared`) are
+                  # identity, not fleet shape: a consumer renders the always-on floor
+                  # and nothing else. Compared on the RENDERED keys, so a personal id
+                  # reaching the consumer by any path goes red, not just via `declared`.
+                  ++
+                    lib.optional
+                      (lib.attrNames macHm.programs.claude-code.settings.enabledPlugins != consumerPluginFloor)
+                      "the consumer's enabledPlugins are { ${fieldList (lib.attrNames macHm.programs.claude-code.settings.enabledPlugins)} }, expected only the always-on floor { ${fieldList consumerPluginFloor} } — gate the operator's plugin ids on local.operatorHost"
                   ++ lib.optional (
                     boxUsers ? ${loginName}
                   ) "mkNixos created the OPERATOR's account (${loginName}) on a consumer's host"
