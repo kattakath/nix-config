@@ -136,7 +136,7 @@ of these has been moved**.
 | # | Where | What | Proposed disposition |
 |---|---|---|---|
 | 1 | `hosts/macos.nix:301-314` | AWS SSO start-URL id `d-…`, two 12-digit account ids, role names, regions — written into `~/.aws/config` by `programs.awscli.settings` | **Move** → local `~/.aws/config` (already the rule ADR-003 §10.3 and `map/modules-home.md` § bedrock-gate *claim* holds — the code contradicts the docs since the 2026-09-15 fold-in). The new `local.cloudCli.aws` capsule ships `config.example` with placeholders. |
-| 2 | `hosts/macos.nix` | four personal Gmail addresses (**`local.gmailMcp.accounts`** since 2026-10-01; was `local.mcpGateway.gmail.accounts`) | **Ask.** The comment argues they are already public elsewhere in the tree. They are still personal emails outside `identity.nix`. Options: leave (marked OPERATOR-ONLY, done), or move the list to a Keychain item / local file the module reads at launch. |
+| 2 | `hosts/macos.nix` | four personal Gmail addresses (**`local.gmailMcp.accounts`** since 2026-10-01; was `local.mcpGateway.gmail.accounts`). Retired 2026-11-01 — the claude.ai Gmail connector replaced it. | **Ask.** The comment argues they are already public elsewhere in the tree. They are still personal emails outside `identity.nix`. Options: leave (marked OPERATOR-ONLY, done), or move the list to a Keychain item / local file the module reads at launch. |
 | 3 | `modules/home/default.nix:997-1010, 1265-1280` | three git-identity emails in `*.inc` files and in `allowedSigners` | **Ask.** Same shape as #2. The work identity is already hand-placed outside the repo — the same treatment would fit the other two. |
 | 4 | `modules/parts/identity.nix:40` | JSON Resume gist id | **Leave** — inside `identity.nix`, now marked OPERATOR-ONLY. |
 | 5 | `modules/parts/identity.nix:100-101, 115` | Cloudflare account id, two zone ids | **Leave** — identifiers, inside `identity.nix`, marked. |
@@ -281,6 +281,7 @@ a run.
   file), so a runtime-read list would have to generate binaries at runtime too. Same answer, better
   reason — and that is a reason to re-check, not to assume: this item's original rationale was
   obsolete for a day before anyone looked.
+  **Retired 2026-11-01 — the claude.ai Gmail connector replaced it.** The option and its addresses left the tree with it.
 - **Claude Code user settings: joined the class 2026-09-22, and the class is now named.**
   `~/.claude/settings.json` was a read-only store symlink until
   `modules/home/claude-code-settings.nix` made it a real file that Nix merges its own keys

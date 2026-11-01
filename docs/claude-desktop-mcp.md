@@ -98,8 +98,8 @@ is the clearest statement of what was given up on 2026-10-02 — all three rows 
 | Cowork, Mac linked | Desktop bridge → `mcp__remote-devices__<name>__*` | ~~yes — without publishing them~~ → **no** (nothing to bridge) |
 | Cowork, Mac **not** linked (phone, closed laptop) | remote connector = the same portal (`config.fleet.publicMcpServers`, behind Cloudflare Access) | ~~yes since 2026-09-22~~ → **no** — the portal is destroyed and `publicMcpServers` deleted |
 
-**Say this plainly, because no check can:** `gmail` survives the purge for **Claude Code only**
-(`local.gmailMcp` + the `gmail` plugin). Desktop and Cowork lost it, and nothing in this repo detects that.
+Gmail reaches every surface through the claude.ai Gmail connector (account state, not this repo);
+the self-hosted `local.gmailMcp` lane was retired 2026-11-01.
 
 Skills and plugins are **not** in scope here: in Desktop/Cowork they are account state
 (Settings → Capabilities, the claude.ai plugin catalog), not files. The gateway-hosted `skills`

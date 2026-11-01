@@ -11,7 +11,7 @@
 #   postgres    the LOCAL pgvector RAG store (NOT a hosted Postgres; the Neon connector
 #               covers Neon projects and cannot see 127.0.0.1:5433)
 #
-# THE SPLIT, identical to `local.gmailMcp`'s and for the same reason:
+# THE SPLIT:
 #   HERE          the launcher binaries, because they read the login Keychain (or a
 #                 fleet-internal coordinate) and must not be duplicated into a plugin repo.
 #   THE PLUGIN    a `.mcp.json` in github:kattakath/skills (`slack`: the operator's private

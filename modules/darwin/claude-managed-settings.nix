@@ -84,7 +84,7 @@
 # ── WHY THERE IS NO managed-mcp.json HERE, so nobody re-adds it ────────────────
 # Deploying that file SUPPRESSES the claude.ai connectors Claude Code fetches for
 # itself, unless `allowAllClaudeAiMcps` is set alongside it — and this fleet runs
-# four Gmail connectors plus Drive, Calendar and Slack. The MCP source of truth
+# the claude.ai Gmail, Drive, Calendar and Slack connectors. The MCP source of truth
 # is NOTHING ANY MORE: `modules/shared/mcp.nix` was DELETED 2026-10-02 along with
 # the gateway and its Cloudflare portal, and `modules/shared/` itself became
 # `modules/home/` (#775). MCP servers now come from an enabled plugin's own
