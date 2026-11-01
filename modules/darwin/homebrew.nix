@@ -55,48 +55,17 @@ _:
     };
 
     # ---- Taps --------------------------------------------------------------
-    # Exactly one third-party tap: viarotel-org/escrcpy (github.com/viarotel-org/
-    # homebrew-escrcpy), upstream's own tap for the escrcpy cask (absent from
-    # homebrew/cask AND nixpkgs). Upstream bumps it on release, so a new escrcpy
-    # arrives via `brew upgrade --cask`. `activate` alone keeps the old one:
-    # autoUpdate/upgrade are off (above).
+    # None here: a tap belongs to the host that installs from it (hosts/macos.nix
+    # carries escrcpy's), so a template consumer is never handed a trusted
+    # third-party tap it installs nothing from.
     #
-    # We ran a fork (ismailkattakath/tap) from 2026-09-29 until 2026-10-25, while upstream's
-    # cask used `depends_on macos: :catalina`, which Homebrew 7 disables. Upstream fixed that
-    # and its interactive postflight in viarotel-org/homebrew-escrcpy#63, so the fork was
-    # retired and its repo archived. Moving back took the one-time migration recorded at the
-    # escrcpy cask entry in hosts/macos.nix.
-    #
-    # The app is unsigned and not notarized, so Gatekeeper never evaluates it: a
-    # quarantined copy will not launch. Each such cask entry therefore
-    # carries a `postinstall` that strips the quarantine flag (hosts/macos.nix) —
-    # load-bearing, not polish. The measurement, the rejected `args.no_quarantine`
-    # alternative, and the security tradeoff are recorded at the escrcpy cask entry;
-    # read it before touching either flag.
-    #
-    # Workable only because nix-homebrew sets mutableTaps = true (./nix-homebrew.nix)
-    # — otherwise a tap must be pinned as a flake input. Framework-level per this
-    # file's ownership split — any future darwin host gets the tap but not the cask (its
-    # casks list is its own); a tap with nothing installed from it is inert.
-    #
-    # A THIRD requirement, and the one that actually broke first: Homebrew 6.0.0
-    # turned on HOMEBREW_REQUIRE_TAP_TRUST by default, so brew REFUSES TO LOAD a
-    # non-official tap's casks until that tap is trusted — activation dies with
-    # "Refusing to load cask … from untrusted tap". A bare-string tap entry is
-    # therefore not enough on its own: you get a tap that clones and a cask that
-    # is never read. `trusted = true` is nix-darwin's own answer (it writes
-    # `trusted: true` onto the Brewfile's `tap` line), so ANY non-official tap
-    # added here needs it — do not hand-roll a `brew trust` activation step, and
-    # note that the *cask* line's own `trusted:` does NOT cover the tap.
-    #
-    # nats-server is homebrew-core, so no tap is needed.
-    taps = [
-      {
-        # Upstream's tap — see above. Resolves to github.com/viarotel-org/homebrew-escrcpy.
-        name = "viarotel-org/escrcpy";
-        trusted = true;
-      }
-    ];
+    # Any non-official tap needs `trusted = true`: Homebrew 6.0.0 turned on
+    # HOMEBREW_REQUIRE_TAP_TRUST, so brew refuses to load an untrusted tap's casks
+    # ("Refusing to load cask … from untrusted tap"). That is nix-darwin's own
+    # answer (it writes `trusted: true` onto the Brewfile's `tap` line); do not
+    # hand-roll a `brew trust` step, and note the cask line's own `trusted:` does
+    # NOT cover the tap. Taps work unpinned only because nix-homebrew sets
+    # mutableTaps = true (./nix-homebrew.nix).
 
     # ---- brews / casks / masApps ------------------------------------------
     # Set per host in hosts/<host>.nix (e.g. hosts/macos.nix).
