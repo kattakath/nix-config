@@ -1701,6 +1701,13 @@ in
         deniedMcpServers = [
           { serverName = "plugin:aws-core:aws-mcp"; }
           { serverName = "plugin:aws-serverless:aws-serverless-mcp"; }
+          # The claude.ai AWS connector (account-level, so it also serves claude.ai chat and
+          # Cowork, where aws-infin8 cannot run): denied in Claude Code ONLY, where it
+          # duplicated aws-infin8's tools. By URL, the vendor's stable endpoint, not the
+          # renameable display name. Measured 2026-11-01 with `claude --settings … mcp list`:
+          # removes the connector and keeps `plugin:aws-infin8:aws-mcp` (stdio, so a URL
+          # deny cannot match it).
+          { serverUrl = "https://aws-mcp.us-east-1.api.aws/mcp"; }
         ];
 
         theme = "auto";
