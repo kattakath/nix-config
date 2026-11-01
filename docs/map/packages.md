@@ -231,7 +231,7 @@ Smaller, single-purpose CLIs:
   lookup is by Keychain **service** `resend.com:api`, not by the env name, so set it with
   `pbpaste | secret set --env RESEND_API_KEY resend.com:api`.
 - **Documented with their consumer, not here:** `keychain-mcp.nix`,
-  `mcpfinder-mcp.nix`, `slack-post-mcp.nix` (the MCP launchers — [`modules-home.md`](modules-home.md)
+  `slack-post-mcp.nix` (the MCP launchers — [`modules-home.md`](modules-home.md)
   § `plugin-mcp.nix`); and `rogers-gw.nix` (the
   inspection-only gateway CLI) and `launchd-doctor.nix` (the launchd runtime health check),
   both in [`modules-darwin.md`](modules-darwin.md).

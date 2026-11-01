@@ -2875,7 +2875,7 @@ in
           #
           # MCP servers in this fleet are declared in TWO repos BY DESIGN, and the
           # split is right: Nix builds the launcher BINARIES (`local.pluginMcp`,
-          # packages/mcpfinder-mcp.nix -> `nix-mcp-*` on PATH)
+          # packages/slack-post-mcp.nix -> `nix-mcp-*` on PATH)
           # because they read the login Keychain, and `github:kattakath/skills`'
           # plugin `.mcp.json` files NAME those binaries because only a plugin can
           # declare a server to Claude Code. Different artifacts, different repos.
@@ -2895,7 +2895,7 @@ in
           #                            expands ONLY inside the owning plugin, so no
           #                            PATH binary can exist for them even in
           #                            principle. Unportable BY CONSTRUCTION.
-          #   a bare nixpkgs binary    `mcp-nixos`, `terraform-mcp-server` — real
+          #   a bare nixpkgs binary    `mcp-nixos` — real
           #                            binaries, installed as ordinary packages, not
           #                            built by this fleet's launcher factory.
           #   `npx`                    `mobile-mcp`, `macos-automator`,
@@ -2934,9 +2934,9 @@ in
 
               # BUILT, read off the COMPOSED package list rather than re-deriving the
               # naming rule — a check that re-derived it would agree with a broken
-              # rule by sharing it. Derivation name == binary name for all three
+              # rule by sharing it. Derivation name == binary name for both
               # builders, each `writeShellApplication` (packages/keychain-mcp.nix,
-              # packages/mcpfinder-mcp.nix, packages/slack-post-mcp.nix) emitting
+              # packages/slack-post-mcp.nix) emitting
               # exactly one `$out/bin/<name>`.
               built = lib.naturalSort (
                 lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") (map (p: p.name or "") hm.home.packages))
@@ -2996,8 +2996,13 @@ in
               ]
               ++ seededLaunchers;
 
-              missing = lib.subtractLists built declared;
-              orphan = lib.subtractLists (declared ++ namedOutsidePublicTree) built;
+              # Since 2026-11-01 the public tree names NO fleet launcher (every plugin
+              # starts a launcher its operator names), so `declared` is legitimately empty;
+              # the join's "named" side is every namer this check can see.
+              named = lib.unique (declared ++ namedOutsidePublicTree);
+              # A seeded launcher must be built too, or its plugin starts nothing.
+              missing = lib.subtractLists built (declared ++ seededLaunchers);
+              orphan = lib.subtractLists named built;
             in
             mkHostContract {
               inherit pkgs;
@@ -3009,8 +3014,8 @@ in
                   ok = allCommands != [ ];
                 }
                 {
-                  name = "neither side of the join is empty — plugins name ${toString (builtins.length declared)}, macos builds ${toString (builtins.length built)}";
-                  ok = declared != [ ] && built != [ ];
+                  name = "neither side of the join is empty — ${toString (builtins.length named)} launchers named (${toString (builtins.length declared)} by public plugins), macos builds ${toString (builtins.length built)}";
+                  ok = named != [ ] && built != [ ];
                 }
                 {
                   name = "every nix-mcp-* command a plugin names is built here (missing: ${toString missing})";
@@ -3025,7 +3030,7 @@ in
                 "A MISSING launcher means a plugin in github:kattakath/skills names a binary"
                 "this fleet does not build: that server cannot start. Add the name to"
                 "local.pluginMcp.servers in hosts/macos.nix, or"
-                "build it as a package the way packages/mcpfinder-mcp.nix does."
+                "build it as a package the way packages/slack-post-mcp.nix does."
                 "An ORPHAN launcher means the reverse — a binary on PATH that no plugin"
                 "declares, so the capability does not exist in any session. Either declare"
                 "the server in its owning plugin, or drop the launcher from hosts/macos.nix."

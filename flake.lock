@@ -469,11 +469,11 @@
     "kattakath-skills": {
       "flake": false,
       "locked": {
-        "lastModified": 1793548459,
-        "narHash": "sha256-RziCmGSGGfKR8T2rSKrEDAOR+QH2g3ad9WjFm/HsXDw=",
+        "lastModified": 1793560836,
+        "narHash": "sha256-rrDVxjO/Zn7mMxEpsAZYIr4yEwmxPW9TF8veu29m4Wc=",
         "owner": "kattakath",
         "repo": "skills",
-        "rev": "6b2fce612c4a9680f1db78ffd47de52233232baa",
+        "rev": "0c6cc8632a8112e8bd0c52b12bda7fcfd14db4e4",
         "type": "github"
       },
       "original": {
