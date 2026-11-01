@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
+`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -700,6 +700,15 @@ in the repo can catch that; see that fixture file's header for the measurement.
   The inner wrapper dropped its `nix-` prefix (`metube-run`, not `nix-metube`):
   `launchd-launcher.nix` already renames arg0 to `nix-<agent>`, so the old spelling produced
   two store paths with one name.
+
+- **`beancount.nix`** (macos only, since 2026-11-01) — `local.beancount`: ONE
+  `python3.withPackages` env (beancount 3.2.3, beangulp 0.2.0, beanquery 0.2.0, fava 1.30.16)
+  so the plugin's build code and `bean-check`/`fava` share an interpreter. Only the four CLIs
+  reach PATH, plus `beancount-language-server`; the env's `python3` does not, so it shadows
+  nothing. Exports `BEANCOUNT_PYTHON`, `BEANCOUNT_JOURNAL` (default: a path under the
+  operator-made symlink `~/.local/share/ledger`, so no data path enters this repo) and
+  `FAVA_PORT`. **No launchd agent** — Fava runs on demand through the plugin's fava skill.
+  Upstream-first: neither home-manager nor nix-darwin models Beancount or Fava.
 
 - **`tor-browser-backup-exclusion.nix`** (macos only, since 2026-10-06) — keeps the Tor Browser
   profile out of Time Machine with Apple's own `tmutil addexclusion`, re-applied each activation.
