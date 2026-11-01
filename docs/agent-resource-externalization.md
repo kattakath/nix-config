@@ -286,7 +286,6 @@ marketplace under the operator's own handle, `<your-handle>/skills` (the operato
 | Which private plugins are on, and the marketplace source | `~/.config/nix-config/claude-settings.overlay.json` (hand-placed) | merged by `claude-code-settings.nix` as `.[0] * $overlay * $nix`, so Nix always wins and an overlay can never retract a `permissions.deny` |
 | Client Desktop servers | `~/.config/nix-config/claude-desktop.overlay.json` (hand-placed) | merged by `claude-desktop.nix` at activation; eval never sees it |
 | Trusting the overlay's owner | `local.claudeManagedSettings.trustedMarketplaceOwners` (per host) | the managed `strictKnownMarketplaces` allowlist refuses any other owner by design |
-| Generic launchers the private plugins name | `nix-mcp-slack <host>` | the account arrives in argv, so no account is written here |
 | Git identity routing | `~/.config/git/local.inc` (hand-placed) | `includeIf` conditions name client orgs and folders |
 
 **Upstream-first:** a plugin's `settings.json` cannot enable plugins and a plugin cannot carry
@@ -298,7 +297,7 @@ the client repos (the stock Slack plugin binds ONE workspace per credential —
 anthropics/claude-code#39952, closed not planned — and client repos are team-shared).
 
 **What CI cannot see:** `checks.<system>.mcp-launcher-parity` reads only the pinned PUBLIC tree,
-so `nix-mcp-slack` (named only by private plugins) is exempted by generic name. The completion
+so a launcher named only by a private plugin (`nix-mcp-desktop-commander` since 2026-11-01) is exempted by name. The completion
 gate that no client literal is left in either public repo lives in the PRIVATE repo
 (`public-scan.yml`), because a public lint would have to contain the literals it hunts.
 
