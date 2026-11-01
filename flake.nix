@@ -274,14 +274,8 @@
     };
     # ---- Additional third-party skill collections (source-only, flake = false) --
     # Wired into programs.claude-code.skills. Chosen to
-    # DRIVE tools this fleet already has (Cloudflare Tunnel + cloudflare/cloudflare-docs
-    # MCP, the postgres/macos-automator MCP servers, the Excalidraw
+    # DRIVE tools this fleet already has (the postgres/macos-automator MCP servers, the Excalidraw
     # connector). Bumped via `nix flake update`; nothing vendored.
-    agent-skills-cloudflare = {
-      # OFFICIAL Cloudflare (Apache-2.0): `cloudflare` + `cloudflare-one` (Access/Tunnel) product reference.
-      url = "github:cloudflare/skills";
-      flake = false;
-    };
     agent-skills-jeffallan = {
       # MIT: `postgres-pro` (senior-Postgres skill) — pairs with the postgres MCP server + local pgvector RAG.
       url = "github:Jeffallan/claude-skills";
