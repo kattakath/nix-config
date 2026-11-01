@@ -274,8 +274,8 @@ the one exported host (`macos`) and the stranger-identity Mac that
   exports it as the `RAGDB_URI` session variable (#796) for a shell consumer that cannot read a
   Nix option. `checks.local-rag-module` still pins the URI's value as a **LITERAL**, so a
   port/role/db rename fails there instead of quietly returning zero rows, and
-  `checks.mcp-launcher-parity` joins the plugin that names `nix-mcp-postgres` against the
-  launcher built here — so the consumer side is gated too, in both directions. The lane itself
+  `checks.mcp-launcher-parity` checks the pinned `rag` plugin that runs `nix-mcp-postgres`
+  against the launcher built here — so the consumer side is gated too. The lane itself
   is described in [`claude-code.md`](claude-code.md) § MCP after the gateway.
 - **Layout:** the two modules sit at the capsule ROOT, not under `modules/`, so that
   `pgvector-local.nix`'s `imports = [ ./ollama-local.nix ]` stays a **sibling** path. That

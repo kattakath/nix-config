@@ -2873,53 +2873,31 @@ in
           #
           # MCP servers in this fleet are declared in TWO repos BY DESIGN, and the
           # split is right: Nix builds the launcher BINARIES (`local.pluginMcp`,
-          # packages/keychain-mcp.nix -> `nix-mcp-*` on PATH)
-          # because they read the login Keychain, and `github:kattakath/skills`'
-          # plugin `.mcp.json` files NAME those binaries because only a plugin can
-          # declare a server to Claude Code. Different artifacts, different repos.
+          # packages/keychain-mcp.nix -> `nix-mcp-*` on PATH) because they read the
+          # login Keychain, and a `github:kattakath/skills` plugin declares the server
+          # because only a plugin can. Since skills #162 the plugin's `.mcp.json` names
+          # NO binary: its server runs the plugin's own `scripts/launch.sh`, handed
+          # `${user_config.launcher}`, and modules/home/plugin-mcp.nix seeds that
+          # `launcher` setting (`pluginConfigs."<plugin>@kattakath"`) with `nix-mcp-<name>`.
           #
-          # HALF THE JOIN WAS ALREADY MECHANICAL: modules/home/plugin-mcp.nix types
-          # `local.pluginMcp.servers` as an ENUM, so a name this fleet cannot build
-          # fails at eval. What nothing saw is the CROSS-REPO half — that the set of
-          # `nix-mcp-*` commands the plugins name EQUALS the set this fleet builds.
-          # Both directions fail silently and in opposite ways: a plugin naming a
-          # binary nobody builds is a server that never starts, and a launcher no
-          # plugin names is a capability the operator believes is wired and is not.
+          # So the contract is THREE links in three places, and each one broken means a
+          # server that silently never starts. For every server macos declares:
+          #   (a) the plugin seeded with its launcher exists in the PINNED skills tree;
+          #   (b) that plugin's `plugin.json` declares a `launcher` userConfig key, and
+          #       its `.mcp.json` passes `${user_config.launcher}` to some server
+          #       (command, args or env — the pinned rag/wordpress pass it in env);
+          #   (c) exactly one kattakath plugin is seeded with `nix-mcp-<name>`, and that
+          #       binary is in the composed home.packages.
+          # Read at EVAL time — `builtins.readFile` over a realised flake input, so no
+          # import-from-derivation and no network.
           #
-          # SCOPE IS THE `nix-mcp-` PREFIX, because the prefix IS this lane. At the
-          # pinned rev, the other servers the plugins name are out of scope for
-          # reasons that are structural, not an oversight:
-          #   ${CLAUDE_PLUGIN_ROOT}/…  `memory`, `chrome-devtools` — that variable
-          #                            expands ONLY inside the owning plugin, so no
-          #                            PATH binary can exist for them even in
-          #                            principle. Unportable BY CONSTRUCTION.
-          #   a bare nixpkgs binary    `mcp-nixos` — real
-          #                            binaries, installed as ordinary packages, not
-          #                            built by this fleet's launcher factory.
-          #   `npx`                    `mobile-mcp`, `macos-automator`,
-          #                            `sequential-thinking`, `kapture` — no fleet
-          #                            binary at all; the plugin downloads the server.
+          # The previous version joined the seeded launchers against the built ones.
+          # Both came from `local.pluginMcp.servers`, so it compared Nix with itself and
+          # could not go red; it never opened the plugin a launcher was seeded into.
           #
-          # EQUALITY, NOT CONTAINMENT — and the previous pin is why, measured rather
-          # than argued. At cc56d06 (two days old) this tree held ZERO
-          # `plugins/*/.mcp.json`; the MCP ownership split landed after it. So:
-          #   a FORWARD-containment gate ("every plugin-named command is built") would
-          #   have been VACUOUSLY GREEN over an empty left-hand set — a gate that
-          #   passes without testing anything, which is worse than no gate.
-          #   SET EQUALITY instead reports 0 declared vs 8 built and goes RED, which is
-          #   why the pin bump in this commit is load-bearing and not cosmetic.
-          #
-          # The two NON-EMPTY legs are not redundant with that. Equality alone is
-          # degenerate when BOTH sides empty (host lists cleared and layout moved at
-          # once), and — the real everyday value — a layout regression otherwise
-          # reports as a list of orphans, sending the reader to hosts/macos.nix when the
-          # fault is the pinned tree. Verified by pointing `pluginsDir` at a
-          # directory with no `.mcp.json`: three legs red, the FIRST of them naming
-          # the tree rather than the host.
-          #
-          # THE COST, stated rather than discovered: `kattakath-skills` is now
-          # load-bearing for a SECOND thing, so adding an MCP server over there needs
-          # this pin bumped here to stay green. Bounded and automatic —
+          # THE COST, stated rather than discovered: `kattakath-skills` is load-bearing
+          # here, so renaming a plugin or its `launcher` key over there needs this pin
+          # bumped here to stay green. Bounded and automatic —
           # .github/workflows/update-flake-lock.yml bumps it weekly (its
           # `updatable-inputs` step names the inputs it skips) and arms
           # auto-merge on the result — so the join is re-checked on a reviewable PR
@@ -2929,98 +2907,80 @@ in
           mcp-launcher-parity =
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              servers = hm.local.pluginMcp.servers;
 
-              # BUILT, read off the COMPOSED package list rather than re-deriving the
-              # naming rule — a check that re-derived it would agree with a broken
-              # rule by sharing it. Derivation name == binary name for the one
-              # builder, a `writeShellApplication` (packages/keychain-mcp.nix)
-              # emitting
-              # exactly one `$out/bin/<name>`.
-              built = lib.naturalSort (
-                lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") (map (p: p.name or "") hm.home.packages))
-              );
+              # BUILT, read off the COMPOSED package list. Derivation name == binary
+              # name for the one builder, a `writeShellApplication`
+              # (packages/keychain-mcp.nix) emitting exactly one `$out/bin/<name>`.
+              built = map (p: p.name or "") hm.home.packages;
 
-              # DECLARED, read out of the pinned tree at EVAL time — `builtins.readDir`
-              # over a realised flake input, so no import-from-derivation and no
-              # network. A plugin without an `.mcp.json` declares no server and is
-              # skipped rather than being an error: most plugins have none.
-              pluginsDir = "${inputs.kattakath-skills}/plugins";
-              # A portable plugin names its launcher as `''${VAR:-nix-mcp-x}` so another
-              # machine can swap it (skills #150); Claude Code expands that at spawn, so
-              # the binary THIS fleet must build is the fallback. Read literally, the
-              # `nix-mcp-` filter drops it and the launcher reads as an orphan.
-              resolveDefault =
-                c:
+              seeded = hm.programs.claude-code.settings.pluginConfigs or { };
+              placeholder = "\${user_config.launcher}";
+
+              legsFor =
+                name:
                 let
-                  m = builtins.match "[$][{][A-Za-z_][A-Za-z0-9_]*:-(.*)[}]" c;
+                  launcher = "nix-mcp-${name}";
+                  ids = lib.attrNames (
+                    lib.filterAttrs (
+                      id: c: lib.hasSuffix "@kattakath" id && (c.options.launcher or null) == launcher
+                    ) seeded
+                  );
+                  plugin = if ids == [ ] then "<none>" else lib.removeSuffix "@kattakath" (builtins.head ids);
+                  dir = "${inputs.kattakath-skills}/plugins/${plugin}";
+                  readJson = f: if builtins.pathExists f then builtins.fromJSON (builtins.readFile f) else { };
+                  manifest = readJson "${dir}/.claude-plugin/plugin.json";
+                  mcp = readJson "${dir}/.mcp.json";
+                  passesLauncher =
+                    s:
+                    builtins.elem placeholder (
+                      [ (s.command or "") ] ++ (s.args or [ ]) ++ lib.attrValues (s.env or { })
+                    );
                 in
-                if m == null then c else builtins.head m;
-              commandsIn =
-                plugin:
-                let
-                  f = "${pluginsDir}/${plugin}/.mcp.json";
-                in
-                lib.optionals (builtins.pathExists f) (
-                  map (s: resolveDefault (s.command or "")) (
-                    lib.attrValues ((builtins.fromJSON (builtins.readFile f)).mcpServers or { })
-                  )
-                );
-              allCommands = lib.concatMap commandsIn (
-                lib.attrNames (lib.filterAttrs (_: t: t == "directory") (builtins.readDir pluginsDir))
-              );
-              declared = lib.naturalSort (lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") allCommands));
-
-              # And the launchers a plugin is POINTED at through a seeded `launcher`
-              # setting (plugin-mcp.nix `pluginConfigs`) are named there, not in `.mcp.json`.
-              seededLaunchers = lib.filter (lib.hasPrefix "nix-mcp-") (
-                lib.mapAttrsToList (_: c: c.options.launcher or "") (
-                  hm.programs.claude-code.settings.pluginConfigs or { }
-                )
-              );
-              namedOutsidePublicTree = seededLaunchers;
-
-              # Since 2026-11-01 the public tree names NO fleet launcher (every plugin
-              # starts a launcher its operator names), so `declared` is legitimately empty;
-              # the join's "named" side is every namer this check can see.
-              named = lib.unique (declared ++ namedOutsidePublicTree);
-              # A seeded launcher must be built too, or its plugin starts nothing.
-              missing = lib.subtractLists built (declared ++ seededLaunchers);
-              orphan = lib.subtractLists named built;
+                [
+                  {
+                    name = "${name}: exactly one kattakath plugin is seeded with launcher ${launcher} (seeded: ${toString ids})";
+                    ok = builtins.length ids == 1;
+                  }
+                  {
+                    name = "${name}: ${launcher} is built into macos home.packages";
+                    ok = builtins.elem launcher built;
+                  }
+                  {
+                    name = "${name}: plugin '${plugin}' exists in the pinned kattakath-skills tree";
+                    ok = builtins.pathExists dir;
+                  }
+                  {
+                    # No backticks or `${...}` in these names: mkHostContract echoes
+                    # them inside double quotes, where the shell would expand both.
+                    name = "${name}: plugin '${plugin}' declares a launcher userConfig key";
+                    ok = manifest ? userConfig.launcher;
+                  }
+                  {
+                    name = "${name}: plugin '${plugin}' .mcp.json passes the user_config.launcher placeholder to a server";
+                    ok = lib.any passesLauncher (lib.attrValues (mcp.mcpServers or { }));
+                  }
+                ];
             in
             mkHostContract {
               inherit pkgs;
               name = "mcp-launcher-parity";
-              subject = "macos: the nix-mcp-* launchers and the plugins naming them are the same set";
+              subject = "macos: every nix-mcp-* launcher is seeded into a pinned kattakath plugin that runs it";
               expect = [
                 {
-                  name = "the pinned skills tree yields plugin MCP declarations at all (server commands read: ${toString (builtins.length allCommands)})";
-                  ok = allCommands != [ ];
+                  name = "macos declares at least one local.pluginMcp.servers entry (an empty list tests nothing)";
+                  ok = servers != [ ];
                 }
-                {
-                  name = "neither side of the join is empty — ${toString (builtins.length named)} launchers named (${toString (builtins.length declared)} by public plugins), macos builds ${toString (builtins.length built)}";
-                  ok = named != [ ] && built != [ ];
-                }
-                {
-                  name = "every nix-mcp-* command a plugin names is built here (missing: ${toString missing})";
-                  ok = missing == [ ];
-                }
-                {
-                  name = "every nix-mcp-* launcher is named by some plugin (orphans: ${toString orphan})";
-                  ok = orphan == [ ];
-                }
-              ];
+              ]
+              ++ lib.concatMap legsFor servers;
               advice = [
-                "A MISSING launcher means a plugin in github:kattakath/skills names a binary"
-                "this fleet does not build: that server cannot start. Add the name to"
-                "local.pluginMcp.servers in hosts/macos.nix, or"
-                "build it with packages/keychain-mcp.nix the way the other launchers are."
-                "An ORPHAN launcher means the reverse — a binary on PATH that no plugin"
-                "declares, so the capability does not exist in any session. Either declare"
-                "the server in its owning plugin, or drop the launcher from hosts/macos.nix."
-                "An EMPTY side is never a pass: it means the pinned tree's layout moved or"
-                "the host lists were emptied, not that the two sets agree."
-                "Only the nix-mcp-* lane is in scope — CLAUDE_PLUGIN_ROOT-relative servers,"
-                "bare nixpkgs binaries and npx invocations are excluded by construction."
+                "Each server in local.pluginMcp.servers (hosts/macos.nix) reaches Claude Code"
+                "only through a github:kattakath/skills plugin: plugin-mcp.nix seeds that"
+                "plugin's launcher setting with nix-mcp-NAME, and the plugin's .mcp.json"
+                "hands it to scripts/launch.sh. A red seeded/built leg is in plugin-mcp.nix"
+                "(the server's plugin field). A red exists/userConfig/.mcp.json leg means"
+                "the pinned skills tree renamed the plugin or its launcher key: fix the"
+                "plugin field, or the plugin, then bump the kattakath-skills pin."
               ];
             };
         };

@@ -90,44 +90,16 @@ in the repo can catch that; see that fixture file's header for the measurement.
   (its sibling `gmail-mcp.nix` was retired 2026-11-01 — the claude.ai Gmail connector replaced it).
   Claude Code spawns a plugin-declared stdio server per session; a plugin's `.mcp.json`
   can set `env` only to literals or `${VAR}` passthroughs, so it **cannot** run a Keychain read.
-  So the split is: the launcher BINARY here, the `.mcp.json` naming it by binary name in
-  `github:kattakath/skills`. Same arrangement `page-lab` already has with `page-lab-pick`.
-  - **THE JOIN IS GATED IN BOTH DIRECTIONS, and the second direction crosses the repo
-    boundary.** `plugin-mcp.nix` types `local.pluginMcp.servers` as an **enum**, so naming a
-    server this fleet cannot build fails at eval — that is the forward half, and it has always
-    been there. `checks.<system>.mcp-launcher-parity` (2026-10-02) is the reverse half: it reads
-    every `plugins/*/.mcp.json` out of the pinned `kattakath-skills` input at **eval** time
-    (`builtins.readDir`/`readFile` over a realised input — no import-from-derivation, no
-    network) and asserts SET EQUALITY between the `nix-mcp-*` commands those plugins name and
-    the `nix-mcp-*` derivations `macos` actually composes into `home.packages`. Measured
-    2026-10-02 at pin `5ba108f`: **8 = 8**. Launchers named outside the public tree (seeded `launcher`
-    settings) count as named.
-    - **The built side is read off the composed package list, not re-derived.** A check that
-      re-applied a launcher's naming rule would agree with a broken rule by sharing it.
-      Derivation name == binary name: the one builder, `packages/keychain-mcp.nix`, is a
-      `writeShellApplication` emitting exactly one `$out/bin/<name>`, shellchecked at build. It keeps
-      `bashOptions = [ "nounset" ]`, the `set -u`
-      they always ran under, so a missing Keychain entry still warns rather than aborts.
-    - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Out of this lane:
-      `memory` and `chrome-devtools` are
-      `${CLAUDE_PLUGIN_ROOT}`-relative, which expands **only** inside the owning plugin, so no
-      PATH binary can exist for them even in principle; `mcp-nixos` is a bare nixpkgs binary
-      installed as an ordinary package; `mobile-mcp`,
-      `macos-automator`, `sequential-thinking` and `kapture` are `npx` invocations with no
-      fleet binary at all.
-    - **Why EQUALITY and not containment — the previous pin is the measurement.** At
-      `cc56d06` (two days older) the tree held **zero** `plugins/*/.mcp.json`; the MCP
-      ownership split landed after it. A forward-containment gate ("every plugin-named command
-      is built") would therefore have been **vacuously green** over an empty left-hand set — a
-      gate that passes without testing anything, which is worse than no gate. Set equality
-      instead reports `0 declared vs 8 built` and goes **red**, which is what makes the pin
-      bump load-bearing rather than cosmetic.
-    - **The two non-empty legs are not redundant with that.** Equality alone is degenerate if
-      both sides empty at once (host lists cleared *and* layout moved), and — the everyday
-      value — a layout regression otherwise reads as a list of orphans, sending the reader to
-      `hosts/macos.nix` when the fault is the pinned tree. Verified by pointing the plugin
-      directory at one holding no `.mcp.json`: three legs red, the **first** of them naming the
-      tree rather than the host.
+  So the split is: the launcher BINARY here, the server declaration in a
+  `github:kattakath/skills` plugin whose `.mcp.json` runs `${user_config.launcher}` — a setting
+  `plugin-mcp.nix`'s `pluginConfigs` block seeds with the binary's name, from each server's
+  `plugin` field. Same arrangement `page-lab` already has with `page-lab-pick`.
+  - **THE CONTRACT IS GATED ACROSS THE REPO BOUNDARY.** `plugin-mcp.nix` types
+    `local.pluginMcp.servers` as an **enum**, so naming a server this fleet cannot build fails at
+    eval. `checks.<system>.mcp-launcher-parity` gates the other side, per declared server: the
+    seeded `launcher`, the built binary, and the pinned `kattakath-skills` plugin that must
+    declare a `launcher` setting and pass `${user_config.launcher}` to its server. Its legs are
+    the check's own `subject`/assertions — read them there, not restated here.
     - **The cost, stated:** `kattakath-skills` is now load-bearing for a second thing, so an
       MCP server added over there needs this pin bumped here to stay green.
       `.github/workflows/update-flake-lock.yml` bumps every input weekly and arms auto-merge,
@@ -750,11 +722,9 @@ behind **one** `enable` — all of them in-tree capsules under `modules/features
 
   **And a plugin's `.mcp.json` is NOT invisible to this repo** — the claim that it is was the
   reasoning behind calling this a loss of coupling, and it is false.
-  `checks.<system>.mcp-launcher-parity` reads every `plugins/*/.mcp.json` out of the pinned
-  `kattakath-skills` input at EVAL time and asserts set equality between the `nix-mcp-*`
-  commands those plugins name and the launchers `macos` builds (§ `plugin-mcp.nix` above,
-  same file). The `rag` plugin declares `postgres` →
-  `nix-mcp-postgres`, so this very server is inside that join, and `plugin-mcp.nix` ALSO asserts
+  `checks.<system>.mcp-launcher-parity` reads the pinned plugin that runs each declared
+  launcher (§ `plugin-mcp.nix` above, same file). `plugin-mcp.nix` seeds the `rag` plugin's `launcher` setting with
+  `nix-mcp-postgres` (the `postgres` server's `plugin` field), so this very server is inside that check, and `plugin-mcp.nix` ALSO asserts
   `local.rag.pgvector.enable` whenever `postgres` is listed. What genuinely no gate can assert
   is that the server ANSWERS at runtime, and the non-`nix-mcp-` lanes
   (`${CLAUDE_PLUGIN_ROOT}`-relative, bare nixpkgs binaries, `npx`) are out of scope by

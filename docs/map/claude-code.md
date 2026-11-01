@@ -29,17 +29,16 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
   connectors/plugins — see `docs/agent-resource-externalization.md`.
 - **A launcher that needs a Keychain read is a PATH package in this repo.** A plugin's
   `.mcp.json` can set `env` to literals and passthroughs but cannot run
-  `security find-generic-password`, so the credential work stays in a Nix-installed wrapper the
-  plugin names by binary name. **`local.pluginMcp` (`modules/home/plugin-mcp.nix`) building
+  `security find-generic-password`, so the credential work stays in a Nix-installed wrapper. The
+  plugin runs it through its `launcher` setting, which `plugin-mcp.nix`'s `pluginConfigs` block
+  seeds with the binary's name. **`local.pluginMcp` (`modules/home/plugin-mcp.nix`) building
   through `packages/keychain-mcp.nix` is the live pattern.**
 - **The repo CAN see the credentialed half of its MCP surface — and only that half.** An earlier
   revision of this bullet said "nothing here reads a plugin's `.mcp.json`"; that is **false**.
-  `checks.<system>.mcp-launcher-parity` (`modules/parts/checks.nix`) reads every
-  `plugins/*/.mcp.json` out of the pinned `kattakath-skills` input at EVAL time and asserts set
-  equality between the `nix-mcp-*` commands those plugins name and the launchers `macos` builds
-  — so a capability vanishing from, or appearing in, THAT lane does fail a `nix flake check`
-  leg, in both directions. What no gate can assert:
-  - **that a server ANSWERS.** Set equality is a name join, not a spawn test; the runtime recipe
+  `checks.<system>.mcp-launcher-parity` (`modules/parts/checks.nix`) reads, out of the pinned
+  `kattakath-skills` input at EVAL time, the plugin that runs each launcher `macos` declares,
+  so a broken seeding or plugin contract fails a `nix flake check` leg. What no gate can assert:
+  - **that a server ANSWERS.** The check reads files, it does not spawn; the runtime recipe
     is in [`mcp-gateway.md`](../mcp-gateway.md) § How to verify a plugin-owned server actually
     answers, and it is a **procedure**, not a gate.
   - **the three non-`nix-mcp-` lanes**, excluded by construction: `${CLAUDE_PLUGIN_ROOT}`-relative
