@@ -1448,7 +1448,11 @@ in
     # (the keychain-secrets capsule's HM module), not this list.
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       darwinActivate # `activate [extra darwin-rebuild args]` — `darwin-rebuild switch` that re-execs under sudo, so a forgotten `sudo` becomes the Touch ID sheet instead of exit 1; names the flake + branch/rev it is about to activate first (packages/activate.nix)
-      androidEmu
+    ]
+    # androidEmu needs the android-commandlinetools cask, which only hosts/macos.nix installs.
+    # Kept at this position so the package order (and the macos closure) is unchanged.
+    ++ lib.optional isMacosHost androidEmu
+    ++ lib.optionals stdenv.hostPlatform.isDarwin [
       # awscli2 is NOT here: the cloud-cli capsule's programs.awscli owns it (local.cloudCli.aws).
       # buku — the bookmark manager of record (SQLite + CLI), chosen over rolling anything
       # custom: `buku --ai` reads Chrome/Brave/Chromium/Firefox profiles DIRECTLY off disk
@@ -1558,52 +1562,57 @@ in
   # bins on PATH (adb itself also comes from the `android-platform-tools` cask).
   # After switching, just run `android-emu` (the helper in the let block) — it
   # installs the SDK packages + creates the AVD on first run, then boots it.
-  home.sessionVariables = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    # rclip's default macOS path compiles a Core ML model, which needs
-    # `coremltools` — a dep the nixpkgs package does not ship. Without this every
-    # real invocation dies on `ModuleNotFoundError: No module named 'coremltools'`.
-    # `dontCheckRuntimeDeps` (see rclipCli above) only silenced the BUILD-time
-    # complaint about the same missing dep; it could not fix the runtime import,
-    # so rclip built cleanly and had never successfully indexed anything.
-    # This selects the ONNX path, which needs no coremltools. Verified: with it
-    # set, indexing and search both work.
-    RCLIP_USE_ONNX_ON_MACOS = "1";
+  home.sessionVariables = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
+    {
+      # rclip's default macOS path compiles a Core ML model, which needs
+      # `coremltools` — a dep the nixpkgs package does not ship. Without this every
+      # real invocation dies on `ModuleNotFoundError: No module named 'coremltools'`.
+      # `dontCheckRuntimeDeps` (see rclipCli above) only silenced the BUILD-time
+      # complaint about the same missing dep; it could not fix the runtime import,
+      # so rclip built cleanly and had never successfully indexed anything.
+      # This selects the ONNX path, which needs no coremltools. Verified: with it
+      # set, indexing and search both work.
+      RCLIP_USE_ONNX_ON_MACOS = "1";
 
-    ANDROID_HOME = androidSdkRoot;
+      # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
+      # platform-guessed data dir, and this DB is the single surviving copy of the merged
+      # Chrome+Brave bookmark set — it must live somewhere backed up and obvious, next to
+      # the other $HOME/Developer/local data dirs. $HOME-relative so it is
+      # username-portable; never a literal /Users/<name>.
+      BUKU_DEFAULT_DBDIR = "$HOME/Developer/local/bookmarks";
+      # BASH_ENV (the secret loader) + the loader file itself are now set by
+      # local.keychainSecrets (the keychain-secrets capsule's HM module).
 
-    # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
-    # platform-guessed data dir, and this DB is the single surviving copy of the merged
-    # Chrome+Brave bookmark set — it must live somewhere backed up and obvious, next to
-    # the other $HOME/Developer/local data dirs. $HOME-relative so it is
-    # username-portable; never a literal /Users/<name>.
-    BUKU_DEFAULT_DBDIR = "$HOME/Developer/local/bookmarks";
-    # BASH_ENV (the secret loader) + the loader file itself are now set by
-    # local.keychainSecrets (the keychain-secrets capsule's HM module).
+      # The JSON Resume CLIs (jsonresume.org, npm globals: `resumed` — the maintained
+      # tool this repo prefers — and legacy `resume-cli`) render PDFs via puppeteer,
+      # whose bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
+      # corrupts, failing the `npm i`). These two vars form one coherent policy —
+      # NEVER download puppeteer's own browser, ALWAYS use the browser cask the host
+      # already declares:
+      #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
+      #                      (so `npm i -g resumed puppeteer` / a theme install never breaks).
+      #   EXECUTABLE_PATH  — puppeteer launches that system browser at runtime instead.
+      # Points at the `ungoogled-chromium` cask, NOT google-chrome, even though Chrome is
+      # declared again (it holds http/https for passkeys — see hosts/macos.nix). A pinned,
+      # ad-free engine must not follow an `auto_updates` cask mid-render.
+      # Verified 2026-08-31 — puppeteer launched this binary (reports Chrome/152.0.7977.64)
+      # and `page.pdf()` returned a valid `%PDF-` document. That cask is macos-only
+      # (`isMacosHost` below), so off the real Mac this path does not exist and the var is inert
+      # until a browser is declared there; the JSON Resume npm globals live on macos.
+      # Harmless for other puppeteer tools (they get the same browser); Remotion is
+      # unaffected — it resolves its own browser, not these vars. The resume THEME
+      # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
+      PUPPETEER_SKIP_DOWNLOAD = "true";
+    }
+    # Both point into casks only hosts/macos.nix installs (ungoogled-chromium,
+    # android-commandlinetools), so a template consumer's Mac must not get them.
+    // lib.optionalAttrs isMacosHost {
+      PUPPETEER_EXECUTABLE_PATH = "/Applications/Chromium.app/Contents/MacOS/Chromium";
+      ANDROID_HOME = androidSdkRoot;
+    }
+  );
 
-    # The JSON Resume CLIs (jsonresume.org, npm globals: `resumed` — the maintained
-    # tool this repo prefers — and legacy `resume-cli`) render PDFs via puppeteer,
-    # whose bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
-    # corrupts, failing the `npm i`). These two vars form one coherent policy —
-    # NEVER download puppeteer's own browser, ALWAYS use the browser cask the host
-    # already declares:
-    #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
-    #                      (so `npm i -g resumed puppeteer` / a theme install never breaks).
-    #   EXECUTABLE_PATH  — puppeteer launches that system browser at runtime instead.
-    # Points at the `ungoogled-chromium` cask, NOT google-chrome, even though Chrome is
-    # declared again (it holds http/https for passkeys — see hosts/macos.nix). A pinned,
-    # ad-free engine must not follow an `auto_updates` cask mid-render.
-    # Verified 2026-08-31 — puppeteer launched this binary (reports Chrome/152.0.7977.64)
-    # and `page.pdf()` returned a valid `%PDF-` document. That cask is macos-only
-    # (`isMacosHost` below), so off the real Mac this path does not exist and the var is inert
-    # until a browser is declared there; the JSON Resume npm globals live on macos.
-    # Harmless for other puppeteer tools (they get the same browser); Remotion is
-    # unaffected — it resolves its own browser, not these vars. The resume THEME
-    # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
-    PUPPETEER_SKIP_DOWNLOAD = "true";
-    PUPPETEER_EXECUTABLE_PATH = "/Applications/Chromium.app/Contents/MacOS/Chromium";
-  };
-
-  home.sessionPath = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [
+  home.sessionPath = lib.optionals isMacosHost [
     "${androidSdkRoot}/emulator"
     "${androidSdkRoot}/platform-tools"
     # `$HOME/.grok/bin` is GONE on purpose (2026-09-15). grok is now a pinned
