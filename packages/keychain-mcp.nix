@@ -38,7 +38,6 @@
   writeShellApplication,
   nodejs,
   uv,
-  gh,
 }:
 {
   # Server id. Becomes the binary name `nix-mcp-<name>` — the string a plugin's
@@ -46,9 +45,6 @@
   name,
   # "npx" or "uvx" — the two the catalog's stdio entries use. Resolved to a store path
   # here, mirroring the purged gateway's `resolveCatalogCommand`.
-  # OR a Nix-built server package (one with `meta.mainProgram`), exec'd directly with
-  # `args`, which keeps the server inside the closure. Which servers pass one:
-  # modules/home/plugin-mcp.nix.
   interpreter,
   # Full argument vector for that interpreter, INCLUDING this fleet's version/interpreter
   # pins. Pins are not cosmetic: an unpinned `uvx postgres-mcp` was measured to break two
@@ -66,45 +62,16 @@
   # and a hardcoded /Users/<name> in a .nix VALUE is what
   # ast-grep/rules/nix-hardcoded-home-path.yml rejects.
   homeDirectory,
-  # A macOS Seatbelt profile (`.sb`) to run the server UNDER, or null for the
-  # servers that need no fence. A store path, so the profile itself is unwritable by
-  # the thing it confines — which is the whole point: desktop-commander's own README
-  # says `allowedDirectories` "only restricts filesystem operations, not terminal
-  # commands" and its SECURITY.md calls directory restrictions "guardrails, not
-  # sandboxing", so the boundary has to be the OS.
-  #
-  # WHY `sandboxProfile` AND NOT A GENERIC `wrapper`. A free-form command prefix on a
-  # factory whose whole job is "export credentials, then exec" is an invitation to run
-  # the next thing through it for an unrelated reason. This parameter can only ever add
-  # a fence, and the type says so.
-  #
-  # `/usr/bin/sandbox-exec` is DEPRECATED by Apple and still the mechanism Claude
-  # Code's own sandbox uses. MEASURED PRESENT AND WORKING on this host (Darwin 27.0.0,
-  # 2026-10-07): the binary exists, a profile with `(allow default)` + `(deny
-  # file-write*)` + a re-allow list parses, and writes outside the allow list fail
-  # `Operation not permitted` while writes inside succeed. Verified by the ABSENCE of
-  # the denied artifact afterwards, not by the exit code alone.
-  sandboxProfile ? null,
-  # ENV_VAR_NAME to fill from `gh auth token` at launch, or null. Added 2026-10-16 for
-  # the GitHub MCP server: the gh CLI already holds the operator's OAuth token (in the
-  # Keychain, under gh's own encoding), so reading it through gh keeps ONE GitHub
-  # credential — widen gh's scopes and the server follows — instead of minting a second
-  # PAT to store and rotate. Narrow on purpose, like `sandboxProfile`: it can only run
-  # `gh auth token`, never an arbitrary command.
-  ghTokenEnv ? null,
 }:
 let
-  isPackage = lib.isDerivation interpreter;
   runtime =
-    if isPackage then
-      interpreter
-    else if interpreter == "npx" then
+    if interpreter == "npx" then
       nodejs
     else if interpreter == "uvx" then
       uv
     else
-      throw "packages/keychain-mcp.nix: unknown interpreter '${interpreter}' for ${name} (only npx/uvx or a Nix-built package are resolved; anything else needs its own launcher)";
-  command = if isPackage then lib.getExe interpreter else lib.getExe' runtime interpreter;
+      throw "packages/keychain-mcp.nix: unknown interpreter '${interpreter}' for ${name} (only npx/uvx are resolved; anything else needs its own launcher)";
+  command = lib.getExe' runtime interpreter;
 in
 # writeShellApplication rather than writeShellScriptBin, for the build-time shellcheck these
 # credential launchers had no gate for. `bashOptions` keeps EXACTLY the `set -u` they always
@@ -131,12 +98,6 @@ writeShellApplication {
     ${lib.concatStringsSep "\n" (
       lib.mapAttrsToList (var: value: "export ${var}=${lib.escapeShellArg value}") plainEnv
     )}
-    ${lib.optionalString (ghTokenEnv != null) ''
-      export ${ghTokenEnv}="$(${lib.getExe gh} auth token 2>/dev/null || true)"
-      if [ -z "${"$" + ghTokenEnv}" ]; then
-        echo "nix-mcp-${name}: \`gh auth token\` returned nothing; run \`gh auth login\`." >&2
-      fi
-    ''}
 
     # Pinned: a plugin-spawned process and a launchd one do not agree on HOME, and both
     # npx and uvx keep their package caches under it.
@@ -148,12 +109,6 @@ writeShellApplication {
     # finds it.
     export PATH=${lib.escapeShellArg "${runtime}/bin"}:"$PATH"
 
-    # The fence wraps the interpreter, not the other way round: everything the server
-    # forks — and `start_process` forking a shell is the point of desktop-commander —
-    # inherits the sandbox, because Seatbelt is a per-process attribute children keep.
-    # Putting it inside the server would fence nothing.
-    exec ${
-      lib.optionalString (sandboxProfile != null) "/usr/bin/sandbox-exec -f ${sandboxProfile} "
-    }${command} ${lib.concatMapStringsSep " " lib.escapeShellArg args}
+    exec ${command} ${lib.concatMapStringsSep " " lib.escapeShellArg args}
   '';
 }

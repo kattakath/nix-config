@@ -14,9 +14,10 @@
 # THE SPLIT:
 #   HERE          the launcher binaries, because they read the login Keychain (or a
 #                 fleet-internal coordinate) and must not be duplicated into a plugin repo.
-#   THE PLUGIN    a `.mcp.json` in github:kattakath/skills, or a seeded `launcher` setting, naming each launcher by BINARY
-#                 NAME, so Claude Code spawns one stdio server per session with no proxy
-#                 and nothing shared between clients.
+#   THE PLUGIN    a `.mcp.json` in github:kattakath/skills whose server runs the plugin's own
+#                 `scripts/launch.sh` with `${user_config.launcher}`; that `launcher` setting
+#                 is seeded below with the binary's name, so Claude Code spawns one stdio
+#                 server per session with no proxy and nothing shared between clients.
 #
 # A plugin's `.mcp.json` can set `env` to literals or passthroughs but cannot run
 # `security find-generic-password`, which is the whole reason the credential half stays
@@ -104,6 +105,10 @@ let
   # service ids) — rather than from an upstream README. The pins are the measured part:
   # the gateway spawned every server at startup and ONE failing import darked all of
   # them, which is why the `-y <pkg>@<version>` pins and each `--python` are here.
+  #
+  # `plugin` names the github:kattakath/skills plugin whose `launcher` setting is seeded
+  # with this binary (see `pluginConfigs` below); it is stripped before the rest reaches
+  # the factory.
   servers = {
     # docdyhr/mcp-wordpress, ~59 tools over the WP REST API. `@3.3.30` pins the client
     # library. Three Keychain reads, not one: the SITE URL is stored too, so the live
@@ -119,6 +124,7 @@ let
     # darked all 25 gateway servers, removed in #725). The adapter is deliberately NOT
     # given a home here.
     wordpress = {
+      plugin = "wordpress";
       interpreter = "npx";
       args = [
         "-y"
@@ -158,6 +164,7 @@ let
     # and `explain_query` (pglast's parser path) both answer. Drop it once upstream
     # re-pins.
     postgres = {
+      plugin = "rag";
       interpreter = "uvx";
       args = [
         "--python"
@@ -250,31 +257,23 @@ in
       # two cannot drift apart. `pluginConfigs.<id>.options` is the store
       # `claude plugin configure` writes (measured, CLI 2.1.296), so this is that command,
       # declared.
+      # `checks.<system>.mcp-launcher-parity` holds the far end: that the named plugin
+      # exists in the pinned skills tree and passes `${user_config.launcher}` to its server.
       programs.claude-code.settings.pluginConfigs = lib.mkMerge (
-        lib.mapAttrsToList
-          (
-            name: plugin:
-            lib.mkIf (builtins.elem name cfg.servers) {
-              "${plugin}@kattakath".options.launcher = "nix-mcp-${name}";
-            }
-          )
-          {
-            postgres = "rag";
-            wordpress = "wordpress";
-          }
+        map (name: {
+          "${servers.${name}.plugin}@kattakath".options.launcher = "nix-mcp-${name}";
+        }) cfg.servers
       );
 
-      # An entry that brings its own `package` is installed as-is; every other entry is
-      # built by the keychain-mcp.nix factory.
       home.packages = map (
         name:
-        servers.${name}.package or (pkgs.callPackage ../../packages/keychain-mcp.nix { } (
-          servers.${name}
+        pkgs.callPackage ../../packages/keychain-mcp.nix { } (
+          removeAttrs servers.${name} [ "plugin" ]
           // {
             inherit name;
             inherit (config.home) homeDirectory;
           }
-        ))
+        )
       ) cfg.servers;
     })
   ];

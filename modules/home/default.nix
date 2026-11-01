@@ -900,8 +900,8 @@ in
     #
     # The `kattakath-skills` flake input still exists, for ONE PATH package built
     # from a plugin script (`page-lab-pick`), and `checks.<system>.mcp-launcher-parity`,
-    # which joins the `nix-mcp-*` launchers this fleet BUILDS against the servers that
-    # repo's `plugins/*/.mcp.json` NAME. No plugin or skill is read from the
+    # which checks that each `nix-mcp-*` launcher this fleet builds is run by its pinned
+    # plugin. No plugin or skill is read from the
     # input, and no home-manager module takes it at all: every consumer lives
     # in the flake engine and reads `inputs.kattakath-skills` directly.
     #

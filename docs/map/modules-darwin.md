@@ -351,7 +351,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     "for every server with no plugin owner, MCP's source of truth stays `modules/shared/mcp.nix`";
     since 2026-10-02 there is no such file and no such server — **every** MCP server lives in a
     plugin's `.mcp.json`, which no managed file can see (only `checks.*.mcp-launcher-parity` reads
-    the pinned ones, as a name join). ADR-003 §5's blanket
+    the pinned ones, without spawning them). ADR-003 §5's blanket
     "MCP servers stay Nix-owned" was scoped on 2026-09-30 (its §10.6) and is now **fully
     retracted** ([`claude-code.md`](claude-code.md) § MCP after the gateway). So the case against
     `managed-mcp.json` is now purely
