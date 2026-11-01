@@ -222,15 +222,14 @@ fails SILENTLY if upstream renames the server key, and this step is the guard. R
 
 ```bash
 claude mcp list 2>/dev/null | grep -cE '^plugin:(aws-core|aws-serverless):'   # must print 0
-claude mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # must print 1 ([redacted])
+claude mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # must print 1 (the private signed one)
 claude mcp list 2>/dev/null | grep -c  '^claude\.ai AWS MCP:'                  # must print 0 (URL-denied)
 ```
 
 The first line asks whether the two server-denied plugins start ANY server, not whether a
 name is gone: a renamed server key would slip past a name check but still shows up here.
 Non-zero means a deny no longer matches, so read `claude mcp list` and update the
-`serverName` entry. Same-named hosted pairs elsewhere (`stripe` per account) are deliberate
-and are NOT findings: Claude Code dedups HTTP servers by URL.
+`serverName` entry.
 
 ### E5. Enablement drift: clicked but undeclared plugins (macos)
 
