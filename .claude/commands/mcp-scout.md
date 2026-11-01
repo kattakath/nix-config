@@ -4,7 +4,7 @@ description: Discover, vet, and declaratively adopt an MCP server into its ownin
 
 Use the **mcp-scout** skill for: $ARGUMENTS
 
-Pipeline: discover (official registry REST API / `mcpfinder` if the session has it) → vet
+Pipeline: discover (official registry REST API) → vet
 (provenance, maintenance, license, secrets, startup behavior) → **spawn-test the exact spec
 against the PATH runtime** → declare in the **owning plugin's `.mcp.json`** in
 `github:kattakath/skills`, plus a nix-config PATH package if and only if it needs a login-Keychain
@@ -16,5 +16,4 @@ check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) is a na
 pinned public tree and cannot see whether a server answers — invoking a tool is the only proof. No server counts to update anywhere.
 
 **Never install imperatively** — no installer CLIs, no `claude mcp add` (denied at user scope,
-`claude-guardrails.nix`), no mcpfinder write tools — it ships none today, and none of its tools is
-pre-approved (`claude-guardrails.nix`), so every call prompts. Adoption is a declaration.
+`claude-guardrails.nix`). Adoption is a declaration.
