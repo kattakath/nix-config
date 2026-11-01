@@ -428,7 +428,7 @@ split a narrowed server's capability **moves into its owning marketplace plugin*
 from the **portal** while still reachable in Claude Code as local plugin stdio. Narrowing therefore
 restores structural absence **without losing the capability for Claude Code** — the thing §3 said
 was impossible to have both ways. The remaining cost is **Claude Desktop** (and the Cowork bridge),
-which loads no plugins and sees only the portal. See §11.
+which (in chat) runs no plugin stdio server and sees only the portal. See §11.
 
 **Anecdote:** §3 built a separate locked room for the two items worth publishing, so the rest
 of the house stayed out of reach even if that room's key leaked. Then everything was moved into
