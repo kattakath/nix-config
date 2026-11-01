@@ -50,9 +50,7 @@ in
 
   fleet = {
     inherit
-      linuxSystems
       darwinSystems
-      allSystems
       devcontainerSystems
       ;
   };

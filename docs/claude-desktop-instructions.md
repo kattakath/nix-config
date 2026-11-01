@@ -2,8 +2,7 @@
 
 The one piece of Claude Desktop state this repo **cannot** manage declaratively. (Its MCP
 servers it can — see [`claude-desktop-mcp.md`](claude-desktop-mcp.md) for what it writes
-there today. See
-[`claude-desktop-mcp.md`](claude-desktop-mcp.md).)
+there today.)
 
 `~/.claude/CLAUDE.md` (Claude Code's global instructions) is placed by Home
 Manager from [`claude/CLAUDE.md`](../claude/CLAUDE.md). **Claude Desktop and
