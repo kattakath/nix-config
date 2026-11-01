@@ -18,7 +18,8 @@
 >   no remote portal can do. That is exactly what `local.gmailMcp` + `packages/gmail-mcp.nix` now
 >   does by keeping the launcher local and letting the plugin name it: the Keychain read happens on
 >   this machine, in a process Claude Code spawned. The purge did not solve that problem; it
->   stopped having the problem, by removing the remote layer.
+>   stopped having the problem, by removing the remote layer. (Gmail lane: Retired 2026-11-01 — the claude.ai Gmail connector replaced it.
+>   `local.pluginMcp` + `packages/keychain-mcp.nix` still does this.)
 > - **The category error the amendment caught.** A ContextForge *gateway* federates peers that are
 >   already HTTP/SSE and **rejects stdio outright**, so it was never `mcp-proxy`'s successor — it
 >   sits ABOVE a stdio bridge you keep either way. If a portal is ever wanted again, start from

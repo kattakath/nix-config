@@ -29,8 +29,8 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
 - **A launcher that needs a Keychain read is a PATH package in this repo.** A plugin's
   `.mcp.json` can set `env` to literals and passthroughs but cannot run
   `security find-generic-password`, so the credential work stays in a Nix-installed wrapper the
-  plugin names by binary name. **`local.gmailMcp` + `packages/gmail-mcp.nix` is the live
-  pattern** (ONE generic `nix-mcp-gmail <address>` launcher; the accounts live in plugin `args`).
+  plugin names by binary name. **`local.pluginMcp` (`modules/home/plugin-mcp.nix`) building
+  through `packages/keychain-mcp.nix` is the live pattern.**
 - **The repo CAN see the credentialed half of its MCP surface — and only that half.** An earlier
   revision of this bullet said "nothing here reads a plugin's `.mcp.json`"; that is **false**.
   `checks.<system>.mcp-launcher-parity` (`modules/parts/checks.nix`) reads every
@@ -43,8 +43,7 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
     answers, and it is a **procedure**, not a gate.
   - **the three non-`nix-mcp-` lanes**, excluded by construction: `${CLAUDE_PLUGIN_ROOT}`-relative
     commands (which expand only inside the owning plugin), bare nixpkgs binaries, and `npx`
-    invocations. Which servers fall out of scope this way, per lane, is in [`modules-home.md`](modules-home.md) § `gmail-mcp.nix` +
-    `plugin-mcp.nix`.
+    invocations. Which servers fall out of scope this way, per lane, is in [`modules-home.md`](modules-home.md) § `plugin-mcp.nix`.
   - **anything in a marketplace this repo does not pin.** The join covers `kattakath/skills`
     only, and that pin lags the marketplace, which tracks HEAD.
 - **Adopting a server is still a declaration, never an imperative install.** `claude mcp add`
@@ -90,7 +89,6 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 | `/update-input` | bump one input (or all, with no argument) + stage the lock + gate both systems |
 | `/pretooluse-review` | triage `Bash`/`Write\|Edit` gate REJECTIONS from the harness's own OTel `tool_decision` stream (`decision`/`source`/`hook_name`), since prompt-type hooks keep no log of their own |
 | `/remember-nix` | capture into the harness's native per-project memory store (outside the repo) |
-| `/gmail-account` | add/authenticate/remove a Gmail MCP account — now `local.gmailMcp` + the `gmail` plugin, **not** the retired gateway; see [`gmail-mcp-multi-account-runbook.md`](../gmail-mcp-multi-account-runbook.md) |
 | `/routing-review` | triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see [`claude-code-observability-runbook.md`](../claude-code-observability-runbook.md) |
 | `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server **into the owning plugin's `.mcp.json`** via skill `mcp-scout` (there is no gateway to adopt into since 2026-10-02); imperative installer CLIs / config-writing install tools are never used |
 | `/userscript` | measure → replay → **publish** a Violentmonkey userscript, via the `page-lab` plugin's method skill + the project skill `userscript-author` (delivery only since 2026-09-14 — nothing is declared or gated in Nix); **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
@@ -249,7 +247,6 @@ Decoder for what these hooks print: [`claude-hook-messages.md`](../claude-hook-m
 ### `.claude/skills/` — project skills
 
 Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`,
-`gmail-mcp-accounts`,
 `mcp-scout`, `userscript-author` (the FLEET half only — how a script reaches this Mac now that
 nothing is declared in Nix; the method lives in the `page-lab` plugin — see
 [`packages.md`](packages.md) § Userscripts),

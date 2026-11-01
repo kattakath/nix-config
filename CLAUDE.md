@@ -183,12 +183,12 @@ copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`,
-`/pretooluse-review`, `/remember-nix`, `/gmail-account`, `/routing-review`, `/mcp-scout`,
+`/pretooluse-review`, `/remember-nix`, `/routing-review`, `/mcp-scout`,
 `/fleet-doctor`, `/userscript`. (`/devtools`, `/pick`: `page-lab` plugin; `/superhook-review`:
 `superhook` plugin.)
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
-`gmail-mcp-accounts`, `mcp-scout`, `fleet-doctor`, `userscript-author`. Workflow: `nix-hygiene-pass`.
+`mcp-scout`, `fleet-doctor`, `userscript-author`. Workflow: `nix-hygiene-pass`.
 
 **Rules** (`.claude/rules/`; `pr-title` + `landing-changes` are unscoped, the rest load by `paths:`):
 [`git-purity`](.claude/rules/git-purity.md) (stage `.nix` before eval),
@@ -225,7 +225,7 @@ proxy here, no `mcp.<domainName>/mcp`, Cloudflare stack destroyed. `modules/shar
 `infra/cloudflare/mcp-public.nix` are DELETED (#734, #737) — if a doc still describes them
 as live, the doc is stale, not the code.
 Servers come from an enabled plugin's `.mcp.json`; a launcher doing what a JSON file CANNOT — a
-Keychain read, or `sandbox-exec -f` — is a PATH package (`local.gmailMcp`, `local.pluginMcp`;
+Keychain read, or `sandbox-exec -f` — is a PATH package (`local.pluginMcp`;
 `desktop-commander` is the fenced, credential-FREE case). **Claude Desktop loads no plugins**, so plugin servers never reach it; its only
 lane is `local.claudeDesktop.extraServers` (`github` only; client servers come from the operator's Desktop overlay file), pinned by `checks.*.claude-desktop-config-shape`.
 [`docs/mcp-gateway.md`](docs/mcp-gateway.md).

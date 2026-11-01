@@ -86,7 +86,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   there is no succession to decide. Kept for the comparison itself, which is reusable if a portal
   is ever wanted again, and for the finding that closed it: a remote portal structurally **cannot**
   inject per-user credentials into a local child — the one axis the Cloudflare portal lost on, and
-  the exact thing `local.gmailMcp` now does by keeping the launcher local);
+  the exact thing `local.pluginMcp` does by keeping the launcher local);
   [`ADR-007`](../agent-interop-adr.md) (decided, **partially implemented**: **ACP** — Zed's
   Agent *Client* Protocol, stdio JSON-RPC — is the rail all three agent CLIs already share, and
   `acpx` is packaged + installed. A2A was REJECTED on transport fit, with the measurement that
@@ -144,10 +144,6 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   Mac (no key recovery: rotate, don't transport); also the manual steps Nix can't do.
 - [`docs/macvm-readd-runbook.md`](../macvm-readd-runbook.md) — re-adding the removed `macvm`
   Tart guest (2026-09-05); what survives in the `tart-vms` capsule.
-- [`docs/gmail-mcp-multi-account-runbook.md`](../gmail-mcp-multi-account-runbook.md) — TRUE
-  simultaneous multi-account Gmail + a silent-wrong-account failure mode. **LIVE**: Gmail moved
-  to the plugin lane on 2026-10-01, and since 2026-10-20 the roster
-  lives only in plugin `.mcp.json` args (`local.gmailMcp.enable` installs one generic launcher).
 - [`docs/claude-code-observability-runbook.md`](../claude-code-observability-runbook.md) — local
   OTel for Claude Code's `tool_decision` telemetry + the `/routing-review` loop.
 - [`docs/claude-hook-messages.md`](../claude-hook-messages.md) — decoder for this repo's hook
