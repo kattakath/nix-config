@@ -105,16 +105,15 @@ in the repo can catch that; see that fixture file's header for the measurement.
     - **The built side is read off the composed package list, not re-derived.** A check that
       re-applied a launcher's naming rule would agree with a broken rule by sharing it.
       Derivation name == binary name for every builder — each one `writeShellApplication`
-      (`packages/keychain-mcp.nix`, `packages/mcpfinder-mcp.nix` since
-      2026-10-17; `packages/slack-post-mcp.nix` since its 2026-10-20 birth), each emitting exactly
-      one `$out/bin/<name>` and shellchecked at build. All but mcpfinder keep
+      (`packages/keychain-mcp.nix`; `packages/slack-post-mcp.nix` since its 2026-10-20 birth),
+      each emitting exactly one `$out/bin/<name>` and shellchecked at build. Both keep
       `bashOptions = [ "nounset" ]`, the `set -u`
       they always ran under, so a missing Keychain entry still warns rather than aborts.
     - **Scope is the `nix-mcp-` prefix, and the exclusions are structural.** Out of this lane:
       `memory` and `chrome-devtools` are
       `${CLAUDE_PLUGIN_ROOT}`-relative, which expands **only** inside the owning plugin, so no
-      PATH binary can exist for them even in principle; `mcp-nixos` and `terraform-mcp-server`
-      are bare nixpkgs binaries installed as ordinary packages; `mobile-mcp`,
+      PATH binary can exist for them even in principle; `mcp-nixos` is a bare nixpkgs binary
+      installed as an ordinary package; `mobile-mcp`,
       `macos-automator`, `sequential-thinking` and `kapture` are `npx` invocations with no
       fleet binary at all.
     - **Why EQUALITY and not containment — the previous pin is the measurement.** At

@@ -54,12 +54,8 @@ proof a server works is invoking one of its tools.
 
 In rough order of preference:
 
-1. **`mcpfinder`, if the session has it** (discovery-only; none of its tools is pre-approved):
-   `search_mcp_servers` / `get_server_details`, cross-registry over the Official MCP Registry +
-   Glama + Smithery. It reaches sessions through the plugin lane via `nix-mcp-mcpfinder`
-   (`packages/mcpfinder-mcp.nix`), which runs `@mcpfinder/server@1.1.0` under the flake's Node 24
-   because the pin imports `node:sqlite`, absent from Node 20. **Do not bump that pin** — it is a
-   security control holding back `add_mcp_server_config`, which writes client config imperatively.
+1. **A registry-search MCP tool, if the session has one.** (`mcpfinder` filled this slot until
+   2026-11-01, when it left the fleet with its launcher.)
 2. **Official MCP Registry REST API** — via `WebFetch`, or a `fetch` server if the session has
    one: `https://registry.modelcontextprotocol.io/v0/servers?search=<term>`. **This is the
    reliable route now**, because it depends on no fleet-provided server existing.
