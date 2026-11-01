@@ -437,7 +437,7 @@ in
     # github:kattakath/skills, or the operator's private overlay), because that file can
     # set `env` only to literals or passthroughs and cannot run a Keychain read or a
     # `sandbox-exec` fence. See each module's header.
-    ./plugin-mcp.nix # wordpress, postgres, desktop-commander, github
+    ./plugin-mcp.nix # wordpress, postgres, desktop-commander
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
     # silently inert.
@@ -1253,8 +1253,8 @@ in
     # a clicked toggle does not survive a fresh machine. Client-account servers come
     # from the operator's private overlay marketplace, never from this file.
     # github-gh RETIRED 2026-11-01 (operator): 77 MCP calls against 5,257 `gh` CLI calls
-    # across all transcripts. `false`, not deleted, so the live key flips. Its launcher
-    # `nix-mcp-github` stays: Claude Desktop's `github` server still uses it.
+    # across all transcripts. `false`, not deleted, so the live key flips. Its launcher went
+    # too (2026-11-01): Desktop uses claude.ai's official GitHub Integration instead.
     "github-gh@kattakath" = false;
     # GitLab over MCP, gitlab.com's hosted server with its own OAuth (operator request
     # 2026-10-21). No glab token is reused — the first `/mcp` connect asks for approval.
@@ -1593,21 +1593,11 @@ in
   # that stops managing them.
 
   # ---- Claude Desktop: extra servers ------------------------------------------
-  # Desktop CHAT runs no plugin stdio server (./claude-desktop.nix says why that is its only lane).
-  # Client servers are NOT declared here: they come from the operator's hand-placed
-  # Desktop overlay (claude-desktop.nix), so this public file names none. The
-  # `claude-desktop-config-shape` check allows `github` and no other name.
-  local.claudeDesktop.extraServers = lib.mkIf isMacosHost {
-    # GitHub, through the `nix-mcp-github` launcher (plugin-mcp.nix, `github`): github-mcp-server with the gh CLI's token, all toolsets, write-capable.
-    # By absolute profile path: Desktop spawns servers with launchd's PATH, which has
-    # no Nix profile on it. Through
-    # /usr/bin/env because the renderer drops an EMPTY `args`, and the shape check then
-    # rejects the entry as non-stdio (measured: "non-stdio or unmarked entries: github").
-    github = {
-      command = "/usr/bin/env";
-      args = [ "${config.home.profileDirectory}/bin/nix-mcp-github" ];
-    };
-  };
+  # Desktop CHAT runs no plugin stdio server (./claude-desktop.nix says why that is its only
+  # lane). Nothing public is rendered there since 2026-11-01: the local `github` server was
+  # dropped for claude.ai's official GitHub Integration (operator). Client servers come only
+  # from the operator's hand-placed Desktop overlay, so this public file names none, and
+  # `claude-desktop-config-shape` requires the public rendering to stay EMPTY.
 
   # ---- Home Manager program modules --------------------------------------------
   programs = {
