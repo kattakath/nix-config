@@ -13,12 +13,9 @@
 # build-devcontainer.yml, warm-nixpi-cache.yml and build-installers.yml. It was
 # missing from the first of those all along (ADR-009 §9b, fixed 2026-10-02).
 #
-# WHY `modules/_lib/` — A PINNED-INPUT CONVENTION, not a judgement call. It lived
-# in `modules/shared/` until 2026-10-02 and was wrong there twice over: it is not a
-# home-manager module, and it is not a module at all. It then spent one commit at a
-# top-level `lib/`, which WAS a judgement call — and the correction is that a
-# convention for exactly this case is present in an input this flake actually pins.
-# `import-tree`'s own dendritic guide (docs/src/content/docs/guides/dendritic.mdx,
+# WHY `modules/_lib/` — A PINNED-INPUT CONVENTION, not a judgement call. It is
+# not a module at all, and a convention for exactly this case is present in an
+# input this flake actually pins. `import-tree`'s own dendritic guide (docs/src/content/docs/guides/dendritic.mdx,
 # § "The `/_` Convention"): *"Use underscore-prefixed directories for helper code
 # that shouldn't be auto-imported"*, with `modules/_lib/helpers.nix` as the worked
 # example. Rejected alternatives and why they lost:

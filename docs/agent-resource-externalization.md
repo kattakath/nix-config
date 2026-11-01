@@ -47,8 +47,8 @@ Lock nodes at the time: **56 → 59**.
 > `checks.userscripts-lint` + `checks.userscripts-meta` there). The scripts are **published to
 > Greasy/Sleazy Fork** instead. The reason is the one thing extraction could not fix: this
 > pipeline **banned** `@updateURL`, so a materialised `file://` copy could never self-update,
-> while a fork-installed one does. `local.ungoogledChromium.userScripts` survives as an empty
-> option. Lock nodes 59 → 58. Details: [`map/packages.md`](map/packages.md) § Userscripts.
+> while a fork-installed one does. Violentmonkey itself stays, sideloaded by
+> `modules/home/chromium.nix`. Lock nodes 59 → 58. Details: [`map/packages.md`](map/packages.md) § Userscripts.
 > The plugin and skill rows above are unaffected — those pins are live.
 
 ## Why this is not ADR-002 in reverse
@@ -265,7 +265,7 @@ During development, skip the push/update loop with
 `kattakath/skills` on 2026-09-23, so both halves of the old command were wrong.
 
 **That override only covers what the PIN feeds** — today the `page-lab-pick`
-PATH package, its check, and `checks.*.mcp-launcher-parity` (`superhook` became a plugin hook 2026-09-30; `mcp.nix`'s
+PATH package and `checks.*.mcp-launcher-parity` (`superhook` became a plugin hook 2026-09-30; `mcp.nix`'s
 `mcpCatalog` died with the gateway 2026-10-02). Plugin and skill **content** does not go
 through the pin at all any more (the marketplace is an https git source), so an
 override cannot test a plugin edit. Test that by **pushing to `kattakath/skills`

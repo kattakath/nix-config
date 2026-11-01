@@ -76,9 +76,8 @@ The detail behind what `CLAUDE.md` § Navigating the Codebase used to point at a
 
 **HISTORY.** Both rosters this distinguishes (`local.mcpGateway.hostedServers` and
 `config.fleet.publicMcpServers`) were deleted 2026-10-02, so **every number in this section is
-now zero**. The convention is kept because the distinction itself recurs: `gmail` is still **one
-capability and four entries** under `local.gmailMcp.accounts`, and conflating the two is still
-how count drift starts. (`local.gmailMcp`: Retired 2026-11-01 — the claude.ai Gmail connector replaced it.)
+now zero**. The convention is kept; its last live instance, `local.gmailMcp`, was retired
+2026-11-01 — the claude.ai Gmail connector replaced it.
 
 Settle this before reading any number in this repo; three docs disagreed because they mixed the
 two.
