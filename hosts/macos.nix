@@ -57,8 +57,6 @@ in
   # `activate` REMOVES the file — it does not merely stop rewriting it — so the
   # kill switch is real. Every key's justification lives in that module's header.
   local.claudeManagedSettings.enable = true;
-  # The private client-overlay marketplace lives under the operator's own handle.
-  local.claudeManagedSettings.trustedMarketplaceOwners = [ "ismailkattakath" ];
 
   # The native Linux builder's /build is the VM's RAM tmpfs (measured: `/` and
   # /tmp are tmpfs, no block device; tmpfs gets half the RAM). The default

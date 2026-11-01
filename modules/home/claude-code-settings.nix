@@ -115,8 +115,8 @@ let
       fi
     fi
 
-    # THE OPERATOR OVERLAY: an optional, hand-placed JSON object (typically a
-    # symlink into the operator's PRIVATE marketplace clone) carrying what this
+    # THE OPERATOR OVERLAY: an optional, hand-placed JSON object (none on `macos` since
+    # 2026-11-01, when the operator's private repo was deleted) carrying what this
     # public repo must not name — private marketplaces and the plugin ids they
     # enable. The repo ships the shape, the content stays on the Mac: ADR-004's
     # rule, and the "one private operator-content repo" its § 9.7 trigger names.
