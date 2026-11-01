@@ -14,8 +14,8 @@
 # THE SPLIT:
 #   HERE          the launcher binaries, because they read the login Keychain (or a
 #                 fleet-internal coordinate) and must not be duplicated into a plugin repo.
-#   THE PLUGIN    a `.mcp.json` in github:kattakath/skills (`slack`: the operator's private
-#                 overlay marketplace) naming each launcher by BINARY
+#   THE PLUGIN    a `.mcp.json` in github:kattakath/skills (or the operator's private
+#                 overlay marketplace), or a seeded `launcher` setting, naming each launcher by BINARY
 #                 NAME, so Claude Code spawns one stdio server per session with no proxy
 #                 and nothing shared between clients.
 #
@@ -29,8 +29,7 @@
 # to re-adopt. Same split, same cause: the launcher does what a JSON file cannot. Its
 # own entry below carries the why, the risk it does NOT cover, and the measurements.
 #
-# TWO MORE, each with its own entry below: `github` (gh's own token via `ghTokenEnv`)
-# and `slack` (its own launcher, packages/slack-post-mcp.nix).
+# ONE MORE, with its own entry below: `github` (gh's own token via `ghTokenEnv`).
 #
 # This is NOT the gateway returning: no long-lived process, no listening socket, no
 # tunnel, no portal. Claude Desktop loads no plugins, so none of these reach it
@@ -397,16 +396,6 @@ let
       sandboxProfile = desktopCommanderProfile;
     };
   }
-  # Slack, posting as the operator: one `nix-mcp-slack <host>` process per workspace,
-  # each with its own user token (xoxp), so a post carries no `Sent using Claude` footer
-  # (see packages/slack-mcp-server.nix for why the hosted server cannot do this). The
-  # plugins naming it, and the workspace hosts in their `args`, live in the operator's
-  # private overlay marketplace — never in this public repo.
-  #
-  # Posting to every channel and every upstream tool are the operator's choices
-  # (2026-10-16), over a channel allowlist and a post-only tool set. Per-workspace
-  # caches cannot collide: upstream keys them by team id (pkg/provider/api.go:706).
-  #
   # GitHub's official MCP server (github/github-mcp-server, nixpkgs-pinned — no npx/uvx
   # download at spawn), authenticated with the gh CLI's own token via `ghTokenEnv`, so
   # its reach is exactly gh's: the same user, the same scopes. `--toolsets all` and no
@@ -423,12 +412,6 @@ let
       ghTokenEnv = "GITHUB_PERSONAL_ACCESS_TOKEN";
     };
 
-    # The GENERIC Slack posting launcher, `nix-mcp-slack <workspace>.slack.com`: the
-    # workspace arrives in argv from the plugin's own `.mcp.json`, so no workspace name
-    # is written here. A ready `package` rather than a keychain-mcp.nix entry, because
-    # its Keychain service is chosen at runtime — why that factory cannot do it is in
-    # packages/slack-post-mcp.nix.
-    slack.package = pkgs.callPackage ../../packages/slack-post-mcp.nix { } { inherit homeDirectory; };
   };
 in
 {
@@ -441,18 +424,17 @@ in
       `nix-mcp-<name>`. An enum rather than free strings, so a typo fails here instead of
       shipping a plugin that names a binary nobody builds.
 
-      Each one is claimed by a plugin in github:kattakath/skills (or, for `slack`, the
-      operator's private overlay marketplace) that declares a server
+      Each one is claimed by a plugin in github:kattakath/skills (or the operator's
+      private overlay marketplace) that declares a server
       whose `command` is that binary name. Enabling a name here without the plugin
       installed just leaves an unused binary on PATH; installing the plugin without the
       name here leaves a server that cannot start.
 
       Empty by default and set PER HOST: which third-party accounts the operator holds is
       identity, not fleet shape — a template consumer wants the mechanism without
-      inheriting someone else's WordPress site or Slack workspace.
+      inheriting someone else's WordPress site.
 
-      Credentials come from the login Keychain at launch (`wordpress`, the
-      `slack` per-workspace user tokens), so no
+      Credentials come from the login Keychain at launch (`wordpress`), so no
       secret is in the store or in this list. `postgres` needs none — its URI is
       loopback `trust` — and neither does `desktop-commander`, which is here for its
       Seatbelt fence rather than for a credential.
