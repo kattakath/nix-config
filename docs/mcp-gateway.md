@@ -273,8 +273,7 @@ npx -y <package>@<version> --help      # or the real entry point
 ```
 
 A declaration that has to be reverted costs two PRs and a false green. And note the inverse trap:
-a server whose runtime arrives via a **nix-config package** (`mcp-nixos`, `terraform-mcp-server`,
-`uv`) is **not** spawn-testable until that change is ACTIVATED — merged is not enough. Those
+a server whose runtime arrives via a **nix-config package** (`mcp-nixos`, `uv`) is **not** spawn-testable until that change is ACTIVATED — merged is not enough. Those
 cannot be verified on paper.
 
 ### How to verify a plugin-owned server actually answers
