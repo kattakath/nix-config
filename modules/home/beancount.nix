@@ -28,12 +28,16 @@
 }:
 let
   cfg = config.local.beancount;
-  env = pkgs.python3.withPackages (ps: [
-    ps.beancount
-    ps.beangulp
-    ps.beanquery
-    ps.fava
-  ]);
+  env = pkgs.python3.withPackages (
+    ps:
+    [
+      ps.beancount
+      ps.beangulp
+      ps.beanquery
+      ps.fava
+    ]
+    ++ lib.optional cfg.smartImporter (ps.callPackage ../../packages/smart-importer.nix { })
+  );
   clis = pkgs.runCommand "beancount-clis" { } ''
     mkdir -p $out/bin
     for b in bean-check bean-format bean-query fava; do
@@ -59,6 +63,15 @@ in
       type = lib.types.port;
       default = 5000;
       description = "Loopback port for on-demand Fava, exported as FAVA_PORT. Fava's own default.";
+    };
+
+    smartImporter = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = ''
+        Add smart_importer (and with it scikit-learn and numpy) to the same interpreter, for the
+        beancount plugin's `suggest` command. Off by default: it is the only heavy dependency.
+      '';
     };
   };
 
