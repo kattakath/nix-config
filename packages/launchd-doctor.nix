@@ -142,7 +142,25 @@ writeShellApplication {
       code=$(echo "$out" | grep -m1 'last exit code' | sed 's/.*= *//' || true)
       case "$code" in
         ""|0|"(never exited)") ;;
-        *) echo "  EXIT $code     $label"; rc=1 ;;
+        *)
+          # The agenix boot race, left unfixed ON PURPOSE (.claude/rules/launchd-naming.md
+          # § A CRASH is retried): a runner daemon that started before /run/agenix held
+          # its key exits 1 once, KeepAlive restarts it, and it ends up RUNNING with
+          # runs = 2. Only that exact shape is expected; exit 78, runs = 1, or a runner
+          # that is not running stay findings.
+          runs=$(echo "$out" | grep -m1 -E '^[[:blank:]]runs = ' | sed 's/.*= *//' || true)
+          state=$(echo "$out" | grep -m1 -E '^[[:blank:]]state = ' | sed 's/.*= *//' || true)
+          case "$label" in
+            org.nixos.github-runner-macos-*)
+              if [ "$code" = 1 ] && [ "$runs" = 2 ] && [ "$state" = running ]; then
+                echo "  ok         $label  (exit 1, runs 2, running: the expected agenix boot race)"
+                continue
+              fi
+              ;;
+          esac
+          echo "  EXIT $code     $label"
+          rc=1
+          ;;
       esac
     done
     echo
