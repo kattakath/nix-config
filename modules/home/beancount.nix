@@ -6,10 +6,10 @@
 # beancount 3.2.3, beangulp 0.2.0, beanquery 0.2.0, fava 1.30.16, fava-dashboards 2.0.2,
 # beancount-language-server 1.9.2, pricehist 1.4.16.
 #
-# ONE interpreter for all four packages. The plugin's launcher runs
+# ONE interpreter for every Python package below. The plugin's launcher runs
 # "$BEANCOUNT_PYTHON" -I, so the build code imports beancount from the same environment that
-# bean-check and fava run in. Separate top-level packages would give three interpreters, and a
-# journal checked by one could be read differently by another.
+# bean-check and fava run in. Separate top-level packages would each bring their own
+# interpreter, and a journal checked by one could be read differently by another.
 #
 # Only the four CLIs go on PATH, not the env's `python3`: putting a second python3 on PATH would
 # shadow whichever one a project expects.
