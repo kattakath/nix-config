@@ -79,9 +79,8 @@
 }:
 let
   # The credential-path inventory grok's sandbox deny list renders from. Shared
-  # with the desktop-commander Seatbelt fence (./plugin-mcp.nix) and with the
-  # Claude Read() floor (./claude-guardrails.nix) so three mechanisms cannot hold
-  # three quietly different views of one fact — which is exactly what they did
+  # with the Claude Read() floor (./claude-guardrails.nix) so the mechanisms cannot hold
+  # quietly different views of one fact — which is exactly what they did
   # until 2026-10-07. That file carries the per-layer price table.
   secretReadPaths = import ../_lib/secret-read-paths.nix;
 
@@ -145,9 +144,9 @@ let
   #
   # NAME DISAMBIGUATION (2026-10-07). This is a GROK sandbox profile — grok's own config
   # concept, a `[profiles.<name>]` table in ~/.grok/sandbox.toml with bases like
-  # `read-only`/`strict`/`workspace`/`devbox`. It is NOT the macOS Seatbelt profile this
-  # repo also generates now (./plugin-mcp.nix renders a `.sb` for desktop-commander), and
-  # the two are configured in completely different languages.
+  # `read-only`/`strict`/`workspace`/`devbox`. It is NOT a macOS Seatbelt profile (this repo
+  # generated one for desktop-commander until 2026-11-01); the two are configured in
+  # completely different languages.
   #
   # Worth a comment rather than a rename, for two reasons. First, "sandbox profile" is
   # grok's OWN vocabulary, so renaming away from it would diverge from the thing being
@@ -175,7 +174,7 @@ let
       # RENDERED from modules/_lib/secret-read-paths.nix, not hand-listed, since
       # 2026-10-07. It was a third independent copy of "paths an agent must not
       # read" — and a /hygiene audit found it was the STRICTEST of the three while
-      # the newest (desktop-commander's Seatbelt fence) left ~/.ssh readable.
+      # the newest (desktop-commander's Seatbelt fence, since retired) left ~/.ssh readable.
       # Sharing the inventory is what makes that divergence visible; grok still
       # gets the WIDE list because its sandbox has no file-level granularity, and
       # that asymmetry is priced in that file's table.
@@ -436,8 +435,8 @@ in
     # puts a binary on PATH that a plugin's `.mcp.json` names as its `command` (in
     # github:kattakath/skills, or the operator's private overlay), because that file can
     # set `env` only to literals or passthroughs and cannot run a Keychain read or a
-    # `sandbox-exec` fence. See each module's header.
-    ./plugin-mcp.nix # wordpress, postgres, desktop-commander
+    # `sandbox-exec` fence (desktop-commander's, until 2026-11-01). See each module's header.
+    ./plugin-mcp.nix # wordpress, postgres (+ desktop-commander's planted config)
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
     # silently inert.
@@ -745,6 +744,7 @@ in
         # workspace is switched by re-login, never named here).
         "slack"
         "swift-lsp"
+        "desktop-commander"
         # Anthropic first-party skill-creator: drafts a skill, runs with/without-skill evals
         # and optimizes its description so it triggers. kattakath/skills' `harvest` hands its
         # drafting and testing step to it (kattakath/skills#10) and keeps triage, stripping
@@ -1034,21 +1034,6 @@ in
         # field-splitting case — was closed as not planned.
         "silent-instruments"
 
-        # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
-        # the one thing they are for: a worktree-isolated session whose worktree was
-        # DELETED refuses every Bash call, spawned agents inherit the lock, and
-        # `start_process` is not that tool. PROPHYLAXIS, NOT A RESCUE — MCP servers load
-        # at session start, so an already-locked session never picks it up.
-        #
-        # Safe to have at all only because of the FENCE: ./plugin-mcp.nix renders a macOS
-        # Seatbelt profile into the store and the launcher execs `sandbox-exec -f` around
-        # the server, so every shell it forks inherits it. The server's OWN
-        # allowedDirectories is not a boundary — upstream's SECURITY.md says so, and an
-        # empty list means every path is allowed.
-        #
-        # MOVED 2026-11-01 to the private overlay marketplace; kept here only so
-        # `declared` can assert the old id `false`.
-        "desktop-commander"
         # Short video → looping GIF to a byte budget → Tenor/GIPHY over the Chrome
         # DevTools Protocol (kattakath/skills#72). Its encoder is `media-gif` in this
         # repo's media-cli capsule (#818); the plugin ships none of its own. ENABLED
@@ -1223,11 +1208,11 @@ in
     # It moved here from agentic-nomad, whose rules only load inside that repo.
     "workspace-gtd@kattakath" = true;
 
-    # The Seatbelt-fenced shell/filesystem server MOVED 2026-11-01 to the operator's private
-    # overlay marketplace (`desktop-commander@ismailkattakath`, enabled by the overlay file):
-    # it runs this repo's fenced `nix-mcp-desktop-commander`, so it only ever worked on this
-    # fleet. `false`, not deleted: a deleted key never leaves the live settings.json.
-    "desktop-commander@kattakath" = false;
+    # desktop-commander: the OFFICIAL plugin since 2026-11-01 (operator: official only, risk
+    # accepted — upstream runs it unpinned `@latest`, with no Seatbelt fence and no guard hook,
+    # so its shell routes around every Bash-text deny in ./claude-guardrails.nix). Its
+    # config.json (telemetry off, onboarding keys) is still planted by ./plugin-mcp.nix.
+    "desktop-commander@claude-plugins-official" = true;
 
     # gif-meme (kattakath/skills#72): the recurring short-video → looping-GIF →
     # Tenor/GIPHY flow, harvested 2026-10-07. Declared here rather than clicked so a

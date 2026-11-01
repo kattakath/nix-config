@@ -100,8 +100,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
     (`builtins.readDir`/`readFile` over a realised input — no import-from-derivation, no
     network) and asserts SET EQUALITY between the `nix-mcp-*` commands those plugins name and
     the `nix-mcp-*` derivations `macos` actually composes into `home.packages`. Measured
-    2026-10-02 at pin `5ba108f`: **8 = 8**. Launchers named outside the public tree (the private
-    overlay's `desktop-commander`, Desktop's `github`, seeded `launcher` settings) count as named.
+    2026-10-02 at pin `5ba108f`: **8 = 8**. Launchers named outside the public tree (seeded `launcher`
+    settings) count as named.
     - **The built side is read off the composed package list, not re-derived.** A check that
       re-applied a launcher's naming rule would agree with a broken rule by sharing it.
       Derivation name == binary name: the one builder, `packages/keychain-mcp.nix`, is a
@@ -136,22 +136,15 @@ in the repo can catch that; see that fixture file's header for the measurement.
       Mac (the marketplace tracks HEAD, not this pin); the stuck lockfile PR is the symptom,
       not the fault.
   - `local.pluginMcp.servers` → `nix-mcp-{wordpress,postgres}`, the CREDENTIALED
-    servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26),
-    **plus `nix-mcp-desktop-commander` since 2026-10-07 (#811)**.
+    servers the purge left homeless (`apify` moved to Apify's official plugin 2026-10-26).
     One generic `packages/keychain-mcp.nix` builds all of them —
     it is the extracted form of the gateway's own `mkGeneratedStdio`, so there is no second copy
     of "export N variables, exec a pinned interpreter". It writes NO file, so it needs no umask;
     credentials reach the server through its environment, never argv.
 
-    **This one is NOT credentialed, and that is the point.** `desktop-commander` reads no
-    secret at all; it is a PATH package because a plugin's `.mcp.json` cannot run
-    `sandbox-exec -f <profile>` any more than it can run a Keychain read. So the factory grew a
-    `sandboxProfile` parameter rather than a generic command prefix — the launcher execs
-    `/usr/bin/sandbox-exec` around the interpreter, and Seatbelt is inherited by every process
-    the server forks (measured with a grandchild). The profile is rendered by `plugin-mcp.nix`
-    into the store, so the thing it confines cannot rewrite it, and the server's own
-    `allowedDirectories` is explicitly NOT the boundary — upstream's SECURITY.md calls directory
-    restrictions "guardrails, not sandboxing", and an empty list means every path is allowed.
+    `desktop-commander` used this lane, Seatbelt-fenced, from 2026-10-07 (#811) until
+    2026-11-01, when the operator switched to the official, unfenced
+    `desktop-commander@claude-plugins-official`; only its config.json is still planted here.
   - Secret handles (NAMES only; values stay in the login Keychain):
     `mcp:wordpress:wp_url` / `:wp_user` / `:wp_app_password` (host-free names since 2026-10-20). `postgres` needs none — its
     `DATABASE_URI` is the local-rag capsule's `local.rag.pgvector.databaseUri`, loopback `trust`
