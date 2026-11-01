@@ -741,6 +741,10 @@ in
         # in-client OAuth via `/mcp`, same shape as stripe/resend). GitHub needs no twin:
         # the `gh` CLI covers it (github-gh was retired 2026-11-01).
         "gitlab"
+        # The ONE Slack plugin since 2026-11-01 (hosted mcp.slack.com, one sign-in; the
+        # workspace is switched by re-login, never named here).
+        "slack"
+        "swift-lsp"
         # Anthropic first-party skill-creator: drafts a skill, runs with/without-skill evals
         # and optimizes its description so it triggers. kattakath/skills' `harvest` hands its
         # drafting and testing step to it (kattakath/skills#10) and keeps triage, stripping
@@ -1129,7 +1133,10 @@ in
     # positive reason to consume this as a marketplace rather than vendor it.
     trailofbits = {
       source = lib.mkDefault "https://github.com/trailofbits/skills.git";
-      plugins = [ ];
+      plugins = [
+        "gh-cli"
+        "supply-chain-risk-auditor"
+      ];
     };
 
     # obra/superpowers (MIT), input `agent-skills-superpowers`. The marketplace
@@ -1297,6 +1304,38 @@ in
     # files; the two places that do record the removal, and that nothing replaced it,
     # are git history (the retired `brags` fleet-repos.txt line) and the
     # declarative-plugin-floor ADR.
+
+    # CLICKED-ONLY until 2026-11-01: these 27 were `true` in the live settings.json and
+    # declared nowhere, so a fresh Mac came up without them (measured: 50 live-true ids,
+    # 28 declared by Nix + the overlay). Declared as they were, no pruning (operator).
+    # fleet-doctor's enablement-drift step reports any new id that appears only by click.
+    "page-lab@kattakath" = true;
+    "rag@kattakath" = true;
+    "capability-broker@kattakath" = true;
+    "android-phone@kattakath" = true;
+    "nix-dev-toolkit@kattakath" = true;
+    "harvest@kattakath" = true;
+    "github-release-gate@kattakath" = true;
+    "skill-curator@kattakath" = true;
+    "session-relay@kattakath" = true;
+    "slack@claude-plugins-official" = true;
+    "stripe@claude-plugins-official" = true;
+    "neon@claude-plugins-official" = true;
+    "frontend-design@claude-plugins-official" = true;
+    "security-guidance@claude-plugins-official" = true;
+    "skill-creator@claude-plugins-official" = true;
+    "agent-sdk-dev@claude-plugins-official" = true;
+    "claude-code-setup@claude-plugins-official" = true;
+    "claude-md-management@claude-plugins-official" = true;
+    "commit-commands@claude-plugins-official" = true;
+    "feature-dev@claude-plugins-official" = true;
+    "hookify@claude-plugins-official" = true;
+    "plugin-dev@claude-plugins-official" = true;
+    "pr-review-toolkit@claude-plugins-official" = true;
+    "swift-lsp@claude-plugins-official" = true;
+    "context7@context7-marketplace" = true;
+    "gh-cli@trailofbits" = true;
+    "supply-chain-risk-auditor@trailofbits" = true;
   };
 
   # Spotlight-launchable "Android Emulator" — click (or re-click) like any
