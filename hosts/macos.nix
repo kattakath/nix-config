@@ -464,6 +464,11 @@ in
     # replacing the docker-desktop cask whose privileged helper was bound to
     # one username. Why/cost/migration: modules/home/containers.nix.
     local.containers.enable = true;
+
+    # Double-entry ledger toolchain for the beancount plugin (kattakath/skills). No agent:
+    # Fava starts on demand. The journal path is a symlink the operator points at the data
+    # folder: ~/.local/share/ledger -> the Drive "Ledger" folder.
+    local.beancount.enable = true;
   };
 
   # ---- OpenDesign: kill the in-app self-updater --------------------------------
