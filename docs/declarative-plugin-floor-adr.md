@@ -32,7 +32,7 @@ idsOf / allIds ─┬─> alwaysOnIds ─> programs.claude-code.settings.enabled
 ```
 
 `extraKnownMarketplaces` (:242) reads only `source` and `autoUpdate`. **It never reads
-`plugins`.** So for any name outside `alwaysOnNames` — `claude-code-nix`, `superhook`,
+`plugins`.** So for any name outside `alwaysOnNames` — `nix-flake-kit`, `superhook`,
 `brain-signals` — a `plugins` entry registers nothing, enables nothing, and gates nothing.
 It is a declared catalogue and a comment.
 

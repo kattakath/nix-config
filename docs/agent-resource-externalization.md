@@ -34,7 +34,7 @@ community resource.
 
 | Resource | Now lives in | Pinned as |
 |---|---|---|
-| `page-lab`, `llmstxt`, `superhook`, `claude-code-nix` plugins **and** `rag`, `nix-dev-toolkit`, `android-phone` skills | `github:kattakath/ai` | `kattakath-ai` — **one repo per owner since 2026-09-14** (`claude-plugins` renamed, `claude-skills` absorbed then archived) |
+| `page-lab`, `llmstxt`, `superhook`, `nix-flake-kit` plugins **and** `rag`, `nix-dev-toolkit`, `android-phone` skills | `github:kattakath/ai` | `kattakath-ai` — **one repo per owner since 2026-09-14** (`claude-plugins` renamed, `claude-skills` absorbed then archived) |
 | public userscripts | `github:kattakath/userscripts` | ~~`kattakath-userscripts`~~ — **pin dropped 2026-09-14** |
 | private userscripts | `gitlab:ismailkattakath/userscripts` | ~~pinned by **nix-personal**~~ — **pin dropped 2026-09-14** |
 | `seargraph` agent | `ismailkattakath/SEARGraph` `.claude/agents/` | nothing — see § Deletions |
@@ -140,7 +140,7 @@ eval-breaking reference in the move.
 | Was | Now |
 |---|---|
 | `.claude/hooks/superhook.js`, `superhook-digest.js` | `superhook` plugin — as PATH packages at the time, **as real plugin hooks since 2026-09-30** (`packages/superhook.nix` deleted) |
-| `.claude/hooks/autostage-nix.js`, `nix-home-path-lint.js` | `claude-code-nix` plugin, as real plugin hooks |
+| `.claude/hooks/autostage-nix.js`, `nix-home-path-lint.js` | `nix-flake-kit` plugin, as real plugin hooks |
 | `.claude/hooks/pretooluse-bash-guard.js`, `stop-gate.js` | **stay** — fleet policy, see below |
 
 > ### ⚠ CORRECTED 2026-09-30 — read this before the two paragraphs below
@@ -197,7 +197,7 @@ in git, survives a re-pin, and needs no interpolation. Hook commands run through
 with the user's environment — the SessionStart hook in the same file already resolves `nix`
 and `git` by PATH lookup, which is the evidence that this works.
 
-`claude-code-nix` had no such problem: both its hooks are ordinary `PostToolUse` entries, so
+`nix-flake-kit` had no such problem: both its hooks are ordinary `PostToolUse` entries, so
 they ship in `hooks/hooks.json` against `${CLAUDE_PLUGIN_ROOT}` and need no wiring at all.
 Their two `settings.json` entries were **deleted rather than repointed** — keeping both
 would fire each hook twice. Enabling the plugin globally is safe because both are no-ops in
@@ -207,7 +207,7 @@ a repo with no `.nix` files.
 same marketplace ships it: the fleet consumes the PATH packages, and enabling the plugin too
 would load a second `/superhook-review` beside the project's own.~~ **Reversed 2026-09-30**
 (see the correction above): the plugin IS enabled, and the duplicate-`/superhook-review`
-objection was resolved the same way `claude-code-nix`'s was — by **deleting** the in-repo
+objection was resolved the same way `nix-flake-kit`'s was — by **deleting** the in-repo
 copy, which was byte-identical, rather than declining the plugin to protect it.
 
 ### What stayed, and why it is not a failure
