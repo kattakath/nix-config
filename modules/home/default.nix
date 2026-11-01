@@ -1693,7 +1693,7 @@ in
         # own updates. Measured on CLI 2.1.296 with a scratch plugin: `serverName =
         # "plugin:<plugin>:<server>"` removed exactly that server and nothing else.
         #   aws-core        its `aws-mcp` runs `--skip-auth` (UNSIGNED). The operator's private
-        #                   `aws-infin8` runs the same proxy signed with SSO; the model picked
+        #                   signed plugin runs the same proxy signed with SSO; the model picked
         #                   the unsigned twin 1,644 times against 1,427 across all transcripts.
         #   aws-serverless  `@latest --allow-write` from PyPI at every spawn, no AWS identity,
         #                   0 calls ever. Its 7 skills + SAM-validate hook stay.
@@ -1702,10 +1702,10 @@ in
           { serverName = "plugin:aws-core:aws-mcp"; }
           { serverName = "plugin:aws-serverless:aws-serverless-mcp"; }
           # The claude.ai AWS connector (account-level, so it also serves claude.ai chat and
-          # Cowork, where aws-infin8 cannot run): denied in Claude Code ONLY, where it
-          # duplicated aws-infin8's tools. By URL, the vendor's stable endpoint, not the
+          # Cowork, where the private signed plugin cannot run): denied in Claude Code ONLY, where it
+          # duplicated the private signed plugin's tools. By URL, the vendor's stable endpoint, not the
           # renameable display name. Measured 2026-11-01 with `claude --settings … mcp list`:
-          # removes the connector and keeps `plugin:aws-infin8:aws-mcp` (stdio, so a URL
+          # removes the connector and keeps the private plugin's `aws-mcp` (stdio, so a URL
           # deny cannot match it).
           { serverUrl = "https://aws-mcp.us-east-1.api.aws/mcp"; }
           # The claude.ai Microsoft 365 connector: never usable here (the tenant blocks
