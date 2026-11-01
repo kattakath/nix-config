@@ -1045,6 +1045,9 @@ in
         # Derived double-entry journal from statement-extract JSONL + rules + decisions,
         # bean-query recipes, Fava on demand read-only; needs local.beancount (kattakath/skills#127).
         "beancount"
+        # Plaid PFC v2 taxonomy pinned (127 names) and strictly validated, v1-v2 crosswalk,
+        # JSON Schema for enum-bound categories; stdlib Python, no data (kattakath/skills#141).
+        "plaid-pfc"
         # Rebuild a raster/auto-traced logo from measured construction geometry (kattakath/skills#23).
         "logo-construction-geometry"
         # The answer-shape kit: output style, the /explain family, cartographer, /task.
@@ -1306,6 +1309,7 @@ in
 
     "statement-extract@kattakath" = true;
     "beancount@kattakath" = true;
+    "plaid-pfc@kattakath" = true;
 
     # AWS: the official plugins bring the skills (catalogue entries above say what each
     # one really ships). Declared, not clicked, for the reason the block above records:
