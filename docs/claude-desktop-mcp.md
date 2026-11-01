@@ -1,6 +1,6 @@
 # Claude Desktop / Cowork — MCP (2026-09-15, rewritten 2026-10-02)
 
-> # ⚠ CURRENT STATE (2026-10-21): this repo renders NO public MCP server into Claude Desktop (the local `github` server gave way to claude.ai's official GitHub Integration, 2026-11-01) — only whatever the operator's private overlay adds. Desktop Commander reaches Desktop separately, as a Desktop Extension this repo does not render.
+> # ⚠ CURRENT STATE (2026-10-21): this repo renders NO public MCP server into Claude Desktop (the local `github` server gave way to claude.ai's official GitHub Integration, 2026-11-01) — and no private overlay is placed. Desktop Commander reaches Desktop separately, as a Desktop Extension this repo does not render.
 >
 > The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Desktop chat runs no
 > plugin stdio server** (claude.com/docs/plugins/platform-support; its Code tab DOES load plugins, like the CLI), so no plugin-owned
@@ -50,7 +50,7 @@ move the shim transform with it.
 ## What gets written
 
 **From 2026-10-02: an empty `mcpServers` object, until `local.claudeDesktop.extraServers` came back
-— today nothing public from Nix, only the private overlay.** The flow below is the shape the
+— today nothing from Nix, and no overlay is placed.** The flow below is the shape the
 renderer still has (and would use again if a `url` ever reappeared via `extraServers`), but there
 is no portal entry at the top of it any more. Read it as the mechanism, not the inventory.
 
