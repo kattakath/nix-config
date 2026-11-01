@@ -384,6 +384,15 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # off wholesale by an irritated operator. The seven narrow `Read(...)` path
     # denies above are the shape that holds; a broad one would undo them.
 
+    # ── Secret Manager writes go through `secrets-push`, never raw gcloud ──
+    # secrets-push is the only writer that enforces the billable-version cap
+    # (keychain-secrets capsule, `backend.maxVersions`). Raw gcloud skips it, and the
+    # free tier is 6 versions per BILLING ACCOUNT: Oct 2026 sessions pushed 17 by habit.
+    "Bash(gcloud secrets create *)"
+    "Bash(gcloud secrets versions add *)"
+    "Bash(gcloud --quiet secrets create *)"
+    "Bash(gcloud --quiet secrets versions add *)"
+
     # ── Irreversible remote actions an unattended agent must not take ──
     # NO `gh pr merge` deny, on purpose (operator, 2026-10-30): it cost real time
     # on repos where an admin merge is permitted, and it never held anyway — the

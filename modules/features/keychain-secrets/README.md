@@ -134,11 +134,19 @@ local.keychainSecrets.backend.type = "gcp";   # in your USER's home-manager bloc
 # backend.prefix defaults to "fleet-" (Secret Manager ids allow only [A-Za-z0-9_-])
 ```
 
+**Push only what cannot be re-issued.** Secret Manager's free tier is **6 active versions per
+billing account**; past it, each version costs US$0.06/month. A vendor API key you can re-mint
+from its dashboard does not need a durable copy, and neither does a record you can read off a
+statement. Master material does: a PGP key, a recovery phrase, the `tofu:state:passphrase`.
+`backend.maxVersions` makes that a hard cap rather than advice, and the Claude Code deny list
+(`modules/home/claude-guardrails.nix`) blocks raw `gcloud secrets create` / `versions add`, so
+`secrets-push` is the only writer.
+
 | Command | Does | Network |
 |---|---|---|
 | `secrets-status [--offline]` | one row per registered secret: in Keychain? ref, mode, **drift** vs. latest remote version — compared by sha256, never printed; lists `remote-only` strays | yes, unless `--offline` or no backend |
 | `secrets-rehydrate [--dry-run]` | pulls every `<prefix>*` secret that carries this store's annotations back into the Keychain **through `set-secret`**, so bindings return too; idempotent — matching values are skipped; reference-mode secrets only land in the manifest; one failed write is named and skipped, and the run exits 1 at the end | yes |
-| `secrets-push <SERVICE> [<ACCOUNT>] [--mode cached\|reference] [--ref REF]` | pushes **one** Keychain item: creates the secret if needed, adds a version only when the value changed, records SERVICE/ENV/ACCOUNT/MODE as annotations | yes |
+| `secrets-push <SERVICE> [<ACCOUNT>] [--mode cached\|reference] [--ref REF] [--force]` | pushes **one** Keychain item: creates the secret if needed, adds a version only when the value changed and **destroys the older ones** (keep 1), records SERVICE/ENV/ACCOUNT/MODE as annotations. **Refuses** a push that takes the project past `backend.maxVersions` billable versions (default **6**, the free tier); `--force` overrides | yes |
 | `secrets-resolve <REF\|ID\|SERVICE>` | prints one value to stdout, nothing else — the `mode = "reference"` runtime helper | yes |
 
 Every one of them **fails loudly and touches nothing** when there is no active `gcloud` SSO

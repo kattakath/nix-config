@@ -5,7 +5,7 @@
 #
 #   secrets-status     table: in Keychain? ref? mode? drift vs. latest remote version (hashes)
 #   secrets-rehydrate  pull every prefixed secret from Secret Manager into the Keychain
-#   secrets-push       push ONE Keychain item to Secret Manager (never bulk)
+#   secrets-push       push ONE Keychain item to Secret Manager (never bulk); capped, keeps 1 version
 #   secrets-resolve    print ONE value to stdout — the `mode = "reference"` runtime helper
 #
 # CONFIG IS READ AT RUNTIME, NOT BAKED. These derivations carry no project id, prefix or
@@ -279,19 +279,22 @@ in
   secrets-push = mk "secrets-push" ''
     usage() {
       printf '%s\n' \
-        "usage: secrets-push <SERVICE> [<ACCOUNT>] [--mode cached|reference] [--ref REF]" \
+        "usage: secrets-push <SERVICE> [<ACCOUNT>] [--mode cached|reference] [--ref REF] [--force]" \
         "  Push ONE Keychain item to Secret Manager (create the secret if needed, add a version" \
-        "  only when the value changed). Records SERVICE / ENV binding / ACCOUNT / MODE as" \
+        "  only when the value changed, then DESTROY the older versions so only the latest bills)." \
+        "  Refuses when the push would take the project past \$SECRETS_BACKEND_MAX_VERSIONS" \
+        "  billable versions (default 6, the free tier); --force overrides. Records SERVICE / ENV binding / ACCOUNT / MODE as" \
         "  annotations so rehydrate can map it back, and caches the ref in the local manifest." \
         "  --mode reference also unbinds the item so the value stops being ambient; consumers" \
         "  then read \$<ENV>_REF and call secrets-resolve. Never bulk. Never run by activation." >&2
     }
-    mode=""; ref=""; svc=""; acct=""
+    mode=""; ref=""; svc=""; acct=""; force=0
     while [ "$#" -gt 0 ]; do
       case "$1" in
         -h|--help) usage; exit 0 ;;
         --mode) mode="''${2:-}"; shift 2 ;;
         --ref) ref="''${2:-}"; shift 2 ;;
+        --force) force=1; shift ;;
         --*) usage; exit 64 ;;
         *) if [ -z "$svc" ]; then svc="$1"; elif [ -z "$acct" ]; then acct="$1"; else usage; exit 64; fi; shift ;;
       esac
@@ -309,17 +312,59 @@ in
       die "no Keychain item '$svc' for account '$acct'."
     fi
     ann="service=$svc,account=$acct,mode=$mode''${env:+,env=$env}"
-    if gcloud --quiet secrets describe "$id" --project="$proj" >/dev/null 2>&1; then
+    # Billable = enabled + disabled; destroyed versions are free. Every listing is
+    # captured before counting, so a failed gcloud dies instead of counting as 0.
+    live_versions() { # ID -> one version number per line
+      gcloud --quiet secrets versions list "$1" --project="$proj" \
+        --filter='state=ENABLED OR state=DISABLED' --format='value(name.basename())'
+    }
+    exists=0
+    if gcloud --quiet secrets describe "$id" --project="$proj" >/dev/null 2>&1; then exists=1; fi
+    changed=1
+    if [ "$exists" = 1 ] && [ "$(printf '%s' "$value" | tr -d '\n' | sha)" = "$(remote_sha "$id")" ]; then changed=0; fi
+    # THE CAP. A changed value on a secret that already bills nets zero (add one, destroy
+    # the rest), so only a secret with no live version can raise the count.
+    if [ "$changed" = 1 ]; then
+      own=0
+      if [ "$exists" = 1 ]; then
+        v="$(live_versions "$id")" || die "cannot list versions of $id."
+        own="$(printf '%s' "$v" | grep -c . || true)"
+      fi
+      if [ "$own" = 0 ]; then
+        maxv="''${SECRETS_BACKEND_MAX_VERSIONS:-6}"
+        all="$(gcloud --quiet secrets list --project="$proj" --format='value(name)')" || die "cannot list secrets in project $proj."
+        total=0
+        while IFS= read -r s; do
+          [ -n "$s" ] || continue
+          v="$(live_versions "$s")" || die "cannot list versions of $s."
+          total=$((total + $(printf '%s' "$v" | grep -c . || true)))
+        done <<<"$all"
+        if [ $((total + 1)) -gt "$maxv" ] && [ "$force" = 0 ]; then
+          value=""
+          die "refusing: project $proj already has $total billable version(s); this push makes $((total + 1)), over the cap of $maxv (local.keychainSecrets.backend.maxVersions — the free tier is 6 per billing account). Push only what cannot be re-issued, delete a secret you no longer need, or pass --force to accept the charge."
+        fi
+      fi
+    fi
+    if [ "$exists" = 1 ]; then
       gcloud --quiet secrets update "$id" --project="$proj" --update-annotations="$ann" >/dev/null
     else
       gcloud --quiet secrets create "$id" --project="$proj" --replication-policy=automatic --set-annotations="$ann" >/dev/null
       echo "$me: created $ref"
     fi
-    if [ "$(printf '%s' "$value" | tr -d '\n' | sha)" = "$(remote_sha "$id")" ]; then
+    if [ "$changed" = 0 ]; then
       echo "$me: $svc already current in $ref"
     else
-      printf '%s' "$value" | gcloud --quiet secrets versions add "$id" --project="$proj" --data-file=- >/dev/null
-      echo "$me: added a version of $svc to $ref (len=''${#value})"
+      new="$(printf '%s' "$value" | gcloud --quiet secrets versions add "$id" --project="$proj" --data-file=- --format='value(name.basename())')"
+      # An empty $new would make every live version look "older" and destroy them all.
+      [ -n "$new" ] || die "added a version to $ref but gcloud did not report its number; NOT pruning."
+      echo "$me: added version $new of $svc to $ref (len=''${#value})"
+      # KEEP ONE. Older versions bill until destroyed; this store never rolls back.
+      v="$(live_versions "$id")" || die "added $new, but cannot list older versions of $id to destroy."
+      while IFS= read -r old; do
+        [ -n "$old" ] && [ "$old" != "$new" ] || continue
+        gcloud --quiet secrets versions destroy "$old" --secret="$id" --project="$proj" >/dev/null
+        echo "$me: destroyed older version $old of $ref"
+      done <<<"$v"
     fi
     value=""
     manifest_put "$svc" "$ref" "$mode" "$env"
