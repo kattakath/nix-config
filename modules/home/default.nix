@@ -496,7 +496,7 @@ in
     # now has a leg for.
     ./claude-desktop.nix
     ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
-    ./desktop-aesthetics.nix # Terminal.app 16pt (all darwin) + wallpaper (opt-out)
+    ./desktop-aesthetics.nix # Terminal.app type + colours (all darwin)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     # Makes ~/.claude/settings.json LAYERED — a real writable file the app and
     # the operator can edit, with Nix's own keys (the permissions.deny floor,

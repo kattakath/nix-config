@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/,wallpaper/}`
+`modules/home/{default.nix,gmail-mcp.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -417,7 +417,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `enableZshIntegration` is deliberately **off**: it sources the integration script out of the
   Nix `package`, which is null here, so it would point at nothing — the cask's app bundle
   injects shell integration itself.
-- **`desktop-aesthetics.nix`** — the macOS desktop look, split in two:
+- **`desktop-aesthetics.nix`** — the macOS desktop look:
   - **Terminal.app** is UNGATED on every darwin host — type on EVERY profile, and the four
     colours macOS actually exposes (`background`/`normal text`/`bold text`/`cursor`) plus
     `font name` on `Pro`, which this block also forces as default/startup. Values come from
@@ -437,8 +437,6 @@ in the repo can catch that; see that fixture file's header for the measurement.
     interface replaced it — which is also why the ANSI ring is unreachable (it lives only in
     the NSKeyedArchiver blobs a `.terminal` profile carries). Writes **unversioned user
     state**: `home-manager rollback` does not revert `com.apple.Terminal`.
-  - The **custom wallpaper** stays behind `local.desktopAesthetics.enable` (default true;
-    a sandbox guest can set it false as a visual tell).
 - **`containers.nix`** — `local.containers`, darwin-only: the **per-user** container runtime,
   Colima declared through home-manager's own `services.colima` (upstream-first — the pinned
   nix-darwin has no `virtualisation.*` namespace at all, so a system-level answer does not
@@ -618,11 +616,6 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `programs/git.nix:63-116`; impl `:470-506` writes `$XDG_CONFIG_HOME/git/allowed_signers` and
   points `gpg.ssh.allowedSignersFile` at it). Since ADR-004 `allowedSigners` is left empty and the file itself is hand-placed
   (`gpg.ssh.allowedSignersFile` points at it), so no mailbox is listed in Nix.
-- **`wallpaper/wallpaper.png`** — the vendored desktop wallpaper `desktop-aesthetics.nix`
-  installs. It is copied to `~/.local/share/nix-desktop-wallpaper.png` via `home.file` and
-  pointed at from there, **not** referenced as a store path directly: `settings.picture` set
-  to a store path leaves the wallpaper out of the generation's closure, so
-  `nix-collect-garbage` would delete the file out from under the desktop.
 - **`launchd-launcher.nix`** — makes every HM agent's `ProgramArguments[0]`
   basename `nix-<activity>` (macOS BTM rule — tags nix-config origin; **never** a bare
   interpreter like `sh`/`python3`). It is upstream's own `waitForNixStore = false` trade
