@@ -292,8 +292,8 @@ in
           # transformMcpServer that stops stripping `type`) would break it
           # without any eval error. So: read the REAL rendering from the macos
           # config and assert its shape, plus the module's agreements with the rest
-          # of the tree: only the named servers are rendered, and desktop-commander
-          # is not (it is a Desktop Extension already; twice = 20 duplicate tools).
+          # of the tree: desktop-commander is never rendered (it is a Desktop
+          # Extension already; twice = 20 duplicate tools).
           claude-desktop-config-shape =
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
@@ -323,7 +323,7 @@ in
                   badShape != { }
                 ) "non-stdio or unmarked entries: ${toString (builtins.attrNames badShape)}"
                 ++
-                  # DESKTOP RENDERS ONLY THE NAMED SERVERS. The gateway it used to dial is
+                  # DESKTOP RENDERS NO PUBLIC SERVER. The gateway it used to dial is
                   # gone (purged 2026-10-02, 65 Cloudflare objects), and Desktop chat runs no
                   # plugin stdio server.
                   #
@@ -348,7 +348,7 @@ in
             pkgs.runCommand "claude-desktop-config-shape" { } (
               if problems == [ ] then
                 ''
-                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (only github allowed — the gateway is purged)" > "$out"
+                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (no public server allowed — the gateway is purged)" > "$out"
                 ''
               else
                 ''

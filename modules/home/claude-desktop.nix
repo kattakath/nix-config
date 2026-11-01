@@ -23,8 +23,8 @@
 # `checks.<system>.claude-desktop-config-shape` reads
 # `local.claudeDesktop.{enable,renderedServers}` (modules/parts/checks.nix) and
 # asserts: the module is ENABLED (a disabled writer leaves stale content on disk
-# unmanaged — the 2026-10-01 regression), only the named server is
-# rendered, `desktop-commander` is not among them, and every entry is
+# unmanaged — the 2026-10-01 regression), `desktop-commander` is not
+# rendered, and every entry is
 # stdio-shaped ({command,args}, no url/type) and carries the NIX_CONFIG_MANAGED
 # marker.
 #

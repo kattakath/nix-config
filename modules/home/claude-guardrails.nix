@@ -164,7 +164,8 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # namespace rather than reasoned about:
     #   plugin-owned  `mcp__plugin_<plugin>_<server>__<tool>` — e.g.
     #                 `mcp__plugin_context7_context7__query-docs`,
-    #                 `mcp__plugin_nix-flake-kit_nixos__nix`.
+    #                 `mcp__plugin_nix-flake-kit_nixos__nix` (measured under the
+    #                 plugin's old name `claude-code-nix`; renamed 2026-11-01, #1012).
     #   claude.ai connector  `mcp__claude_ai_<Server>__<tool>`, the server's
     #                 DISPLAY name with spaces as underscores and its case kept —
     #                 `mcp__claude_ai_cloudflare__docs`. Not a plugin, not in Nix,

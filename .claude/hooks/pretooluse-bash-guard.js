@@ -52,9 +52,8 @@
  * THE OTHER DIRECTION, and the rule had quietly become the opposite of a
  * guardrail. Going through the MCP tool routes around THIS hook, around every
  * other PreToolUse hook, and around the whole permission system — `start_process`
- * is not the Bash tool, which is the entire reason the server was re-adopted as
- * an escape hatch for a Bash-locked session (modules/home/plugin-mcp.nix). So the
- * nudge was steering routine work off the guarded path for no benefit.
+ * is not the Bash tool. So the nudge was steering routine work off the guarded
+ * path for no benefit.
  *
  * It was also naming a tool that cannot exist. Plugin MCP tools are
  * `mcp__plugin_<plugin>_<server>__<tool>`, so the live prefix is
@@ -71,12 +70,9 @@
  * coverage, alone among the rules here — the one rule nothing asserted was the one
  * that had inverted.
  *
- * THE OPPOSITE RULE LIVES IN THE PLUGIN, NOT HERE, and that is forced rather than
- * chosen: superhook's PreToolUse matcher is `"Bash"`, so this file is only ever
- * handed Bash calls and structurally cannot see an MCP tool. The desktop-commander
- * plugin in github:kattakath/skills carries its own PreToolUse hook matching its
- * own tools — the plugin that introduces the risk owns the mitigation, and it then
- * works in every repo instead of only in this one.
+ * NO OPPOSITE RULE CAN LIVE HERE: superhook's PreToolUse matcher is `"Bash"`, so
+ * this file is only ever handed Bash calls and structurally cannot see an MCP
+ * tool. desktop-commander is now the official plugin, which ships no such guard.
  *
  * Rules 1/2 (Cloudflare API calls / billed or mutating) keep their hard block:
  * those genuinely warrant stopping.
@@ -461,12 +457,11 @@ function envDump(segment) {
 //
 // ONE SOURCE OF TRUTH. The paths are READ at runtime from
 // modules/_lib/secret-read-paths.nix (its `absolute` and `underHome` lists — the
-// same data the Read() denies and the desktop-commander Seatbelt fence render),
-// never restated here. That file sits two directories up from this one in every
+// same data the Read() denies render), never restated here. That file sits two directories up from this one in every
 // checkout that carries this hook, because superhook finds the hook by
 // convention in the repo root; `__dirname` is used, not CLAUDE_PROJECT_DIR, which
 // is the session's LAUNCH cwd. The wider credential tiers in that file
-// (`agentCredentialDirs`, `fence`) are deliberately NOT read: they hold files the
+// (the `agentCredential*` lists) are deliberately NOT read: they hold files the
 // fleet's own tools need, which is why they exist as a separate tier.
 // A parse that comes back EMPTY is the silent-vacuum failure that file warns
 // about, so it is LOUD here: every Bash call then carries a "DISARMED" message,

@@ -385,7 +385,7 @@ so the same discriminator §5 used now produces a two-lane answer instead of a o
    trade §10.5 already recorded for plugins, now extended to their MCP halves.
 2. **Presence in Claude Desktop** (and the Cowork bridge). Desktop chat runs no plugin stdio server (corrected 2026-11-01: its Code tab DOES load plugins; claude.com/docs/plugins/platform-support) and rendered one
    all-or-nothing portal connector, so a plugin-owned server is Claude-Code-only and silently
-   absent there (`modules/home/claude-desktop.nix` § THE PLUGIN CONSEQUENCE).
+   absent there (`modules/home/claude-desktop.nix` § WHAT THIS DOES).
 3. **Machine-checked parity.** `checks.<system>.mcp-published-parity` compares two *Nix* lists and
    cannot read a plugin's `.mcp.json`, so a name deleted from both and never declared in its plugin
    is a silent loss with a green build. The migration sequence that compensates is
@@ -466,7 +466,7 @@ overturned, and it is worth distinguishing from being wrong.
 | `flake.lock` pinning of server versions | server content floats on a marketplace branch; the 2026-09-14 recovery levers (**pin the input, override the package**) do not exist for a plugin-declared `npx` spec |
 | `passwordCommand` Keychain wiring **inside** the server declaration | partially recovered, not lost: a launcher that needs a Keychain read is a **nix-config PATH package** the plugin names — `local.gmailMcp` + `packages/gmail-mcp.nix` (Gmail lane: Retired 2026-11-01 — the claude.ai Gmail connector replaced it. `local.pluginMcp` remains). The credential logic stays in Nix; only the *declaration* left |
 | any eval-time check on the MCP set | **total.** Nothing in this repo can read a plugin's `.mcp.json`, so no `nix flake check` leg can see which servers exist or whether one silently vanished. The replacement is a runtime procedure ([`mcp-gateway.md`](mcp-gateway.md) § How to verify a plugin-owned server actually answers). *Partly superseded the same day by #771: `checks.*.mcp-launcher-parity` reads the pinned `kattakath-skills` plugins' `.mcp.json` — see [`map/claude-code.md`](map/claude-code.md) § MCP after the gateway.* |
-| presence in Claude Desktop / Cowork | **total, for every server.** §10.6 accepted this for eight; it now applies to all of them. Desktop renders an **empty** `mcpServers` block |
+| presence in Claude Desktop / Cowork | **total, for every server** (corrected 2026-11-01: Desktop's Code tab loads plugins). §10.6 accepted this for eight; it now applies to all of them. Desktop renders an **empty** `mcpServers` block |
 
 **And §6's "the delta is one decision" claim is now settled for MCP in the direction this ADR
 argued against**: runtime clone, not hash pin. The ADR's own reasoning for hash-pinning MCP was
