@@ -515,6 +515,7 @@ in
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./kdeconnect.nix # local.kdeConnect — merges declared keys into the kde-connect cask's INI files
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
+    ./beancount.nix # local.beancount — Beancount CLIs + Fava (on demand) + LSP, one interpreter
     # The two loopback download servers. They were nix-darwin `launchd.user.agents`
     # until 2026-09-22; moved here because Home Manager re-bootstraps an agent that
     # has left its launchd domain and the system tier does not (see either header).
