@@ -7,8 +7,8 @@
 # (claude.com/docs/plugins/platform-support), so a plugin-owned stdio server never reaches chat, and Cowork
 # reads the account's plugins, not these marketplaces. Desktop's CODE TAB is
 # Claude Code: it reads ~/.claude like the CLI and loads every plugin (measured
-# 2026-11-01: 114 of 398 Desktop-launched transcripts call plugin MCP tools). `extraServers` is the public lane: it carries `github`
-# (modules/home/default.nix).
+# 2026-11-01: 114 of 398 Desktop-launched transcripts call plugin MCP tools). `extraServers` is the public lane, EMPTY since
+# 2026-11-01 (the local `github` server gave way to claude.ai's official GitHub Integration).
 # A second, PRIVATE lane rides the same merge: `overlayFile`, a hand-placed JSON
 # the operator keeps out of this public repo, read at activation only.
 #

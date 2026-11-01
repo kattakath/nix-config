@@ -333,16 +333,14 @@ in
                   # empty set from a DISABLED module is a different claim — it means
                   # nothing writes the file, so stale content survives unmanaged.
                   #
-                  # ONE NAMED EXCEPTION: `github`, the stdio server declared in
-                  # modules/home/default.nix. An allowlist by NAME, not "any stdio entry",
-                  # so a portal or gateway entry still fails here exactly as before.
-                  # Client servers arrive through the operator's hand-placed Desktop
-                  # overlay, which is merged at ACTIVATION — eval cannot see it, and this
-                  # public tree must not name it.
-                  lib.optional (removeAttrs servers [ "github" ] != { })
-                    "Desktop must render no server but github — the gateway is purged — found: ${
-                      toString (builtins.attrNames (removeAttrs servers [ "github" ]))
-                    }"
+                  # NO public exception since 2026-11-01 (the `github` server was dropped for
+                  # claude.ai's official GitHub Integration), so ANY rendered entry fails here,
+                  # portal or not. Client servers arrive through the operator's hand-placed Desktop
+                  # overlay, merged at ACTIVATION — eval cannot see it, and this public tree must
+                  # not name it.
+                  lib.optional (
+                    servers != { }
+                  ) "Desktop must render no public server — found: ${toString (builtins.attrNames servers)}"
                 ++ lib.optional (
                   servers ? desktop-commander
                 ) "desktop-commander rendered (it is a Desktop Extension already)";
@@ -2972,11 +2970,9 @@ in
               );
               declared = lib.naturalSort (lib.unique (lib.filter (lib.hasPrefix "nix-mcp-") allCommands));
 
-              # Namers this check cannot see in the public tree (2026-11-01):
+              # A namer this check cannot see in the public tree (2026-11-01):
               # `desktop-commander` moved to the operator's PRIVATE overlay marketplace
-              # (CI cannot read it), and Claude
-              # Desktop's `github` server (`local.claudeDesktop.extraServers`) still runs
-              # `nix-mcp-github` after the github-gh plugin retired.
+              # (CI cannot read it).
               # And the launchers a plugin is POINTED at through a seeded `launcher`
               # setting (plugin-mcp.nix `pluginConfigs`) are named there, not in `.mcp.json`.
               seededLaunchers = lib.filter (lib.hasPrefix "nix-mcp-") (
@@ -2986,7 +2982,6 @@ in
               );
               namedOutsidePublicTree = [
                 "nix-mcp-desktop-commander"
-                "nix-mcp-github"
               ]
               ++ seededLaunchers;
 
