@@ -783,8 +783,8 @@ in
         "databases-on-aws"
         # GitLab's OFFICIAL plugin (in-repo, source "./external_plugins/gitlab"): only an
         # `.mcp.json` naming the hosted gitlab.com/api/v4/mcp server (type=http, one-time
-        # in-client OAuth via `/mcp`, same shape as stripe/resend). The GitHub twin is
-        # `github-gh@kattakath`, which rides gh's token instead.
+        # in-client OAuth via `/mcp`, same shape as stripe/resend). GitHub needs no twin:
+        # the `gh` CLI covers it (github-gh was retired 2026-11-01).
         "gitlab"
         # Anthropic first-party skill-creator: drafts a skill, runs with/without-skill evals
         # and optimizes its description so it triggers. kattakath/skills' `harvest` hands its
@@ -1075,10 +1075,8 @@ in
         # field-splitting case — was closed as not planned.
         "silent-instruments"
 
-        # github-gh (kattakath/skills#78): github/github-mcp-server, all toolsets, on the
-        # gh CLI's own token via the `nix-mcp-github` launcher (./plugin-mcp.nix). One
-        # GitHub credential for gh and MCP; the official `github` plugin would need a PAT
-        # in Claude Code's own environment instead.
+        # github-gh: RETIRED 2026-11-01, kept in the catalogue only so `declared` can
+        # assert it `false` (see there).
         "github-gh"
 
         # Shell + filesystem tools that run OUTSIDE Claude Code's Bash tool, which is
@@ -1093,14 +1091,13 @@ in
         # allowedDirectories is not a boundary — upstream's SECURITY.md says so, and an
         # empty list means every path is allowed.
         #
-        # ENABLED BELOW, not merely catalogued. Listing a name here makes the id
-        # RESOLVABLE and enables nothing (#751/#754 learned that the hard way), so the
-        # `declared` entry is what actually turns it on.
+        # MOVED 2026-11-01 to the private overlay marketplace; kept here only so
+        # `declared` can assert the old id `false`.
         "desktop-commander"
         # Short video → looping GIF to a byte budget → Tenor/GIPHY over the Chrome
         # DevTools Protocol (kattakath/skills#72). Its encoder is `media-gif` in this
         # repo's media-cli capsule (#818); the plugin ships none of its own. ENABLED
-        # BELOW, for the same reason as desktop-commander.
+        # BELOW: a catalogue entry alone enables nothing (#751/#754).
         "gif-meme"
         # GnuPG from an agent with no TTY (kattakath/skills#81): passphrase via a real
         # terminal window, plaintext only on the clipboard, answers proved from the
@@ -1268,17 +1265,11 @@ in
     # It moved here from agentic-nomad, whose rules only load inside that repo.
     "workspace-gtd@kattakath" = true;
 
-    # The Seatbelt-fenced shell/filesystem server — see the `desktop-commander` entry
-    # in the kattakath catalogue above. It is HERE, and not left to a `/plugin` click,
-    # for exactly the reason the four lines above record: a clicked toggle made two
-    # plugins "working-but-unreproducible", and a fresh machine restored neither. This
-    # one is the escape hatch for a session that cannot run a command, so discovering
-    # on a fresh Mac that the hatch was never enabled is the worst possible time.
-    #
-    # Measured 2026-10-07, which is why this line exists: after the plugin merged and
-    # the launcher was on PATH, ~/.claude/settings.json held 45 enabledPlugins ids and
-    # desktop-commander was NOT among them — the capability was installed and unusable.
-    "desktop-commander@kattakath" = true;
+    # The Seatbelt-fenced shell/filesystem server MOVED 2026-11-01 to the operator's private
+    # overlay marketplace (`desktop-commander@ismailkattakath`, enabled by the overlay file):
+    # it runs this repo's fenced `nix-mcp-desktop-commander`, so it only ever worked on this
+    # fleet. `false`, not deleted: a deleted key never leaves the live settings.json.
+    "desktop-commander@kattakath" = false;
 
     # gif-meme (kattakath/skills#72): the recurring short-video → looping-GIF →
     # Tenor/GIPHY flow, harvested 2026-10-07. Declared here rather than clicked so a
@@ -1299,8 +1290,10 @@ in
     # one really ships). Declared, not clicked, for the reason the block above records:
     # a clicked toggle does not survive a fresh machine. Client-account servers come
     # from the operator's private overlay marketplace, never from this file.
-    # GitHub over MCP with gh's token and scopes (operator decision 2026-10-16).
-    "github-gh@kattakath" = true;
+    # github-gh RETIRED 2026-11-01 (operator): 77 MCP calls against 5,257 `gh` CLI calls
+    # across all transcripts. `false`, not deleted, so the live key flips. Its launcher
+    # `nix-mcp-github` stays: Claude Desktop's `github` server still uses it.
+    "github-gh@kattakath" = false;
     # GitLab over MCP, gitlab.com's hosted server with its own OAuth (operator request
     # 2026-10-21). No glab token is reused — the first `/mcp` connect asks for approval.
     "gitlab@claude-plugins-official" = true;
@@ -1624,8 +1617,7 @@ in
   # Desktop overlay (claude-desktop.nix), so this public file names none. The
   # `claude-desktop-config-shape` check allows `github` and no other name.
   local.claudeDesktop.extraServers = lib.mkIf isMacosHost {
-    # GitHub, the same launcher Claude Code's `github-gh` plugin names (plugin-mcp.nix,
-    # `github`): github-mcp-server with the gh CLI's token, all toolsets, write-capable.
+    # GitHub, through the `nix-mcp-github` launcher (plugin-mcp.nix, `github`): github-mcp-server with the gh CLI's token, all toolsets, write-capable.
     # By absolute profile path: Desktop spawns servers with launchd's PATH, which has
     # no Nix profile on it. Through
     # /usr/bin/env because the renderer drops an EMPTY `args`, and the shape check then
