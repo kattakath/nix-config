@@ -43,7 +43,7 @@ nixpi's toplevel is built by `warm-nixpi-cache.yml` instead (below; why:
 | Leg | Required? | Checks | Hosts evaluated |
 |---|---|---|---|
 | `build (aarch64-linux)` | always | all linux | **every** host, macos included |
-| `build (aarch64-darwin)` | push:main, dispatch, **non-operator** PRs | PR: darwin-ONLY (29/52); push: all | PR: none; push: macos |
+| `build (aarch64-darwin)` | push:main, dispatch, **non-operator** PRs | PR: darwin-ONLY (`system-only` mode, `nix-ci-impl.yml`); push: all | PR: none; push: macos |
 | `build (aarch64-darwin, advisory)` | never — nothing `needs` it | all | macos |
 
 - **Operator PRs** (author id `8927166`) skip the required darwin job and run the advisory

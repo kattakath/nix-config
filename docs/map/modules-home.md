@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,desktop-aesthetics.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
+`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -182,8 +182,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
     (ungoogled's `disable-webstore-urls.patch`), so a local CRX is the only path; the official
     extension ID survives because it derives from the signed CRX3 public key, not the path.
-    Every extension is unconditional except Violentmonkey, which `userScripts.enable` gates
-    (the per-extension toggles were deleted; why: the comment above it in `chromium.nix`):
+    Every extension is unconditional (why: the comment above the options in `chromium.nix`):
 
     | Extension | MV | Note |
     |---|---|---|
@@ -412,26 +411,25 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `enableZshIntegration` is deliberately **off**: it sources the integration script out of the
   Nix `package`, which is null here, so it would point at nothing — the cask's app bundle
   injects shell integration itself.
-- **`desktop-aesthetics.nix`** — the macOS desktop look:
-  - **Terminal.app** is UNGATED on every darwin host — type on EVERY profile, and the four
-    colours macOS actually exposes (`background`/`normal text`/`bold text`/`cursor`) plus
-    `font name` on `Pro`, which this block also forces as default/startup. Values come from
-    `terminal-theme.nix`; this module owns **delivery**, never the palette. Driven through
-    Terminal's own AppleScript `settings set` API since Terminal owns `com.apple.Terminal`
-    and clobbers direct plist writes. Guarded on Terminal already running so a rebuild never
-    launches it — with **`pgrep -x Terminal`, never a `ps | grep -q` pipe**. An earlier
-    comment claimed the opposite ("`pgrep` can't see it from activation"); that was a
-    misdiagnosis. home-manager's generated activate script runs under `set -o pipefail`,
-    `grep -q` exits the instant it matches, the closed pipe kills `ps` with SIGPIPE, and the
-    pipeline reports 141 on a *successful* match — so the guard skipped forever on a Mac
-    where Terminal was running. Measured in the real activation context
-    (`launchctl asuser <uid> sudo -u <user>`): the pipe form exits 141, `pgrep` exits 0. Rule:
-    no pipe in a guard that runs under `pipefail`. Every property
-    is compared before it is written, so a settled Mac is a true no-op. This repo used to
-    VENDOR an "Ubuntu" profile + generator here; #319 dropped that, and Apple's scripting
-    interface replaced it — which is also why the ANSI ring is unreachable (it lives only in
-    the NSKeyedArchiver blobs a `.terminal` profile carries). Writes **unversioned user
-    state**: `home-manager rollback` does not revert `com.apple.Terminal`.
+- **`terminal-app.nix`** — **Terminal.app**, UNGATED on every darwin host — type on EVERY profile, and the four
+  colours macOS actually exposes (`background`/`normal text`/`bold text`/`cursor`) plus
+  `font name` on `Pro`, which this block also forces as default/startup. Values come from
+  `terminal-theme.nix`; this module owns **delivery**, never the palette. Driven through
+  Terminal's own AppleScript `settings set` API since Terminal owns `com.apple.Terminal`
+  and clobbers direct plist writes. Guarded on Terminal already running so a rebuild never
+  launches it — with **`pgrep -x Terminal`, never a `ps | grep -q` pipe**. An earlier
+  comment claimed the opposite ("`pgrep` can't see it from activation"); that was a
+  misdiagnosis. home-manager's generated activate script runs under `set -o pipefail`,
+  `grep -q` exits the instant it matches, the closed pipe kills `ps` with SIGPIPE, and the
+  pipeline reports 141 on a *successful* match — so the guard skipped forever on a Mac
+  where Terminal was running. Measured in the real activation context
+  (`launchctl asuser <uid> sudo -u <user>`): the pipe form exits 141, `pgrep` exits 0. Rule:
+  no pipe in a guard that runs under `pipefail`. Every property
+  is compared before it is written, so a settled Mac is a true no-op. This repo used to
+  VENDOR an "Ubuntu" profile + generator here; #319 dropped that, and Apple's scripting
+  interface replaced it — which is also why the ANSI ring is unreachable (it lives only in
+  the NSKeyedArchiver blobs a `.terminal` profile carries). Writes **unversioned user
+  state**: `home-manager rollback` does not revert `com.apple.Terminal`.
 - **`containers.nix`** — `local.containers`, darwin-only: the **per-user** container runtime,
   Colima declared through home-manager's own `services.colima` (upstream-first — the pinned
   nix-darwin has no `virtualisation.*` namespace at all, so a system-level answer does not

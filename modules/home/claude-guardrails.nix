@@ -13,7 +13,7 @@
 # tool was deny-listed here and callable everywhere else. Measured 2026-09-15.
 #
 # THAT COUNTER-EXAMPLE IS GONE; THE REASON TO BE GLOBAL IS NOT. The gateway was
-# purged 2026-10-01 — modules/shared/mcp.nix deleted, the Cloudflare portal destroyed, the
+# purged (CLAUDE.md § MCP servers) — modules/shared/mcp.nix deleted, the Cloudflare portal destroyed, the
 # terranix stack removed in #737 — so nothing global ships an MCP server any
 # more: servers arrive ONLY as Claude Code plugins (./plugin-mcp.nix),
 # which are per-session and carry no fleet-wide write tool.
@@ -156,7 +156,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # 2026-09-22 portal collapse made the gateway ONE Claude Code server
     # (`plugin:hm:kattakath-portal`) hosting every upstream, so its tools arrived
     # as `mcp__plugin_hm_kattakath-portal__<server>_<tool>` — the upstream name
-    # moved INTO the tool half and lost its `__` separator. Then the 2026-10-01
+    # moved INTO the tool half and lost its `__` separator. Then the gateway
     # purge deleted that server outright, so THAT spelling can never match again
     # either: it is absent from `claude mcp list`, checked 2026-10-02.
     #

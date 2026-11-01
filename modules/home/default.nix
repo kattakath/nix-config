@@ -495,7 +495,7 @@ in
     # now has a leg for.
     ./claude-desktop.nix
     ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
-    ./desktop-aesthetics.nix # Terminal.app type + colours (all darwin)
+    ./terminal-app.nix # Terminal.app type + colours (all darwin)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     # Makes ~/.claude/settings.json LAYERED — a real writable file the app and
     # the operator can edit, with Nix's own keys (the permissions.deny floor,
@@ -707,22 +707,10 @@ in
     };
   };
 
-  # The userscript set. Keying it is what lets a layer composed in through
-  # `extraHomeModules` add its own without touching this file; keys must stay
-  # distinct across the layers. No such layer exists today — the private
-  # nix-personal flake was retired 2026-09-15.
-  # NO userscripts are declared any more (2026-09-14). All of them were
-  # published instead - google-photos-icon-nav is
-  # https://greasyfork.org/en/scripts/595764 - and a fork-installed copy is the
-  # only one that carries an `@updateURL`, so it updates itself while a
-  # materialised file never could. The option in modules/home/chromium.nix
-  # stays: it is generic, documented, and the next private script can declare
-  # itself without rebuilding the mechanism.
-
   # The Claude Code plugin set — DATA only; the registration + install mechanism
-  # is ./claude-plugins.nix. Same keyed-attrset seam as the userscripts above: a
-  # layer composed in through `extraHomeModules` adds its own marketplace and the
-  # ones declared below survive untouched. `plugins` is a listOf, so such a layer
+  # is ./claude-plugins.nix. It is a keyed attrset so that a layer composed in
+  # through `extraHomeModules` adds its own marketplace and the ones declared
+  # below survive untouched. `plugins` is a listOf, so such a layer
   # can even append a plugin to a marketplace declared here.
   #
   # `source` is mkDefault throughout so a downstream layer can repoint one (a
@@ -955,10 +943,7 @@ in
     # The `kattakath-skills` flake input still exists, for ONE PATH package built
     # from a plugin script (`page-lab-pick`), and `checks.<system>.mcp-launcher-parity`,
     # which joins the `nix-mcp-*` launchers this fleet BUILDS against the servers that
-    # repo's `plugins/*/.mcp.json` NAME. It was TWO packages until 2026-09-30, when
-    # superhook moved to plugin-hook delivery and `packages/superhook.nix` was deleted, and it had
-    # another consumer — `modules/shared/mcp.nix`'s `mcpCatalog` — until that module
-    # was deleted with the gateway 2026-10-02. No plugin or skill is read from the
+    # repo's `plugins/*/.mcp.json` NAME. No plugin or skill is read from the
     # input, and no home-manager module takes it at all: every consumer lives
     # in the flake engine and reads `inputs.kattakath-skills` directly.
     #
@@ -1487,11 +1472,7 @@ in
       # build beats a runtime PyPI fetch — same content every time, one source of
       # truth, and no network at spawn.
       #
-      # No `doCheck = false` needed. The deleted gateway carried one on its own
-      # `nixos.package`, to repair 2.4.3's brittle `test_read_text_file` on
-      # aarch64-darwin; it went with `modules/shared/mcp.nix` on 2026-10-02 and
-      # nothing here replaces it. Measured on 3.0.1: plain `pkgs.mcp-nixos` builds
-      # clean, so the override was stale before it was deleted.
+      # Plain `pkgs.mcp-nixos` builds clean; do not add `doCheck = false`.
       mcp-nixos # `mcp-nixos` — grounded, READ-ONLY NixOS/nixpkgs option+package lookup; no token
       # Same PREREQUISITE shape as mcp-nixos above, for #657 batch 2.
       #
@@ -2324,7 +2305,7 @@ in
       #
       # No PATH collision: `command -v red green blue` is empty on this fleet.
       shellAliases = {
-        red = "echo 'background: #300A24' | theme.sh";
+        red = "echo 'background: ${config.local.terminalTheme.background}' | theme.sh";
         green = "echo 'background: #002303' | theme.sh";
         blue = "echo 'background: #09193C' | theme.sh";
       };
