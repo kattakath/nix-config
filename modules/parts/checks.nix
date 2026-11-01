@@ -2978,7 +2978,23 @@ in
               # only) — so "no public plugin names it" is expected, not an orphan.
               # Exempted BY GENERIC NAME, so no private plugin or workspace is named
               # here; the `missing` leg and both non-empty legs still run over everything.
-              namedOutsidePublicTree = [ "nix-mcp-slack" ];
+              # Two more namers this check cannot see in the public tree (2026-11-01):
+              # `desktop-commander` moved to that same private marketplace, and Claude
+              # Desktop's `github` server (`local.claudeDesktop.extraServers`) still runs
+              # `nix-mcp-github` after the github-gh plugin retired.
+              # And the launchers a plugin is POINTED at through a seeded `launcher`
+              # setting (plugin-mcp.nix `pluginConfigs`) are named there, not in `.mcp.json`.
+              seededLaunchers = lib.filter (lib.hasPrefix "nix-mcp-") (
+                lib.mapAttrsToList (_: c: c.options.launcher or "") (
+                  hm.programs.claude-code.settings.pluginConfigs or { }
+                )
+              );
+              namedOutsidePublicTree = [
+                "nix-mcp-slack"
+                "nix-mcp-desktop-commander"
+                "nix-mcp-github"
+              ]
+              ++ seededLaunchers;
 
               missing = lib.subtractLists built declared;
               orphan = lib.subtractLists (declared ++ namedOutsidePublicTree) built;
