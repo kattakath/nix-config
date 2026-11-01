@@ -217,11 +217,6 @@ Smaller, single-purpose CLIs:
   no rebuild touches (orphaned plugin cache versions, interrupted-update clones). DRY RUN by
   default, never prunes transcripts; a CLI rather than a check or activation step because all
   of it is a property of the running machine.
-- **`slack-mcp-server.nix`** — korotovsky/slack-mcp-server built from source at a pinned tag,
-  launched through `slack-post-mcp.nix` (`nix-mcp-slack <workspace>.slack.com`), wired by
-  `modules/home/plugin-mcp.nix`. It posts with the operator's OWN user token, so a
-  message carries no `*Sent using* Claude` footer — which Slack's hosted MCP appends with no
-  opt-out (2026-10-16).
 - **`nixos-vm.nix`** — the `nixos-vm` CLI for the `nixos` UTM desktop host
   (create / switch / restart …); the `NixOS VM` Spotlight bundle runs `nixos-vm start`. Documented
   with the host in [`hosts.md`](hosts.md).
@@ -230,8 +225,7 @@ Smaller, single-purpose CLIs:
   login Keychain at run time — wired only via `home.packages`, no matching flake app. The
   lookup is by Keychain **service** `resend.com:api`, not by the env name, so set it with
   `pbpaste | secret set --env RESEND_API_KEY resend.com:api`.
-- **Documented with their consumer, not here:** `keychain-mcp.nix`,
-  `slack-post-mcp.nix` (the MCP launchers — [`modules-home.md`](modules-home.md)
+- **Documented with their consumer, not here:** `keychain-mcp.nix` (the MCP launcher factory — [`modules-home.md`](modules-home.md)
   § `plugin-mcp.nix`); and `rogers-gw.nix` (the
   inspection-only gateway CLI) and `launchd-doctor.nix` (the launchd runtime health check),
   both in [`modules-darwin.md`](modules-darwin.md).
