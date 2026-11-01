@@ -7,7 +7,7 @@
 #     (the claude-guardrails.nix home module) — a glob in Claude's own syntax,
 #     where a leading `//` means absolute and `~/` means home-relative.
 #   a macOS Seatbelt profile        ->  (deny file-read* (subpath "<home>/.aws/sso/cache"))
-#     (the plugin-mcp.nix home module, desktop-commander's fence) — SBPL,
+#     (desktop-commander's fence in plugin-mcp.nix, RETIRED 2026-11-01) — SBPL,
 #     absolute paths only, no `~` and no globs.
 #
 # One string cannot be both, so one layer had to be derived from the other.
@@ -114,20 +114,6 @@
     ".env"
   ];
 
-  # The Seatbelt subset, per the priced table above. Deliberately NOT derived by
-  # filtering the two lists above — a filter would go empty on a reword, the same
-  # objection claude-guardrails.nix records. These are stated, and each omission
-  # has its reason in the table.
-  fence = {
-    # Whole directories the fence can deny for free.
-    denyDirs = [ ".docker" ];
-    # Private key MATERIAL inside ~/.ssh. The public half is re-allowed by the
-    # renderer (last-match-wins), since `id_[^/]*` matches `id_x.pub` too.
-    privateKeyDir = ".ssh";
-    # Basename patterns the fence can afford — `*.age` is absent ON PURPOSE.
-    denyGlobs = [
-      "*.pem"
-      ".env"
-    ];
-  };
+  # The Seatbelt subset (`fence`) went with desktop-commander's fenced launcher
+  # (retired 2026-11-01); the priced table above stays as the measurement record.
 }
