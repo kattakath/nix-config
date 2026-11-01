@@ -333,25 +333,18 @@ in
   # A FUNCTION, not a bare attrset, matching modules/home/default.nix's own
   # signature: home-manager passes module args here (none read today).
   home-manager.users.${loginName} = _: {
-    # The CREDENTIALED servers the gateway owned that no EXISTING plugin could
-    # carry — the "wordpress, … local postgres" part of the cost the purge
-    # accepted. Launchers land on PATH as `nix-mcp-<name>`; in
-    # github:kattakath/skills the `wordpress` plugin names its, and
-    # `postgres` goes to the EXISTING `rag` plugin, whose own SKILL.md already said it
-    # "runs entirely local via the postgres MCP server" — it owned this in documentation
-    # before it owned it in code.
+    # The CREDENTIALED servers the gateway owned that no EXISTING plugin could carry.
+    # Launchers land on PATH as `nix-mcp-<name>`; `postgres` goes to the EXISTING `rag`
+    # plugin, whose own SKILL.md already said it "runs entirely local via the postgres
+    # MCP server". It completed a real MCP `initialize` through its launcher before
+    # being declared, because a plugin for a dead endpoint is worse than no plugin.
     #
-    # Each was checked LIVE before being declared, because a plugin for a dead endpoint
-    # is worse than no plugin (see modules/home/plugin-mcp.nix for the probes):
-    # the WordPress site's REST API answers and only authentication gates it, and the
-    # pgvector store is listening on loopback. Each then completed a real MCP
-    # `initialize` through their launcher.
-    #
-    # `wordpress-adapter` is NOT here and must not be added: that is a DIFFERENT endpoint
-    # on the same site and its route is gone (404 `rest_no_route`) — the failure that
-    # darked all 25 gateway servers.
+    # `wordpress` is NOT declared since 2026-11-01: its plugin is not enabled, and an
+    # unused PROD-credentialed binary on PATH is cost without use. Re-enabling it is
+    # adding the name here (its Keychain handles and the server shape in
+    # modules/home/plugin-mcp.nix stay). `wordpress-adapter` must never be added: its
+    # route is gone (404 `rest_no_route`) — the failure that darked all 25 gateway servers.
     local.pluginMcp.servers = [
-      "wordpress"
       "postgres"
     ];
     # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
