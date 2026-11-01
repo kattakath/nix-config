@@ -161,6 +161,7 @@ let
               cfg.backend.project != null
             ) "export SECRETS_BACKEND_PROJECT=${lib.escapeShellArg cfg.backend.project}"}
             export SECRETS_BACKEND_PREFIX=${lib.escapeShellArg cfg.backend.prefix}
+            export SECRETS_BACKEND_MAX_VERSIONS=${toString cfg.backend.maxVersions}
             export SECRETS_REFS_FILE=${lib.escapeShellArg refsPath}
             # mode = "reference": the VALUE is neither cached nor exported; only the
             # resource name is, as $<ENV>_REF, for the consumer to secrets-resolve.
@@ -370,6 +371,17 @@ in
           Secret Manager ids allow only [A-Za-z0-9_-], so a `/`-style prefix cannot be
           spelled; `-` stands in for it. The full ref of SERVICE is
           projects/<project>/secrets/<sanitize(prefix + SERVICE)>.
+        '';
+      };
+      maxVersions = lib.mkOption {
+        type = lib.types.ints.unsigned;
+        default = 6;
+        description = ''
+          Hard cap on billable (enabled + disabled) secret versions in the project.
+          secrets-push refuses a push that would exceed it unless given --force. The
+          default is Secret Manager's free tier, which is 6 active versions per BILLING
+          ACCOUNT (not per project), so lower it if other projects on that account use
+          Secret Manager too.
         '';
       };
     };

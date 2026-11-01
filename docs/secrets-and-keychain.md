@@ -20,7 +20,8 @@ The first two are unchanged by ADR-004 and never will be touched by `secrets-*`:
 the Pi/firmware side's owner. Only the third gains a durable source of truth, and only on a
 host with `backend.type = "gcp"` — `macos` since 2026-10-17. Without it the login Keychain is the
 ONLY copy. Even with it, the durable copy holds only what `secrets-push` has pushed, so run
-`secrets-status` before wiping a Mac. Run every `secrets-*` command with
+`secrets-status` before wiping a Mac. `secrets-push` is CAPPED at the free tier (6 billable
+versions, `backend.maxVersions`), so push only what cannot be re-issued. Run every `secrets-*` command with
 `CLOUDSDK_CONFIG=~/.config/gcloud-nix-config`, where the canonical Google account is active (the
 `hosts/macos.nix` comment says why). The four commands (`secrets-status`, `secrets-rehydrate`,
 `secrets-push`, `secrets-resolve`), the `mode = "reference"` export and the annotation-based
