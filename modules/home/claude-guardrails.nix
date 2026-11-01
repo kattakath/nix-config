@@ -202,10 +202,8 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # prefix cannot be READ from a session, and the paragraphs above forbid
     # writing one that was merely inferred. Losing an allow fails safe — every
     # mcpfinder tool now prompts — which is why the gap is acceptable where a
-    # missing deny would not be. `nix-mcp-mcpfinder` is still on PATH
-    # (packages/mcpfinder-mcp.nix) for the plugin that claims it; re-add the
-    # explicit four under the MEASURED `mcp__plugin_<plugin>_mcpfinder__` prefix
-    # once that plugin is live, not before.
+    # missing deny would not be. mcpfinder itself left the fleet 2026-11-01 (its
+    # launcher and the mcp-utilities server that named it are both gone).
     "Bash(claude mcp add *)"
     "Bash(claude mcp add-json *)"
     "Bash(claude mcp add-from-claude-desktop *)"
