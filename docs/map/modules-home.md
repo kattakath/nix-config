@@ -708,6 +708,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   nothing. Exports `BEANCOUNT_PYTHON`, `BEANCOUNT_JOURNAL` (default: a path under the
   operator-made symlink `~/.local/share/ledger`, so no data path enters this repo) and
   `FAVA_PORT`. **No launchd agent** — Fava runs on demand through the plugin's fava skill.
+  `smartImporter` (default false) adds smart_importer + scikit-learn to the same interpreter
+  for the plugin's optional `suggest`.
   Upstream-first: neither home-manager nor nix-darwin models Beancount or Fava.
 
 - **`tor-browser-backup-exclusion.nix`** (macos only, since 2026-10-06) — keeps the Tor Browser
