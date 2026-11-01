@@ -38,7 +38,7 @@ re-add it.
 this repo (`hosts/macos.nix`, `modules/parts/identity.nix`). The cross-repo pin-bump step
 existed only to serve it and collapsed with it; the letter it held is now **D. Nix-config's
 own hygiene**, and there is no step G. **Host re-activation did NOT collapse** — it is step
-F below. The checklist runs A, B, C, D, E, E2, E3, F.
+F below. The checklist runs A, B, C, D, E, E2, E3, E4, F.
 
 `activate` did NOT go with it. The CLI that was retired was nix-personal's
 freshness-gated one; this repo grew its own the same day (`packages/activate.nix`,
@@ -212,6 +212,24 @@ section column, not the row count:
 daemon the operator deliberately booted out is exactly the wrong move, and
 `/etc/nix-darwin/launchd-hold/<label>` is the supported way to keep one down. That hold
 answers `NOT LOADED` only — an `ORPHANED` unit must never be bootstrapped at all.
+
+### E4. One owner per stdio MCP server (macos)
+
+Claude Code never dedups stdio servers, so a server two plugins both name spawns twice and
+the model picks either copy. The fleet removes known twins with NAME denies
+(`programs.claude-code.settings.deniedMcpServers`, `modules/home/default.nix`). A name deny
+fails SILENTLY if upstream renames the server key, and this step is the guard. Report only:
+
+```bash
+claude mcp list 2>/dev/null | grep -cE '^plugin:(aws-core|aws-serverless):'   # must print 0
+claude mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # must print 1 ([redacted])
+```
+
+The first line asks whether the two server-denied plugins start ANY server, not whether a
+name is gone: a renamed server key would slip past a name check but still shows up here.
+Non-zero means a deny no longer matches, so read `claude mcp list` and update the
+`serverName` entry. Same-named pairs elsewhere are deliberate and are NOT findings: the
+per-workspace Slack `post` servers, and hosted `slack`/`stripe` connectors per account.
 
 ### F. Host re-activation
 
