@@ -20,22 +20,6 @@
         "type": "github"
       }
     },
-    "agent-skills-cloudflare": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1792099167,
-        "narHash": "sha256-lfrCyTZwnkjW6xn8lpxSw/jyHTZI7YuZIEO+QDDrBIk=",
-        "owner": "cloudflare",
-        "repo": "skills",
-        "rev": "86505e44f87d801aa1864a3c4109e9a8ae5c409f",
-        "type": "github"
-      },
-      "original": {
-        "owner": "cloudflare",
-        "repo": "skills",
-        "type": "github"
-      }
-    },
     "agent-skills-excalidraw": {
       "flake": false,
       "locked": {
@@ -665,7 +649,6 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
-        "agent-skills-cloudflare": "agent-skills-cloudflare",
         "agent-skills-excalidraw": "agent-skills-excalidraw",
         "agent-skills-jeffallan": "agent-skills-jeffallan",
         "agent-skills-jsonresume": "agent-skills-jsonresume",
