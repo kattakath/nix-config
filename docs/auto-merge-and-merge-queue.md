@@ -96,7 +96,10 @@ them on an own-branch PR while `QUEUE_ENABLED` is on, and `gate` asserts each on
 exactly as the event expects. So the suite runs once, in the queue. Measured on
 kattakath/skills #174 (2026-11-02): its PR run SKIPPED `validate`; its `merge_group` run ran
 it in **84 s**. kattakath/skills #175 proved the other half: it failed in the queue and was
-ejected unmerged. The same system now runs fleet-wide — the shared `gate` action, the
+ejected unmerged. In this repo, #1036 (the first queued PR after the swap) measured: PR-side
+`gate` **4 s** with every heavy job skipped; enqueue → merged **2m53s**; `build (aarch64-linux)`
+**1m57s** in `merge_group` against 1m27s on #1034's PR run, which still pushed to Cachix. That
+is one run each on hosted runners, so the +30 s is not yet attributable to withholding the token. The same system now runs fleet-wide — the shared `gate` action, the
 reusable `auto-merge`/`arm-dependabot`/`status-labels` workflows, and the ruleset JSON with
 `scripts/apply-ruleset.sh`, all in [`kattakath/.github`](https://github.com/kattakath/.github)
 (14 consumer repos on 2026-11-02, counted from their workflow files). This repo keeps its LOCAL `auto-merge.yml`, which arms
