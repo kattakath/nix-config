@@ -196,7 +196,7 @@ Platform branching lives in `modules/` behind `lib.mkIf`, so host profiles stay 
 
 ## How CI works
 
-CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)): one native GitHub-hosted leg per target system (`ubuntu-24.04-arm`, `macos-latest`; no QEMU). Each leg builds the flake's `checks` and *evaluates* host toplevels **without building them**; the linux leg evaluates every host, `macos` included, and the darwin leg is advisory on the operator's own PRs. Branch protection requires `required-checks`, `Scan for secrets` and `Lint .claude config`. Details: [`docs/map/ci.md`](docs/map/ci.md).
+CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)): one native GitHub-hosted leg per target system (`ubuntu-24.04-arm`, `macos-latest`; no QEMU). Each leg builds the flake's `checks` and *evaluates* host toplevels **without building them**; the linux leg evaluates every host, `macos` included, and the darwin leg is advisory on every PR. Branch protection requires one aggregate check, `gate`, and PRs land through a merge queue. Details: [`docs/map/ci.md`](docs/map/ci.md).
 
 - [`build-devcontainer`](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch (arm64 + amd64) devcontainer image to GHCR as a manifest list.
 - [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixpi` SD image to a rolling pre-release.

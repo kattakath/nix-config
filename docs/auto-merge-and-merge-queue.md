@@ -2,8 +2,8 @@
 
 Every flake this operator owns merges itself once CI is green — **provided the PR
 is authored by `ismailkattakath`**. Nothing here bypasses a gate: the PR still has
-to satisfy the same required status checks it always did. What is removed is the
-manual "Merge" click.
+to pass the one required check, `gate`, and then the merge queue. What is removed is
+the manual "Merge" click.
 
 ```
   PR opened by ismailkattakath
@@ -12,14 +12,17 @@ manual "Merge" click.
   auto-merge.yml  --(CI bot App token)-->  gh pr merge --auto --squash
         |
         v
-  required checks green ON THE PR  (required-checks, Scan for secrets, Lint .claude config)
+  `gate` green ON THE PR  (seconds: the heavy jobs are skipped there)
+        |
+        v
+  merge queue  -->  heavy suite on the merge-group commit  (gate again)
         |
         v
       merged to main  -->  push:main workflows still fire (App token, not GITHUB_TOKEN)
 ```
 
-**There is no merge queue.** It was adopted 2026-08-22 and removed 2026-09-22; §3
-is the record of why, and what has to be true before re-adopting one.
+**The merge queue is BACK since 2026-11-02.** It was adopted 2026-08-22, removed
+2026-09-22, and re-adopted on the shared landing system; §3 is the record of all three.
 
 ## The two pieces
 
@@ -72,19 +75,43 @@ independent rotation, not reduced permissions. Details: `secrets/secrets.nix`.
 Note that **repository secrets do not survive a repo transfer** (variables and
 branch protection do). Anything moved into the org needs its secrets re-set.
 
-### 2. `protect-main` — the gate auto-merge waits on
+### 2. The `main` ruleset — the gate auto-merge waits on
 
-Ruleset `18461567`: `deletion`, `non_fast_forward`, `required_linear_history`,
-`pull_request` (squash-only, 0 approvals, thread resolution required) and
-`required_status_checks` — three contexts, `required-checks` (`nix-ci.yml`),
-`Scan for secrets` (`gitleaks.yml`) and `Lint .claude config` (`claude-config-lint.yml`). The
-last runs on every PR; how a direct push mirrors it locally: `.claude/rules/landing-changes.md` § 2.
+Ruleset `18461567` (named `protect-main` until 2026-11-02), applied from the shared
+[`kattakath/.github`](https://github.com/kattakath/.github) `rulesets/*.json` by its
+`scripts/apply-ruleset.sh` — read the live rules with `gh api repos/kattakath/nix-config/rulesets/18461567`.
+The one required context is **`gate`** (`nix-ci.yml`, from GitHub Actions only), plus
+squash-only `pull_request` rules and the `merge_queue` rule. What `gate` needs, and how a
+direct push mirrors it locally: `.claude/rules/landing-changes.md` § 2.
 
-`strict_required_status_checks_policy` (require branches up to date) is **off**.
-It was turned off when the queue landed and deliberately left off when the queue
-went; see §3 for the trade that represents.
+`strict_required_status_checks_policy` (require branches up to date) is **off**: the queue
+builds every entry against `main`'s tip, which subsumes it (§3).
 
-## 3. The merge queue: why it was added, and why it was removed
+## 3. The merge queue: added, removed, and back
+
+**Back 2026-11-02 — and the cost argument below is REFUTED.** The removal rested on "a merge
+queue cannot reduce a pipeline to one CI run". That holds only while the PR run and the queue
+run are the SAME gate. With the shared aggregator, the heavy jobs carry an `if:` that skips
+them on an own-branch PR while `QUEUE_ENABLED` is on, and `gate` asserts each one ended
+exactly as the event expects. So the suite runs once, in the queue. Measured on
+kattakath/skills #174 (2026-11-02): its PR run SKIPPED `validate`; its `merge_group` run ran
+it in **84 s**. kattakath/skills #175 proved the other half: it failed in the queue and was
+ejected unmerged. The same system now runs fleet-wide — the shared `gate` action, the
+reusable `auto-merge`/`arm-dependabot`/`status-labels` workflows, and the ruleset JSON with
+`scripts/apply-ruleset.sh`, all in [`kattakath/.github`](https://github.com/kattakath/.github)
+(14 consumer repos on 2026-11-02, counted from their workflow files). This repo keeps its LOCAL `auto-merge.yml`, which arms
+only the operator's PRs.
+
+- **Darwin is out of the queue.** `gate` does not need the darwin leg; it runs advisory on PRs
+  only, with no post-merge belt (operator decision).
+- **No `push: main` CI.** The merge-group commit is the commit `main` gets, so it is validated
+  before the merge rather than after.
+- **No environment-scoped Cachix token, on purpose.** A fork PR that edits workflow YAML which
+  then runs with secrets in `merge_group` is the same exposure as merging that PR, since the
+  merged YAML would run with secrets on push anyway — the maintainer's review before enqueue is
+  the gate. (The linux leg still withholds the token in `merge_group`: `nix-ci.yml` header.)
+
+The 2026-08-22 → 2026-09-22 record follows, unchanged except where marked.
 
 **Added 2026-08-22.** `strict_required_status_checks_policy` was on, and plain
 auto-merge does not update a stale head branch — so with two PRs open the second
@@ -97,7 +124,8 @@ exactly the stall the queue removes.
 
 **Removed 2026-09-22**, for the cost, and because that justification had expired.
 
-*The cost.* A merge queue cannot reduce a pipeline to one CI run; doubling it is
+*The cost* (**refuted 2026-11-02**, above: true only while PR and queue run the same gate).
+A merge queue cannot reduce a pipeline to one CI run; doubling it is
 what a queue structurally **is**. GitHub: *"Once a pull request has passed all
 required branch protection checks, a user with write access to the repository can
 add the pull request to the queue."* The PR is gated first; the queue then re-runs
@@ -191,10 +219,10 @@ grounds: CI is now a single ~10 min gate per PR, so there is no reason to batch 
 session's work onto one long-lived PR. The default holds — **one PR per change,
 branched off `main`** ([`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md)).
 
-### Before re-adopting a queue
+### Re-adoption checklist (used 2026-11-02)
 
-Three facts cost real debugging time. They are recorded here, not deleted, because
-re-adoption would walk into all three again.
+Three facts cost real debugging time, and re-adoption walked through all three. They stay
+recorded for the next repo.
 
 **(a) Merge queue is organization-only.** `POST /repos/{owner}/{repo}/rulesets`
 rejects the rule outright on a repository owned by a USER account — `422 Validation
@@ -211,8 +239,8 @@ which this no longer is. Only (b) and (c) remain as real work.
 A queue entry is built on its own `gh-readonly-queue/main/...` ref, which emits
 neither `pull_request` nor `push`. A required check whose workflow lacks the
 trigger never reports on the entry, and the merge times out
-(`check_response_timeout_minutes`). In this repo that meant `nix-ci.yml` and
-`gitleaks.yml` — both triggers were removed with the rule.
+(`check_response_timeout_minutes`). Today the only required context is `gate`, so only
+`nix-ci.yml` needs it; gitleaks and cclint run inside it as called workflows.
 
 **(c) The queue app must satisfy every ruleset rule ON ITS OWN.** The queue does
 not merge as *you*: it hands the merge to the **GitHub Merge Queue** app, which
@@ -249,23 +277,15 @@ gh api repos/kattakath/<repo>/rulesets/<id> --jq '{bypass: .bypass_actors, pr: (
 
 ## Cost today
 
-**One blocking CI run per PR.** Measured on the PR that removed the queue (#560,
-2026-09-22): **9m43s open -> merged**, against 18m56s for PR #558 the same morning
-under the queue.
-
-`build-installers.yml` remains deliberately **not** a required check — its
-non-cancellable runs have no business gating a merge.
-
-The post-merge `push: main` run is **kept**: with no queue entry to validate the
-projected merge, it is the only thing that evaluates what actually landed, and it
-warms Cachix under `main`'s own rev (the tree-dependent checks take `self`, so
-their store paths differ per rev) for the operator's local `nix flake check`.
+**One heavy CI run per PR, in the queue.** The PR itself runs `gate` (seconds) and the
+advisory darwin leg; the measured numbers are in §3. `build-installers.yml` remains
+deliberately **not** gated — its non-cancellable runs have no business gating a merge.
 
 ## The fleet
 
 | Repo | Required context(s) | Merge mechanism |
 | --- | --- | --- |
-| `kattakath/nix-config` | `required-checks`, `Scan for secrets`, `Lint .claude config` | auto-merge, no queue |
+| `kattakath/nix-config` | `gate` | auto-merge + merge queue (shared `kattakath/.github` system, §3) |
 
 This table had a second row until 2026-09-12: `ircc-whatsapp-bot`. It was never a
 `nix-config` input — it was here because membership is "has its own CI and its own
@@ -289,7 +309,7 @@ archived, which retires one ruleset, one merge queue and one `ci.yml` apiece:
 | wave 6 | `kattakath/nix-local-rag` | `modules/features/local-rag/` |
 
 **The satellite count is 0**, and their ~25 absorbed checks now ride `nix-config`'s single
-`required-checks` aggregate. Six of the seven **absorbed** capsules survive; the `vast-provision`
+`gate` aggregate. Six of the seven **absorbed** capsules survive; the `vast-provision`
 row stays because this table records a **retired ruleset**, and that stays retired whether or
 not the capsule outlived the absorption (ADR-002 §9; `modules/features/` holds seven capsules
 today, six absorbed satellites plus the in-tree-born `cloud-cli`). The archiving itself is an
@@ -418,12 +438,11 @@ not evidence of this defect returning.
 | Merged, yet no `auto_squash_enabled` event and `autoMergeRequest: null` | Usually **not a fault**: the PR was green when the arm step ran, so gh merged it directly (§1). It **IS** the #683 fault if an EARLIER `ready_for_review` on the same PR got a skipped arm job (#673, #675) | Confirm `merged_by` is `ismailkattakath-ci[bot]` and the merge falls inside the arm job's run. Then list every `ready_for_review` on the PR and read each arm run's **job** conclusion; a skip on a non-draft transition goes to #683 |
 | Merged, but nothing published to FlakeHub | Something armed the PR with `GITHUB_TOKEN` | Restore the App token in `auto-merge.yml` |
 | Someone else's PR auto-merged | The author guard was widened | The guard matches an immutable numeric user id, never a login; keep it that way |
-| PR merges against a `main` that moved under it | Expected — `strict_required_status_checks_policy` is off by choice (§3) | The `push: main` leg catches it; fix forward |
+| PR leaves the queue unmerged | The `merge_group` run failed — the merged result is red (kattakath/skills #175) | Read that run's `gate` log; fix and push, and `synchronize` re-arms it |
 
 ## Turning it off
 
 Delete `.github/workflows/auto-merge.yml` — PRs stop arming, everything else
-unchanged. To go the other way and re-add a queue, read §3 "Before re-adopting a
-queue" first: add the `merge_queue` rule to the ruleset, add `merge_group:` to every
-workflow producing a context in the ruleset's `required_status_checks` (§ (b)), and accept
-the second CI run.
+unchanged. To drop the queue too, set `QUEUE_ENABLED` to `false` **first** (the heavy jobs
+then run on the PR again), then remove the `merge_queue` rule; the shared `kattakath/.github`
+README has the order.

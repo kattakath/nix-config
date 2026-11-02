@@ -7,18 +7,21 @@ depends on an unmerged one never waits for it to merge: `pr-title.md` § One PR 
 
 ## 1. Never poll CI inside a turn
 
-**The armed auto-merge IS the wait.** After `gh pr create`, `auto-merge.yml` arms the PR and
-GitHub lands it the moment the required checks go green. Nothing in your turn speeds that up.
+**The armed auto-merge IS the wait.** After `gh pr create`, `auto-merge.yml` arms the PR. The
+required `gate` goes green on the PR in seconds, the PR enters the MERGE QUEUE, and the queue
+runs the heavy suite on the merge-group commit and merges it (or ejects it). Nothing in your
+turn speeds that up.
 
 - **Never** in the foreground: a `sleep` loop, `gh pr checks --watch`, `gh run watch`, or
   re-running `gh pr view` / `gh run list` to see whether it moved.
 - **Need the outcome** (an `activate` or a Pi deploy after merge, or a follow-up that must
   know)? Start ONE watch in the BACKGROUND (`run_in_background: true`, or Monitor), then go
-  on with other work or end the turn. For example:
-  `gh pr checks <n> --required --watch --fail-fast --interval 60`, then
-  `gh pr view <n> --json state,mergedAt`.
-- **Report on only two outcomes:** **RED** (name the failing check and its run URL) or
-  **MERGED, needs `activate`** (or a deploy). A merge that needs nothing earns one line in
+  on with other work or end the turn. The PR's own checks finish before the queue run, so
+  watch the PR's STATE, not its checks: loop on `gh pr view <n> --json state,mergedAt` until
+  it is `MERGED`, or the queue removes it (the timeline shows the removal; the `merge_group`
+  run shows why).
+- **Report on only two outcomes:** **RED** or **EJECTED** (name the failing check and its run
+  URL — for an ejection, the `merge_group` run) or **MERGED, needs `activate`** (or a deploy). A merge that needs nothing earns one line in
   the final answer, not a status report.
 - **`autoMergeRequest` races its own workflow.** Read `gh pr view <n> --json autoMergeRequest`
   only AFTER the arm run concludes. Read seconds after `gh pr create` (#747, 2026-10-02) it is
@@ -33,8 +36,9 @@ with no installed global context (devcontainer, Codespaces) never loads that fil
 ## 2. Docs / `.claude`-only changes may go straight to `main`
 
 The permission comes from the global CLAUDE.md § "On repos Ismail owns". The mechanism is
-the `protect-main` ruleset: the Repository Admin role has `bypass_mode: always` (read with
-`gh api repos/kattakath/nix-config/rulesets/<id>`, 2026-10-18). This section owns only
+the `main` ruleset (id 18461567, `protect-main` until 2026-11-02): the Repository Admin role
+has `bypass_mode: always` (read with `gh api repos/kattakath/nix-config/rulesets/18461567`,
+2026-11-02). This section owns only
 **which paths qualify** and **the gate**.
 
 **Qualifies only if EVERY changed path is in the allowlist.** That includes both sides of a
@@ -59,18 +63,21 @@ below fails that test:
 | `.github/**` | a workflow is proven only by the run it changes |
 | `flake.lock`, `*.nix`, `packages/`, `scripts/`, `ast-grep/`, `secrets/` | these are the build itself |
 
-**The gate is the ruleset's three required checks, run locally on the rebased HEAD:**
+**The gate is what `nix-ci.yml`'s required `gate` needs, run locally on the rebased HEAD:**
 
-| Required check | Local equivalent |
+| Job `gate` needs | Local equivalent |
 |---|---|
-| `required-checks` | `nix flake check`. It covers `pre-commit` (gitleaks over the tree, plus treefmt), `claude-md-budget`, `line-refs-cite-constructs`, `docs-indexed` and `docs-links-resolve` |
-| `Scan for secrets` | `nix develop -c gitleaks git --log-opts="origin/main..HEAD" --redact --no-banner` scans every unpushed COMMIT. The push publishes each one, so a secret that one commit added and a later one removed still leaks |
-| `Lint .claude config` (when `.claude/` or any `CLAUDE.md` changed — cclint's `context` lints CLAUDE.md, and CI runs it on every PR) | both `run:` steps of `.github/workflows/claude-config-lint.yml`, VERBATIM from that file: three `cclint` lines plus every `.claude/hooks/tests/*.sh` |
+| `legs` + `build (aarch64-linux)` | `nix flake check`. It covers `pre-commit` (gitleaks over the tree, plus treefmt), `claude-md-budget`, `line-refs-cite-constructs`, `docs-indexed` and `docs-links-resolve` |
+| `gitleaks / Scan for secrets` | `nix develop -c gitleaks git --log-opts="origin/main..HEAD" --redact --no-banner` scans every unpushed COMMIT. The push publishes each one, so a secret that one commit added and a later one removed still leaks |
+| `cclint / Lint .claude config` (when `.claude/` or any `CLAUDE.md` changed — cclint's `context` lints CLAUDE.md) | both `run:` steps of `.github/workflows/claude-config-lint.yml`, VERBATIM from that file: three `cclint` lines plus every `.claude/hooks/tests/*.sh` |
 
 Then push: `git push origin HEAD:main`. It must be a fast-forward — no force of any kind in
 this lane, `--force-with-lease` included. (`claude-guardrails.nix` denies only bare
-`--force`/`-f`; the lease form stays allowed for an agent's own PR branch, never for `main`.) The post-push CI on `main` is the backstop, and a RED
-there gets fixed forward in a PR. Watch it in the background, per §1.
+`--force`/`-f`; the lease form stays allowed for an agent's own PR branch, never for `main`.) **`nix-ci`,
+gitleaks and cclint no longer run on `push: main`** (since 2026-11-02; the publish workflows
+— `warm-nixpi-cache`, `flakehub-publish`, `build-*` — still do), so the local gate above is
+the ONLY check this lane gets. The weekly scheduled gitleaks run still scans the whole
+history, and the next queued PR rebuilds every check over the new `main`.
 
 **Not a commit hook.** gitleaks runs inside `nix flake check`. The devShell installs no git
 hooks on purpose (`modules/parts/devshell.nix`, shellHook comment), so skipping the gate

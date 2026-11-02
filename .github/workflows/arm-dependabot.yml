@@ -67,7 +67,7 @@ jobs:
           private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
 
       # Idempotent: re-arming an already-armed PR is a no-op, which is what makes a
-      # 6-hourly sweep safe. Squash is the only method `protect-main` allows.
+      # 6-hourly sweep safe. Squash is the only method the `main` ruleset allows.
       #
       # The author filter is on `.author.login` from the API rather than a trigger
       # condition, because this run is not triggered BY the PR. The value is MEASURED,

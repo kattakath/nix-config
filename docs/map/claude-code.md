@@ -184,8 +184,8 @@ and, above it on `macos`, root-owned managed scope in
   RETIRED 2026-09-15 with that layer.
 - **`.claude/hooks/tests/*.sh`** — the case suites for every gate and the SessionStart
   digests (the directory is the list), **gated by
-  `claude-config-lint.yml`** as the REQUIRED `Lint .claude config` status check — it BLOCKS a
-  merge, it does not merely run. Each asserts BOTH
+  `claude-config-lint.yml`**, a job the required `gate` needs (`cclint / Lint .claude
+  config`) — it BLOCKS a merge, it does not merely run. Each asserts BOTH
   halves — the shapes that must block and the shapes that must stay approved — and that the
   hook does not throw. That last assertion is the load-bearing one: `superhook` and the
   script's own `catch` both fail OPEN, so a crash silently disarms every rule at once. Measured
