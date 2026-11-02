@@ -135,6 +135,12 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   **launchd + `claude -p` only when the Desktop app must not be required**. Community `claude -p` dashboards are rejected as a second pane. §4
   records the costs — skipped runs when asleep (one catch-up within 7 days), and schedules that
   are **not declarative**.)
+  [`ADR-011`](../observability-hub-adr.md) (**DECIDED 2026-11-02 — not yet implemented**: Grafana
+  Cloud stack `kattakath` as the fleet's observability hub. OTLP push in. Alloy on nixpi, with its WAL
+  in `/run`; the existing `otelcol-contrib` on the Mac. Claude Code metrics only. Finance ships ratios
+  computed at source. The persona domain gets a **separate stack**. Long history is a daily GitHub
+  Actions + WIF rollup into a Drive Sheet, not Grafana retention. § 3 is the decision table with the
+  alternative that lost, and § 6 is the one-PR-per-step build order.)
 - [`docs/workspace-runbook.md`](../workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](../identity-and-offboarding.md) — the single lever:
