@@ -734,11 +734,6 @@ in
         "aws-core"
         "aws-serverless"
         "databases-on-aws"
-        # GitLab's OFFICIAL plugin (in-repo, source "./external_plugins/gitlab"): only an
-        # `.mcp.json` naming the hosted gitlab.com/api/v4/mcp server (type=http, one-time
-        # in-client OAuth via `/mcp`, same shape as stripe/resend). GitHub needs no twin:
-        # the `gh` CLI covers it (github-gh was retired 2026-11-01).
-        "gitlab"
         # The ONE Slack plugin since 2026-11-01 (hosted mcp.slack.com, one sign-in; the
         # workspace is switched by re-login, never named here).
         "slack"
@@ -1154,7 +1149,7 @@ in
     # `nix-mcp-apify` launcher: one source of truth instead of a local unpinned
     # `npx @apify/actors-mcp-server` copy of the same server. Ships the hosted
     # mcp.apify.com (type=http, one-time in-client OAuth via `/mcp`, same shape as
-    # stripe/resend/gitlab; its AS advertises the refresh_token grant), 5 skills
+    # stripe/resend; its AS advertises the refresh_token grant), 5 skills
     # and an `apify` agent.
     #
     # Trade accepted on purpose: OAuth, not the Keychain token, so a HEADLESS run
@@ -1256,9 +1251,6 @@ in
     # one really ships). Declared, not clicked, for the reason the block above records:
     # a clicked toggle does not survive a fresh machine. Client-account sign-ins are the
     # official claude.ai connectors (account-level), never named in this file.
-    # GitLab over MCP, gitlab.com's hosted server with its own OAuth (operator request
-    # 2026-10-21). No glab token is reused — the first `/mcp` connect asks for approval.
-    "gitlab@claude-plugins-official" = true;
     "aws-core@claude-plugins-official" = true;
     "aws-serverless@claude-plugins-official" = true;
     # OFF, 2026-10-16, the same day it went on. Its `.mcp.json` ships `aurora-dsql` and
