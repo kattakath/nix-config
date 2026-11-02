@@ -118,26 +118,23 @@ let
     __noChroot = false;
   });
 
-  # ---- grok-build: repoint its hardcoded `read-only` sandbox at a profile that can start ----
+  # ---- grok-build: repoint its hardcoded `read-only` sandbox at `read-only` + a credential deny ----
   # xAI's bridge hardcodes `--sandbox read-only` for every non-write run (delegate/review/
-  # critique). grok >=1.0.13's `read-only` AND `strict` profiles kernel-deny the container
-  # runtime sockets and REFUSE TO START when a deny path has a symlink component — and Docker
-  # Desktop (removed 2026-09-16, see modules/home/containers.nix) installed /run/docker.sock as a symlink into $HOME/.docker/run/. Net effect: every
-  # read-only grok-build run died in ~50ms with "runtime-socket deny resolution failed: could
-  # not resolve runtime-socket deny path /run/docker.sock: endpoint is a symlink".
-  # Only the `workspace`/`devbox` bases skip that deny, and a custom profile may NOT reuse a
-  # built-in name, so the bridge must be pointed at a profile of ours.
+  # critique). The built-in `read-only` blocks writes to the CWD but does NOT cover
+  # credentials: under it `~/.ssh`, `~/.aws`, `~/.config/gh` and `~/.docker` all list fine
+  # (measured 2026-11-02, grok 1.0.45 and 1.0.50). So the bridge runs our profile instead: `read-only`
+  # plus the kernel-enforced `deny` list below. A custom profile may not reuse a built-in name,
+  # hence the repoint. Same probes on this profile: CWD `touch` → "Operation not permitted",
+  # all four dirs DENIED, a plain read works. Retire this patch only if the built-in profile
+  # ever denies those paths itself; the deny list is the whole reason it exists.
   #
-  # TRADE-OFF, stated plainly: `workspace` leaves the CWD writable, so the kernel no longer
-  # backstops "the agent cannot edit the repo" — only the bridge's own `--permission-mode plan`
-  # does. `read_only` cannot claw that back: it does NOT override the base's CWD write grant
-  # (verified with a canary `touch`, which succeeded). So the profile leans on a
-  # kernel-enforced `deny` list for the paths that actually matter. Retire this patch once xAI
-  # resolves symlinked runtime-socket deny paths instead of refusing to start.
+  # History: the profile used to extend `workspace` (CWD writable), because `read-only` refused
+  # to start on a symlinked deny path — Docker Desktop's /run/docker.sock. Docker Desktop left
+  # on 2026-09-16 (modules/home/containers.nix), the socket is gone, and `read-only` starts.
   #
   # NAME: a GROK sandbox profile (`[profiles.<name>]` in ~/.grok/sandbox.toml), not a macOS
   # Seatbelt profile. Its deny list renders from modules/_lib/secret-read-paths.nix.
-  grokSandboxProfile = "nix-agent-workspace";
+  grokSandboxProfile = "nix-agent-read-only";
 
   # The sandbox profile's CONTENT, as a store file. It is copied to
   # ~/.grok/sandbox.toml at activation rather than symlinked, because grok
@@ -146,7 +143,7 @@ let
   grokSandboxToml = pkgs.writeText "grok-sandbox.toml" ''
     # Managed by nix-config (modules/home/default.nix) — do not hand-edit.
     [profiles.${grokSandboxProfile}]
-    extends = "workspace"
+    extends = "read-only"
     deny = [
     ${
       # Whole dirs: grok's sandbox has no file-level granularity (secret-read-paths.nix).
