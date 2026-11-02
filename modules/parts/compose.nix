@@ -71,7 +71,7 @@ let
 
   # The Home-Manager sub-module embedded in every host, built from an identity
   # attrset (`idArgs` = { loginName; fullName; userEmail; domainName; }) so a host
-  # COULD carry a per-host persona rather than the single global identity, though
+  # COULD carry a per-host identity rather than the single global identity, though
   # nothing in the fleet does today. Called with `identityArgs` by default; hosts
   # that override
   # (mkDarwin's `identity` arg) pass their own. The home-manager profile keys on
@@ -280,7 +280,7 @@ let
   # hardcoded in modules/darwin/core.nix) even though this fleet has a single
   # darwin host today.
   # `identity` defaults to the global identityArgs; a host COULD pass its own to
-  # run under a per-host persona (different loginName/fullName/userEmail/
+  # run under a per-host identity (different loginName/fullName/userEmail/
   # domainName), though nothing in the fleet does today. It flows to the system
   # modules via
   # specialArgs AND to home-manager via mkHomeManagerModule, so the two agree.
