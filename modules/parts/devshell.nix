@@ -85,7 +85,7 @@ in
         pre-commit.settings.hooks.treefmt.enable = true;
 
         # gitleaks over the WORKING TREE, so `nix flake check` (and the
-        # `required-checks` CI gate it feeds) scans for secrets before a push —
+        # CI `gate` it feeds) scans for secrets before a push —
         # the precondition for the direct-push lane in
         # .claude/rules/landing-changes.md, whose risk was "no local scan, so a
         # secret is public before CI's".
@@ -96,8 +96,8 @@ in
         # `args = mkForce [ ]` because upstream's default args (`git --pre-commit
         # --staged …`) are APPENDED to an overridden entry: that broke the gate with
         # "unknown flag: --pre-commit" on the 2026-10-19 lock bump (#891).
-        # gitleaks rather than either scanner: the required `Scan for secrets`
-        # check (.github/workflows/gitleaks.yml) IS gitleaks, from the same
+        # gitleaks rather than either scanner: CI's `Scan for secrets` job
+        # (.github/workflows/gitleaks.yml, which `gate` needs) IS gitleaks, from the same
         # nixpkgs pin, so local and CI give ONE verdict; a different scanner would
         # allow local-green/CI-red. trufflehog loses twice more: its hook scans
         # git history `--since-commit HEAD`, not the working tree, and

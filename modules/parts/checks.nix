@@ -2378,7 +2378,7 @@ in
                   echo "actionlint: fix the findings above, or add an inline" >&2
                   echo "\`# shellcheck disable=SCxxxx\` WITH A ONE-LINE REASON next to the" >&2
                   echo "line it covers. Do not add a blanket ignore — these files hold the" >&2
-                  echo "required-checks gate, and two silent-green bugs have already shipped" >&2
+                  echo "required \`gate\`, and two silent-green bugs have already shipped" >&2
                   echo "in them." >&2
                   exit 1
                 fi
@@ -2396,10 +2396,9 @@ in
           #
           # STILL NAMED `claude-md-budget`, though it now gates thirteen files.
           # Checked before keeping it (2026-10-02): no workflow names it. The
-          # required status checks are `required-checks` (nix-ci.yml's aggregate,
-          # which enumerates `.#checks.<system>` from the FLAKE rather than
-          # listing attrs), `Scan for secrets` and `Lint .claude config`, so a
-          # rename would not break branch protection — but
+          # one required status check is nix-ci.yml's `gate`, whose linux leg
+          # enumerates `.#checks.<system>` from the FLAKE rather than listing
+          # attrs, so a rename would not break branch protection — but
           # docs/monoflake-capsule-adr.md records this decision under this exact
           # name, so renaming costs an ADR edit and buys nothing.
           #
