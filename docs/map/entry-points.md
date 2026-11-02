@@ -49,7 +49,7 @@ The devcontainer image is the sole exception: it also builds `x86_64-linux` (via
 is defined once in `modules/parts/identity.nix` (`identityArgs`) and threaded through
 `specialArgs`/`extraSpecialArgs`. `mkDarwin` takes an optional per-host `identity` override
 (and `mkHomeManagerModule` is a function of it) so a host *could* run under a different
-persona, but nothing in the fleet uses it today — `macos` and `nixpi` both inherit
+identity, but nothing in the fleet uses it today — `macos` and `nixpi` both inherit
 the same global identity; per-host divergence (leanness, package sets) is
 achieved via an option flag gating `lib.mkIf` ([CLAUDE.md](../../CLAUDE.md) § Configuration),
 never via a separate identity.

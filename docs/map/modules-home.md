@@ -182,7 +182,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     it is what makes Passwords.app autofill here, and it is safe because the manifest gates on
     **extension ID** (`allowed_origins`), not on browser brand.
   - **No declared userscripts.** Violentmonkey is sideloaded empty; scripts are published to
-    Greasy/Sleazy Fork and installed from there ([`packages.md`](packages.md) § Userscripts).
+    Greasy Fork and installed from there ([`packages.md`](packages.md) § Userscripts).
     The `userScripts.scripts` seam that once materialised `.user.js` files was deleted
     2026-10-30. **Never put a secret in a userscript.**
   - **Recommended policies** (no option; always written) — one of two *policy* surfaces, and

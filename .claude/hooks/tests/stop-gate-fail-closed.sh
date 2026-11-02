@@ -20,7 +20,7 @@
 # repository" and so correctly still approve; a bad config line does not.
 # git 2.56 (2026-10-30) words the malformed-.git-file case "gitfile does not point to a valid repository".
 # The real dubious-ownership case was verified by hand against the cross-owned
-# clone at /Users/izzy/…/nix-config the same day.
+# clone at /Users/alice/…/nix-config the same day.
 set -uo pipefail
 H=.claude/hooks/stop-gate.js
 pass=0; fail=0

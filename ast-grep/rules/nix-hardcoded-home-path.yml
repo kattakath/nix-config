@@ -57,10 +57,10 @@ severity: error
 # TERMINATOR, not a literal trailing slash (fixed 2026-09-16). The old pattern
 # required a `/` AFTER the user segment, so a path that ENDS at the home
 # directory slipped through both this rule and the companion hook — and the one
-# that slipped through was `home = "/Users/izzy";` in hosts/macos.nix, a value,
-# in this repo, added the day the second account arrived. `($|[^a-z0-9._-])`
+# that slipped through was `home = "/Users/alice";` in hosts/macos.nix, a value,
+# in this repo, added the day a second local account arrived. `($|[^a-z0-9._-])`
 # accepts end-of-fragment or any character that cannot continue a username, so
-# `/Users/izzy`, `/Users/izzy/x` and `/Users/izzy ` all match while
+# `/Users/alice`, `/Users/alice/x` and `/Users/alice ` all match while
 # `/Users/Shared` (uppercase) and `/Users/$USER` (not [a-z]) still do not.
 #
 # LEADING GUARD, added 2026-10-02 with the `modules/shared` → `modules/home`
