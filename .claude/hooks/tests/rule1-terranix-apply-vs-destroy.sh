@@ -95,6 +95,7 @@ ckn "DELETES mail records"          "$NR .#cf-zones-apply"
 ckn "auth_domain"                   "$NR .#cf-access-org-apply"
 ckn "NO state bucket"               "$NR .#gcp-foundation-apply"
 ckn "spend alarm"                   "$NR .#gcp-budget-apply"
+ckn "dead-man alarm"                "$NR .#hc-checks-apply"
 
 echo "== the nudge survives the same evasions the decision does =="
 ckn "DELETES mail records" "$NR \".#cf-zones-apply\""
@@ -111,6 +112,7 @@ ckq "$NR .#cf-zones-plan"
 ckq "$NR .#cf-access-org-plan"
 ckq "$NR .#gcp-foundation-plan"
 ckq "$NR .#gcp-budget-plan"
+ckq "$NR .#hc-checks-plan"
 # The imports write STATE, never infrastructure — and blocking or nagging them
 # would have obstructed the mandatory cf-tunnel-import of 2026-10-02.
 ckq "$NR .#cf-tunnel-import"

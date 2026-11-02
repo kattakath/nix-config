@@ -177,7 +177,7 @@ hosts/          Per-host entry profiles: macos.nix, nixpi.nix, nixvm.nix, nixos.
 modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each, each owning its own module + packages + checks), and the reusable modules split by platform (darwin/ nixos/ home/), plus _lib/ (shared data)
 packages/       Nix-built artifacts with no capsule owner (devcontainer image, SD-card provisioning apps, single-purpose CLIs). A capsule's own packages live under modules/features/<name>/packages/
 templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake
-infra/          terranix (Nix → Terraform JSON): five stacks for the Cloudflare edge + the GCP foundation, applied only through the flake's own cf-*/gcp-* apps
+infra/          terranix (Nix → Terraform JSON): six stacks (Cloudflare edge, GCP foundation, healthchecks.io), applied only through the flake's own cf-*/gcp-*/hc-* apps
 sites/          Static site trees Caddy serves on nixpi via config.fleet.hostedSites
 secrets/        agenix recipients + four ciphertexts (see § Secrets below) — no plaintext
 ast-grep/       Six structural-lint rules + a matching test fixture each, gated by `checks.<system>.ast-grep`. Its config must sit at the repo root as sgconfig.yml: ast-grep finds it by walking UP from the working directory

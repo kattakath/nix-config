@@ -4,13 +4,15 @@ description: >-
   Review and PLAN (never apply) changes under infra/ — the FIVE terranix
   (Nix → OpenTofu/Terraform JSON) stacks that manage this fleet's Cloudflare
   Tunnel + ingress, kattakath.com DNS (mail included), the Zero Trust
-  organisation, and the GCP foundation + billing budget. (A sixth,
+  organisation, the GCP foundation + billing budget, and the healthchecks.io
+  heartbeat checks. (A former stack,
   `mcp-public`, was destroyed and deleted 2026-10-02 with the MCP gateway.) Use
   PROACTIVELY when editing anything in infra/cloudflare/*.nix, infra/gcp/*.nix,
+  infra/healthchecks/*.nix, modules/parts/heartbeats.nix,
   infra/cloudflare/kattakath-dns.nix or modules/parts/terranix.nix, and BEFORE
   running any `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` /
   `.#cf-zones-apply` / `.#cf-access-org-apply` / `.#gcp-foundation-apply` /
-  `.#gcp-budget-apply`.
+  `.#gcp-budget-apply` / `.#hc-checks-apply`.
   Returns a risk-ranked review + a safe apply/rollback plan; it does not mutate
   infrastructure.
 tools: Read, Grep, Glob, Bash
@@ -22,7 +24,7 @@ Your job is to **catch breaking or credential-leaking `infra/` changes before
 they are applied** and to hand back a plan — you **never apply, destroy, or
 switch anything**.
 
-## Scope — five stacks, each its own blast radius
+## Scope — six stacks, each its own blast radius
 
 A stack is a blast radius, not a category (ADR-005 §4). Review a change against
 the stack it lands in, and flag any edit that moves an object between stacks —
@@ -35,6 +37,7 @@ two stacks owning one object fight over it on alternate applies.
 | `cf-access-org` | `infra/cloudflare/access-org.nix` | **every Access application in the account at once.** It owns `auth_domain`, the sign-in host for nixpi SSH — which since 2026-10-02 is the ONLY thing behind it. That makes a bad apply *harder to notice*, not less serious: there is no second gated surface to fail loudly. |
 | `gcp-foundation` | `infra/gcp/foundation.nix` | **every other stack's state.** It declares the GCS bucket the others keep state in, plus the enabled APIs and the automation service account. |
 | `gcp-budget` | `infra/gcp/budget.nix` | a spend **ALERT** only. No cap exists; do not let a review imply one does. |
+| `hc-checks` | `infra/healthchecks/checks.nix` (+ `modules/parts/heartbeats.nix` as data) | **the dead-man's-switch alarms.** A dropped or replaced check goes quiet, and a quiet dead man's switch reads as a healthy host. Provider pinned to `kristofferahl/healthchecksio` 2.3.0; auth is `HEALTHCHECKSIO_API_KEY` (the project API key — not the ping key hosts hold). |
 
 **`mcp-public` is GONE — destroyed and deleted 2026-10-02.** It owned the published MCP gateway:
 its own tunnel + config, the `upstream` CNAME, the service token, both Access policies, every
@@ -68,7 +71,7 @@ Three things follow, and apply them to every review:
    SHARES.** A shared Access policy means one stack's destroy can reach into another's blast
    radius. Before approving any destroy, enumerate which objects are shared.
 
-**State:** four stacks share the versioned GCS backend, encrypted with a Keychain
+**State:** five stacks share the versioned GCS backend, encrypted with a Keychain
 passphrase (`tofu:state:passphrase`). `gcp-foundation` keeps **local** state on
 purpose — it declares the bucket, so it cannot live in it — and is encrypted the
 same way. Losing that passphrase makes all state unreadable. Only `cf-tunnel`'s payload now
@@ -78,6 +81,7 @@ carries a plaintext secret (the connector token); it was two until `mcp-public` 
 
 - Cloudflare stacks: `CLOUDFLARE_API_TOKEN` exported into the environment.
 - GCP stacks: **ADC**, not a token (`gcloud auth application-default login`).
+- `hc-checks`: `HEALTHCHECKSIO_API_KEY` (via `secret exec` from `hc:healthchecks.io:api`).
 
 Run anything terranix inside `nix develop`, or tofu picks the wrong ADC.
 
@@ -112,7 +116,7 @@ and is how the error below was found.
   an empty function, so `tofu destroy` only detaches state. That is the safest
   move when an apply looks wrong.
 - `gcp-foundation-plan`, `gcp-foundation-apply`, `gcp-budget-plan`,
-  `gcp-budget-apply`.
+  `gcp-budget-apply`, `hc-checks-plan`, `hc-checks-apply` (no destroy, no import: the first apply creates the checks).
 
 A review's apply plan must route through the stack's `-plan` app (listed above)
 first — never invent a plan app that does not exist.
@@ -153,6 +157,13 @@ first — never invent a plan app that does not exist.
    state; `prevent_destroy` does not stop a render that omits the resource.
 9. **`gcp-budget` is an alert.** Reject any wording — in code comments or in your
    own output — that describes it as a spending cap.
+10. **`hc-checks`: a registry entry IS a check, and removing one deletes its alarm.**
+    The slug a host pings (`local.serviceHeartbeat.slug`) must stay a key of
+    `fleet.heartbeats`; the wrapper refuses a render that drops a check state holds
+    (`HC_CHECKS_ALLOW_DROPS`) and an apply against empty state
+    (`HC_CHECKS_ALLOW_CREATE`) — treat either override as a blocker pending a human
+    decision. The provider pin (2.3.0) is exact on purpose; a bump is a schema re-read.
+    The ping key must never appear in a `.nix` file or a rendered config.
 
 ## How to work
 
