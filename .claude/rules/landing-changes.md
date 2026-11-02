@@ -77,7 +77,8 @@ this lane, `--force-with-lease` included. (`claude-guardrails.nix` denies only b
 gitleaks and cclint no longer run on `push: main`** (since 2026-11-02; the publish workflows
 — `warm-nixpi-cache`, `flakehub-publish`, `build-*` — still do), so the local gate above is
 the ONLY check this lane gets. The weekly scheduled gitleaks run still scans the whole
-history, and the next queued PR rebuilds every check over the new `main`.
+history, and the next queued PR rebuilds the linux leg over the new `main` (darwin only on a
+PR's advisory leg — [`docs/map/ci.md`](../../docs/map/ci.md) § Residual risk).
 
 **Not a commit hook.** gitleaks runs inside `nix flake check`. The devShell installs no git
 hooks on purpose (`modules/parts/devshell.nix`, shellHook comment), so skipping the gate

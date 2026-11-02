@@ -1,7 +1,7 @@
 ---
 name: terranix-infra-reviewer
 description: >-
-  Review and PLAN (never apply) changes under infra/ — the FIVE terranix
+  Review and PLAN (never apply) changes under infra/ — the terranix
   (Nix → OpenTofu/Terraform JSON) stacks that manage this fleet's Cloudflare
   Tunnel + ingress, kattakath.com DNS (mail included), the Zero Trust
   organisation, the GCP foundation + billing budget, and the healthchecks.io

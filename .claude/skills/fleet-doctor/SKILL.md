@@ -111,15 +111,15 @@ gh pr list --repo <owner>/<repo> --state open   # ${repo#github.com/} of a manif
   --json number,title,isDraft,mergeStateStatus,statusCheckRollup,autoMergeRequest
 ```
 
-Multiple open PRs are **normal** — each change gets its own PR and a single CI
-gate lands them independently. (The merge queue that used to serialize them was
-removed 2026-09-22 — [`auto-merge-and-merge-queue.md`](../../../docs/auto-merge-and-merge-queue.md).)
+Multiple open PRs are **normal** — each change gets its own PR, and the merge queue lands them
+([`auto-merge-and-merge-queue.md`](../../../docs/auto-merge-and-merge-queue.md) §3).
 
 Findings are: a PR whose title doesn't follow
 [`pr-title.md`](../../rules/pr-title.md), a stale PR with no activity, one
-sitting on red CI, or one **never armed** — `autoMergeRequest == null` on a
-non-draft PR means `auto-merge.yml` did not arm it and it will sit open
-forever. How drafting interacts with arming (it DROPS it; `ready_for_review` re-arms): see
+sitting on red CI, or one **never armed** — `autoMergeRequest == null` AND
+`isInMergeQueue == false` (GraphQL only — `gh pr view --json` rejects that field) on a non-draft PR means `auto-merge.yml` did not arm it and it will
+sit open forever. (GitHub clears `autoMergeRequest` once the PR is enqueued, so a queued PR
+reads null too: nix-config #1036, 2026-11-02.) How drafting interacts with arming (it DROPS it; `ready_for_review` re-arms): see
 [`pr-title.md`](../../rules/pr-title.md) § CORRECTED 2026-10-02.
 
 Read `autoMergeRequest.enabledBy.login`, not just the field's presence: it must
