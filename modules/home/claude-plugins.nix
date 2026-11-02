@@ -25,9 +25,9 @@
 # WHY NOT `programs.claude-code.marketplaces` (upstream home-manager,
 # modules/programs/claude-code/options.nix): its lib.nix hardcodes every entry to
 # `source = "directory"`, so it cannot express the git/https sources this fleet's
-# marketplaces are; without `mutableSettings` it also writes known_marketplaces.json
-# as a SYMLINK, while Claude Code's own session-start reconcile and
-# `claude plugin marketplace add` need a mutable file; and the reserved name
+# marketplaces are; its `mutableSettings` (which would give the mutable
+# known_marketplaces.json Claude Code's reconcile needs) is all-or-nothing and would
+# also take over settings.json — rejected in ./claude-code-settings.nix; and the reserved name
 # `claude-plugins-official` must be an HTTPS/GitHub source (a directory pin is
 # rejected as untrusted). Plugin install state therefore stays Claude-owned
 # mutable ~/.claude, like a gh/hf one-time login — the same "let the tool own

@@ -87,6 +87,7 @@ let
   # guest, the template consumer. Keeps macos-only agents (RAG stack, OTel
   # collector, Claude Desktop servers) off all of them.
   isMacosHost = import ../_lib/is-macos-host.nix osConfig;
+  derivedNames = import ../_lib/derived-names.nix;
 
   # Fonts are rendered by the machine with the SCREEN, never by an SSH target:
   # tmux/starship glyphs on nixpi are drawn by the client's terminal. So fonts go
@@ -757,8 +758,8 @@ in
         # `skills` attrset below (search "Flake-managed GLOBAL skills") used to map
         # seven plugin-dev skills plus hookify's `writing-rules` out of the
         # `agent-skills-anthropic` input (= anthropics/claude-code) into
-        # ~/.claude/skills/<name>/. Those entries are REMOVED in the same commit as
-        # this block, and the reason is the point of this note.
+        # ~/.claude/skills/<name>/. Those entries were removed on 2026-09-29, and the
+        # reason is the point of this note.
         #
         # A `skills` entry maps ONE SKILL DIRECTORY. It structurally cannot carry the
         # rest of a plugin, and the rest is most of the value here: plugin-dev's three
@@ -1693,7 +1694,10 @@ in
         # launch, and the account is the fleet's own Workspace identity.
         pluginConfigs."google-workspace-mcp@kattakath".options = lib.mkIf isMacosHost {
           tools = "tasks,chat";
-          email = "${config.home.username}@${domainName}";
+          email = derivedNames.googleAccount {
+            loginName = config.home.username;
+            inherit domainName;
+          };
           credential_command = "secret exec GOOGLE_OAUTH_CLIENT_ID=GMAIL_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET=GMAIL_OAUTH_CLIENT_SECRET --";
         };
 
@@ -1833,15 +1837,9 @@ in
       skills = {
         # Skill discovery from skills.sh (vercel-labs/skills).
         find-skills = "${agent-skills-vercel}/skills/find-skills";
-        # NO plugin-dev / hookify SKILL ENTRIES HERE, deliberately. They lived here
-        # (seven plugin-dev skills + hookify's writing-rules, out of
-        # `agent-skills-anthropic` = anthropics/claude-code) until 2026-09-29, when the
-        # plugin-dev and hookify PLUGINS were declared in
-        # local.claudePlugins.marketplaces.claude-plugins-official above. A `skills`
-        # entry maps one skill directory and drops the agents, commands and hooks that
-        # are most of those plugins; keeping both served the same eight skill names from
-        # two upstreams on two unrelated pins, which drift. Read the long note on that
-        # marketplace entry before re-adding anything here.
+        # NO plugin-dev / hookify SKILL ENTRIES HERE, deliberately: those ship as
+        # plugins now. The why is the "Claude-Code-MAINTENANCE set" note on the
+        # claude-plugins-official marketplace entry above — read it before re-adding.
 
         # ---- Tool-driver skills: each pairs with an MCP server / connector this
         # fleet already runs (see flake.nix `agent-skills-*` inputs). Additive,
@@ -2011,7 +2009,7 @@ in
         # This path ALSO needs a Cloudflare Zero Trust *Access Application* for the
         # hostname — declared in infra/cloudflare/nixpi-tunnel.nix (`nixpi_ssh`) since
         # it silently vanished once (2026-08-20). Symptom + fix: docs/private-home-modules.md.
-        "nixpi.${domainName}" = {
+        ${derivedNames.nixpiSshHostname domainName} = {
           User = config.home.username;
           IdentityFile = operatorPrivateKey;
           ProxyCommand = "${lib.getExe pkgs.cloudflared} access ssh --hostname %h";
