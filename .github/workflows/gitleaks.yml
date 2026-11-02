@@ -21,10 +21,21 @@ on:
     # update-flake-lock.yml); this one's 2026-09-20 run was dropped.
     - cron: "41 2 * * 0"
   workflow_dispatch:
+  # CALLED by nix-ci.yml so its `gate` aggregator can NEED this scan (a job can only
+  # need jobs of its own workflow). A called job reports as `<caller job> / <job>`,
+  # NOT as `Scan for secrets`, so the triggers above stay until the ruleset requires
+  # `gate` alone; until then the scan runs twice per PR on purpose.
+  workflow_call:
+    secrets:
+      HC_PING_KEY:
+        required: false
 
 concurrency:
-  group: gitleaks-${{ github.ref }}
-  cancel-in-progress: true
+  # `github.workflow` is the CALLER's name when called, so the standalone run and
+  # nix-ci's called copy sit in DIFFERENT groups and cannot cancel each other.
+  group: gitleaks-${{ github.workflow }}-${{ github.ref }}
+  # Never cancel a merge-queue run: the queue would eject the PR.
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 # Least-privilege: gitleaks only reads the checked-out history. (The old
 # gitleaks-ACTION also needed pull-requests:read to list PR commits over the API;
