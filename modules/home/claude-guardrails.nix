@@ -1,6 +1,7 @@
 { pkgs, lib, ... }:
-# The GLOBAL guardrail floor for Claude Code — user-scope `permissions.deny`
-# that applies in EVERY repo on this Mac, not just this one.
+# The GLOBAL guardrail floor for Claude Code — user-scope `permissions.deny` (secret
+# egress) and `permissions.ask` (recoverable actions the operator confirms), applied
+# in EVERY repo on this Mac, not just this one.
 #
 # WHY THIS EXISTS. Every decision hook this fleet runs is project-scoped: the
 # Write|Edit secret prompt sits in THIS repo's `.claude/settings.json`, and
@@ -137,105 +138,6 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   };
 
   programs.claude-code.settings.permissions.deny = [
-    # ── Imperative MCP adoption (mcp-scout: "installation IS declaration") ──
-    # Servers arrive ONLY as Claude Code plugins now (./plugin-mcp.nix) —
-    # the gateway that used to be the single source is gone.
-    # The rule is unchanged by that: a runtime add lands in ~/.claude.json,
-    # outside flake.lock, Cachix and every check that can see a declared server.
-    # THE PREFIX IS THE WHOLE RULE. A deny naming a tool that does not exist is
-    # not a weak guardrail, it is NO guardrail — and it fails silently, because
-    # nothing reports a rule that never matches.
-    #
-    # Measured 2026-09-15 from a live session's own tool namespace: servers then
-    # arrived as `mcp__plugin_hm_<server>__<tool>`. The two spellings that lived
-    # here before — a bare `mcp__mcpfinder__…` and an older, longer plugin prefix
-    # — matched NOTHING, so imperative MCP adoption was ungated the whole time.
-    # modules/home/default.nix in this same repo already had it right at the time.
-    #
-    # THAT PREFIX WENT STALE TWICE, exactly as this paragraph predicted. The
-    # 2026-09-22 portal collapse made the gateway ONE Claude Code server
-    # (`plugin:hm:kattakath-portal`) hosting every upstream, so its tools arrived
-    # as `mcp__plugin_hm_kattakath-portal__<server>_<tool>` — the upstream name
-    # moved INTO the tool half and lost its `__` separator. Then the gateway
-    # purge deleted that server outright, so THAT spelling can never match again
-    # either: it is absent from `claude mcp list`, checked 2026-10-02.
-    #
-    # TWO SHAPES ARE LEFT, both measured 2026-10-02 from a live session's own tool
-    # namespace rather than reasoned about:
-    #   plugin-owned  `mcp__plugin_<plugin>_<server>__<tool>` — e.g.
-    #                 `mcp__plugin_context7_context7__query-docs`,
-    #                 `mcp__plugin_nix-flake-kit_nixos__nix` (measured under the
-    #                 plugin's old name `claude-code-nix`; renamed 2026-11-01, #1012).
-    #   claude.ai connector  `mcp__claude_ai_<Server>__<tool>`, the server's
-    #                 DISPLAY name with spaces as underscores and its case kept —
-    #                 `mcp__claude_ai_cloudflare__docs`. Not a plugin, not in Nix,
-    #                 and so not declarable here; it is named because a capability
-    #                 that left the gateway can land in this lane.
-    #
-    # .claude/settings.json carried 15 allow entries on the pre-collapse spelling
-    # and matched nothing until #671 re-spelled them to the portal's — and the
-    # purge then killed all 15 again. They are now rewritten to the live shapes
-    # above where the capability survived and DELETED where it did not. Same
-    # silent failure, same file next door, twice: an allow is as dead as a deny
-    # when its prefix is, it just fails the other way — a prompt, not a hole.
-    #
-    # To re-verify after any plugin/marketplace change, read a real tool name out of
-    # a live session rather than reasoning about it; the prefix has now changed THREE
-    # times and has never announced it.
-    #
-    # THE TOOL-NAME HALF WAS DEAD TOO, and d39fc80 only fixed the prefix. Read
-    # from a live session's namespace 2026-09-16: the pinned @mcpfinder/server
-    # registers FOUR tools — browse_categories, get_install_config,
-    # get_server_details, search_mcp_servers — and `add_mcp_server_config` is not
-    # among them. So this deny named a tool that does not exist, which by this
-    # file's own header is not a weak guardrail but NO guardrail; meanwhile
-    # .claude/settings.json pre-approved the whole server by wildcard, sitting
-    # wider than the thing nominally narrowing it.
-    #
-    # It is gone rather than re-spelled, because there is no write tool to name.
-    # The narrowing lived in settings.json instead — the four read-only tools
-    # listed EXPLICITLY, so a write tool introduced by a future version pin
-    # matched no allow rule and prompted. A deny cannot be written against a name
-    # nobody knows yet; an allow-list does not need one.
-    #
-    # THOSE FOUR WENT WITH THE PORTAL and are deliberately NOT re-spelled:
-    # `mcpfinder` is absent from `claude mcp list` (2026-10-02), so its live
-    # prefix cannot be READ from a session, and the paragraphs above forbid
-    # writing one that was merely inferred. Losing an allow fails safe — every
-    # mcpfinder tool now prompts — which is why the gap is acceptable where a
-    # missing deny would not be. mcpfinder itself left the fleet 2026-11-01 (its
-    # launcher and the mcp-utilities server that named it are both gone).
-    "Bash(claude mcp add *)"
-    "Bash(claude mcp add-json *)"
-    "Bash(claude mcp add-from-claude-desktop *)"
-    "Edit(~/.claude.json)"
-
-    # ── Login persistence and credential config (Edit covers Write too) ──
-    # Each of these runs code or grants access at the NEXT login, shell or git
-    # call — the persistence shape an injected instruction reaches for. And every
-    # one is declared: Home Manager owns ~/.zshrc, ~/.zshenv, ~/.ssh/config and
-    # ~/.config/git/config as store symlinks, and launchd agents come from
-    # `launchd.agents`. An agent write would swap a declared file for a mutable
-    # copy that the next `activate` refuses to clobber. The operator-hand-placed
-    # files beside them (`~/.config/git/local.inc`, `~/.ssh/allowed_signers`) are
-    # his by CLAUDE.md § Configuration. A change to any of them goes through Nix,
-    # or through the operator's own terminal.
-    #
-    # Added 2026-10-31 after the project Write|Edit validator (.claude/settings.json)
-    # was found approving "any file under HOME": that prompt is project-scoped
-    # and judged by a model, so it was never the floor for these paths.
-    "Edit(~/Library/LaunchAgents/**)"
-    "Edit(~/.ssh/**)"
-    "Edit(~/.zshrc)"
-    "Edit(~/.zshenv)"
-    "Edit(~/.zprofile)"
-    "Edit(~/.zlogin)"
-    "Edit(~/.bashrc)"
-    "Edit(~/.bash_profile)"
-    "Edit(~/.profile)"
-    "Edit(~/.gitconfig)"
-    "Edit(~/.config/git/**)"
-
     # ── Secret VALUES reaching the transcript (claude/CLAUDE.md § Redact) ──
     # Mirrors Rule 1c of the project guard at floor strength. Using a secret is
     # still fine: `secret exec`, passwordCommand wrappers, launchd.
@@ -382,6 +284,118 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # permanently noisier session everywhere, which is how a floor gets turned
     # off wholesale by an irritated operator. The seven narrow `Read(...)` path
     # denies above are the shape that holds; a broad one would undo them.
+  ];
+
+  # ── ASK, not deny (operator decision 2026-11-02) ──
+  # These families stop an action that is RECOVERABLE and that the operator may
+  # legitimately want; a hard deny only pushed the agent into workarounds or a
+  # handed-over command. They now raise Claude Code's permission prompt instead.
+  # `ask` rules prompt in EVERY mode, bypassPermissions included (documented:
+  # "actions no mode auto-approves … tools matched by an explicit ask rule"), and
+  # in an unattended run (`-p`, cloud routine, dontAsk) an ask becomes a DENY, so
+  # nothing here runs unseen. Measured 2026-11-02 on 2.1.296 in a canary repo: a
+  # `permissions.ask` match under bypass was refused headless, never silently run.
+  # The SECRET families above stay deny on purpose (decision same day): printing a
+  # secret value has no undo, and the managed tier mirrors them.
+  programs.claude-code.settings.permissions.ask = [
+    # ── Imperative MCP adoption (mcp-scout: "installation IS declaration") ──
+    # Servers arrive ONLY as Claude Code plugins now (./plugin-mcp.nix) —
+    # the gateway that used to be the single source is gone.
+    # The rule is unchanged by that: a runtime add lands in ~/.claude.json,
+    # outside flake.lock, Cachix and every check that can see a declared server.
+    # THE PREFIX IS THE WHOLE RULE. A deny naming a tool that does not exist is
+    # not a weak guardrail, it is NO guardrail — and it fails silently, because
+    # nothing reports a rule that never matches.
+    #
+    # Measured 2026-09-15 from a live session's own tool namespace: servers then
+    # arrived as `mcp__plugin_hm_<server>__<tool>`. The two spellings that lived
+    # here before — a bare `mcp__mcpfinder__…` and an older, longer plugin prefix
+    # — matched NOTHING, so imperative MCP adoption was ungated the whole time.
+    # modules/home/default.nix in this same repo already had it right at the time.
+    #
+    # THAT PREFIX WENT STALE TWICE, exactly as this paragraph predicted. The
+    # 2026-09-22 portal collapse made the gateway ONE Claude Code server
+    # (`plugin:hm:kattakath-portal`) hosting every upstream, so its tools arrived
+    # as `mcp__plugin_hm_kattakath-portal__<server>_<tool>` — the upstream name
+    # moved INTO the tool half and lost its `__` separator. Then the gateway
+    # purge deleted that server outright, so THAT spelling can never match again
+    # either: it is absent from `claude mcp list`, checked 2026-10-02.
+    #
+    # TWO SHAPES ARE LEFT, both measured 2026-10-02 from a live session's own tool
+    # namespace rather than reasoned about:
+    #   plugin-owned  `mcp__plugin_<plugin>_<server>__<tool>` — e.g.
+    #                 `mcp__plugin_context7_context7__query-docs`,
+    #                 `mcp__plugin_nix-flake-kit_nixos__nix` (measured under the
+    #                 plugin's old name `claude-code-nix`; renamed 2026-11-01, #1012).
+    #   claude.ai connector  `mcp__claude_ai_<Server>__<tool>`, the server's
+    #                 DISPLAY name with spaces as underscores and its case kept —
+    #                 `mcp__claude_ai_cloudflare__docs`. Not a plugin, not in Nix,
+    #                 and so not declarable here; it is named because a capability
+    #                 that left the gateway can land in this lane.
+    #
+    # .claude/settings.json carried 15 allow entries on the pre-collapse spelling
+    # and matched nothing until #671 re-spelled them to the portal's — and the
+    # purge then killed all 15 again. They are now rewritten to the live shapes
+    # above where the capability survived and DELETED where it did not. Same
+    # silent failure, same file next door, twice: an allow is as dead as a deny
+    # when its prefix is, it just fails the other way — a prompt, not a hole.
+    #
+    # To re-verify after any plugin/marketplace change, read a real tool name out of
+    # a live session rather than reasoning about it; the prefix has now changed THREE
+    # times and has never announced it.
+    #
+    # THE TOOL-NAME HALF WAS DEAD TOO, and d39fc80 only fixed the prefix. Read
+    # from a live session's namespace 2026-09-16: the pinned @mcpfinder/server
+    # registers FOUR tools — browse_categories, get_install_config,
+    # get_server_details, search_mcp_servers — and `add_mcp_server_config` is not
+    # among them. So this deny named a tool that does not exist, which by this
+    # file's own header is not a weak guardrail but NO guardrail; meanwhile
+    # .claude/settings.json pre-approved the whole server by wildcard, sitting
+    # wider than the thing nominally narrowing it.
+    #
+    # It is gone rather than re-spelled, because there is no write tool to name.
+    # The narrowing lived in settings.json instead — the four read-only tools
+    # listed EXPLICITLY, so a write tool introduced by a future version pin
+    # matched no allow rule and prompted. A deny cannot be written against a name
+    # nobody knows yet; an allow-list does not need one.
+    #
+    # THOSE FOUR WENT WITH THE PORTAL and are deliberately NOT re-spelled:
+    # `mcpfinder` is absent from `claude mcp list` (2026-10-02), so its live
+    # prefix cannot be READ from a session, and the paragraphs above forbid
+    # writing one that was merely inferred. Losing an allow fails safe — every
+    # mcpfinder tool now prompts — which is why the gap is acceptable where a
+    # missing deny would not be. mcpfinder itself left the fleet 2026-11-01 (its
+    # launcher and the mcp-utilities server that named it are both gone).
+    "Bash(claude mcp add *)"
+    "Bash(claude mcp add-json *)"
+    "Bash(claude mcp add-from-claude-desktop *)"
+    "Edit(~/.claude.json)"
+
+    # ── Login persistence and credential config (Edit covers Write too) ──
+    # Each of these runs code or grants access at the NEXT login, shell or git
+    # call — the persistence shape an injected instruction reaches for. And every
+    # one is declared: Home Manager owns ~/.zshrc, ~/.zshenv, ~/.ssh/config and
+    # ~/.config/git/config as store symlinks, and launchd agents come from
+    # `launchd.agents`. An agent write would swap a declared file for a mutable
+    # copy that the next `activate` refuses to clobber. The operator-hand-placed
+    # files beside them (`~/.config/git/local.inc`, `~/.ssh/allowed_signers`) are
+    # his by CLAUDE.md § Configuration. A change to any of them goes through Nix,
+    # or through the operator's own terminal.
+    #
+    # Added 2026-10-31 after the project Write|Edit validator (.claude/settings.json)
+    # was found approving "any file under HOME": that prompt is project-scoped
+    # and judged by a model, so it was never the floor for these paths.
+    "Edit(~/Library/LaunchAgents/**)"
+    "Edit(~/.ssh/**)"
+    "Edit(~/.zshrc)"
+    "Edit(~/.zshenv)"
+    "Edit(~/.zprofile)"
+    "Edit(~/.zlogin)"
+    "Edit(~/.bashrc)"
+    "Edit(~/.bash_profile)"
+    "Edit(~/.profile)"
+    "Edit(~/.gitconfig)"
+    "Edit(~/.config/git/**)"
 
     # ── Secret Manager writes go through `secrets-push`, never raw gcloud ──
     # secrets-push is the only writer that enforces the billable-version cap

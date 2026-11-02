@@ -459,6 +459,11 @@ in the repo can catch that; see that fixture file's header for the measurement.
     command text Claude writes, not `sh -c` or an absolute binary path — a floor, not a
     boundary. **No catch-all `Read(**)`**: a blanket Read deny disables Bash auto-approve
     everywhere, so the path denies stay narrow on purpose.
+  - `permissions.ask` (2026-11-02, operator decision: guards ask, not block, when the action
+    is recoverable). MOVED here from the deny list: imperative MCP adoption, login/credential
+    file edits, raw `gcloud secrets` writes and force-push. They prompt in every mode,
+    `bypassPermissions` included, and become a deny in an unattended run. Only the
+    secret-egress families above stay deny.
   - `attribution = { commit = ""; pr = ""; sessionUrl = false; }` (2026-09-21) — mechanises
     `claude/CLAUDE.md` § Git authorship, which forbids `Co-Authored-By: Claude` trailers and
     "Generated with Claude Code" PR footers but had to be re-won each session against Claude
