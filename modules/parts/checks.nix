@@ -29,15 +29,10 @@ let
 
   # ---- the documentation INDEXES, in one place -----------------------------
   #
-  # Until 2026-10-02 there were exactly two and both docs checks below spelled
-  # them out. docs/repo-map.md was then SPLIT into eleven per-domain files under
-  # docs/map/ behind that index, so "the indexes" is no longer a pair anyone can
-  # hand-list without it rotting: the hosts/ detail lives in docs/map/hosts.md
-  # and the docs/*.md annotations in docs/map/docs-index.md, so a check that
-  # looked only at the old two would have gone red on a MOVE.
-  #
-  # DERIVED, not listed. readDir means a twelfth domain file is an index the
-  # moment it exists — the same reason nix-ci.yml's `legs` job reads the host
+  # DERIVED, not listed: CLAUDE.md, docs/repo-map.md and every docs/map/*.md.
+  # The per-path detail lives in the map files (hosts/ in docs/map/hosts.md,
+  # docs/*.md in docs/map/docs-index.md), so a hand-listed set rots on a MOVE.
+  # readDir means a twelfth domain file is an index the moment it exists — the same reason nix-ci.yml's `legs` job reads the host
   # systems out of the flake rather than restating them. Two shapes because the two consumers differ: hosts-documented
   # greps STORE PATHS, docs-indexed resolves link targets relative to each
   # index's own directory inside `${self}` and so needs REPO-RELATIVE names.
@@ -95,42 +90,30 @@ in
         lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
           # ---- bootstrap.sh is the highest-stakes unwrapped script, not the ONLY one -
           #
-          # This header claimed until 2026-10-02 that bootstrap.sh was "the ONE
-          # script no derivation wraps" and that "every other script in this tree is
-          # a `writeShellApplication`". Both halves were false, and the second was
-          # load-bearing: it is the sentence that made a second unlinted script look
-          # impossible. Counted on 2026-10-02 — 15 tracked `.sh` files, of which
-          # exactly TWO are `builtins.readFile`d into a `writeShellApplication` and
-          # therefore shellchecked by BUILDING it (packages/design-tokens/build.sh,
-          # packages/email-signature/signature.sh). The others are unwrapped:
+          # Two tracked `.sh` files are `builtins.readFile`d into a
+          # `writeShellApplication` and so shellchecked by BUILDING it
+          # (packages/design-tokens/build.sh, packages/email-signature/signature.sh).
+          # The others are unwrapped:
           #
           #   bootstrap.sh                 gated — by this check.
           #   scripts/drv-snapshot.sh      gated — by `drv-snapshot-lint`, in the
-          #     ungated block below. Its own header used to tell the operator to run
-          #     `nix develop -c shellcheck` BY HAND, which is not a gate.
+          #     ungated block below.
           #   modules/features/keychain-secrets/tests/grammar.sh
           #     gated — by `keychain-secrets-grammar-lint`, in the capsule's own
-          #     ./checks/ dir, as of 2026-10-02. It is the one that genuinely cannot
-          #     be a derivation at all: its assertions need a login Keychain the build
-          #     sandbox has not got, which its own header states. "Cannot be RUN" was
-          #     read as "cannot be CHECKED" and that was the error — shellcheck needs
-          #     no Keychain.
+          #     ./checks/ dir. It cannot be a derivation (its assertions need a login
+          #     Keychain the build sandbox has not got), but "cannot be RUN" is not
+          #     "cannot be CHECKED" — shellcheck needs no Keychain.
           #   .claude/hooks/tests/*.sh DELIBERATELY NOT LINTED, and the only entry
-          #     here left that way on purpose. claude-config-lint.yml RUNS
-          #     every one under `gate`, so a failure blocks a merge, which is strictly
-          #     stronger evidence than a lint. Shellcheck was then run over them to
-          #     see whether it adds anything on top, and it does not. Re-run
-          #     2026-10-21 over the six files then on main (shellcheck 0.11.0): nine
-          #     findings, all in the single-quoted `ck`/`nothrow` cases of
-          #     rule1c-secret-egress.sh and rule1e-env-dump.sh — eight SC2016
-          #     "expressions don't expand in single quotes" and one SC1003. Every one
-          #     is a FALSE POSITIVE
-          #     by construction, because those single quotes hold the literal command
-          #     text the guard is being asked to judge (`ck block 'echo $(secret
-          #     reveal K)'`) and expanding them would mean running it. Zero real
-          #     findings, a standing disable-directive tax on every new test case, and
-          #     two more rows in `nix flake show` and in the acceptance baseline. Gated
-          #     for symmetry is not gated for a reason.
+          #     here left that way on purpose. claude-config-lint.yml RUNS every one
+          #     under `gate`, so a failure blocks a merge — strictly stronger evidence
+          #     than a lint. Shellcheck adds nothing on top: its findings there are
+          #     SC2016 "expressions don't expand in single quotes" (plus an SC1003) in
+          #     the single-quoted `ck`/`nothrow` cases, and every one is a FALSE
+          #     POSITIVE by construction — those quotes hold the literal command text
+          #     the guard is asked to judge (`ck block 'echo $(secret
+          #     reveal K)'`), and expanding them would mean running it. Linting them
+          #     would cost a standing disable-directive tax on every new test case and
+          #     two more rows in `nix flake show` and the acceptance baseline.
           #
           # And there is no blanket fallback: treefmt.nix is REWRITE-only by design
           # and enables no shellcheck or shfmt, so the only shellcheck this tree has
@@ -438,10 +421,8 @@ in
           # be: each of the three was an eval error or an eval-visible value, and
           # `nix flake check` is eval-only too.
           #
-          # IT NOW ACTUALLY READS THE TEMPLATE. Until 2026-10-02 the sentence above
-          # was a claim, not a mechanism: this check RE-IMPLEMENTED the identity as a
-          # four-field literal (`stranger` / `A Stranger` / …) and read nothing at all
-          # out of templates/. Nothing else covered the gap either —
+          # It READS the template rather than re-implementing its identity, because
+          # nothing else covers it:
           #
           #   · `nix flake check`'s built-in templates schema validates that
           #     `templates.default.path` is a path and `description` is a string. It
@@ -451,8 +432,8 @@ in
           #     a flake would therefore test whatever is already released, not the
           #     working tree — the one thing a merge gate must not do.
           #
-          # Net effect: a renamed identity field in the template shipped green, and
-          # the first person to find out was a stranger running `nix flake init -t`.
+          # Without it, a renamed identity field in the template ships green and the
+          # first to find out is a stranger running `nix flake init -t`.
           #
           # HOW IT READS IT. `import` the template's flake.nix (it is a plain Nix
           # file) and call its `outputs` with a STUB engine whose `lib.mkDarwin` is
