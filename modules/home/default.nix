@@ -1700,6 +1700,12 @@ in
           # consent, so it only ever showed "Needs authentication"); operator removed it
           # 2026-11-01. Measured the same way: the URL deny drops it from `claude mcp list`.
           { serverUrl = "https://microsoft365.mcp.claude.com/mcp"; }
+          # Same URL as the claude.ai connector, and Claude Code loads only one, so the
+          # plugin copy hid the connector. Cloud routines can only reach the connector, so
+          # denying the plugin copy gives local and cloud runs one sign-in. The plugins'
+          # skills still load.
+          { serverName = "plugin:cloudflare:cloudflare"; }
+          { serverName = "plugin:slack:slack"; }
         ];
 
         theme = "auto";
