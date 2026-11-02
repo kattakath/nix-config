@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Rule 2 cases: a direct HTTP fetch of the Cloudflare DOCS host is blocked
-# (use the docs MCP tool instead); other hosts, and mere mentions, are not.
+# Rule 2 cases: a direct HTTP fetch of the Cloudflare DOCS host ASKS the operator
+# (since 2026-11-02; the docs MCP tool is the usual route); other hosts, and mere
+# mentions, are approved.
 # Kept in a FILE for the same reason as the other suites: the block/ cases are
 # execution-shaped, so carrying them in an argv would trip the rule under test.
 # Until this suite existed Rule 2 was the only guard rule with no test.
@@ -16,7 +17,7 @@ CU="cu""rl"
 decide() {
   python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1" \
     | node "$H" 2>/dev/null \
-    | python3 -c 'import json,sys;print(json.load(sys.stdin).get("decision","?"))' 2>/dev/null
+    | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision","?"))' 2>/dev/null
 }
 ck() { # ck <want> <cmd>
   got="$(decide "$2")"
@@ -24,9 +25,9 @@ ck() { # ck <want> <cmd>
   else printf '  FAIL  want=%s got=%s  %s\n' "$1" "$got" "$2"; fail=$((fail+1)); fi
 }
 
-echo "== must BLOCK (a direct docs fetch) =="
-ck block "$CU https://$DOCS/workers/"
-ck block "$CU -s https://$DOCS/r2/api/"
+echo "== must ASK (a direct docs fetch) =="
+ck ask "$CU https://$DOCS/workers/"
+ck ask "$CU -s https://$DOCS/r2/api/"
 
 echo "== must APPROVE (not the docs host, or only a mention) =="
 ck approve "$CU https://example.com/"
