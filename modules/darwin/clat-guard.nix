@@ -37,6 +37,9 @@
 }:
 let
   cfg = config.local.clatGuard;
+  # Minimum seconds between two toggles, so a network where CLAT re-asserts at
+  # once cannot make it flap. A constant: nothing ever set the option it was.
+  cooldownSeconds = 600;
 
   guard = pkgs.writeShellApplication {
     name = "nix-clat-guard";
@@ -48,7 +51,7 @@ let
     text = ''
       SVC=${lib.escapeShellArg cfg.service}
       STAMP=/var/db/nix-clat-guard.stamp
-      COOLDOWN=${toString cfg.cooldownSeconds}
+      COOLDOWN=${toString cooldownSeconds}
       log() { echo "$(date -u +%FT%TZ) nix-clat-guard: $*"; }
 
       router=$(printf 'show State:/Network/Global/IPv4\n' | /usr/sbin/scutil | awk '$1=="Router"{print $3}')
@@ -86,11 +89,6 @@ in
       type = lib.types.str;
       default = "Wi-Fi";
       description = "Network service name whose IPv6 is toggled (as `networksetup -listallnetworkservices` prints it).";
-    };
-    cooldownSeconds = lib.mkOption {
-      type = lib.types.ints.positive;
-      default = 600;
-      description = "Minimum seconds between two toggles, so a network where CLAT re-asserts at once cannot make it flap.";
     };
   };
 

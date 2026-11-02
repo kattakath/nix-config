@@ -93,7 +93,8 @@ let
   # every ANDROID_HOME/PATH reference below (exported once as
   # config.home.sessionVariables.ANDROID_HOME, which the android-phone plugin's
   # mobile-mcp inherits from the session env rather than re-declaring).
-  androidSdkRoot = "/opt/homebrew/share/android-commandlinetools";
+  androidSdkRoot = "${brewPrefix}/share/android-commandlinetools";
+  brewPrefix = import ../_lib/brew-prefix.nix osConfig;
 
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
   # which the darwin host (macos) adds to nixpkgs.overlays. Only referenced
@@ -218,7 +219,7 @@ let
   # `git-tidy` — default branch, fast-forwarded, merged-PR branches deleted via gh-poi;
   # see packages/git-tidy.nix.
   gitTidy = pkgs.callPackage ../../packages/git-tidy.nix { };
-  androidPhone = pkgs.callPackage ../../packages/android-phone.nix { };
+  androidPhone = pkgs.callPackage ../../packages/android-phone.nix { inherit brewPrefix; };
   claudeWork = pkgs.callPackage ../../packages/claude-work.nix { };
   nixosVm = pkgs.callPackage ../../packages/nixos-vm.nix { };
   # `activate` — self-elevating `darwin-rebuild switch`. nix-darwin dropped sudo
@@ -286,11 +287,13 @@ let
   });
 
   # `android-emu` — the Android emulator launcher (packages/android-emu.nix).
-  androidEmu = pkgs.callPackage ../../packages/android-emu.nix { inherit androidSdkRoot; };
+  androidEmu = pkgs.callPackage ../../packages/android-emu.nix { inherit androidSdkRoot brewPrefix; };
 
   # "Focus-or-launch" Spotlight .app bundle for the Android emulator
   # (macos host only, below) — see packages/spotlight-launchers.nix.
-  spotlightLaunchers = pkgs.callPackage ../../packages/spotlight-launchers.nix { };
+  spotlightLaunchers = pkgs.callPackage ../../packages/spotlight-launchers.nix {
+    inherit brewPrefix;
+  };
 
 in
 {
@@ -1260,9 +1263,13 @@ in
     # androidEmu needs the android-commandlinetools cask, which only hosts/macos.nix installs.
     # Kept at this position so the package order (and the macos closure) is unchanged.
     ++ lib.optional isMacosHost androidEmu
+    # OPERATOR-ONLY (codecov-cli, and inngest/stripe-cli/wp-cli below): split in place so the
+    # package order, and so the macos closure, is unchanged.
+    ++ lib.optionals isMacosHost [
+      codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
+    ]
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       # awscli2 is NOT here: the cloud-cli capsule's programs.awscli owns it (local.cloudCli.aws).
-      codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
       fnm # Fast Node Manager — no `programs.fnm` HM module in this pinned home-manager; hook: interactiveShellInit
     ]
     # OPERATOR-ONLY: the three gist-fed tools (jsonResumeUrl / logoUrl / tokensUrl)
@@ -1292,9 +1299,13 @@ in
       uv # `uv`/`uvx` — ephemeral Python tool runner; on PATH for an enabled plugin whose `.mcp.json` names bare `uvx`
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       gitTidy # `git-tidy` — switch to the default branch, fast-forward, delete branches whose GitHub PR merged (gh-poi, so squash merges count) (packages/git-tidy.nix)
+    ]
+    ++ lib.optionals isMacosHost [
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
       wp-cli # WordPress CLI (`wp`) — manage WordPress installs/plugins/themes/db from the shell; nixpkgs-native (bundles its own PHP), so no Homebrew `wp-cli` formula or `curl … wp-cli.phar` install (single source per the reuse/declarative convention)
+    ]
+    ++ lib.optionals stdenv.hostPlatform.isDarwin [
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
     ]
