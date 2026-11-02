@@ -9,8 +9,8 @@ name: nix-ci
 #
 #   1. BUILD the flake's checks (`.#checks.<system>` — lint, format, and the
 #      eval-only contract checks) on each system's own native runner: linux
-#      builds ALL its checks; on a PR the darwin leg builds only the darwin-ONLY
-#      ones, and push:main builds all of them (who waits on which: WHO WAITS
+#      builds ALL its checks, and so does the advisory darwin leg (who waits on
+#      which: WHO WAITS
 #      below), and
 #   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
 #      catching config/option/type errors) WITHOUT building it — on a PR, the
@@ -27,18 +27,20 @@ name: nix-ci
 # every leg must own a host. Adding a host on a new system therefore stops CI
 # (via required-checks) until someone names its runner.
 #
-# WHO WAITS ON WHAT (2026-10-18, docs/pr-wait-research.md levers #3 + #4):
-#   * aarch64-linux  — REQUIRED on every event. Builds all linux checks and
-#                      evaluates EVERY host, darwin's included.
-#   * aarch64-darwin — REQUIRED on push:main, workflow_dispatch and NON-operator
-#                      PRs (bots, Dependabot, anyone else). On a PR it builds only
-#                      the darwin-ONLY checks; push:main builds them all.
-#                    — ADVISORY on PRs AUTHORED by the operator: the required job
-#                      is skipped, an advisory twin runs the FULL darwin leg, and
-#                      required-checks does not wait for it. A darwin-only break
-#                      on such a PR surfaces red on the PR and again on push:main.
+# WHO WAITS ON WHAT (2026-11-02, the shared kattakath/.github landing system):
+#   * `gate` — the aggregator the shared ruleset requires. It needs the HEAVY
+#     jobs (legs, aarch64-linux, gitleaks, cclint) and asserts each ended exactly
+#     as this event expects, via kattakath/.github/actions/gate.
+#   * HEAVY jobs run once per PR: in the merge queue when the repo variable
+#     QUEUE_ENABLED is 'true', otherwise on the PR. A FORK PR always runs them on
+#     the PR, so a contributor sees a real failure before review.
+#   * aarch64-darwin — ADVISORY on every PR, whoever wrote it, and NOT in the
+#     merge queue (operator decision). Nothing needs it. It runs the FULL darwin
+#     leg, and the linux leg still EVALUATES macos on every gated run.
+#   * `required-checks` — a SHIM that passes iff `gate` passed, so the ruleset
+#     that still names it keeps resolving until the swap to `gate`.
 # Local verification is unchanged: agents still run both systems (CLAUDE.md
-# § Testing). Only CI's enforcement differs by author.
+# § Testing).
 #
 # ALL-HOSTED BY CHOICE. No leg of THIS repo's CI targets a self-hosted runner —
 # a statement about this workflow, NOT about the fleet. `macos` runs self-hosted
@@ -52,20 +54,19 @@ name: nix-ci
 # fallback. Day-to-day local aarch64-linux builds use Determinate's native Linux
 # builder on the Mac.
 #
-# READ from the kattakath Cachix cache is public. WRITE needs CACHIX_AUTH_TOKEN,
-# and EVERY run that GitHub hands the secret to now writes — same-repo branch PRs
-# included, not just push-to-main. The gate is GitHub's, not ours: a
-# `pull_request` from a FORK is given no repo secret at all, and a Dependabot PR
-# reads a SEPARATE secret store this token is not in. Restricting it to `push` on
-# top of that bought no safety and cost a rebuild — measured on PR #550, the PR
-# leg built /nix/store/kln8kjyq…-pre-commit-run, was refused (403), and the
-# push-to-main leg rebuilt the IDENTICAL path minutes later. The tree-dependent
-# checks take `self`,
-# so every commit re-derives them under a new rev; the PR leg's push is what lets
-# the post-merge `push: main` leg substitute the unchanged rest. The REQUIRED
-# darwin PR leg builds only darwin-only checks, so it no longer pushes the shared
-# ones: push:main's darwin leg rebuilds those (~23 s, off every PR's critical
-# path) unless an operator PR's advisory full leg already pushed them.
+# READ from the kattakath Cachix cache is public. WRITE needs CACHIX_AUTH_TOKEN.
+# The linux leg writes on every event GitHub hands the secret to EXCEPT
+# `merge_group`; the darwin advisory leg never runs there.
+#   * pull_request: a FORK gets no repo secret, a Dependabot PR reads a separate
+#     store this token is not in — so only same-repo branches push. Measured on
+#     PR #550: a PR leg refused the push (403) and push:main rebuilt the
+#     IDENTICAL path minutes later, so the PR-time push is what saves a rebuild.
+#   * merge_group: NOT pushed. A queue run executes the queued merge commit, which
+#     can contain a fork PR's code, with repo secrets. The leg is passed an EMPTY
+#     token there and nix-ci-impl.yml takes its fork path ("built, not pushed").
+#     What that costs: the queued commit's `.#checks` outputs only. The closures
+#     the fleet substitutes are pushed by warm-nixpi-cache.yml, build-installers
+#     and build-devcontainer on push:main.
 #
 # The blast radius is unchanged: pushing requires a branch in THIS repo, which
 # only the operator can create, and a store path is its own derivation hash — a
@@ -73,6 +74,8 @@ name: nix-ci
 
 on:
   pull_request:
+  merge_group:
+    types: [checks_requested]
   push:
     branches: [main]
   workflow_dispatch:
@@ -97,7 +100,11 @@ concurrency:
   # Branch-scoped rather than dropped entirely: a force-push to a PR should still cancel
   # its in-flight run — that is the case this concurrency group was added for.
   # gitleaks.yml deliberately keeps a flat `true`: 3/100 cancelled at ~42s, not worth it.
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  #
+  # 2026-11-02: keyed on the EVENT, not the ref. A merge-queue run lives on its own
+  # gh-readonly-queue/* ref, so the old `ref != main` test made every queue run
+  # cancellable, and a cancelled queue run EJECTS the PR. Only PR runs cancel now.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -137,7 +144,7 @@ jobs:
   #   * a leg whose system owns no host     -> HARD FAIL (a vacuous leg).
   # The leg side is read out of THIS FILE with yq, never restated in bash — a
   # second copy of the leg list is exactly the drift this job exists to catch.
-  # `required-checks` still needs this job, so a failure here still blocks merge.
+  # `gate` needs this job, so a failure here still blocks merge.
   #
   # Runs on LINUX, not macOS. Measured 2026-09-22, same job either side: macOS
   # 2m10s (run 35723793664), Linux 49s-1m43s (runs 35750682716 / 35749500311).
@@ -150,6 +157,9 @@ jobs:
   # green over a half-covered fleet is not reachable from here.
   legs:
     name: legs
+    # HEAVY (see WHO WAITS). Every heavy job carries this exact `if:`; gate's
+    # `expect` holds a deliberate second copy, so a drift between them goes red.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -251,69 +261,38 @@ jobs:
 
   # One job per leg, each a caller of nix-ci-impl.yml. `fail-fast` no longer
   # applies (no matrix); one leg failing never cancels another. Each leg is its
-  # own status check `build (<system>) / leg`; required-checks is the single
-  # stable branch-protection anchor, so renaming/adding legs never requires
-  # re-anchoring the ruleset. Job names are otherwise untouched on purpose:
-  # `required-checks` and `Scan for secrets` are named in branch protection, so
-  # renaming either silently un-requires it.
+  # own status check `build (<system>) / leg`; `gate` is the single stable
+  # branch-protection anchor, so renaming/adding legs never requires re-anchoring
+  # the ruleset. Renaming `gate` (or, until the ruleset swap, `required-checks`)
+  # silently un-requires it.
   build-linux:
     name: build (aarch64-linux)
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true'
     uses: ./.github/workflows/nix-ci-impl.yml
-    secrets: inherit
+    # NOT `secrets: inherit`: the token is withheld from merge-queue runs (header,
+    # READ from the kattakath Cachix cache). Empty = nix-ci-impl.yml's fork path.
+    secrets:
+      CACHIX_AUTH_TOKEN: ${{ github.event_name != 'merge_group' && secrets.CACHIX_AUTH_TOKEN || '' }}
     with:
       system: aarch64-linux
       runs-on: ubuntu-24.04-arm
       checks: all
       # EVERY host, darwin's too — pure eval makes the evaluator's arch
-      # irrelevant (proof in nix-ci-impl.yml). This is what lets the darwin PR
-      # leg skip host eval, and what keeps macos EVALUATED on a required leg even
-      # when darwin is advisory.
+      # irrelevant (proof in nix-ci-impl.yml). This is what keeps macos
+      # EVALUATED on a gated leg while the darwin leg is advisory.
       eval-categories: nixosConfigurations darwinConfigurations
 
-  # THE OPERATOR PREDICATE, written in three places here that MUST stay identical:
-  # this job's `if` (negated), build-darwin-advisory's `if`, and
-  # required-checks' OPERATOR_PR. The same id also gates auto-merge.yml (the
-  # `auto-merge` job's `if` and the `explain` job's AUTHOR_ID test) and claude.yml
-  # (comment.user.id) — change it in all of them together. It names the PR
-  # AUTHOR by immutable numeric id (8927166 = ismailkattakath,
-  # `gh api users/ismailkattakath`), not:
-  #   * `author_association == 'OWNER'` — NEVER matches: the repo is owned by the
-  #     `kattakath` ORGANIZATION, and 96/96 operator PRs sampled read `MEMBER`
-  #     (bots read `CONTRIBUTOR`). An OWNER test would be a silent no-op policy.
-  #   * `author_association == 'MEMBER'` — would widen to any future org member.
-  #   * `github.actor` — the actor changes per event on the same PR.
-  #   * a login — logins can be renamed and re-registered; ids cannot.
-  # A repo `vars.*` constant would de-duplicate it, but needs an out-of-tree
-  # settings change; three adjacent literals are reviewable in one diff.
-  # On push / workflow_dispatch there is no pull_request, so the predicate is
-  # false and darwin is REQUIRED.
+  # ADVISORY on every PR (operator decision, 2026-11-02), and NOT in the merge
+  # queue: `gate` does not need it, so it is visible on the PR and never gates the
+  # merge. It replaces the author-keyed pair (required build-darwin + operator-only
+  # advisory twin) that keyed on PR author id 8927166; auto-merge.yml and
+  # claude.yml still carry that id. It runs the FULL darwin leg (all checks +
+  # native macos eval): nobody waits on it, so the wider coverage is free.
+  # Kept on push:main and workflow_dispatch as a post-merge belt. `legs` reads the
+  # leg list from the static `uses`/`with.system`, so it still counts this leg.
   build-darwin:
-    name: build (aarch64-darwin)
-    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.user.id == 8927166) }}
-    uses: ./.github/workflows/nix-ci-impl.yml
-    secrets: inherit
-    with:
-      system: aarch64-darwin
-      runs-on: macos-latest
-      # On a PR: only the checks no other system exposes (29 of 52 on
-      # 2026-10-18). The 23 shared names are built by the linux leg; in 38/40
-      # measured runs the darwin leg rebuilt ONLY shared checks, so this is where
-      # its build time went. Sound only while a shared NAME means one shared
-      # SOURCE — a per-host contract carries its host in its name (invariant in
-      # nix-ci-impl.yml, system-only). Residual risk, accepted: a shared-source
-      # check that breaks only on darwin's platform merges, and goes red on
-      # push:main, which builds all.
-      checks: ${{ github.event_name == 'pull_request' && 'system-only' || 'all' }}
-      # On a PR the linux leg already evaluates macos (pure eval, IFD off);
-      # push:main re-evaluates it natively as the belt.
-      eval-categories: ${{ github.event_name == 'pull_request' && 'none' || 'darwinConfigurations' }}
-
-  # ADVISORY: runs only on operator PRs, and NOTHING needs it — so its result is
-  # visible on the PR but never gates the merge. It runs the FULL darwin leg:
-  # nobody waits on it, so the wider coverage is free.
-  build-darwin-advisory:
     name: build (aarch64-darwin, advisory)
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.id == 8927166 }}
+    if: github.event_name != 'merge_group'
     uses: ./.github/workflows/nix-ci-impl.yml
     secrets: inherit
     with:
@@ -322,44 +301,64 @@ jobs:
       checks: all
       eval-categories: darwinConfigurations
 
-  # Aggregate gate — the ONE stable-named required check branch protection anchors
-  # to. Runs even if a leg fails (if: always()) and fails if any needed job failed,
-  # was cancelled, or was SKIPPED — with exactly ONE exception: build-darwin
-  # skipped on an operator PR, which is the advisory policy above. 'skipped' is
-  # otherwise load-bearing: a skipped job is neither failure nor cancelled, so
-  # without it this gate could report green over a leg that never ran.
-  # build-darwin-advisory is deliberately NOT in `needs` — needing it would make
-  # this gate wait for darwin, which is the whole cost lever #4 removes.
+  # HEAVY: the secret scan and the .claude lint, CALLED so `gate` can need them (a
+  # job can only need jobs of its own workflow). They report as
+  # `gitleaks / Scan for secrets` and `cclint / Lint .claude config`; the
+  # standalone workflows keep reporting the bare names the CURRENT ruleset
+  # requires, so both run twice per PR until the ruleset requires `gate` alone.
+  gitleaks:
+    name: gitleaks
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true'
+    uses: ./.github/workflows/gitleaks.yml
+
+  cclint:
+    name: cclint
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true'
+    uses: ./.github/workflows/claude-config-lint.yml
+
+  # THE REQUIRED CHECK of the shared ruleset (kattakath/.github rulesets/main.json).
+  # Never rename it. `!cancelled()` so it runs even when a leg failed; the action
+  # fails unless every needed job ended EXACTLY as this event expects: `success`
+  # where it should run, `skipped` where it should not. A skipped job reports
+  # Success to branch protection, which is why a skippable job is never the
+  # required check — this aggregator is. flake-checker and build-darwin are
+  # advisory and deliberately absent from `needs`.
+  gate:
+    name: gate
+    if: ${{ !cancelled() }}
+    needs: [legs, build-linux, gitleaks, cclint]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: kattakath/.github/actions/gate@3d5ad5b9e04c853dbb0d82446255c9ef9230332a
+        with:
+          needs: ${{ toJSON(needs) }}
+          # A deliberate SECOND copy of the heavy `if:`. If the copies drift, gate
+          # goes red in both directions, so a bad edit fails closed.
+          expect: >-
+            {"legs": ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true' }},
+             "build-linux": ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true' }},
+             "gitleaks": ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true' }},
+             "cclint": ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true' }}}
+
+  # TEMPORARY SHIM for the CURRENT ruleset, which still requires `required-checks`.
+  # Passes iff `gate` passed. `!cancelled()` + the explicit result test are
+  # load-bearing: with a default `if:` this job would be SKIPPED when gate fails,
+  # and a skipped job reports Success — a green required check over a red gate.
+  # Delete it once the ruleset requires `gate` (the follow-up PR).
   required-checks:
     name: required-checks
-    needs: [legs, build-linux, build-darwin]
+    if: ${{ !cancelled() }}
+    needs: [gate]
     runs-on: ubuntu-24.04
-    if: always()
+    timeout-minutes: 2
     steps:
-      - name: Verify all required legs passed
+      - name: gate passed
         env:
-          LEGS: ${{ needs.legs.result }}
-          LINUX: ${{ needs.build-linux.result }}
-          DARWIN: ${{ needs.build-darwin.result }}
-          OPERATOR_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.user.id == 8927166 }}
+          GATE: ${{ needs.gate.result }}
         run: |
-          fail=0
-          for pair in "legs=$LEGS" "build (aarch64-linux)=$LINUX"; do
-            if [ "${pair##*=}" != success ]; then
-              echo "✗ ${pair%=*}: ${pair##*=}"
-              fail=1
-            fi
-          done
-          if [ "$DARWIN" = success ]; then
-            :
-          elif [ "$DARWIN" = skipped ] && [ "$OPERATOR_PR" = true ]; then
-            echo "• build (aarch64-darwin): advisory on this operator PR — see 'build (aarch64-darwin, advisory)'; push:main runs it as required."
-          else
-            echo "✗ build (aarch64-darwin): $DARWIN"
-            fail=1
-          fi
-          if [ "$fail" -ne 0 ]; then
-            echo "✗ One or more required jobs failed, were cancelled, or were skipped."
+          if [ "$GATE" != success ]; then
+            echo "::error::gate: $GATE"
             exit 1
           fi
-          echo "✓ All required legs passed."
+          echo "gate: success"
