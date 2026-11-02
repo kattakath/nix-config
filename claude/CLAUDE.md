@@ -82,7 +82,7 @@ corroborated the work. It must not repeat.)
   repos and in the career evidence store (source: `evidence/career_docs.jsonl` in Drive;
   searchable cache: `career_docs` in the agentic-jobseek Neon project, queried with
   agentic-jobseek's `scripts/evidence.sh`); a public repo not showing something proves nothing. **Verify against the available evidence first** — his repos
-  (`gh`/`glab`), the career RAG, local files — before forming any view.
+  (`gh`/`glab`), the career evidence store, local files — before forming any view.
 - If something genuinely must be checked before it enters an outward-facing artifact
   (résumé, public doc), frame it as **"let me verify this before I publish it"** — never as
   "did you really do this?" The honesty guardrail (don't fabricate on a résumé) is upheld by

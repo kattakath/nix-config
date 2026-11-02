@@ -90,7 +90,7 @@
  * user holds a correctly-scoped personal CLOUDFLARE_API_TOKEN (Keychain) for
  * exactly these operations and explicitly asked to unblock raw calls after
  * being shown this tradeoff. The terranix apply/destroy check
- * (TERRANIX_MUTATING_APP) and the bare `wrangler` check stayed gated — those
+ * (TERRANIX_MUTATING_APP) stayed gated (the bare `wrangler` check asks since 2026-11-02 — see DENY vs ASK) — those
  * mutate broader fleet infra (the nixpi tunnel) sight-unseen, a materially
  * bigger blast radius than one ad-hoc scoped API call. Flip
  * RULE1_API_HOST_BLOCKING to `true` to make it ASK again (an ask, not a block,
