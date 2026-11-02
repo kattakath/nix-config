@@ -154,7 +154,7 @@ what it is for. What is closed is **driving it from another agent**.
 Claude→Grok delegation needs **no new code**. `xai-grok-build` — installed, and **authored by
 xAI** — already ships a 1,107-line bridge with a `grok-delegate` subagent, session transfer,
 `--resume`, background jobs, and `--permission-mode plan`, running under this repo's own
-`nix-agent-workspace` sandbox profile (`modules/home/default.nix`).
+`nix-agent-read-only` sandbox profile (`modules/home/default.nix`).
 
 That sandbox is the part worth keeping in view: it is **kernel-enforced** (macOS Seatbelt) and
 denies `~/.ssh`, `~/.aws`, `~/.docker`, `~/.config/gh`, `**/*.pem`, `**/*.age`, `**/.env`.
