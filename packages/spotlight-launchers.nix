@@ -38,13 +38,15 @@
   runCommand,
   librsvg,
   libicns,
+  # Homebrew prefix, passed by modules/home/default.nix (nix-darwin's homebrew.prefix).
+  brewPrefix,
 }:
 let
   # LaunchServices starts every bundle's launcher with a minimal PATH; both kinds
   # share this one. `$(id -un)` is expanded at RUN time, so no /Users/<name> is
   # hardcoded. /run/current-system/sw/bin is where darwin-rebuild lives,
-  # /opt/homebrew/bin where `code` does.
-  launcherPath = "/etc/profiles/per-user/$(id -un)/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+  # the Homebrew bin where `code` does.
+  launcherPath = "/etc/profiles/per-user/$(id -un)/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:${brewPrefix}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   # Simplified robot-head glyph on Android's brand green — evocative, not a
   # trace of the copyrighted "bugdroid" mascot artwork.

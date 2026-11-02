@@ -19,13 +19,14 @@
 # the Mac keyboard types into Android). Extra args after the name override the
 # emulator flags, so `android-emu pixel -gpu host` still works.
 #
-# androidSdkRoot is passed by modules/home/default.nix, which owns that single source.
+# androidSdkRoot and brewPrefix are passed by modules/home/default.nix, which owns both.
 {
   writeShellApplication,
   coreutils,
   gnugrep,
   gnused,
   androidSdkRoot,
+  brewPrefix,
 }:
 writeShellApplication {
   name = "android-emu";
@@ -38,8 +39,8 @@ writeShellApplication {
     ANDROID_HOME="''${ANDROID_HOME:-${androidSdkRoot}}"
     export ANDROID_HOME
     avd="''${1:-pixel_play}"
-    sdkmanager="/opt/homebrew/bin/sdkmanager"
-    avdmanager="/opt/homebrew/bin/avdmanager"
+    sdkmanager="${brewPrefix}/bin/sdkmanager"
+    avdmanager="${brewPrefix}/bin/avdmanager"
     emulator="$ANDROID_HOME/emulator/emulator"
 
     # Google Play image for *play* AVDs, Google APIs otherwise.

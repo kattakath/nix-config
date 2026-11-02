@@ -19,6 +19,8 @@
 }:
 let
   cfg = config.local.ytDlpWebUi;
+  # How many yt-dlp processes run at once. Not a cap on waiting URLs.
+  queueSize = 2;
   pkg = pkgs.callPackage ../../packages/yt-dlp-web-ui.nix { };
   home = config.home.homeDirectory;
   stateDir = "${home}/.local/share/yt-dlp-webui";
@@ -26,7 +28,7 @@ let
     server:
       host: 127.0.0.1
       port: ${toString cfg.port}
-      queue_size: ${toString cfg.queueSize}
+      queue_size: ${toString queueSize}
     paths:
       download_path: ${stateDir}/downloads
       downloader_path: ${lib.getExe pkgs.yt-dlp}
@@ -56,12 +58,6 @@ in
       type = lib.types.port;
       default = 3033;
       description = "Loopback port for the UI and /api/v1.";
-    };
-
-    queueSize = lib.mkOption {
-      type = lib.types.ints.positive;
-      default = 2;
-      description = "How many yt-dlp processes run at once. Not a cap on waiting URLs.";
     };
   };
 

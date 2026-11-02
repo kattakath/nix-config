@@ -28,6 +28,8 @@
 }:
 let
   cfg = config.local.beancount;
+  # Loopback port for on-demand Fava, exported as FAVA_PORT. Fava's own default.
+  favaPort = 5000;
   env = pkgs.python3.withPackages (
     ps:
     [
@@ -62,12 +64,6 @@ in
       '';
     };
 
-    favaPort = lib.mkOption {
-      type = lib.types.port;
-      default = 5000;
-      description = "Loopback port for on-demand Fava, exported as FAVA_PORT. Fava's own default.";
-    };
-
     smartImporter = lib.mkOption {
       type = lib.types.bool;
       default = false;
@@ -90,7 +86,7 @@ in
     home.sessionVariables = {
       BEANCOUNT_PYTHON = "${env}/bin/python3";
       BEANCOUNT_JOURNAL = cfg.journal;
-      FAVA_PORT = toString cfg.favaPort;
+      FAVA_PORT = toString favaPort;
     };
   };
 }

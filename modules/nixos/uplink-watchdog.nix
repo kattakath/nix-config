@@ -56,6 +56,17 @@
 }:
 let
   cfg = config.local.uplinkWatchdog;
+  # Addresses (not names — DNS may be the thing that is broken) probed over HTTPS
+  # as `https://<target>/`, so an IPv6 literal carries its brackets. ANY target
+  # answering means healthy. Both families are listed because the tunnel connects
+  # over whichever works, and an IPv4-only list ran the ladder for 38 h on
+  # 2026-10-15/16 while the tunnel sat healthy on IPv6 (header).
+  probeTargets = [
+    "1.1.1.1"
+    "8.8.8.8"
+    "[2606:4700:4700::1111]"
+    "[2001:4860:4860::8888]"
+  ];
 
   # Probes bind to nothing: they test whatever the DEFAULT ROUTE currently is.
   # Per-interface probing was tried and REJECTED — `curl --interface wlan0` fails
@@ -75,7 +86,7 @@ let
       # the status code is checked too.
       # Quoted per target: an IPv6 literal's brackets are a glob character class in an
       # unquoted `for` list (shellcheck SC2102 caught it at build time).
-      for t in ${lib.concatMapStringsSep " " lib.escapeShellArg cfg.probeTargets}; do
+      for t in ${lib.concatMapStringsSep " " lib.escapeShellArg probeTargets}; do
         code=$(curl -sk --max-time ${toString cfg.probeTimeout} -o /dev/null -w '%{http_code}' "https://$t/" || true)
         case "$code" in
           2* | 3*) exit 0 ;;
@@ -328,23 +339,6 @@ in
       type = lib.types.str;
       default = "supplicant-wlan0.service";
       description = "Unit the watchdog restarts when it fails over or recovers.";
-    };
-
-    probeTargets = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [
-        "1.1.1.1"
-        "8.8.8.8"
-        "[2606:4700:4700::1111]"
-        "[2001:4860:4860::8888]"
-      ];
-      description = ''
-        Addresses (not names — DNS may be the thing that is broken) probed over HTTPS
-        as `https://<target>/`, so an IPv6 literal carries its brackets. ANY target
-        answering means healthy. Both families are listed because the tunnel connects
-        over whichever works, and an IPv4-only list ran the ladder for 38 h on
-        2026-10-15/16 while the tunnel sat healthy on IPv6 (header).
-      '';
     };
 
     probeTimeout = lib.mkOption {

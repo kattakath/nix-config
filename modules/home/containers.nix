@@ -36,8 +36,8 @@
 # modules/ for `docker|colima|podman|virtualisation` — no container-runtime option), so a system-
 # level answer does not exist; the home-manager one is the whole surface.
 #
-# WHAT IS GENUINELY CUSTOM HERE: nothing but the `local.containers.enable`
-# switch and the profile's `settings` values. No script, no wrapper, no path.
+# WHAT IS GENUINELY CUSTOM HERE: the `local.containers.enable` switch, the
+# profile's `settings` values, and two `home.file` links (below). No script, no wrapper.
 #
 # WHY `setDockerHost` and the three profile flags are spelled out even though the
 # option has a default: the module's default profile is only used when NOTHING
@@ -61,9 +61,9 @@
 # (`cmd/start.go` setFixedConfigs); changing them later means `colima delete`.
 #
 # THE DOCKER CLI STAYS ON BREW. `docker`, `docker-buildx` and `docker-compose`
-# in hosts/macos.nix are the CLIENT (plugins under /opt/homebrew/lib/docker/
-# cli-plugins); the module only adds nixpkgs' `docker` to the AGENT's PATH so
-# colima can run `docker context use` (the agent's `EnvironmentVariables.PATH`). Nothing in this repo consumes
+# in hosts/macos.nix are the CLIENT (plugins under <brew prefix>/lib/docker/
+# cli-plugins, linked into ~/.docker/cli-plugins below); the module only adds
+# nixpkgs' `docker` to the AGENT's PATH so colima can run `docker context use` (the agent's `EnvironmentVariables.PATH`). Nothing in this repo consumes
 # the socket: tart-vms is Apple Virtualization, gitlab-runner is the Tart custom
 # executor, local-rag is native postgres, and the devcontainer image is a
 # CI/Codespaces artifact.
@@ -76,29 +76,7 @@
 # agents cannot be bootstrapped before its first login (`gui/<uid>` does not
 # exist until then, and bootstrapping into it aborts activation).
 #
-# MIGRATION — the first `activate` after this lands removes the cask through
-# `brew bundle --cleanup` (onActivation.cleanup = "uninstall"). The cask
-# uninstall does NOT remove the privileged helper, its two LaunchDaemons or
-# the per-user Desktop leftovers. Manual, one time, NOT run by this module:
-#
-#   # machine-wide (root): the helper that was bound to one username
-#   sudo launchctl bootout system/com.docker.socket
-#   sudo launchctl bootout system/com.docker.vmnetd
-#   sudo rm -f /Library/LaunchDaemons/com.docker.socket.plist \
-#              /Library/LaunchDaemons/com.docker.vmnetd.plist \
-#              /Library/PrivilegedHelperTools/com.docker.socket \
-#              /Library/PrivilegedHelperTools/com.docker.vmnetd \
-#              /var/run/docker.sock
-#
-#   # per user: Desktop's config.json state (mutable — `docker login` writes it,
-#   # so it is deliberately NOT managed by programs.docker-cli here)
-#   #   currentContext "desktop-linux"  → colima's --activate switches it itself
-#   #   credsStore "desktop"            → docker-credential-desktop is gone; drop the
-#   #                                     key or set "osxkeychain" (brew docker-credential-helper)
-#   #   ~/.docker/cli-plugins/docker-{compose,buildx} → dangling links into Docker.app;
-#   #                                     re-point at the brew formulae:
-#   ln -sfn /opt/homebrew/lib/docker/cli-plugins/docker-compose "$HOME/.docker/cli-plugins/docker-compose"
-#   ln -sfn /opt/homebrew/lib/docker/cli-plugins/docker-buildx  "$HOME/.docker/cli-plugins/docker-buildx"
+# Docker Desktop's one-time teardown recipe (done on `macos`) left this header 2026-11-02; git history keeps it.
 #
 # First start downloads the ~200 MB Ubuntu guest image into $COLIMA_HOME; the
 # agent logs to $XDG_STATE_HOME/colima/default.log (module default, :155).
@@ -106,10 +84,23 @@
   config,
   lib,
   pkgs,
+  # nix-darwin's config when embedded via home-manager.darwinModules.
+  osConfig ? { },
   ...
 }:
 let
   cfg = config.local.containers;
+  brewPrefix = import ../_lib/brew-prefix.nix osConfig;
+  # The docker CLI finds plugins only in ~/.docker/cli-plugins (or a
+  # cliPluginsExtraDirs entry in the mutable config.json, which this module does
+  # not own). A LIVE link, not a store copy — brew upgrades the binary in place.
+  # UPSTREAM: home-manager modules/files.nix:170 `config.lib.file.mkOutOfStoreSymlink`;
+  # `force` (modules/lib/file-type.nix:135) replaces the hand-made links of 2026-09-24
+  # that checkLinkTargets would otherwise refuse.
+  cliPlugin = name: {
+    source = config.lib.file.mkOutOfStoreSymlink "${brewPrefix}/lib/docker/cli-plugins/${name}";
+    force = true;
+  };
 in
 {
   options.local.containers = {
@@ -120,6 +111,9 @@ in
   };
 
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
+    home.file.".docker/cli-plugins/docker-compose" = cliPlugin "docker-compose";
+    home.file.".docker/cli-plugins/docker-buildx" = cliPlugin "docker-buildx";
+
     services.colima = {
       enable = true;
       profiles.default = {
