@@ -31,10 +31,15 @@ ck ask /Users/x/.ssh/config
 ck ask /Users/x/Library/LaunchAgents/evil.plist
 ck ask /Users/x/.config/git/config
 ck ask "$P/../../../../../.profile"
-# APFS is case-insensitive: a case variant names the same file.
-ck ask /Users/x/.ZSHRC
-ck ask /ETC/hosts
-ck ask /Users/x/library/launchagents/evil.plist
+# APFS is case-insensitive: a case variant names the same file. The hook folds case
+# on darwin only (Linux filesystems are case-sensitive, and CI runs on Linux).
+if [ "$(uname -s)" = Darwin ]; then
+  ck ask /Users/x/.ZSHRC
+  ck ask /ETC/hosts
+  ck ask /Users/x/library/launchagents/evil.plist
+else
+  ck none /Users/x/.ZSHRC
+fi
 
 echo "== must stay SILENT =="
 ck none /private/tmp/claude-501/-Users-x-repo/0f3a-session/scratchpad/notes.md
