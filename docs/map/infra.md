@@ -163,10 +163,12 @@ mandatory `grace`; the render refuses both/neither, a bad slug, or more than the
   apply creates the checks) and no destroy. Guards: refuses a render that **drops** a check state
   holds (`HC_CHECKS_ALLOW_DROPS=1`), an apply against **empty state** (`HC_CHECKS_ALLOW_CREATE=1`,
   the legitimate first-apply override) and `-auto-approve`.
-- **Alert channels** are data: `fleet.heartbeatChannels`, a list of integration UUIDs, **empty by
-  default**. Create the integration once in the dashboard, then paste its UUID.
+- **Alert channels:** empty `fleet.heartbeatChannels` (the default) means the project's email
+  integration, found by a guarded data lookup that fails the plan if it is missing; set the
+  option only to override with explicit UUIDs.
 - **Declared is not wired.** Only `nixpi-serving` has a pinger today; the other entries make the
-  check exist, and a check nobody pings alerts when its first deadline lapses.
+  check exist, but a never-pinged check stays `new` and **never alerts** — its alarm arms at the
+  first ping (`Check.get_status`).
 - State object `hc-checks/` in the shared encrypted bucket; the working dir is
   `$XDG_STATE_HOME/nix-config-hc-checks`.
 

@@ -23,9 +23,11 @@
 # would silently mint a stray check instead of failing, and the registry would stop
 # being the source of truth.
 #
-# DECLARED ≠ WIRED. An entry here makes the check EXIST at the monitor; it starts
-# the clock, so a declared-but-unpinged check alerts when its first deadline lapses.
-# Entries therefore land with (or just ahead of) the pinger that feeds them.
+# DECLARED ≠ WIRED. An entry here makes the check EXIST at the monitor, but its
+# clock starts at the FIRST PING: a never-pinged check stays `new` and never alerts
+# (healthchecks hc/api/models.py `Check.get_status`, read 2026-11-02). So an
+# unwired entry is a placeholder whose silence is NOT yet watched — the alarm arms
+# when its pinger lands, not when this entry does.
 #
 # Typed in its own file rather than in identity.nix: `options.fleet` is a freeform
 # submodule there, and a second declaration of the same option merges at the
