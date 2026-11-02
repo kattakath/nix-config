@@ -16,12 +16,14 @@
 # the next `tofu init` there refuses loudly, before any plan.
 #
 # WHY NOT nixpkgs `opentofu.withPlugins`, which would make the provider a store path
-# instead of a registry download. The pinned nixpkgs' providers.json ships
-# cloudflare 5.19.1 and google 7.32.0 — both OLDER than what the live state was
-# written with (5.25.0, 8.4.0), google by a whole major — and does not package
-# kristofferahl/healthchecksio at all. Adopting it would mean DOWNGRADING the
-# providers under existing state, and splitting hc-checks onto a second lane.
-# Revisit when nixpkgs' versions reach these (or a bump here is due anyway).
+# instead of a registry download. The fleet's nixpkgs (the root `nixpkgs` input)
+# ships cloudflare 5.27.0 and google 8.5.0 (the `terraform-providers.*` drv names,
+# read 2026-11-02) — NEWER than what the live state was written with (5.25.0,
+# 8.4.0) — and does not package kristofferahl/healthchecksio at all. Adopting it
+# would force a provider UPGRADE under existing state, re-open access-org.nix's
+# encoder argument (a reading of 5.25.0), and split hc-checks onto a second lane.
+# Revisit at the next deliberate provider bump: that is the moment to move to the
+# nixpkgs versions and drop the registry download for the two it carries.
 #
 # BUMPING ONE: cloudflare is shared by three stacks on purpose (one provider
 # version across the account), and infra/cloudflare/access-org.nix's safety
