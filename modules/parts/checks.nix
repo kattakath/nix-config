@@ -117,7 +117,7 @@ in
           #     no Keychain.
           #   .claude/hooks/tests/*.sh DELIBERATELY NOT LINTED, and the only entry
           #     here left that way on purpose. claude-config-lint.yml RUNS
-          #     every one as a REQUIRED check that blocks a merge, which is strictly
+          #     every one under `gate`, so a failure blocks a merge, which is strictly
           #     stronger evidence than a lint. Shellcheck was then run over them to
           #     see whether it adds anything on top, and it does not. Re-run
           #     2026-10-21 over the six files then on main (shellcheck 0.11.0): nine
@@ -688,15 +688,13 @@ in
           #     is legible NEXT TO the settings that are allowed, rather than
           #     discovered by tripping it.
           #
-          # Darwin-gated to the CI leg that already evaluates this host
-          # (.github/workflows/nix-ci.yml). The nixpi half lives in the isLinux
-          # block below and asserts the OPPOSITE things, on purpose.
+          # Darwin-only (CI runs it on the advisory darwin leg: docs/map/ci.md
+          # § Residual risk). The nixpi half lives in the isLinux block below
+          # and asserts the OPPOSITE things, on purpose.
           #
           # The HOST IS IN THE NAME, and that is load-bearing (2026-10-18). Both
-          # halves were once called `determinate-daemon`, and nix-ci's darwin PR
-          # leg builds only check NAMES no other system exposes — so a shared name
-          # read as "linux builds it", and the macos contract went ungated on
-          # every non-operator PR. Invariant: a check name present on two systems
+          # halves were once called `determinate-daemon`, and a shared name read as
+          # "linux builds it", so the macos contract went ungated. Invariant: a check name present on two systems
           # must come from ONE source block; a per-host contract carries its host.
           #
           # NOT COVERED: this reads the Nix-side declaration only. It cannot see

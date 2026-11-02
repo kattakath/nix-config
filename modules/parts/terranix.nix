@@ -90,7 +90,7 @@ let
             #
             # NOT A NEW NAME: `gcpFoundationConfig` below already threads
             # `operatorAccount = googleAccount` into infra/gcp/foundation.nix,
-            # which takes it under exactly that name — so the five stacks keep ONE
+            # which takes it under exactly that name — so the stacks keep ONE
             # spelling for one value rather than two.
             #
             # ORDER IS DELIBERATE: the argument lands BEFORE its consumer exists.

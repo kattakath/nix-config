@@ -185,8 +185,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
 - [`docs/photo-system.md`](../photo-system.md) — photo retrieval end to end: the
   durable/derived split between what `media-describe` writes and what `rclip` keeps.
 - [`docs/auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md) — how every fleet
-  flake merges itself once CI is green (App token, ruleset). **No merge queue** since
-  2026-09-22; §3 records why, and what to re-check before re-adopting.
+  flake merges itself once CI is green (App token, ruleset, merge queue); §3 records the
+  queue's history.
 - [`docs/pr-wait-research.md`](../pr-wait-research.md) — where PR-wait time actually goes (CI 92% of clock; in-session waits
   6–8 min/day) and the lever backlog with the rejected alternatives — its levers SHIPPED
   2026-10-18 (`ci.md`, `.claude/rules/landing-changes.md`), including removing the

@@ -348,10 +348,9 @@ in
       "postgres"
     ];
     # ---- AWS CLI: tool + shape, content stays local (ADR-004 phase 3) -------
-    # Until 2026-09-20 this block carried `programs.awscli.settings` with two real
-    # account ids and an SSO start-URL id — reconnaissance in a public repo
-    # (ADR-004 §7, inventory #1). The cloud-cli capsule now installs the CLI and
-    # writes ~/.aws/config.example; the real ~/.aws/config is the operator's,
+    # No `programs.awscli.settings`: account ids in a public repo are reconnaissance
+    # (ADR-004 §7). The cloud-cli capsule installs the CLI and writes
+    # ~/.aws/config.example; the real ~/.aws/config is the operator's,
     # written by `aws configure sso` / by hand, outside Nix and git.
     # Claude Code's Bedrock profile is still selected at runtime with
     # `secret set AWS_PROFILE <profile>`.
@@ -385,14 +384,9 @@ in
       no-allow-external-cache
     '';
 
-    # ---- OpenAI base-URL override — REMOVED 2026-09-29 -----------------------
-    # `OPENAI_BASE_URL` + `OPENAI_API_BASE` pointed at a client LiteLLM proxy that was
-    # wound down (zero A-records, connect failure, verified 2026-09-29). An explicit
-    # base URL is an OVERRIDE in the OpenAI SDKs, so a dead one made every client fail
-    # instead of falling back to api.openai.com. Both vars are dropped, and the stale
-    # `openai.com:api` Keychain entry (a proxy virtual key, rejected 401 by
-    # api.openai.com) was removed with `secret rm`. Nothing declarative recreates
-    # either. A REAL OpenAI key, if ever needed: `secret set OPENAI_API_KEY`.
+    # No `OPENAI_BASE_URL`/`OPENAI_API_BASE` (removed 2026-09-29): an explicit base URL
+    # OVERRIDES the SDK default, so a dead proxy made every OpenAI client fail. A real
+    # key, if ever needed: `secret set OPENAI_API_KEY`.
 
     # Chrome DevTools Protocol, in ATTACH mode against Chromium. The attach flag is
     # picked at spawn time by probing /json/version — neither --browser-url nor

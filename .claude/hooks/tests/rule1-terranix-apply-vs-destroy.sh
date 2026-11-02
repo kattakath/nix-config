@@ -66,7 +66,7 @@ echo "== read-only and unrelated apps are untouched by either half =="
 ck approve "$NR .#cf-tunnel-plan"
 ck approve "$NR .#nixvm"
 
-# ---- 2026-10-02: the apply rule now covers all FIVE stacks ------------------
+# ---- 2026-10-02: the apply rule covers every stack's apply -----------------
 # These cases cannot be written with `ck`. Widening the apply regex does not
 # change any DECISION — apply was and stays `approve` — so a decision-only
 # assertion passes identically before and after the widening and proves nothing.

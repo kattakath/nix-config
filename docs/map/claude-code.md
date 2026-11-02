@@ -113,7 +113,7 @@ copies of one command is a duplicate, not a fallback.
 ### `.claude/agents/`
 
 ONE project agent, `terranix-infra-reviewer`: reviews and PLANS changes under `infra/` (the
-terranix stacks), never applies. Use it before any `cf-*` / `gcp-*` apply — CLAUDE.md § Using
+terranix stacks), never applies. Use it before any `*-apply` — CLAUDE.md § Using
 Subagents routes to it.
 
 ### `.claude/rules/`
@@ -126,9 +126,7 @@ file's `paths:` frontmatter is the source of truth.
 - [`pr-title.md`](../../.claude/rules/pr-title.md) — a PR title is the comma-separated list of the
   components the change touches (first-level `nix flake show` output category for flake outputs,
   or a top-level dot-folder with its dot stripped). Also states the default shape: **one PR per
-  change, branched off `main`** — a single ~10 min CI gate per PR keeps them independent (the
-  old "one open PR per working session" consolidation policy was retired 2026-08-30; the merge
-  queue that later justified it was itself removed 2026-09-22). A DEPENDENT change branches off
+  change, branched off `main`**. A DEPENDENT change branches off
   its unmerged parent as a DRAFT, or folds into the parent's PR — it never waits for the merge.
 - [`landing-changes.md`](../../.claude/rules/landing-changes.md) — how a change LANDS. Never poll
   CI inside a turn: one background watch, reporting only RED or "merged, needs activate". And
@@ -296,7 +294,7 @@ upstreams on two unrelated pins.
 
 **Since 2026-09-23 the operator's own skills are NOT on this rail** — they install as plugins from the `kattakath` git marketplace (§ The operator's marketplace). Pinned-era record:
 
-**Since 2026-09-12 the operator's own skills are on that same rail.** `rag`,
+**From 2026-09-12 to 2026-09-23 the operator's own skills were on that same rail.** `rag`,
 `android-phone` and `nix-dev-toolkit` were extracted out of this tree, and since
 2026-09-14 live beside the plugins in
 [`github:kattakath/ai`](https://github.com/kattakath/ai), pinned as `kattakath-ai`, so the

@@ -8,8 +8,8 @@
 # "Cannot be RUN in a derivation" was then read as "cannot be CHECKED", and it is
 # not: shellcheck needs no Keychain. Measured 2026-10-02 — of the fifteen tracked
 # `.sh` files in this repo, this was one of eleven with no gate at all, and the
-# only one of those eleven that nothing else covers either (the four
-# `.claude/hooks/tests/*.sh` are RUN by claude-config-lint.yml, a required check).
+# only one of those eleven that nothing else covers either (the
+# `.claude/hooks/tests/*.sh` are RUN by claude-config-lint.yml, under `gate`).
 # So until this file landed, a syntax error here was discoverable only by the
 # operator running the test and watching bash refuse it.
 #
