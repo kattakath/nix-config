@@ -281,9 +281,9 @@ in
             let
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
               servers = hm.local.claudeDesktop.renderedServers;
-              # A `url` entry (from the operator's Desktop overlay) is an mcp-remote shim, so its URL
-              # rides in `args`, not in a `url` key (Desktop's schema rejects one —
-              # that is what toStdioShim exists for).
+              # A `url` entry is never rendered (the mcp-remote bridge is gone: an overlay
+              # url entry is skipped, an extraServers one fails eval), so no rendered server
+              # may carry a `url` or `type` key — Desktop's schema rejects both.
               badShape = lib.filterAttrs (
                 _: s: !(s ? command && s ? args) || s ? url || s ? type || !(s ? env && s.env ? NIX_CONFIG_MANAGED)
               ) servers;
