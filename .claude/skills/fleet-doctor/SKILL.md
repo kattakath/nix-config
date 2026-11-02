@@ -221,12 +221,13 @@ the model picks either copy. The fleet removes known twins with NAME denies
 fails SILENTLY if upstream renames the server key, and this step is the guard. Report only:
 
 ```bash
-claude mcp list 2>/dev/null | grep -cE '^plugin:(aws-core|aws-serverless):'   # must print 0
+claude mcp list 2>/dev/null | grep -cE '^plugin:(aws-core|aws-serverless|cloudflare|slack|neon):'   # must print 0
 claude mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # must print 0
 claude mcp list 2>/dev/null | grep -c  '^claude\.ai AWS MCP:'                  # must print 1 (the one AWS path)
 ```
 
-The first line asks whether the two server-denied plugins start ANY server, not whether a
+The first line asks whether the server-denied plugins (every `serverName` in
+`deniedMcpServers`; keep this list in step with it) start ANY server, not whether a
 name is gone: a renamed server key would slip past a name check but still shows up here.
 Non-zero means a deny no longer matches, so read `claude mcp list` and update the
 `serverName` entry.

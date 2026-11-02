@@ -137,6 +137,9 @@ the `curl … | bash` bytes are gated exactly like every in-flake script.
 
 Smaller, single-purpose CLIs:
 
+- **`android-emu.nix`** — macOS-only `android-emu` launcher for the Android emulator,
+  `callPackage`d by `modules/home/default.nix` with `androidSdkRoot` (moved out of an inline
+  `writeShellApplication` 2026-11-02, same script).
 - **`android-phone.nix`** — macOS-only: deterministic wired/wireless ADB operator
   (`list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor|kdeconnect-grants`) plus scrcpy mirroring
   for a PHYSICAL Android device; hardens around two live-reproduced adb bugs, an mDNS-cache

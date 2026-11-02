@@ -28,7 +28,7 @@ nothing — hence one regex, not two calls.
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm,nixos}`. |
 | `packages.nix` | `perSystem.packages` + every non-terranix `apps.*` (the `cf-*` / `gcp-*` apps live in `terranix.nix`). |
 | `checks.nix` | The engine's own checks, including `claude-md-budget`, `line-refs-cite-constructs` (no `path:N` citation into this repo's OWN files in living text — name the option, binding or block; a pinned input's citation leads with the input's name; which files count as as-of records, and so are skipped, is listed once, in the check's own header. 75 of 146 such citations had drifted when it landed, 2026-10-17), `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (its legs: the check's own `subject`/assertions), the two Determinate host contracts (`determinate-daemon-macos` / `-nixpi` — the host is in the NAME, because nix-ci's darwin PR leg skips any check name linux also exposes) and `nixpi-security-posture` ([`modules-nixos.md`](modules-nixos.md) § `modules/nixos/` — its legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
-| `capsules.nix` | The capsule registry and its two internal seams — `capsuleModules` and `capsuleSources` — plus `checks.<system>.capsule-registry`. |
+| `capsules.nix` | The capsule registry and its internal seam `capsuleModules`, plus `checks.<system>.capsule-registry`. |
 | `terranix.nix` | The `cf-*` / `gcp-*` tofu builders. The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring: two hooks (treefmt, gitleaks), run by `checks.<system>.pre-commit` and never installed as git hooks. |
 | `deploy.nix` | `deploy.nodes.nixpi` (deploy-rs has **no** flakeModule — grepped; this stays hand-written in the freeform `flake` attr) + `checks.<system>.deploy-schema`. |
@@ -83,7 +83,6 @@ Every capsule is entered **only** through `flake-module.nix`. From there it publ
 |---|---|---|---|
 | `flake.modules.<class>.<name>` | flake-parts' own module registry (`extras/modules.nix:32-73`) | `cloudflared-connector`, `firmware-secrets` (both NixOS) | pure reuse; the `_class` stamp comes free |
 | `capsuleModules.<class>.<name>` | `lazyAttrsOf raw` — a definition passed through **UNWRAPPED** (`modules/parts/capsules.nix`) | `keychain-secrets`, `media-cli`, `local-rag`, `cloud-cli` (home-manager), `tart-vms` (darwin) | **measured, not stylistic.** `flake.modules`' element type is `types.deferredModule`, whose merge always wraps in `{ imports = [ … ]; }` (pinned nixpkgs `lib/types.nix`, `deferredModuleWith`), and flake-parts wraps again for any class but `generic`. For a NixOS module that is invisible. For a **home-manager** module it is not: `home.packages` is a LIST, merged in module-collection order = `buildEnv`'s `paths` order = **who wins a filename collision**. Routing `keychain-secrets` through `flake.modules` moved its four CLIs ahead of postgresql and `nix-bedrock-gate` and **changed `darwin-system`'s drvPath**, with byte-identical package derivations. |
-| `capsuleSources.<capsule>.<name>` | a **path**, nothing else | `tart-vms` only (`gitlab-tart.nix`) | the inward hole above: `modules/home/default.nix` must build it with the HOST's pkgs, and publishing the path keeps `flake-module.nix` the only thing outside the capsule that names a file inside it |
 
 A capsule may also export flake **packages** from its `flake-module.nix` (`tart-vms` does —
 its Packer plugin, GitLab executor and config printer); that file is the list, not this map.
@@ -201,9 +200,8 @@ the one exported host (`macos`) and the stranger-identity Mac that
   `tart` / `packer` / `tart-guest-agent`) rather than riding a blanket `allowUnfree`, so a
   **fourth** unfree package arriving via a nixpkgs bump still fails the build. The darwin modules
   keep building against the HOST's pkgs.
-- **`capsuleSources.tart-vms.gitlab-tart`** — the one entry on that seam. `modules/home/default.nix`
-  `callPackage`s it with the **host's** pkgs to put its `nix-gitlab-tart-*` slot shims on `PATH`;
-  a derivation from this flake's perSystem pkgs would be a different drv.
+- **No `capsuleSources` seam since 2026-11-02.** Its one entry fed the `nix-gitlab-tart-*` PATH
+  shims, retired because the GitLab runner already references the store paths directly.
 - **`darwinStubs` STAYS.** It is the OPTION layer of the capsule boundary (ADR-002 §2), not
   scaffolding — deleting it deletes the isolation test. Its rot cost is stated at the check.
 - **`/Users/admin` and `/Users/tester` are CORRECT** — a Cirrus GUEST image's account and an
@@ -342,6 +340,9 @@ Four files, and the layer exists for their shape rather than their count:
 - **`modules/_lib/tor-browser-alpha.nix`** — an overlay pointing `tor-browser` at the aarch64
   ALPHA build, because the pinned nixpkgs' stable one THROWS at eval on aarch64-linux. Imported
   by `hosts/nixos.nix` only (nixvm's desktop, its other consumer, was deleted 2026-10-17).
+- **`modules/_lib/derived-names.nix`** — the names derived from the identity once
+  (`googleAccount`, `nixpiSshHostname`), read by `identity.nix`, `deploy.nix`, the nixpi tunnel
+  and home-manager instead of each re-deriving them.
 - **`modules/_lib/is-macos-host.nix`** — `osConfig -> bool`, the ONE `isMacosHost` predicate
   (#856) for the home modules that gate macos-only behaviour: `default.nix`,
   `macos-user-agents.nix`, `spotlight-actions.nix`, `tor-browser-backup-exclusion.nix`. It reads

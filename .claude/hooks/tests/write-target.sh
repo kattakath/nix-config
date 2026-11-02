@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # pretooluse-write-target.js cases: a Write/Edit ASKS on OS system paths, a literal
 # '../' escaping the project, and login/credential files; it says nothing (normal
-# permission flow) on the session scratchpad, gh-clones, sibling repos and data
-# folders. A malformed payload must exit 0 with no output (fail open).
+# permission flow) on the session scratchpad, sibling repos and data folders.
+# A gh-clones-<session> dir under /var/folders is a system root like any other
+# since 2026-11-02 (its carve-out went with the disabled gh-cli plugin). A malformed payload must exit 0 with no output (fail open).
 set -uo pipefail
 H=.claude/hooks/pretooluse-write-target.js
 P=/Users/x/Developer/github.com/o/repo
@@ -26,6 +27,7 @@ ck ask /private/tmp/x.txt
 ck ask /etc/hosts
 ck ask /var/log/x
 ck ask /Library/LaunchDaemons/x.plist
+ck ask /var/folders/ns/abc123/T/gh-clones-sess42/repo/README.md
 ck ask /Users/x/.zshrc
 ck ask /Users/x/.ssh/config
 ck ask /Users/x/Library/LaunchAgents/evil.plist
@@ -44,7 +46,6 @@ fi
 echo "== must stay SILENT =="
 ck none /private/tmp/claude-501/-Users-x-repo/0f3a-session/scratchpad/notes.md
 ck none /tmp/claude-501/-Users-x-repo/0f3a-session/scratchpad/wt/file.nix
-ck none /var/folders/ns/abc123/T/gh-clones-sess42/repo/README.md
 ck none "$P/modules/home/default.nix"
 ck none /Users/x/Developer/github.com/other/skills/plugins/a.js
 ck none /Users/x/Downloads/report.md
