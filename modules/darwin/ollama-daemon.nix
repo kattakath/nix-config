@@ -196,7 +196,11 @@ in
     # NOT be recreated under a user's ownership — root owns it, and clients only
     # ever reach the models through HTTP, never the filesystem. So 0755 is
     # enough: no client needs read access to the blobs.
-    system.activationScripts.postActivation.text = lib.mkBefore ''
+    # preActivation, not postActivation: pinned nix-darwin
+    # modules/system/activation-scripts.nix runs preActivation (:114) before
+    # `launchd` (:128) loads the daemon and postActivation (:140) after it, so on a
+    # first activation the RunAtLoad daemon would start before the dir existed.
+    system.activationScripts.preActivation.text = lib.mkBefore ''
       mkdir -p ${lib.escapeShellArg cfg.modelsPath}
     '';
 

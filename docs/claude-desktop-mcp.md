@@ -6,7 +6,7 @@
 > plugin stdio server** (claude.com/docs/plugins/platform-support; its Code tab DOES load plugins, like the CLI), so no plugin-owned
 > server reaches chat, and Cowork reads the claude.ai account's plugins. `local.claudeDesktop.extraServers`
 > renders nothing public; client servers arrive through the hand-placed Desktop overlay (`claude-desktop.nix`, merged at activation, so
-> this public repo names none). A `url` overlay entry goes through the `mcp-remote` shim.
+> this public repo names none). Stdio entries only: the `mcp-remote` shim for `url` entries was removed 2026-11-02, and a `url` overlay entry is now skipped with a warning.
 > `checks.aarch64-darwin.claude-desktop-config-shape` asserts the module is enabled and that
 > no public server is rendered from Nix.
 >
@@ -51,8 +51,8 @@ move the shim transform with it.
 
 **From 2026-10-02: an empty `mcpServers` object, until `local.claudeDesktop.extraServers` came back
 — today nothing from Nix, and no overlay is placed.** The flow below is the shape the
-renderer still has (and would use again if a `url` ever reappeared via `extraServers`), but there
-is no portal entry at the top of it any more. Read it as the mechanism, not the inventory.
+renderer HAD until 2026-11-02, when the `toStdioShim` url branch and `mcpRemoteVersion` were
+removed as dead. Read it as history: today only a stdio entry is rendered, with the marker.
 
 From 2026-09-22 to 2026-10-02 it was **one** entry, not a per-server list:
 `programs.claude-code.mcpServers` was empty (desktop-commander moved onto the proxy, open-design
@@ -77,8 +77,8 @@ programs.mcp.servers (hub)
 - **Shims, not servers.** The gateway hosted one instance of each; Desktop launched
   one thin `mcp-remote` bridge per server. ~27 node processes at launch; first launch after
   a pin bump fetched `mcp-remote@<pin>` into `~/.npm/_npx` (a runtime fetch, the same trade
-  the gateway's npx/uvx launchers made). **Zero such processes from Nix today** — Nix renders
-  no server at all (a `url` overlay entry would add one).
+  the gateway's npx/uvx launchers made). **The shim is gone** (2026-11-02): Nix renders no
+  server, and a `url` overlay entry is skipped, not bridged.
 - **The marker is an env var** (`NIX_CONFIG_MANAGED`) because it is the one extra field
   Desktop's stdio schema tolerates and every server ignores. It is how the merge tells
   *ours* (rewrite, prune when stale) from *theirs* (a server added in Desktop's UI — never
@@ -157,5 +157,4 @@ not error, it disappears from the app.
 | Option | Default | Why you'd touch it |
 |---|---|---|
 | `local.claudeDesktop.enable` | darwin (**no longer gated on a gateway** — there isn't one) | off on a Mac without Desktop. **Not** the way to express "no servers": see the header |
-| `.mcpRemoteVersion` | pinned | deliberate bump, here, not `@latest` |
-| `.extraServers` | `{}` | a Desktop-only server (hub shape; `url` is shimmed) |
+| `.extraServers` | `{}` | a Desktop-only stdio server (`{command, args, env}`; a `url` entry fails eval) |

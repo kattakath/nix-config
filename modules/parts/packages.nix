@@ -141,7 +141,9 @@ in
           # scrcpy from PATH since it became a nixpkgs package (2026-09-29) —
           # see that package's header for why it is still not a runtimeInput.
           # Also on PATH via home.packages, macos only (modules/home/default.nix).
-          android-phone = pkgs.callPackage ../../packages/android-phone.nix { };
+          android-phone = pkgs.callPackage ../../packages/android-phone.nix {
+            brewPrefix = import ../_lib/brew-prefix.nix { };
+          };
 
           # `nixos-vm` — create and drive the long-lived `nixos` guest as a UTM
           # (QEMU backend) VM. Unlike `nixvm` above it IS a package: the guest
