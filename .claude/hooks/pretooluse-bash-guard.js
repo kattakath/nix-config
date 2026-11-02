@@ -74,8 +74,9 @@
  * this file is only ever handed Bash calls and structurally cannot see an MCP
  * tool. desktop-commander is now the official plugin, which ships no such guard.
  *
- * Rules 1/2 (Cloudflare API calls / billed or mutating) keep their hard block:
- * those genuinely warrant stopping.
+ * DENY vs ASK (2026-11-02, operator decision): a rule hard-blocks only when the
+ * damage is irreversible or a secret would print — terranix destroy, Rule 1c/1d/1e/1f.
+ * Everything else that used to block now ASKS (`emitAsk`): `wrangler` and Rule 2.
  *
  * POLICY CHANGE (2026-08-19, a redirect-rule task): the plain "raw
  * request to api.cloudflare.com" sub-check of Rule 1 downgrades to a
@@ -89,7 +90,7 @@
  * user holds a correctly-scoped personal CLOUDFLARE_API_TOKEN (Keychain) for
  * exactly these operations and explicitly asked to unblock raw calls after
  * being shown this tradeoff. The terranix apply/destroy check
- * (TERRANIX_MUTATING_APP) and the bare `wrangler` check stay hard-blocked — those
+ * (TERRANIX_MUTATING_APP) and the bare `wrangler` check stayed gated — those
  * mutate broader fleet infra (the nixpi tunnel) sight-unseen, a materially
  * bigger blast radius than one ad-hoc scoped API call. Flip
  * RULE1_API_HOST_BLOCKING to `true` to restore the hard block.
@@ -734,6 +735,19 @@ function emit(decision, reason, systemMessage) {
   process.exit(0);
 }
 
+// ASK, not block: the operator gets Claude Code's permission prompt with `reason`
+// and decides. Measured 2026-11-02 on 2.1.296 (bypassPermissions, headless canary):
+// an `ask` is never silently allowed, a declined or unattended ask reaches Claude as
+// this same reason, and `additionalContext` beside it does NOT reach Claude, so the
+// one line must serve both readers. Stays-deny rules keep `emit("block")`: superhook's
+// loop breaker only counts that shape.
+function emitAsk(reason) {
+  process.stdout.write(JSON.stringify({
+    hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: reason },
+  }));
+  process.exit(0);
+}
+
 // ---- top-level command segmentation (best-effort, not a full shell parser) ----
 // Splits on ;, &&, ||, |, and newlines — the granularity the retired prompt rule
 // reasoned in ("this AND that", "piped into").
@@ -1146,10 +1160,8 @@ function main() {
   }
 
   if (segs.includes("wrangler")) {
-    emit(
-      "block",
-      "Direct `wrangler` invocation — a Cloudflare API call (Workers/Pages/D1/KV/R2/Queues).",
-      "Use the Cloudflare MCP server's API tools for Cloudflare API operations instead of raw wrangler (read the live tool name from the session: plugin `cloudflare` or a claude.ai connector).",
+    emitAsk(
+      "Direct `wrangler` call — a Cloudflare API change (Workers/Pages/D1/KV/R2/Queues); the Cloudflare MCP server's API tools are the usual route. Allow anyway?",
     );
   }
   {
@@ -1168,11 +1180,7 @@ function main() {
       }
       // ---- Rule 2: Cloudflare docs lookups ----
       if (isCloudflareDocsHost(host)) {
-        emit(
-          "block",
-          `Direct HTTP request to ${host} — a Cloudflare docs lookup.`,
-          "Use the Cloudflare MCP server's docs tool instead of fetching developers.cloudflare.com directly (read the live tool name from the session).",
-        );
+        emitAsk(`Direct fetch of ${host} — the Cloudflare MCP server's docs tool is the usual route. Allow anyway?`);
       }
     }
   }

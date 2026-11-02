@@ -1325,7 +1325,11 @@ in
     "pr-review-toolkit@claude-plugins-official" = true;
     "swift-lsp@claude-plugins-official" = true;
     "context7@context7-marketplace" = true;
-    "gh-cli@trailofbits" = true;
+    # OFF since 2026-11-02 (operator: "neither ask nor block"). Its PreToolUse hooks
+    # DENY WebFetch/curl of GitHub and its PATH shim refuses `gh api …/contents` and
+    # temp clones; a third-party deny cannot be turned into an ask, so the plugin goes.
+    # `false`, not a deleted line, for the reason the `empire` entry above gives.
+    "gh-cli@trailofbits" = false;
     "supply-chain-risk-auditor@trailofbits" = true;
   };
 
