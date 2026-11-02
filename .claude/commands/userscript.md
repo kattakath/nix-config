@@ -7,6 +7,6 @@ Run the **`page-lab:userscript-author`** skill (from the `page-lab` plugin) end 
 for: $ARGUMENTS
 
 Then follow `.claude/skills/userscript-author/SKILL.md` — the fleet layer that owns how a
-script reaches **this** Mac (publish to Greasy/Sleazy Fork, install once from the fork), which
+script reaches **this** Mac (publish to Greasy Fork, install once from the fork), which
 old pipeline steps are dead, and that Violentmonkey is still sideloaded. No
 PR to this repo.

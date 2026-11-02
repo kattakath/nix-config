@@ -29,8 +29,8 @@ valid:
   # that found the trailing-slash gap cited this exact line as one the rule
   # should catch; it is a FALSE positive, and the rule exempts it by SHAPE (the
   # `home` attrpath) rather than by account name, so it survives a rename.
-  - '{ users.users.izzy.home = "/Users/izzy"; }'
-  - '{ home = "/Users/izzy"; }'
+  - '{ users.users.alice.home = "/Users/alice"; }'
+  - '{ home = "/Users/alice"; }'
   # A REPO-RELATIVE path cited inside a string (not a source literal): the
   # `modules/home/` directory, named 2026-10-02 by the rename. Its `/home/x`
   # tail is not a home path, and the leading guard is what spares it. Both
@@ -45,7 +45,7 @@ invalid:
   # passed the old pattern, which required a `/` after the user segment — so a
   # value that is merely a home path, rather than a home DECLARATION, slipped
   # through both this rule and the companion hook.
-  - '{ dir = "/home/izzy"; }'
+  - '{ dir = "/home/alice"; }'
   - '{ stateDir = "/Users/ismail"; }'
   - '{ dir = "/Users/ismail/Developer/x"; }'
   - '{ dir = "/home/ismail/.config/foo"; }'

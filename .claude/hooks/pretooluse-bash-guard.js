@@ -843,7 +843,7 @@ const TRANSPARENT_WRAPPERS = new Set([
   "xargs",
 ]);
 // Wrapper flags that CONSUME the next token. Skipping the flag but not its value
-// leaves argv0 === the username (`sudo -u izzy nix …` -> "izzy"), which falls
+// leaves argv0 === the username (`sudo -u alice nix …` -> "alice"), which falls
 // through to default-approve just as silently as the wrapper itself did.
 //
 // Add only flags that are UNAMBIGUOUS across the set above. `-I` is xargs'
