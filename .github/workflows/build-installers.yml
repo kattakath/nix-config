@@ -127,6 +127,10 @@ jobs:
   # cost. (record-baseline's post-publish asset check, below, still guarantees we
   # never record a baseline for a publish that did not actually land.)
   gate:
+    # Display name is NOT `gate`: that check name belongs to nix-ci.yml's required
+    # aggregator (kattakath/.github rulesets). Two check runs named `gate` on one
+    # commit would make the required context ambiguous. The job id stays `gate`.
+    name: publish-gate
     runs-on: ubuntu-24.04-arm # native aarch64 — eval is arch-agnostic; cheapest correct runner
     timeout-minutes: 15
     outputs:

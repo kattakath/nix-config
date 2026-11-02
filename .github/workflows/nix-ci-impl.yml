@@ -43,6 +43,11 @@ on:
           evaluates (`nixosConfigurations`, `darwinConfigurations`), or `none`.
         type: string
         required: true
+    # Declared so a caller can pass it EXPLICITLY (the linux leg withholds it from
+    # merge-queue runs); `secrets: inherit` callers still get it. Empty = no push.
+    secrets:
+      CACHIX_AUTH_TOKEN:
+        required: false
 
 permissions:
   contents: read
