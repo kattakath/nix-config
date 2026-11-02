@@ -33,7 +33,7 @@ this stays a prompt rule rather than a fully mechanical one.
 
 Default GitHub behaviour: **one PR per logical change, branched off `main`.** There
 is no session-batching rule — an already-open PR is not a reason to pile the next
-change onto its branch. CI is a single ~10 min gate per PR and auto-merge lands it
+change onto its branch. CI is one heavy run per PR, in the merge queue, and auto-merge lands it
 green (see [`docs/auto-merge-and-merge-queue.md`](../../docs/auto-merge-and-merge-queue.md)),
 so independent PRs are the cheap, reviewable shape — batching only widens the blast
 radius of one red check.
@@ -48,7 +48,7 @@ Two refinements, both from [`docs/pr-wait-research.md`](../../docs/pr-wait-resea
   - **One logical change?** Fold N+1 into N's PR. That is not batching; it is one change.
   - **Two changes?** Branch N+1 off N's branch and open it as a DRAFT:
     `gh pr create --draft --base <N-branch>`. **The draft is mandatory.** `auto-merge.yml`
-    arms every non-draft operator PR whatever its base, and `protect-main` guards only the
+    arms every non-draft operator PR whatever its base, and the `main` ruleset guards only the
     default branch. So an armed N+1 could land in N's branch with no required checks.
   - When N squash-merges, GitHub deletes its branch (`delete_branch_on_merge: true`, read
     2026-10-18) and retargets N+1 to `main`. N+1 still carries N's pre-squash commits, so
@@ -59,10 +59,10 @@ Two refinements, both from [`docs/pr-wait-research.md`](../../docs/pr-wait-resea
   - "Off `main`" above means off `main` **or off the unmerged PR it depends on**. Never off
     an unrelated open PR — that is the batching this section rejects.
 
-**Park work-in-flight as a DRAFT — it needs no manual step.** With no merge queue,
-auto-merge lands a PR the moment its checks go green; there is no second run to sit behind,
-so a branch you are still pushing to can merge out from under you mid-stream (#567 lost five
-commits that way, 2026-09-22). Drafting removes that race, and costs nothing to undo:
+**Park work-in-flight as a DRAFT — it needs no manual step.** An armed PR is queued the
+moment `gate` goes green on it, which takes SECONDS now that the heavy suite runs in the
+queue, so a branch you are still pushing to can merge out from under you mid-stream (#567
+lost five commits that way, 2026-09-22, when no queue existed). Drafting removes that race, and costs nothing to undo:
 converting to a draft **does** drop the arming — GitHub fires `auto_merge_disabled` in the
 same second as `convert_to_draft`, on **4 of 4** conversions of an already-armed PR — and
 **`ready_for_review` re-arms it**, as a fresh `auto_squash_enabled` ~10-12 s later.

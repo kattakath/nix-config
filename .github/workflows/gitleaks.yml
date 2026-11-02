@@ -5,16 +5,14 @@
 # and hundreds of other credential patterns. It catches mistakes before they
 # reach production or public forks.
 #
-# Runs on every push to main, every pull request, on a weekly schedule, and
-# on demand via workflow_dispatch. Full history is checked out (fetch-depth: 0)
+# Runs as nix-ci.yml's `gitleaks` job (gated by `gate`, so on every queue entry and
+# fork PR), on a weekly schedule (the heartbeat below), and on demand via
+# workflow_dispatch. Full history is checked out (fetch-depth: 0)
 # so gitleaks can audit all past commits, not just the latest one.
 
 name: gitleaks
 
 on:
-  push:
-    branches: [main]
-  pull_request:
   schedule:
     # Weekly scan — Sunday 02:41 UTC
     # Off the hour: GitHub delays or drops :00 schedules under load (see
@@ -22,16 +20,14 @@ on:
     - cron: "41 2 * * 0"
   workflow_dispatch:
   # CALLED by nix-ci.yml so its `gate` aggregator can NEED this scan (a job can only
-  # need jobs of its own workflow). A called job reports as `<caller job> / <job>`,
-  # NOT as `Scan for secrets`, so the triggers above stay until the ruleset requires
-  # `gate` alone; until then the scan runs twice per PR on purpose.
+  # need jobs of its own workflow). It reports there as `gitleaks / Scan for secrets`.
   workflow_call:
     secrets:
       HC_PING_KEY:
         required: false
 
 concurrency:
-  # `github.workflow` is the CALLER's name when called, so the standalone run and
+  # `github.workflow` is the CALLER's name when called, so a scheduled run and
   # nix-ci's called copy sit in DIFFERENT groups and cannot cancel each other.
   group: gitleaks-${{ github.workflow }}-${{ github.ref }}
   # Never cancel a merge-queue run: the queue would eject the PR.

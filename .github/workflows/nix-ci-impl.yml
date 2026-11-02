@@ -5,11 +5,10 @@ name: nix-ci-impl
 # `on: workflow_call` means it never appears as its own run in the Actions list.
 # Same shape and naming as build-installers-impl.yml / build-devcontainer-impl.yml.
 #
-# WHY A REUSABLE WORKFLOW (2026-10-18, docs/pr-wait-research.md lever #4). The darwin
-# leg must exist as TWO jobs: a REQUIRED one that `required-checks` needs, skipped on
-# operator PRs, and an ADVISORY one nothing needs. `needs:` is static, and a job that
-# needs a matrix job waits for EVERY leg — so a single matrix `build` job cannot be
-# advisory on one leg without `required-checks` still sitting behind it. Rejected:
+# WHY A REUSABLE WORKFLOW: the linux leg is GATED (`gate` needs it) and the darwin
+# leg is ADVISORY (nothing needs it). `needs:` is static, and a job that needs a
+# matrix job waits for EVERY leg, so one matrix `build` job cannot be advisory on
+# one leg without `gate` still sitting behind it. Rejected:
 #   * `continue-on-error` on the matrix leg — stops darwin FAILING the gate, but the
 #     gate still WAITS for it, and the wait is the whole saving.
 #   * YAML anchors over a copied `steps:` list — actionlint 1.7.12 accepts them
@@ -17,8 +16,9 @@ name: nix-ci-impl
 #     workflow is the documented primitive.
 #   * duplicating ~150 lines of steps into each job — two copies drift.
 #
-# Inputs are MODES, not lists: which checks and which hosts come from the flake at
-# run time, never from this file (the same reason `legs` exists).
+# Inputs are not lists: which checks and which hosts come from the flake at run
+# time, never from this file (the same reason `legs` exists). Every leg builds ALL
+# of its system's checks.
 
 on:
   workflow_call:
@@ -31,16 +31,10 @@ on:
         description: Arch-native GitHub-hosted runner for that system.
         type: string
         required: true
-      checks:
-        description: >-
-          `all` — every `.#checks.<system>` attr. `system-only` — only the names no
-          OTHER fleet system also exposes (the darwin PR leg; see nix-ci.yml).
-        type: string
-        required: true
       eval-categories:
         description: >-
           Space-separated flake output categories whose EVERY host toplevel this leg
-          evaluates (`nixosConfigurations`, `darwinConfigurations`), or `none`.
+          evaluates (`nixosConfigurations`, `darwinConfigurations`).
         type: string
         required: true
     # Declared so a caller can pass it EXPLICITLY (the linux leg withholds it from
@@ -109,7 +103,6 @@ jobs:
         env:
           CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
           SYSTEM: ${{ inputs.system }}
-          CHECKS: ${{ inputs.checks }}
         run: |
           set -euo pipefail
 
@@ -118,37 +111,14 @@ jobs:
           # `builtins.attrNames` forces each system's checks ATTRSET only, not the
           # derivations inside it, so this is cheap even for the other systems.
           by_system=$(nix eval --json .#checks --apply 'builtins.mapAttrs (_: builtins.attrNames)')
-          case "$CHECKS" in
-            all)
-              names=$(printf '%s' "$by_system" | jq -r --arg s "$SYSTEM" '(.[$s] // []) | join(" ")')
-              ;;
-            system-only)
-              # A name another system ALSO exposes is built there by the leg that
-              # required-checks always waits on (aarch64-linux). That is only true
-              # under an INVARIANT this filter cannot see: a check name present on
-              # two systems comes from ONE source block, so linux building it means
-              # the same ASSERTION ran. A per-host contract must carry its host in
-              # its name (`determinate-daemon-macos` / `-nixpi`; one shared name
-              # here once dropped the macos contract from every non-operator PR).
-              # Census 2026-10-18: 23 shared names, each ONE definition site. What
-              # remains is the documented trade (nix-ci.yml, build-darwin): a
-              # shared-source check that breaks only on darwin's PLATFORM merges,
-              # and push:main, which builds them all, goes red.
-              names=$(printf '%s' "$by_system" | jq -r --arg s "$SYSTEM" \
-                '(.[$s] // []) - [to_entries[] | select(.key != $s) | .value[]] | join(" ")')
-              ;;
-            *)
-              echo "::error::unknown checks mode '${CHECKS}' (want all | system-only)."
-              exit 1
-              ;;
-          esac
+          names=$(printf '%s' "$by_system" | jq -r --arg s "$SYSTEM" '(.[$s] // []) | join(" ")')
           if [ -z "$names" ]; then
-            echo "::error::leg '${SYSTEM}' (checks=${CHECKS}) selects no checks — this gate would build NOTHING while reporting green."
+            echo "::error::leg '${SYSTEM}' selects no checks — this gate would build NOTHING while reporting green."
             exit 1
           fi
           attrs=""
           for n in $names; do attrs="$attrs .#checks.${SYSTEM}.$n"; done
-          echo "building $(printf '%s' "$names" | wc -w | tr -d ' ') check(s) for ${SYSTEM} (checks=${CHECKS})"
+          echo "building $(printf '%s' "$names" | wc -w | tr -d ' ') check(s) for ${SYSTEM}"
 
           # --no-link: a `result` symlink here would be an untracked file in a tree
           # the NEXT step re-evaluates as a flake.
@@ -192,14 +162,6 @@ jobs:
           EVAL_CATEGORIES: ${{ inputs.eval-categories }}
         run: |
           set -euo pipefail
-
-          if [ "$EVAL_CATEGORIES" = none ]; then
-            # An explicit, LOGGED skip — never an empty list falling through. The
-            # caller only passes `none` where another required leg evaluates the
-            # same hosts (nix-ci.yml, build-darwin on pull_request).
-            echo "leg ${SYSTEM}: host eval skipped by design (eval-categories=none) — the aarch64-linux leg evaluates every host."
-            exit 0
-          fi
 
           attrs=""
           for cat in $EVAL_CATEGORIES; do
