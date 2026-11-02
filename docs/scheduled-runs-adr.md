@@ -1,6 +1,7 @@
 # ADR-010 — Scheduled agent runs: one pane, three lanes
 
-**Status:** **DECIDED 2026-11-01.** Research only; no code changes. It records which mechanism
+**Status:** **DECIDED 2026-11-01; AMENDED 2026-11-02 (§ 6)** — the cloud lane was measured and
+now owns any job that needs only connectors, GitHub and HTTPS. Research only; no code changes. It records which mechanism
 a recurring Claude run uses, so that each new job does not re-open the question or invent a
 scheduler.
 
@@ -68,3 +69,29 @@ GitHub-clone-only, so neither unpushed work nor Drive is visible).
 That the operator keeps Claude Desktop running. If a quiet login wins over that, the default
 flips to lane 3, and the cost moves to writing one Nix-declared launchd unit per job, with no
 shared pane beyond `launchd-doctor`.
+
+## 6. Amendment, 2026-11-02 — the cloud lane, measured
+
+The job this ADR named first — the job-search evidence refresh — was built as a **cloud**
+scheduled task (agentic-jobseek ADR-0006), because every resource it needs proved reachable
+from a cloud run. Measured with three one-off proof runs and three dry runs that day:
+
+| Resource lane 1 was justified by | From a cloud run |
+|---|---|
+| "the local pgvector store" | moved to a Neon project (a managed Postgres + pgvector); reached through its claude.ai connector, or over HTTPS SQL with a read-only role carried by an environment **network secret** the agent never sees |
+| "Drive for Desktop" | the claude.ai Google Drive connector reads and writes files |
+| private repos in other orgs | cloned when attached; REST search spans every repo (GraphQL is blocked) |
+| a local model | a custom environment's setup script installs it once; the snapshot is cached (~7 days) |
+
+The plugin copies of remote MCP servers that duplicate a claude.ai connector are denied
+(`deniedMcpServers`, #1023/#1024) so local and cloud runs use the same sign-in.
+
+**Lane order, revised:** **cloud first** for any job that needs only connectors, GitHub and
+HTTPS. **Desktop local** only for what is truly this Mac's: page-lab Chromium, the login
+Keychain, unpushed work, `localhost` services. launchd stays the exception. § 5's weakest
+assumption (Desktop always running) now binds only the Mac-only jobs.
+
+**Costs found on the cloud lane:** a one-off `run_once_at` once never fired (no session, no
+warning) — so every routine writes a run record its operator can check; a History row reading
+"Succeeded" means only that the session ended cleanly; environment variables edited in the UI
+needed typed keystrokes (a programmatic fill silently did not save).
