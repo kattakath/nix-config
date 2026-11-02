@@ -37,7 +37,7 @@
 # level answer does not exist; the home-manager one is the whole surface.
 #
 # WHAT IS GENUINELY CUSTOM HERE: the `local.containers.enable` switch, the
-# profile's `settings` values, and two `home.file` links (below). No script, no wrapper.
+# profile's `settings` values, and the docker client package. No script, no wrapper.
 #
 # WHY `setDockerHost` and the three profile flags are spelled out even though the
 # option has a default: the module's default profile is only used when NOTHING
@@ -60,13 +60,25 @@
 # `vmType`, `mountType` and `runtime` are FIXED after the VM is first created
 # (`cmd/start.go` setFixedConfigs); changing them later means `colima delete`.
 #
-# THE DOCKER CLI STAYS ON BREW. `docker`, `docker-buildx` and `docker-compose`
-# in hosts/macos.nix are the CLIENT (plugins under <brew prefix>/lib/docker/
-# cli-plugins, linked into ~/.docker/cli-plugins below); the module only adds
-# nixpkgs' `docker` to the AGENT's PATH so colima can run `docker context use` (the agent's `EnvironmentVariables.PATH`). Nothing in this repo consumes
-# the socket: tart-vms is Apple Virtualization, gitlab-runner is the Tart custom
-# executor, local-rag is native postgres, and the devcontainer image is a
-# CI/Codespaces artifact.
+# THE DOCKER CLI IS NIXPKGS' `docker-client` (off brew since 2026-11-02), and it
+# already carries buildx and compose: the pinned nixpkgs
+# `pkgs/applications/virtualization/docker/default.nix` builds the client with
+# `buildxSupport ? true` / `composeSupport ? true` and wraps `docker` with
+# `--prefix DOCKER_CLI_PLUGIN_DIRS` pointing at both plugins' `libexec/docker/
+# cli-plugins` (its `cli-system-plugin-dir-from-env` patch). So `docker-buildx`
+# and `docker-compose` need no install of their own and no ~/.docker/cli-plugins
+# links — the forced out-of-store links this module carried for the brew client
+# went with it. The SAME package is colima's `dockerPackage`, so the agent's
+# `docker context use` and the shell's `docker` are one binary. Nothing in this
+# repo consumes the socket: tart-vms is Apple Virtualization, gitlab-runner is
+# the Tart custom executor, local-rag is native postgres, and the devcontainer
+# image is a CI/Codespaces artifact (brew's `devcontainer` CLI only calls
+# `docker` on PATH).
+#
+# NOT `programs.docker-cli` (pinned home-manager `modules/programs/docker-cli.nix`):
+# it installs no package, and it links `config.json` READ-ONLY from the store,
+# while colima's `--activate` writes `currentContext` into that file and
+# `docker login` writes `auths` — both would fail. The client config stays mutable.
 #
 # COST: one VM per LOGGED-IN account, started at login (`RunAtLoad`), holding
 # `cpu`/`memory` below while it runs. Tune `memory` (GiB) here; `disk` is a
@@ -84,23 +96,12 @@
   config,
   lib,
   pkgs,
-  # nix-darwin's config when embedded via home-manager.darwinModules.
-  osConfig ? { },
   ...
 }:
 let
   cfg = config.local.containers;
-  brewPrefix = import ../_lib/brew-prefix.nix osConfig;
-  # The docker CLI finds plugins only in ~/.docker/cli-plugins (or a
-  # cliPluginsExtraDirs entry in the mutable config.json, which this module does
-  # not own). A LIVE link, not a store copy — brew upgrades the binary in place.
-  # UPSTREAM: home-manager modules/files.nix:170 `config.lib.file.mkOutOfStoreSymlink`;
-  # `force` (modules/lib/file-type.nix:135) replaces the hand-made links of 2026-09-24
-  # that checkLinkTargets would otherwise refuse.
-  cliPlugin = name: {
-    source = config.lib.file.mkOutOfStoreSymlink "${brewPrefix}/lib/docker/cli-plugins/${name}";
-    force = true;
-  };
+  # One docker for the shell AND the colima agent — see the header.
+  dockerClient = pkgs.docker-client;
 in
 {
   options.local.containers = {
@@ -111,11 +112,11 @@ in
   };
 
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
-    home.file.".docker/cli-plugins/docker-compose" = cliPlugin "docker-compose";
-    home.file.".docker/cli-plugins/docker-buildx" = cliPlugin "docker-buildx";
+    home.packages = [ dockerClient ];
 
     services.colima = {
       enable = true;
+      dockerPackage = dockerClient;
       profiles.default = {
         isService = true;
         isActive = true;

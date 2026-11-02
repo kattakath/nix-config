@@ -179,7 +179,7 @@
   # boot (the firmware-secrets capsule already only Wants= this mount).
   #
   # fmask/dmask=0077: vfat has no on-disk permissions, so without a mask every
-  # planted secret (connector token, Wi-Fi PSK, heartbeat URL) is world-readable
+  # planted secret (connector token, Wi-Fi PSK, heartbeat ping key) is world-readable
   # to every local uid — caddy, audiobookshelf, cloudflared. uid/gid default to root,
   # and every reader is root: the firmware-file-* units, uplink-watchdog's
   # wpaSourceConf restore, and the firmware activation script (cp + mv, no chmod).

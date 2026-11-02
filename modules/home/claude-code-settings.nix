@@ -43,11 +43,10 @@
 #     LIMIT records that managed settings do NOT reach an Anthropic-hosted cloud
 #     session, which is why "the user- and project-scope layers stay put rather
 #     than being replaced by this one".
-# So the floor stays at user scope and Nix re-asserts it. This is the
-# claude-desktop.nix pattern — merge only your own keys into a file the app also
-# writes — applied to the one other Claude file with the same ownership shape.
+# So the floor stays at user scope and Nix re-asserts it: merge only your own keys
+# into a file the app also writes (the pattern the retired claude-desktop.nix used).
 #
-# THE FILE-OWNERSHIP TEST this follows (same one claude-desktop.nix answers):
+# THE FILE-OWNERSHIP TEST this follows:
 #   Does the tool also WRITE this file?  -> merge only your keys      <- THIS
 #   Does the tool REJECT a symlink?      -> copy at activation        (grok)
 #   Otherwise                            -> store symlink            (the default)

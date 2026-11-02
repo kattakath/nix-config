@@ -23,8 +23,9 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
 
 - **Claude Code only (CLI and Desktop's Code tab).** Desktop CHAT ignores a plugin's local MCP and Cowork
   takes plugins from the claude.ai account (claude.com/docs/plugins/platform-support), so **no plugin server reaches Desktop chat**
-  or Cowork. Desktop chat's only lane is `local.claudeDesktop.extraServers`
-  (empty in public) plus the operator's hand-placed Desktop overlay; see `claude-desktop.nix`.
+  or Cowork. Desktop chat's MCP comes **only from claude.ai connectors**: the
+  `claude-desktop.nix` writer and its `nix-claude-desktop-mcp-sync` agent were retired
+  2026-11-02 (operator decision D4; history in `docs/claude-desktop-mcp.md`).
 - **No client plugins anywhere** since 2026-11-01: client sign-ins are the official
   connectors/plugins — see `docs/agent-resource-externalization.md`.
 - **A launcher that needs a Keychain read is a PATH package in this repo.** A plugin's

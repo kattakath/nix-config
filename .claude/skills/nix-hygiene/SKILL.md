@@ -82,7 +82,7 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 | `packages/` | flake apps/packages | `packages` / `apps` |
 | `docs/` | runbooks | — |
 | `.claude/` | agent skills/commands/rules/hooks/agents | — |
-| `infra/` | terranix | `apps` (cf-*, gcp-*; the `mcp-public-*` apps were deleted 2026-10-02) |
+| `infra/` | terranix | `apps` (cf-*, gcp-*, hc-*; the `mcp-public-*` apps were deleted 2026-10-02) |
 | `secrets/` | agenix recipients + ciphertext | — |
 
 This table only adds the **output** column. The full path list (`modules/_lib/`, `claude/`,

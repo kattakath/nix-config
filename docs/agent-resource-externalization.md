@@ -284,5 +284,5 @@ there is no client plugin left to host.
 | A client folder's agent context | a hand-placed `CLAUDE.md` at that folder's root (in no repo; Claude Code loads parent `CLAUDE.md` files natively) |
 | Facts about a client (accounts, roles) | Google Workspace, per the no-data-in-repos rule |
 | Client-literal leak patterns | a Google Drive file the operator keeps; checked before public pushes |
-| Optional local settings | `~/.config/nix-config/claude-settings.overlay.json` and `claude-desktop.overlay.json` still merge if hand-placed (`.[0] * $overlay * $nix`, Nix wins); none is needed |
+| Optional local settings | `~/.config/nix-config/claude-settings.overlay.json` still merges if hand-placed (`claude-desktop.overlay.json` went with the Desktop writer, 2026-11-02) (`.[0] * $overlay * $nix`, Nix wins); none is needed |
 | Git identity routing | `~/.config/git/local.inc` (hand-placed) |

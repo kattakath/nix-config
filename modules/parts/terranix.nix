@@ -832,7 +832,7 @@ let
   # ---- Remote state: the GCS backend's encryption, shared ------------------
   # ADR-005 phase 1. The invariant is ENCRYPTION, not remoteness: all SIX stacks
   # source this, including gcp-foundation, which keeps state LOCAL on purpose (it
-  # declares the bucket the other four live in) and still encrypts it. So the
+  # declares the bucket every other stack lives in) and still encrypts it. So the
   # encryption can never be configured on one stack and forgotten on another.
   #
   # ENCRYPTION IS NOT OPTIONAL HERE. One of these states holds a secret in

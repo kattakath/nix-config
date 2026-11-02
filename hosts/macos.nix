@@ -252,27 +252,10 @@ in
     in
     {
       githubRunners = {
-        # DISABLED 2026-09-06, and the reason is the whole design constraint:
-        # a lane holds its guest slot for the ENTIRE long-poll wait, not just
-        # while a job runs. Measured — these two sat up for an hour with 0.0%
-        # CPU, 8192 MB each of 36 GB, holding BOTH of Apple's two concurrent
-        # macOS guests, having run zero jobs. Neither org had a single workflow
-        # targeting a self-hosted runner (verified across all 63 repos), so the
-        # cost bought nothing and starved dontsell-vm, which never acquired a
-        # slot after coming up at 08:04:56.
-        #
-        # Re-enable when a workflow in the org actually needs macOS — and
-        # preferably only after the controller provisions on demand rather than
-        # pre-booting a guest to wait. Keeping the scope/installationId here so
-        # re-enabling is a one-word change, not a re-derivation.
-        kattakath = fleetApp // {
-          enable = false;
-          scope = {
-            type = "org";
-            value = "kattakath";
-          };
-          installationId = 159496730;
-        };
+        # The `kattakath` org lane, disabled 2026-09-06 (a lane holds a guest slot
+        # for its whole long-poll wait, and no kattakath workflow targets a
+        # self-hosted runner), was DELETED 2026-11-02. Its scope + installationId are
+        # in git history; re-add only once the controller provisions on demand.
         # Re-enabled 2026-09-06 after the label flip closed a real misroute.
         # GitHub matching is case-insensitive and a runner matches on a SUPERSET,
         # so this lane's {self-hosted, macOS, arm64, tart, dontsell-vm} answered
@@ -502,9 +485,9 @@ in
       "cloudflared"
       "cmake"
       "devcontainer"
-      "docker"
-      "docker-buildx"
-      "docker-compose"
+      # `docker`, `docker-buildx`, `docker-compose` are NOT brewed (since 2026-11-02):
+      # nixpkgs' `docker-client` ships all three — modules/home/containers.nix.
+      # Brewed, `/opt/homebrew/bin` would shadow it in the login shell.
       "duf"
       "ffmpeg"
       "gettext"
@@ -618,8 +601,8 @@ in
       "claude"
       # `docker-desktop` is GONE (2026-09-16): its privileged helper bound the
       # machine-wide socket to one username. The runtime is now per-user Colima —
-      # modules/home/containers.nix (`local.containers`); the `docker*` brews
-      # above stay as the client.
+      # modules/home/containers.nix (`local.containers`), which also owns the
+      # client (nixpkgs' `docker-client`).
       "dropbox"
       # escrcpy — graphical frontend for scrcpy (nixpkgs now, see the note in the
       # brews list above; escrcpy ships its own copy under Resources/extra), for
@@ -806,7 +789,7 @@ in
       "obsidian"
       # OpenDesign — the local-first design-agent desktop app (Electron; this repo
       # declares no MCP server for it any more — that left the fleet with the
-      # gateway 2026-10-02, see modules/home/claude-desktop.nix).
+      # gateway 2026-10-02).
       # Adopts the previously hand-dragged /Applications copy: `brew bundle`
       # passes --adopt to every fresh cask install, and for an auto_updates cask
       # adoption is unconditional (no re-copy, no touch of the app's ~1GB state).
