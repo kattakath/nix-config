@@ -74,7 +74,11 @@ let
   ];
 in
 {
-  terraform.required_providers.google.source = "hashicorp/google";
+  # Version pinned exactly in ../provider-pins.nix (one place for every stack).
+  terraform.required_providers.google = {
+    source = "hashicorp/google";
+    version = "= ${(import ../provider-pins.nix).google}";
+  };
 
   # No `project`, no `region`: a budget hangs off the BILLING ACCOUNT, which is
   # above any project. Credentials come from ADC — and, per the devShell's

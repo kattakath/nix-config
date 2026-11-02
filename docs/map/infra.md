@@ -29,6 +29,10 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 `checks.access-service-token-duration` (in `modules/parts/terranix.nix`) fails any rendered
 Access service token that leaves its expiry to the provider.
 
+Every provider VERSION is pinned exactly in one file, `infra/provider-pins.nix`; each stack keeps
+its own `source` address (changing a source is a `tofu state replace-provider`, not a bump). Its
+header records why those are registry downloads and not nixpkgs `opentofu.withPlugins`.
+
 **Run every one of these inside `nix develop`.** Not a style preference — `CLOUDSDK_CONFIG`
 scopes `gcloud`, but it does **not** scope Terraform: the Go auth library ignores it and reads
 the well-known ADC path instead, so only the devShell's `GOOGLE_APPLICATION_CREDENTIALS`
@@ -153,8 +157,8 @@ no secrets. The attribute name is the healthchecks.io **slug**; a host pings
 cannot drift. An entry sets exactly one of `schedule` (cron) or `period` (seconds) plus a
 mandatory `grace`; the render refuses both/neither, a bad slug, or more than the free plan's 20.
 
-- **Provider:** `kristofferahl/healthchecksio` **pinned to 2.3.0** (OpenTofu registry; nixpkgs
-  does not package it). `tofu validate` was run against the real provider schema.
+- **Provider:** `kristofferahl/healthchecksio`, **pinned exactly** in `infra/provider-pins.nix`
+  (OpenTofu registry; nixpkgs does not package it). `tofu validate` was run against the real provider schema.
 - **Auth:** `HEALTHCHECKSIO_API_KEY` (the provider's own env var — not `HEALTHCHECKS_API_KEY`),
   the project's read-write **API key**, via
   `nix develop -c secret exec HEALTHCHECKSIO_API_KEY=hc:healthchecks.io:api -- nix run .#hc-checks-plan`.
