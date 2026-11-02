@@ -1394,7 +1394,7 @@ in
   ];
 
   # ---- Git identity include files -----------------------------------------------
-  # Every per-namespace identity (work, client, persona) and allowed_signers left
+  # Every per-namespace identity (work, client, per-context) and allowed_signers left
   # Nix (ADR-004 §7, inventory #3; client routing too, 2026-10-20): they name
   # mailboxes, orgs and folders that are the operator's alone, in a public repo.
   # They are HAND-PLACED under ~/.config/git/, reached through ONE include,
@@ -1728,8 +1728,8 @@ in
       # `format` is explicit because home.stateVersion 24.05 predates the "ssh"
       # default (git.nix:20-31). `signer` is left to upstream (nixpkgs' ssh-keygen).
       # The principals file (allowed_signers) is HAND-PLACED since 2026-09-20 — it
-      # lists every mailbox the operator authors as, two of which are personal
-      # personas that do not belong in a public repo (ADR-004 §7, inventory #3).
+      # lists every mailbox the operator authors as, several of which are
+      # operator-private and do not belong in a public repo (ADR-004 §7, inventory #3).
       # Upstream's `signing.allowedSigners` would write it from Nix, so it is left
       # empty and `gpg.ssh.allowedSignersFile` points at the runtime path instead. Signing
       # itself needs no principals file — only VERIFYING does — so a fresh machine

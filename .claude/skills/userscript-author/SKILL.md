@@ -77,12 +77,10 @@ its gates the same day.
 
 - [ ] Lint with the plugin's `scripts/userscript-meta-lint.sh` — the only gate left, and it is
       the same one the deleted check ran.
-- [ ] **Publish** per the plugin's `greasyfork.md`: Greasy Fork for an
-      adult-adjacent site (one codebase, but a site lands on only one of the two).
+- [ ] **Publish** per the plugin's `greasyfork.md`: Greasy Fork.
 - [ ] **Updates ship by webhook — push to `main`, nothing else** (since 2026-10-21). Both repos
       run the same pipeline: lint + parse, then a publish job fast-forwards a **`published`**
-      branch, but only when both are green. Greasy Fork listens on a GitHub push hook, the second fork site on a GitLab one, and
-      both sync from `published`, never `main`. A pushed file reaches a listing only if it
+      branch, but only when both are green. Greasy Fork listens on a push hook and syncs from `published`, never `main`. A pushed file reaches a listing only if it
       **exactly** equals that listing's sync URL (`…/published/<f>.user.js`, plus
       `listings/<f>.md` for the additional info).
       A **new** script never triggers one: the hook reads only *modified* files, not *added*
@@ -217,7 +215,7 @@ PYEOF
 - **Approach:** (attribute set | rules lifted by condition in band X–Y | constructed UI)
 - **Selectors shipped:** (each one, with the date measured — or "none")
 - **Lint:** plugin `userscript-meta-lint.sh` ✅/❌
-- **Published:** Greasy Fork | the second fork site | not yet (why) — with the listing URL
+- **Published:** Greasy Fork | not yet (why) — with the listing URL
 - **Operator action:** install from the listing once; it self-updates thereafter
 - **Verdict:** SHIPPED | BLOCKED (why) | ESCALATED (vite-plugin-monkey, in the script's own repo)
 ```

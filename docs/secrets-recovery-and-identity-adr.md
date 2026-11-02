@@ -261,7 +261,7 @@ a run.
   `aws-sso-util` and writes `~/.aws/config.example`. The operator's live `~/.aws/config` was a
   store symlink; `adoptAwsConfig` (already in `claude-bedrock-gate.nix`) turns it into a real
   `0600` file on the first activation, so nothing is lost.
-- **Git identities (inventory #3): moved, with the same adoption trick.** The client/persona
+- **Git identities (inventory #3): moved, with the same adoption trick.** The per-context identity
   `.inc` files and `allowed_signers` are hand-placed now (and since 2026-10-20 routed by ONE
   hand-placed `local.inc`) (`adoptGitIdentityFiles` in
   `modules/home/default.nix` copies the existing symlinks out before orphan cleanup). `gitlab.inc` stayed in
