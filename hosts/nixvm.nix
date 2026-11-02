@@ -116,20 +116,10 @@
         diskSize = 24576;
         # THE GUEST CARRIES ITS OWN STORE IMAGE.
         #
-        # CORRECTION 2026-10-06 — the reason recorded here until today was WRONG.
-        # It said nixpkgs implements every share via virtiofs and that
-        # `hostPkgs.virtiofsd` is Linux-only, so NO share can exist on a macOS
-        # host. The second half is true; the first is not. At the pinned nixpkgs,
-        # nixos/modules/virtualisation/qemu-vm.nix reads
-        #     useVirtiofs = hostPkgs.stdenv.hostPlatform.isLinux;
-        # which is FALSE here, so shares fall back to `-virtfs local,…` 9p
-        # plus a guest mount with `fsType = "9p"`. Measured against the
-        # qemu store path this runner executes: `-fsdev local,id=x help` lists the
-        # security models and `-device help` lists virtio-9p-pci. SHARES WORK ON
-        # THIS HOST — there is simply NONE CONFIGURED. One was built on 2026-10-06
-        # (the operator's WireGuard confs, read-only at /etc/wireguard) and he
-        # reverted it the same day: he wants no conf provisioning into this VM.
-        # Keep the fact; do not reinstate the false impossibility claim.
+        # Host shares DO work on this macOS host — pinned nixpkgs qemu-vm.nix sets
+        # `useVirtiofs = hostPkgs.stdenv.hostPlatform.isLinux`, so they fall back to 9p
+        # (virtio-9p-pci, measured) — but none is configured, by the operator's choice
+        # (no conf provisioning into this VM). Never claim shares are impossible here.
         #
         # So this setting stays, for a narrower and honest reason: it is the
         # configuration this VM is measured booting with, and it also flips

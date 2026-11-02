@@ -3,8 +3,7 @@
 # for the engine + provenance). Instances share the hard Apple Virtualization
 # budget of TWO concurrent macOS guests via the slot semaphore (options in
 # ./slots.nix, shared with the GitLab lane); the module asserts the
-# configured ceiling never exceeds it. `local.tart.runners` is a renamed-option
-# alias from before the GitLab lane made the name ambiguous.
+# configured ceiling never exceeds it.
 #
 # The wait for work is HOST-SIDE (a REST poll every `pollIntervalSeconds`), so
 # an idle lane holds no guest and no slot — the same shape the GitLab lane has
@@ -249,10 +248,7 @@ let
     lib.concatStringsSep "\n" (lib.mapAttrsToList (k: v: "export ${k}=${lib.escapeShellArg v}") env);
 in
 {
-  imports = [
-    ./slots.nix
-    (lib.mkRenamedOptionModule [ "local" "tart" "runners" ] [ "local" "tart" "githubRunners" ])
-  ];
+  imports = [ ./slots.nix ];
 
   options.local.tart = {
     githubRunners = lib.mkOption {

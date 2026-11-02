@@ -11,6 +11,10 @@
 # the store and Homebrew — invisible to `nix flake check`, unversioned in git,
 # and needing a separate install for every user on the machine.
 #
+# nixpkgs `grok-build` owns this → not using it: it lags this pin by major versions and
+# does not set `dontFixup`, so the signature check below cannot pass on it. Retire this
+# file when nixpkgs carries a version ≥ this pin that `codesign --verify --strict` accepts.
+#
 # WHY IT IS SAFE TO PIN. The artifact URL is stable and public
 # (`.../cli/grok-<version>-<platform>`, read out of the vendor's install.sh
 # rather than guessed), and `hash` below is the operator's own SRI pin, not a

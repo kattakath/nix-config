@@ -99,7 +99,7 @@ in
     # Application* for the hostname existing — DECLARED in
     # infra/cloudflare/nixpi-tunnel.nix (`nixpi_ssh`) because it silently vanished
     # once (2026-08-20). See docs/private-home-modules.md.
-    hostname = "nixpi.${domainName}";
+    hostname = (import ../_lib/derived-names.nix).nixpiSshHostname domainName;
 
     # Who we SSH in as (the operator, keys-only) vs who ACTIVATES (root, via
     # passwordless sudo — modules/nixos/core.nix puts the operator in `wheel`
