@@ -86,9 +86,11 @@ Never expand into new features. Prefer delete/simplify over new abstraction.
 | `secrets/` | agenix recipients + ciphertext | — |
 
 This table only adds the **output** column. The full path list (`modules/_lib/`, `claude/`,
-`sites/`, `templates/`, `ast-grep/`, `scripts/`, …) is ONE source of truth:
+`sites/`, `templates/`, `ast-grep/`, …) is ONE source of truth:
 [`CLAUDE.md`](../../../CLAUDE.md) § Navigating the Codebase, routed by
-[`docs/repo-map.md`](../../../docs/repo-map.md). A path missing from both is itself a finding.
+[`docs/repo-map.md`](../../../docs/repo-map.md); small convenience paths (`scripts/`,
+`.vscode/`, `.devcontainer/`, `.worktreeinclude`) live only in `docs/map/entry-points.md`,
+because CLAUDE.md is near its 40k budget. A path missing from both is itself a finding.
 
 **Platform branching:** `lib.mkIf` in `modules/`, not copy-paste across hosts.
 **Host gates:** an option flag for per-host divergence — `isMacosHost` (`modules/_lib/is-macos-host.nix`, reading `local.operatorHost`) for the operator's Mac, a `local.*` enable in `hosts/*.nix` elsewhere. Never the hostname: a template consumer can reuse it.

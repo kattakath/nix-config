@@ -14,6 +14,9 @@
 let
   inherit (inputs) nixpkgs terranix;
 
+  # The login-Keychain item every Cloudflare stack's unset-token guard tells the operator to use.
+  cfTokenItem = "cf:cloudflare.com:api";
+
   inherit (config.fleet)
     domainName
     cloudflareAccountId
@@ -361,7 +364,7 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#cf-tunnel-import" >&2
+          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=${cfTokenItem} -- nix run .#cf-tunnel-import" >&2
           echo "" >&2
           echo "  NOT cf:cloudflare.com:nixpi-tunnel. MEASURED 2026-10-02: that handle" >&2
           echo "  reads the tunnel token data source fine, then 403s on the POLICY:" >&2
@@ -480,7 +483,7 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#${name}" >&2
+          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=${cfTokenItem} -- nix run .#${name}" >&2
           echo "  (needs Account > Access: Organizations:Edit)" >&2
           exit 1
         fi
@@ -657,7 +660,7 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#cf-access-org-import" >&2
+          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=${cfTokenItem} -- nix run .#cf-access-org-import" >&2
           exit 1
         fi
 
@@ -716,7 +719,7 @@ let
       text = ''
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
-          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- nix run .#${name}" >&2
+          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=${cfTokenItem} -- nix run .#${name}" >&2
           echo "  (needs Zone > DNS:Edit on ${domainName})" >&2
           exit 1
         fi

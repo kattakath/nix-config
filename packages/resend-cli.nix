@@ -23,13 +23,17 @@
   writeShellApplication,
   nodejs,
 }:
+let
+  # The login-Keychain item this tool reads — spelled once.
+  keychainItem = "resend.com:api";
+in
 writeShellApplication {
   name = "resend";
   runtimeInputs = [ nodejs ];
   text = ''
-    key="$(/usr/bin/security find-generic-password -a "$(id -un)" -s resend.com:api -w 2>/dev/null || true)"
+    key="$(/usr/bin/security find-generic-password -a "$(id -un)" -s ${keychainItem} -w 2>/dev/null || true)"
     if [ -z "$key" ]; then
-      echo "resend: no login-Keychain secret for service resend.com:api — auth will fail until set (pbpaste | secret set --env RESEND_API_KEY resend.com:api)." >&2
+      echo "resend: no login-Keychain secret for service ${keychainItem} — auth will fail until set (pbpaste | secret set --env RESEND_API_KEY ${keychainItem})." >&2
     fi
     export RESEND_API_KEY="$key"
     exec npx -y resend-cli@2.14.0 "$@"

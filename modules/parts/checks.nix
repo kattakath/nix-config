@@ -615,6 +615,23 @@ in
                     lib.optional
                       (lib.attrNames macHm.programs.claude-code.settings.enabledPlugins != consumerPluginFloor)
                       "the consumer's enabledPlugins are { ${fieldList (lib.attrNames macHm.programs.claude-code.settings.enabledPlugins)} }, expected only the always-on floor { ${fieldList consumerPluginFloor} } — gate the operator's plugin ids on local.operatorHost"
+                  # The operator's personal CLIs (his data paths and Keychain items) are
+                  # gated on local.operatorHost in modules/home/default.nix; a platform gate
+                  # (isDarwin) would hand them to every consumer's Mac.
+                  ++ (
+                    let
+                      # buku (his bookmark DB), jobspy (his job search), resend (his Keychain key);
+                      # the generic dev CLIs next to them stay on every Mac by decision (#1028).
+                      operatorOnlyTools = [
+                        "buku"
+                        "jobspy"
+                        "resend"
+                      ];
+                      leaked = lib.filter (n: lib.elem n operatorOnlyTools) (map lib.getName macHm.home.packages);
+                    in
+                    lib.optional (leaked != [ ])
+                      "the consumer's home.packages carry the operator's own CLIs { ${fieldList leaked} } — gate them on local.operatorHost (isMacosHost), not the platform"
+                  )
                   ++ lib.optional (
                     boxUsers ? ${loginName}
                   ) "mkNixos created the OPERATOR's account (${loginName}) on a consumer's host"
