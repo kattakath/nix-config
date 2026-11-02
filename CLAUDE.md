@@ -135,9 +135,8 @@ and ast-grep structural-lint gates). Run it before declaring any change done —
 evaluates on one system can still break the other.
 
 - Two-system coverage is mandatory for LOCAL verification: `aarch64-darwin` and `aarch64-linux`.
-- CI (`nix-ci.yml`) enforces it BY AUTHOR: `required-checks` needs darwin everywhere except
-  **operator** PRs, where it is ADVISORY (runs, never gates). Details:
-  [`docs/map/ci.md`](docs/map/ci.md).
+- CI (`nix-ci.yml`) gates LINUX only: `gate` runs in the merge queue; darwin is ADVISORY on
+  PRs (runs, never gates). Details: [`docs/map/ci.md`](docs/map/ci.md).
 - **Never report a config as passing on a system only CI evaluated.** If `nix` is unavailable
   locally, validate syntax with `nix-instantiate --parse` and say the rest is CI-deferred. The
   SessionStart hook reports which mode you're in.
@@ -211,8 +210,8 @@ the whole tree into the store — check for stray `.DS_Store`/etc. before commit
 as PLUGIN hooks, finding these scripts BY CONVENTION. **Do not re-add any of them here, or each
 fires TWICE.** The exception is `pretooluse-write-target.js` (Write|Edit ASK on system paths,
 `../` escapes, login files): superhook does not wrap it, so it IS wired in `settings.json`.
-`.claude/hooks/tests/*.sh` covers every gate and the digests, and is **a REQUIRED status check**
-(`Lint .claude config`, `claude-config-lint.yml`) — it BLOCKS a merge, because a throw
+`.claude/hooks/tests/*.sh` covers every gate and the digests, and is **gated by `gate`**
+(`claude-config-lint.yml`) — it BLOCKS a merge, because a throw
 fails OPEN. Mechanism:
 [`docs/map/claude-code.md`](docs/map/claude-code.md) § `.claude/hooks/`; message decoder:
 [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).

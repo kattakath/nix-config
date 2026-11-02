@@ -27,9 +27,10 @@ wolf is worse than no gate; same class as the caddy `cp --no-preserve=mode` EPER
 `.github/workflows/nix-ci.yml` — native multi-system Nix CI on GitHub Actions, ALL on
 GitHub-**HOSTED** runners (`ubuntu-24.04-arm` for aarch64-linux, `macos-latest` for
 aarch64-darwin; both free & unlimited on public repos). Jobs: `flake-checker` (advisory),
-`legs` (a parallel VERIFIER), one caller job per leg — `build-linux`, `build-darwin`,
-`build-darwin-advisory` — each running the reusable **`nix-ci-impl.yml`**, and the aggregate
-`required-checks`. A leg *builds* `.#checks.<system>` (among them `pre-commit` = treefmt **and** a gitleaks scan of the working tree,
+`legs` (a parallel VERIFIER), one caller job per leg — `build-linux`, `build-darwin` — each
+running the reusable **`nix-ci-impl.yml`**, the called `gitleaks` and `cclint` workflows, and
+the aggregate **`gate`** (the ONE required check), built on the shared
+[`kattakath/.github`](https://github.com/kattakath/.github) landing system. A leg *builds* `.#checks.<system>` (among them `pre-commit` = treefmt **and** a gitleaks scan of the working tree,
 `modules/parts/devshell.nix`) with plain `nix build` (enumerated from
 the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cachix cache —
 `nix-fast-build` was dropped 2026-09-22, its own closure was half the darwin leg) and
@@ -37,20 +38,19 @@ the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cach
 nixpi's toplevel is built by `warm-nixpi-cache.yml` instead (below; why:
 [`hosts.md`](hosts.md)), and its flashable sdImage by `build-installers.yml`. Check-run names are `build (<system>) / leg`.
 
-**Who waits on what** (2026-10-18, [`pr-wait-research.md`](../pr-wait-research.md) levers
-#3 + #4):
+**Who waits on what** (2026-11-02; the shape is the shared README's, the landing record
+is [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md)):
 
-| Leg | Required? | Checks | Hosts evaluated |
+| Job | Gated by `gate`? | Runs on | Hosts evaluated |
 |---|---|---|---|
-| `build (aarch64-linux)` | always | all linux | **every** host, macos included |
-| `build (aarch64-darwin)` | push:main, dispatch, **non-operator** PRs | PR: darwin-ONLY (`system-only` mode, `nix-ci-impl.yml`); push: all | PR: none; push: macos |
-| `build (aarch64-darwin, advisory)` | never — nothing `needs` it | all | macos |
+| `legs`, `build (aarch64-linux)`, `gitleaks`, `cclint` | yes — the HEAVY jobs | merge queue + fork PRs + dispatch (own PRs too while `QUEUE_ENABLED` is off) | linux: **every** host, macos included |
+| `build (aarch64-darwin, advisory)` | never — nothing `needs` it | PRs only | macos |
 
-- **Operator PRs** (author id `8927166`) skip the required darwin job and run the advisory
-  twin; `required-checks` accepts `skipped` for darwin **only** under that predicate.
-  `author_association == 'OWNER'` was rejected: the repo is **org-owned**, and 96/96 sampled
-  operator PRs read `MEMBER`, so an OWNER test never matches. Agent sessions open PRs AS the
-  operator, so in practice **every agent PR** gets advisory darwin — only bots stay required.
+- **`gate` asserts each needed job ended EXACTLY as the event expects** — `success` where it
+  should run, `skipped` where it should not — via `kattakath/.github/actions/gate`. Its
+  `expect` is a deliberate second copy of the heavy `if:`, so a drift between them goes red.
+- **No `nix-ci` run on `push: main`** (the publish workflows still run there). The merge-group commit is the commit `main` gets, so it is validated
+  before the merge. Darwin is out of the queue with no post-merge belt (operator decision).
 - **Linux evaluating macos is sound**, on two facts: pure flake eval has no
   `builtins.currentSystem`, and `darwinConfigurations.macos` evaluates with
   `--option allow-import-from-derivation false` (measured 2026-10-18), so no darwin builder is
@@ -58,13 +58,8 @@ nixpi's toplevel is built by `warm-nixpi-cache.yml` instead (below; why:
   only sets what pure eval already hides, so it could not have differed. A real linux evaluator
   confirmed it: run 39127414938's `build (aarch64-linux)` leg evaluated macos green
   (2026-10-18). A red macos eval there is a finding, not flakiness.
-- **Name = source, or the PR filter lies.** `system-only` subtracts check NAMES, so it is only
-  correct while a name shared across systems comes from ONE source block. A per-host contract
-  carries its host in its name: the two Determinate contracts were both `determinate-daemon`
-  until 2026-10-18, so every non-operator PR silently skipped the macos one. Census that day:
-  23 shared names, each ONE definition site.
-- **Residual risk, accepted:** a shared-source check that breaks only on darwin's platform can
-  merge from a PR; push:main builds every darwin check, so it goes red right after merge.
+- **Residual risk, accepted:** a check that breaks only on darwin's platform can merge; the
+  advisory leg shows it red on the PR, and nothing else catches it.
 
 **The coverage invariant is SET EQUALITY, verified by `legs`** (since 2026-10-18; derived
 2026-09-21 → 10-18). `legs` used to EMIT the build matrix, so every leg `needs:`-queued behind
@@ -73,7 +68,7 @@ system → `runs-on` lookup is the one fact GitHub owns and the flake cannot ans
 checks them **in parallel**, both ways: a host whose system no leg claims HARD-FAILS (*add a
 leg job for it*), and so does a leg owning no host. The leg side is read out of `nix-ci.yml`
 itself with `yq-go` from the pinned nixpkgs — never restated in bash, which would be the
-second copy the job exists to catch. `required-checks` still `needs` it, so it still blocks.
+second copy the job exists to catch. `gate` `needs` it, so it still blocks.
 
 **`nix flake show --json --all-systems` IS the source** for the host side. Its flake-schemas
 `inventory` carries `forSystems` per host child, classified by the CONFIGURATION's own system
@@ -82,9 +77,8 @@ second copy the job exists to catch. `required-checks` still `needs` it, so it s
 reject: without `--all-systems`, foreign-system children come back `{"filtered": true}`
 (measured), so classification would silently follow the RUNNER's arch; and upstream Nix emits
 the flat legacy shape with no `inventory` key, which parses to ZERO rows (probed). Both fail
-the job loudly. Inside a leg, an empty host list is a hard failure, and the darwin PR leg's
-host skip is an explicit, logged `eval-categories: none` — never an empty list falling
-through. `required-checks` fails on **`'skipped'`** everywhere else: a skipped job is neither
+the job loudly. Inside a leg, an empty host list is a hard failure. `gate` fails on a
+**`'skipped'`** heavy job wherever the event expected it to run: a skipped job is neither
 failure nor cancelled, so without that it could report green over a leg that never ran.
 
 **`checks.<system>.actionlint` runs actionlint inside a PROJECT** (an empty `.git` marker
@@ -105,7 +99,7 @@ bare-metal ephemeral runners on the **`dontsell-ai`** org
 (`local.tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
 
 Also in `.github/workflows/`: `auto-merge.yml`, `build-devcontainer.yml`,
-`build-installers.yml`, `claude*.yml` (`claude-config-lint.yml` is a REQUIRED check — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, and `flakehub-publish.yml` — the last
+`build-installers.yml`, `claude*.yml` (`claude-config-lint.yml` is a job `gate` needs — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, and `flakehub-publish.yml` — the last
 publishes each push to `main` as a rolling release to FlakeHub via
 `DeterminateSystems/flakehub-push`, authenticated by OIDC/`id-token: write` with **no** stored
 token; per FlakeHub's trusted-platform model, flakes publish only from CI, never ad-hoc from a

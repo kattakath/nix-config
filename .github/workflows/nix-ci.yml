@@ -10,11 +10,10 @@ name: nix-ci
 #   1. BUILD the flake's checks (`.#checks.<system>` — lint, format, and the
 #      eval-only contract checks) on each system's own native runner: linux
 #      builds ALL its checks, and so does the advisory darwin leg (who waits on
-#      which: WHO WAITS
-#      below), and
+#      which: WHO WAITS below), and
 #   2. EVALUATE each host config's toplevel (cheap: forces full module eval,
-#      catching config/option/type errors) WITHOUT building it — on a PR, the
-#      linux leg evaluates every host, macos included.
+#      catching config/option/type errors) WITHOUT building it — on a gated
+#      run, the linux leg evaluates every host, macos included.
 #
 # ONE LEG PER HOST SYSTEM, on its arch-native GitHub-HOSTED runner, each a
 # caller of the reusable nix-ci-impl.yml:
@@ -25,7 +24,7 @@ name: nix-ci
 # GitHub owns and the flake cannot tell us), and `legs` VERIFIES them against the
 # flake IN PARALLEL: every host configuration's own system must have a leg, and
 # every leg must own a host. Adding a host on a new system therefore stops CI
-# (via required-checks) until someone names its runner.
+# (via `gate`) until someone names its runner.
 #
 # WHO WAITS ON WHAT (2026-11-02, the shared kattakath/.github landing system):
 #   * `gate` — the aggregator the shared ruleset requires. It needs the HEAVY
@@ -34,11 +33,11 @@ name: nix-ci
 #   * HEAVY jobs run once per PR: in the merge queue when the repo variable
 #     QUEUE_ENABLED is 'true', otherwise on the PR. A FORK PR always runs them on
 #     the PR, so a contributor sees a real failure before review.
-#   * aarch64-darwin — ADVISORY on every PR, whoever wrote it, and NOT in the
+#   * aarch64-darwin — ADVISORY, on PRs ONLY, whoever wrote it, and NOT in the
 #     merge queue (operator decision). Nothing needs it. It runs the FULL darwin
 #     leg, and the linux leg still EVALUATES macos on every gated run.
-#   * `required-checks` — a SHIM that passes iff `gate` passed, so the ruleset
-#     that still names it keeps resolving until the swap to `gate`.
+# nix-ci has NO `push: main` run: in the queue, the merge-group commit IS the commit
+# main gets, so it is validated BEFORE the merge rather than after.
 # Local verification is unchanged: agents still run both systems (CLAUDE.md
 # § Testing).
 #
@@ -56,17 +55,18 @@ name: nix-ci
 #
 # READ from the kattakath Cachix cache is public. WRITE needs CACHIX_AUTH_TOKEN.
 # The linux leg writes on every event GitHub hands the secret to EXCEPT
-# `merge_group`; the darwin advisory leg never runs there.
+# `merge_group`. With QUEUE_ENABLED on, an own-branch PR skips that leg, so in
+# practice the linux leg pushes only on workflow_dispatch; the darwin advisory leg
+# still pushes from own-branch PRs.
 #   * pull_request: a FORK gets no repo secret, a Dependabot PR reads a separate
-#     store this token is not in — so only same-repo branches push. Measured on
-#     PR #550: a PR leg refused the push (403) and push:main rebuilt the
-#     IDENTICAL path minutes later, so the PR-time push is what saves a rebuild.
+#     store this token is not in — so only same-repo branches push.
 #   * merge_group: NOT pushed. A queue run executes the queued merge commit, which
 #     can contain a fork PR's code, with repo secrets. The leg is passed an EMPTY
 #     token there and nix-ci-impl.yml takes its fork path ("built, not pushed").
 #     What that costs: the queued commit's `.#checks` outputs only. The closures
 #     the fleet substitutes are pushed by warm-nixpi-cache.yml, build-installers
-#     and build-devcontainer on push:main.
+#     and build-devcontainer on push:main. Why no environment-scoped token:
+#     docs/auto-merge-and-merge-queue.md § The merge queue.
 #
 # The blast radius is unchanged: pushing requires a branch in THIS repo, which
 # only the operator can create, and a store path is its own derivation hash — a
@@ -76,34 +76,13 @@ on:
   pull_request:
   merge_group:
     types: [checks_requested]
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
   group: nix-ci-${{ github.ref }}
-  # PR runs cancel when superseded; `push: main` runs do NOT.
-  #
-  # With a flat `true`, every merge cancelled the previous merge's validation run:
-  # measured 30 cancelled / 69 success / 1 failure over the last 100 `push:main` runs,
-  # and the holes cluster exactly where merge cadence is HIGHEST — anti-correlated with
-  # when you most want the record.
-  #
-  # The fix is for MEASURABILITY, not coverage. Coverage was never the problem: a
-  # superseding commit's tree is a superset, so main's final state was always verified.
-  # What cancellation destroyed was per-merge ATTRIBUTION — which merge broke something,
-  # and whether two independently-green PRs interacted. #684's merge-queue trigger T1
-  # ("3 push:main failures in 30 days caused by two PRs interacting") was unmeasurable
-  # while ~30% of push:main runs were cancelled (30/100 measured), so this is a
-  # precondition for that trigger being honest rather than a nicety.
-  #
-  # Branch-scoped rather than dropped entirely: a force-push to a PR should still cancel
-  # its in-flight run — that is the case this concurrency group was added for.
-  # gitleaks.yml deliberately keeps a flat `true`: 3/100 cancelled at ~42s, not worth it.
-  #
-  # 2026-11-02: keyed on the EVENT, not the ref. A merge-queue run lives on its own
-  # gh-readonly-queue/* ref, so the old `ref != main` test made every queue run
-  # cancellable, and a cancelled queue run EJECTS the PR. Only PR runs cancel now.
+  # Keyed on the EVENT, not the ref: only a superseded PR run cancels. A queue run
+  # lives on its own gh-readonly-queue/* ref, and a cancelled queue run EJECTS the
+  # PR. (The earlier `ref != main` form made every queue run cancellable.)
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -118,7 +97,7 @@ jobs:
   # (DeterminateSystems/nixpkgs-weekly): the branch/owner checks no-op on a
   # tarball, but the 30-day staleness check STILL fires on `lastModified`, so
   # the job stays a stale-snapshot alarm if the Monday bump stalls. Deliberately NOT in
-  # required-checks' `needs` — it's advisory, pairing with the scheduled
+  # gate's `needs` — it's advisory, pairing with the scheduled
   # update-flake-lock.yml that actually cuts the bump PR.
   flake-checker:
     name: flake-checker
@@ -263,8 +242,7 @@ jobs:
   # applies (no matrix); one leg failing never cancels another. Each leg is its
   # own status check `build (<system>) / leg`; `gate` is the single stable
   # branch-protection anchor, so renaming/adding legs never requires re-anchoring
-  # the ruleset. Renaming `gate` (or, until the ruleset swap, `required-checks`)
-  # silently un-requires it.
+  # the ruleset. Renaming `gate` silently un-requires it.
   build-linux:
     name: build (aarch64-linux)
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true'
@@ -276,36 +254,30 @@ jobs:
     with:
       system: aarch64-linux
       runs-on: ubuntu-24.04-arm
-      checks: all
       # EVERY host, darwin's too — pure eval makes the evaluator's arch
       # irrelevant (proof in nix-ci-impl.yml). This is what keeps macos
       # EVALUATED on a gated leg while the darwin leg is advisory.
       eval-categories: nixosConfigurations darwinConfigurations
 
-  # ADVISORY on every PR (operator decision, 2026-11-02), and NOT in the merge
-  # queue: `gate` does not need it, so it is visible on the PR and never gates the
-  # merge. It replaces the author-keyed pair (required build-darwin + operator-only
-  # advisory twin) that keyed on PR author id 8927166; auto-merge.yml and
-  # claude.yml still carry that id. It runs the FULL darwin leg (all checks +
-  # native macos eval): nobody waits on it, so the wider coverage is free.
-  # Kept on push:main and workflow_dispatch as a post-merge belt. `legs` reads the
-  # leg list from the static `uses`/`with.system`, so it still counts this leg.
+  # ADVISORY, on PRs only (operator decision, 2026-11-02: darwin is OUT of the
+  # queue, with no post-merge belt). `gate` does not need it, so it is visible on
+  # the PR and never gates the merge. It runs the FULL darwin leg (all checks +
+  # native macos eval): nobody waits on it, so the wider coverage is free. `legs`
+  # reads the leg list from the static `uses`/`with.system`, so it still counts
+  # this leg.
   build-darwin:
     name: build (aarch64-darwin, advisory)
-    if: github.event_name != 'merge_group'
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/nix-ci-impl.yml
     secrets: inherit
     with:
       system: aarch64-darwin
       runs-on: macos-latest
-      checks: all
       eval-categories: darwinConfigurations
 
   # HEAVY: the secret scan and the .claude lint, CALLED so `gate` can need them (a
   # job can only need jobs of its own workflow). They report as
-  # `gitleaks / Scan for secrets` and `cclint / Lint .claude config`; the
-  # standalone workflows keep reporting the bare names the CURRENT ruleset
-  # requires, so both run twice per PR until the ruleset requires `gate` alone.
+  # `gitleaks / Scan for secrets` and `cclint / Lint .claude config`.
   gitleaks:
     name: gitleaks
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true'
@@ -340,25 +312,3 @@ jobs:
              "build-linux": ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true' }},
              "gitleaks": ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true' }},
              "cclint": ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository || vars.QUEUE_ENABLED != 'true' }}}
-
-  # TEMPORARY SHIM for the CURRENT ruleset, which still requires `required-checks`.
-  # Passes iff `gate` passed. `!cancelled()` + the explicit result test are
-  # load-bearing: with a default `if:` this job would be SKIPPED when gate fails,
-  # and a skipped job reports Success — a green required check over a red gate.
-  # Delete it once the ruleset requires `gate` (the follow-up PR).
-  required-checks:
-    name: required-checks
-    if: ${{ !cancelled() }}
-    needs: [gate]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    steps:
-      - name: gate passed
-        env:
-          GATE: ${{ needs.gate.result }}
-        run: |
-          if [ "$GATE" != success ]; then
-            echo "::error::gate: $GATE"
-            exit 1
-          fi
-          echo "gate: success"

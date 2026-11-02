@@ -14,23 +14,19 @@
 # instead provided by its "$schema" key (json.schemastore.org). Revisit and add
 # `cclint settings` here once upstream recognizes prompt hooks.
 #
-# Triggers: every PR, every push to main, on demand, and as a reusable workflow
-# called by nix-ci.yml (its `gate` needs it).
+# Triggers: as a reusable workflow called by nix-ci.yml (its `gate` needs it, so it
+# runs on every queue entry and fork PR), and on demand.
 
 name: claude-config-lint
 
 on:
-  pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
-  # CALLED by nix-ci.yml so its `gate` aggregator can NEED this lint. A called job
-  # reports as `<caller job> / <job>`, NOT as `Lint .claude config`, so the triggers
-  # above stay until the ruleset requires `gate` alone (a deliberate double run).
+  # CALLED by nix-ci.yml so its `gate` aggregator can NEED this lint. It reports
+  # there as `cclint / Lint .claude config`.
   workflow_call:
 
 concurrency:
-  # `github.workflow` is the CALLER's name when called: the standalone run and the
+  # `github.workflow` is the CALLER's name when called: a dispatched run and the
   # called copy get different groups and cannot cancel each other.
   group: claude-config-lint-${{ github.workflow }}-${{ github.ref }}
   # Never cancel a merge-queue run: the queue would eject the PR.
