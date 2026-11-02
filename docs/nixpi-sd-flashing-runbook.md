@@ -336,17 +336,23 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi
   decrypting and the tunnel would die — and the tunnel is the only remote path in,
   so unrecoverably. A file on the macOS-writable FAT partition is immune.
 - **Wi-Fi** — `nix run .#nixpi-provision -- --wifi` writes a `wpa_supplicant.conf` from
-  `nix run .#nixpi-wifi-creds`. With no `--ssid` that is the DECLARED ladder,
-  `nixpiWifiNetworks` in `modules/parts/identity.nix` (PSKs read from this Mac's keychain) —
-  the "No --ssid at all AND a declared ladder" branch in `packages/nixpi-provision.nix`. An
-  explicit `--ssid` REPLACES the ladder, so passing one plants a one-AP card. It must carry
+  `nix run .#nixpi-wifi-creds`. With no `--ssid` that is the operator's **Wi-Fi roster**
+  (PSKs read from this Mac's keychain): `$NIXPI_WIFI_ROSTER`, default
+  `~/.config/nix-config/nixpi-wifi-roster.json`, a hand-placed file symlinked into Drive's
+  `Machine Config/nixpi/` — SSIDs are data, so this public repo holds none
+  (`packages/nixpi-provision.nix` § THE ROSTER has the shape). A missing or invalid roster is
+  an ERROR, and the card's existing `wpa_supplicant.conf` is left untouched; `nixpi-flash`
+  generates the conf before its `dd`, so it fails with the card unwritten. An explicit
+  `--ssid` REPLACES the roster, so passing one plants a one-AP card; `--current` asks for this
+  Mac's network on purpose. It must carry
   `country=` (the Pi 4 radio is rfkill-blocked without a regulatory domain). Wi-Fi is
   OPTIONAL — without it the Pi is LAN-only. With it, a headless Pi reaches
   `nixpi.kattakath.com` from first boot with no LAN cable, keyboard, or monitor.
-- **Plant a FALLBACK AP, not just one.** The declared ladder, `nixpiWifiNetworks` in
-  `modules/parts/identity.nix`, is where the fallback is declared, and the blocks come out
-  ranked by `priority=`. A hand-typed `--ssid` list is a one-off that REPLACES the ladder
-  (above). One AP makes that AP a single point of failure whose recovery is
+- **Plant a FALLBACK AP, not just one.** The roster (above) is where the fallback is
+  declared — array order, most-preferred first — and the blocks come out ranked by
+  `priority=`. A hand-typed `--ssid` list is a one-off that REPLACES the roster (above). The
+  live Pi never reads the roster: `uplink-watchdog` only re-scans and restores the planted
+  conf, so a roster edit reaches nixpi only by re-planting. One AP makes that AP a single point of failure whose recovery is
   this runbook (~40 min): off-site the only route in is the tunnel, and the tunnel
   needs working INTERNET rather than merely a LAN (the LAN sshd path, `local.lanRecovery`,
   helps only when you are on that LAN). Measured 2026-09-22: a two-block config failed

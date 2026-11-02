@@ -40,7 +40,7 @@
 # uplink the tunnel was already using. That churn also drove two downstream
 # failures, avahi renaming the host `nixpi-3` and 371 IPv6 temporaries piling up
 # (hosts/nixpi.nix). It ended at 17:04Z on 10-16, the same minute wlan0 joined the
-# `aloshy` hotspot and the tunnel registered over IPv4 again. IPv4's default stays on
+# fallback hotspot and the tunnel registered over IPv4 again. IPv4's default stays on
 # end0, so the router's IPv4 had probably just returned; cause vs coincidence is open.
 # Router-side IPv4 death is consistent with every Pi-side signal; the gateway's own
 # log was not pulled.

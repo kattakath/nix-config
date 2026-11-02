@@ -6,9 +6,9 @@
 #   nix run .#nixpi-flash       — acquire image (--release download / --image / build)
 #                                 + verified dd + auto-plant (fresh reflash)
 #   nix run .#nixpi-provision   — plant token/wifi onto a mounted card (update either)
-#   nix run .#nixpi-wifi-creds  — emit a wpa_supplicant.conf for the declared Wi-Fi list
-#                                 (--ssid is repeatable: first = preferred AP, the
-#                                  rest are ranked fallbacks)
+#   nix run .#nixpi-wifi-creds  — emit a wpa_supplicant.conf from the hand-placed Wi-Fi
+#                                 roster (§ THE ROSTER below), or from --ssid (repeatable:
+#                                 first = preferred AP, the rest are ranked fallbacks)
 #   nix run .#nixpi-vault-token — re-encrypt a new connector token into the vault (rotate)
 #
 # These are the ONLY supported way to provision an SD card, so the runbook is
@@ -22,7 +22,6 @@
 #     (run these from the repo root) so a freshly `nixpi-vault-token`-ed token is
 #     planted without a rebuild.
 {
-  lib,
   writeShellApplication,
   age,
   zstd,
@@ -34,9 +33,6 @@
   jq,
   orgName,
   repoName,
-  # Ordered, most-preferred FIRST. Declared in modules/parts/identity.nix so the
-  # fallback ladder survives a reflash instead of depending on what a human typed.
-  nixpiWifiNetworks,
 }:
 let
   operatorKey = "$HOME/.ssh/id_ed25519";
@@ -181,10 +177,11 @@ let
       coreutils
       gnused
       gawk
+      jq
     ];
     text = ''
-      # Emit a wpa_supplicant.conf for nixpi. With no arguments it emits the declared
-      # nixpiWifiNetworks list; with nothing declared, the SSID + keychain PSK this Mac is on.
+      # Emit a wpa_supplicant.conf for nixpi. With no arguments it emits the operator's
+      # Wi-Fi ROSTER (below); --current emits the one network this Mac is on.
       #
       # --ssid is REPEATABLE. Each one opens a new network={} block and the --psk
       # that FOLLOWS it belongs to it; blocks are emitted in the order given and
@@ -205,7 +202,9 @@ let
       # usage line (`--wifi-conf FILE`).
       ssids=()
       psks=()
+      roles=()
       country=""
+      current=""
       while [ $# -gt 0 ]; do
         case "$1" in
           # A new --ssid opens a block with an EMPTY psk slot; --psk fills the slot
@@ -216,29 +215,54 @@ let
             if [ ''${#ssids[@]} -eq 0 ]; then ssids+=(""); psks+=(""); fi
             psks[''${#psks[@]}-1]="''${2:?}"; shift 2 ;;
           --country) country="''${2:?}"; shift 2 ;;
-          -h | --help) echo "usage: nixpi-wifi-creds [--ssid SSID [--psk PSK]]... [--country CC]"; exit 0 ;;
+          --current) current=1; shift ;;
+          -h | --help) echo "usage: nixpi-wifi-creds [--ssid SSID [--psk PSK]]... [--current] [--country CC]"; exit 0 ;;
           *) echo "nixpi-wifi-creds: unknown argument: $1" >&2; exit 1 ;;
         esac
       done
-      # The DECLARED ladder (modules/parts/identity.nix nixpiWifiNetworks), ordered
-      # most-preferred first. Seeded when the caller named no --ssid, so a plain
-      # `nixpi-wifi-creds` reproduces the fleet's intended fallback set instead of
-      # whatever network THIS MAC happens to be joined to. That difference is the
-      # whole point: the old default could not survive a reflash, and on 2026-10-01 it
-      # did not -- the two-network config had only ever been hand-edited onto a card.
-      declared=(${lib.concatMapStringsSep " " (n: "\"" + n + "\"") nixpiWifiNetworks})
+      # ---- THE ROSTER ------------------------------------------------------------
+      # Which networks, in which order, is the operator's DATA, so it is read at run
+      # time from a hand-placed file and never baked into this public flake (the global
+      # no-data rule). The same lane as the hand-placed git include: an XDG path the
+      # operator symlinks into Drive's Machine Config folder, overridable per run:
+      #   NIXPI_WIFI_ROSTER   (default: $XDG_CONFIG_HOME/nix-config/nixpi-wifi-roster.json)
+      # Shape, ORDERED most-preferred FIRST (array order IS `priority=`; `role` is a
+      # label for the human reading the card, never consulted for ranking):
+      #   {"networks":[{"ssid":"<house AP>","role":"primary"},
+      #                {"ssid":"<phone hotspot>","role":"failover"}]}
+      # SSIDs only: the PSKs stay in the login Keychain, read below.
+      #
+      # FAIL CLOSED when it is missing. The old default, "whatever Wi-Fi THIS MAC is on",
+      # is how the two-network ladder was lost on the 2026-10-01 reflash, so an absent
+      # roster is an error naming the path, not a silent one-AP card. --current is the
+      # explicit way to ask for that card; --ssid replaces the roster for one run.
+      roster="''${NIXPI_WIFI_ROSTER:-''${XDG_CONFIG_HOME:-$HOME/.config}/nix-config/nixpi-wifi-roster.json}"
+      if [ ''${#ssids[@]} -eq 0 ] && [ -z "$current" ]; then
+        if [ ! -r "$roster" ]; then
+          echo "nixpi-wifi-creds: no Wi-Fi roster at $roster" >&2
+          echo "  create it (symlinked into Drive), most-preferred network FIRST:" >&2
+          echo '    {"networks":[{"ssid":"<house AP>","role":"primary"},{"ssid":"<hotspot>","role":"failover"}]}' >&2
+          echo "  or pass --ssid (repeatable) for a one-off, or --current for this Mac's network." >&2
+          exit 1
+        fi
+        # Validated BEFORE anything is read or printed: a roster that parses but holds a
+        # blank or non-string SSID would otherwise plant a block that cannot associate.
+        if ! jq -e '(.networks | type == "array" and length > 0)
+                    and all(.networks[]; (.ssid | type == "string" and length > 0))' \
+             "$roster" >/dev/null 2>&1; then
+          echo "nixpi-wifi-creds: $roster is not a valid roster: need a non-empty .networks array whose every entry has a non-empty string .ssid." >&2
+          exit 1
+        fi
+        # NUL-delimited, so an SSID is taken byte-for-byte whatever it contains.
+        while IFS= read -r -d "" s; do ssids+=("$s"); psks+=(""); done \
+          < <(jq --raw-output0 '.networks[].ssid' "$roster")
+        while IFS= read -r -d "" r; do roles+=("$r"); done \
+          < <(jq --raw-output0 '.networks[] | (.role // "") | tostring' "$roster")
+      fi
 
       if [ ''${#ssids[@]} -eq 0 ]; then ssids+=(""); psks+=(""); fi
 
-      # No --ssid at all AND a declared ladder ⇒ use the ladder. An explicit --ssid
-      # always wins, so a one-off card for a different network stays a one-liner.
-      if [ ''${#ssids[@]} -eq 1 ] && [ -z "''${ssids[0]}" ] && [ ''${#declared[@]} -gt 0 ]; then
-        ssids=("''${declared[@]}")
-        psks=()
-        for _ in "''${declared[@]}"; do psks+=(""); done
-      fi
-
-      # Only reached when nothing was declared and nothing was passed.
+      # Only reached with --current, or a --psk given before any --ssid.
       if [ -z "''${ssids[0]}" ]; then
         wifi_dev=$(/usr/sbin/networksetup -listallhardwareports \
           | awk '/Wi-Fi/{getline; print $2; exit}')
@@ -293,9 +317,9 @@ let
       # quotes, and the same for a psk. Hex is used for anything that is not plain
       # printable ASCII, because a quoted UTF-8 literal has to survive this script,
       # the pipe, a FAT filesystem and wpa_supplicant's own parser intact, and an
-      # emoji SSID is not hypothetical — measured 2026-09-22, `aloshy.` + U+1F170 +
-      # U+1F178, which wpa_supplicant logs back as
-      # `aloshy.\xf0\x9f\x85\xb0\xf0\x9f\x85\xb8`. Hex has no chain of luck in it.
+      # emoji SSID is not hypothetical — measured 2026-09-22 on the fleet's own
+      # hotspot, whose name wpa_supplicant logs back as `\xf0\x9f…` escape runs.
+      # Hex has no chain of luck in it.
       # A quoted value still gets \ and " escaped, which is what wpa_supplicant's
       # quoted form accepts.
       needs_hex() { LC_ALL=C printf '%s' "$1" | LC_ALL=C grep -q '[^ -~]'; }
@@ -308,6 +332,7 @@ let
       n=''${#ssids[@]}
       for i in "''${!ssids[@]}"; do
         printf 'network={\n'
+        if [ -n "''${roles[i]:-}" ]; then printf '    # role: %s\n' "''${roles[i]}"; fi
         if needs_hex "''${ssids[i]}"; then
           # The SSID is not a secret, so the decoded form goes in a comment: a hex
           # blob nobody can read is how the wrong network gets planted twice.
@@ -370,15 +395,24 @@ let
       fi
 
       if [ "$what" = "wifi" ] || [ "$what" = "all" ]; then
+        # Built BESIDE the card's copy and renamed over it only once valid. A bare
+        # `> "$mnt/wpa_supplicant.conf"` truncates the card's working conf BEFORE the
+        # generator runs, so any failure (no roster, a missing Keychain PSK) left a
+        # card with an EMPTY Wi-Fi config — worse than not running at all.
+        staged="$mnt/wpa_supplicant.conf.new"
         if [ -n "$wifi_conf" ]; then
-          cp "$wifi_conf" "$mnt/wpa_supplicant.conf"
-        else
-          ${wifi-creds}/bin/nixpi-wifi-creds > "$mnt/wpa_supplicant.conf"
+          cp "$wifi_conf" "$staged"
+        elif ! ${wifi-creds}/bin/nixpi-wifi-creds > "$staged"; then
+          rm -f "$staged"
+          echo "nixpi-provision: Wi-Fi conf NOT generated; the card's existing wpa_supplicant.conf is untouched." >&2
+          exit 1
         fi
-        if ! grep -q '^country=' "$mnt/wpa_supplicant.conf"; then
+        if ! grep -q '^country=' "$staged"; then
+          rm -f "$staged"
           echo "nixpi-provision: wpa_supplicant.conf missing a country= line (radio stays blocked)." >&2
           exit 1
         fi
+        mv -f "$staged" "$mnt/wpa_supplicant.conf"
         echo "nixpi-provision: planted wpa_supplicant.conf."
       fi
 
@@ -429,8 +463,9 @@ let
                 --wifi-conf) wifi_conf="''${2:?}"; shift 2 ;;
                 --ssid) wc_args+=(--ssid "''${2:?}"); shift 2 ;;
                 --psk) wc_args+=(--psk "''${2:?}"); shift 2 ;;
+                --current) wc_args+=(--current); shift ;;
                 --country) country="''${2:?}"; shift 2 ;;
-                -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst | --release] [--wifi-conf FILE | [--ssid SSID [--psk PSK]]... [--country CC]]"; exit 0 ;;
+                -h | --help) echo "usage: nixpi-flash --disk /dev/diskN [--image FILE.img.zst | --release] [--wifi-conf FILE | [--ssid SSID [--psk PSK]]... [--current] [--country CC]]"; exit 0 ;;
                 *) echo "nixpi-flash: unknown argument: $1" >&2; exit 1 ;;
               esac
             done
@@ -443,6 +478,16 @@ let
 
             tmp=$(mktemp -d)
             trap 'rm -rf "$tmp"' EXIT
+
+            # Wi-Fi FIRST, before anything is downloaded or written: the roster is a
+            # hand-placed file that can be missing (nixpi-wifi-creds § THE ROSTER), and
+            # finding that out AFTER the dd would leave a wiped card. With no Wi-Fi args
+            # this is the roster; --ssid/--current replace it.
+            if [ -z "$wifi_conf" ]; then
+              wifi_conf="$tmp/wpa.conf"
+              if [ -n "$country" ]; then wc_args+=(--country "$country"); fi
+              ${wifi-creds}/bin/nixpi-wifi-creds "''${wc_args[@]}" > "$wifi_conf"
+            fi
 
             if [ -n "$image" ] && [ -n "$use_release" ]; then
               echo "nixpi-flash: --image and --release are mutually exclusive." >&2; exit 1
@@ -650,16 +695,8 @@ let
             echo "nixpi-flash:  it; it proves the write landed. Durability is untested.)"
 
             /usr/sbin/diskutil mount "''${disk}s1" >/dev/null 2>&1 || true
-            # With no Wi-Fi args nixpi-provision plants the declared nixpiWifiNetworks
-            # ladder (identity.nix); --ssid REPLACES it. Build the conf here when --ssid
-            # is given.
-            if [ -z "$wifi_conf" ] && [ ''${#wc_args[@]} -gt 0 ]; then
-              wifi_conf="$tmp/wpa.conf"
-              if [ -n "$country" ]; then wc_args+=(--country "$country"); fi
-              ${wifi-creds}/bin/nixpi-wifi-creds "''${wc_args[@]}" > "$wifi_conf"
-            fi
-            prov_args=(--all)
-            [ -n "$wifi_conf" ] && prov_args+=(--wifi-conf "$wifi_conf")
+            # The Wi-Fi conf was generated before the write (top of this script).
+            prov_args=(--all --wifi-conf "$wifi_conf")
             ${provision}/bin/nixpi-provision "''${prov_args[@]}"
             /usr/sbin/diskutil eject "$disk"
             echo "nixpi-flash: done. Insert the card and boot the Pi."

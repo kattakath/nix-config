@@ -23,7 +23,6 @@ let
 
   inherit (config.fleet)
     darwinSystems
-    nixpiWifiNetworks
     orgName
     repoName
     jsonResumeUrl
@@ -106,7 +105,7 @@ in
           # `nix flake check` BUILDS them — running writeShellApplication's shellcheck
           # on each of the four apps. See packages/nixpi-provision.nix.
           nixpiKit = pkgs.callPackage ../../packages/nixpi-provision.nix {
-            inherit nixpiWifiNetworks orgName repoName;
+            inherit orgName repoName;
           };
         in
         {
@@ -386,7 +385,7 @@ in
         nixpi-wifi-creds = {
           type = "app";
           program = "${config.packages.nixpi-wifi-creds}/bin/nixpi-wifi-creds";
-          meta.description = "Emit a wpa_supplicant.conf for each --ssid given, else the declared nixpiWifiNetworks list (identity.nix), else this Mac's Wi-Fi (keychain PSK + locale country)";
+          meta.description = "Emit a wpa_supplicant.conf for each --ssid given, else the hand-placed Wi-Fi roster (NIXPI_WIFI_ROSTER), else refuse; --current = this Mac's Wi-Fi (keychain PSKs + locale country)";
         };
         nixpi-vault-token = {
           type = "app";

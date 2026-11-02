@@ -238,7 +238,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     IPv4-only at the time, so it read "down" for 38 h and ran **401 ladder cycles**: **801
     supplicant restarts** and **2,417 `wlan0` carrier losses**, for nothing. That churn also
     caused avahi's `nixpi-3` rename and the IPv6 temporary pile-up (`hosts/nixpi.nix`). The
-    storm ended at 17:04Z on 10-16, the same minute `wlan0` joined the `aloshy` hotspot and the
+    storm ended at 17:04Z on 10-16, the same minute `wlan0` joined the fallback hotspot and the
     tunnel registered over IPv4 again (cause vs coincidence not separated). The same window
     exposed two ladder defects, fixed or instrumented 2026-10-17:
     - `cmp` was missing from `runtimeInputs`: 401/401 restores logged "command not found" and

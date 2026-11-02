@@ -48,7 +48,9 @@ Core package set:
   `nixpi-flash`/`nixpi-provision`/`nixpi-wifi-creds`/`nixpi-vault-token`
   `writeShellApplication` flake apps that flash the SD card and plant the token+Wi-Fi onto its
   FIRMWARE partition — the executable companion to the `modules/features/firmware-secrets/`
-  capsule's `local.firmwareProvisioning`.
+  capsule's `local.firmwareProvisioning`. The Wi-Fi SSIDs are NOT in the repo: `nixpi-wifi-creds`
+  reads a hand-placed, Drive-backed roster (`$NIXPI_WIFI_ROSTER`, § THE ROSTER in the file) and
+  refuses without one; `checks.aarch64-darwin.nixpi-wifi-roster` pins both halves.
 - `key-recovery.nix` — **removed 2026-09-15**, with its `key-backup`/`key-recover` apps and
   the iCloud kit. Early-days scaffolding: key custody is the operator's choice, and this
   fleet's posture is that a lost machine's keypair stays lost, because every agenix secret is
