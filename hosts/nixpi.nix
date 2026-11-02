@@ -309,13 +309,18 @@
       before = [ "supplicant-wlan0.service" ];
       postInstall = "${pkgs.util-linux}/bin/rfkill unblock wifi || true";
     };
-    # The heartbeat monitor's ping URL — one line, no trailing newline needed.
+    # The heartbeat monitor's PROJECT PING KEY (healthchecks.io) — one line, no
+    # trailing newline needed. It was a complete ping URL (`heartbeat-url`) until the
+    # fleet heartbeat registry; one key now serves every check, and the slug lives in
+    # this repo (`local.serviceHeartbeat.slug`) instead of in a planted file. A card
+    # still carrying the old `heartbeat-url` is simply ignored: re-plant under the
+    # new name.
     #
     # OPTIONAL (`required = false`, the default) ON PURPOSE, and this is the whole
     # argument: aborting would brick a live server over a MONITORING credential,
     # which is the inverse of the failure the heartbeat exists to prevent. A Pi
     # flashed without it boots, serves, and does not heartbeat — which reads as "not
-    # verified healthy", not "down". A fresh flash therefore alerts until the URL is
+    # verified healthy", not "down". A fresh flash therefore alerts until the key is
     # planted, and that is correct rather than a bug. Plant it in the same step as
     # the connector token if you want them to arrive together.
     #
@@ -328,9 +333,9 @@
     # No `before`/`requiredBy`: the consumer is a TIMER, not a boot-critical service,
     # so ordering buys nothing and `requiredBy` is precisely the mistake the
     # connector-token comment above records.
-    heartbeat-url = {
-      source = "heartbeat-url";
-      target = "/run/heartbeat-url";
+    heartbeat-ping-key = {
+      source = "heartbeat-ping-key";
+      target = "/run/heartbeat-ping-key";
     };
   };
 
@@ -343,9 +348,18 @@
   # this one covers what leaves the tunnel UP — Caddy dead, rootfs read-only.
   # Port 80 is the one globally-open TCP port on this host (Caddy's origin), so the
   # loopback probe matches what the firewall already admits.
+  #
+  # The check is `fleet.heartbeats.nixpi-serving` (modules/parts/heartbeats.nix:
+  # period 300 s = `interval` below, grace 900 s = 3x). The slug is named HERE, not
+  # defaulted in the module — which check a host feeds is the host's fact.
+  local.heartbeat = {
+    enable = true;
+    pingKeyFile = config.local.firmwareProvisioning.files.heartbeat-ping-key.target;
+  };
+
   local.serviceHeartbeat = {
     enable = true;
-    urlFile = config.local.firmwareProvisioning.files.heartbeat-url.target;
+    slug = "nixpi-serving";
     httpPort = 80;
     # NAMED units, not a blanket `is-system-running`. `mnt-storage.mount` is
     # `nofail` on purpose and can fail while the host still serves, so a blanket
