@@ -725,31 +725,15 @@ in
       # Homebrew ships the app, Nix owns the config. Same split as the
       # ungoogled-chromium cask. Settings live in modules/home/default.nix.
       "ghostty"
-      # NO OpenPGP GUI on this Mac — by design, do not re-add one. GpgFrontend
-      # (cask, 2026-10-06) was REMOVED 2026-10-17 on the operator's verdict that
-      # it is too hard to use; OpenPGP work goes through the pgp-ops plugin, with
-      # pinentry-mac (brews above) as the passphrase dialog.
-      #
-      # Every other GUI was already measured and lost, 2026-10-06, so none is
-      # re-attempted either:
-      #   * `gpg-suite` / `gpg-suite-no-mail` — ABANDONED. Latest release is
-      #     2023.3 dated 2023-07-23 per GPGTools' OWN release notes, and the
-      #     cask string matches upstream exactly, so it is NOT Homebrew lag. It
-      #     bundles GnuPG 2.2.41 — a branch EOL since 2024-12-31. A stale
-      #     wrapper around a stale GnuPG is the one shape a crypto tool may not
-      #     have.
-      #   * `pkgs.gpa` — CRASHES ON LAUNCH on aarch64-darwin, operator-confirmed
-      #     on screen ("gpa quit unexpectedly"). Instruments agreed: absent from
-      #     System Events' windowed-process list, runningboard logged
-      #     `running-NotVisible`, process dead at 26 s with an EMPTY log. It is
-      #     also unwrapped (no `GDK_PIXBUF_MODULE_FILE`), the classic darwin
-      #     GTK3 failure, though it emitted no error to prove that.
+      # NO OpenPGP GUI on this Mac — by design, do not re-add one. OpenPGP work
+      # goes through the pgp-ops plugin, with pinentry-mac (brews above) as the
+      # passphrase dialog. Every candidate was measured and lost:
+      #   * GpgFrontend (cask) — removed 2026-10-17, operator verdict: too hard to use.
+      #   * `gpg-suite` / `gpg-suite-no-mail` — abandoned upstream (last release
+      #     2023-07-23); bundles GnuPG 2.2.41, a branch EOL since 2024-12-31.
+      #   * `pkgs.gpa` — crashes on launch on aarch64-darwin.
       #   * `seahorse`, `kleopatra` / `kdePackages.kleopatra`, `keybase-gui` — no
-      #     `aarch64-darwin` in `meta.platforms`. Not a runtime question.
-      #
-      # upstream-first: nixpkgs' darwin GUI options are EXHAUSTED — gpa is the
-      # only one that builds for aarch64-darwin and it crashes; the rest are
-      # Linux-only. With GpgFrontend rejected too, there is no GUI left to try.
+      #     `aarch64-darwin` in `meta.platforms`.
       #
       # GIT SIGNING IS UNAFFECTED: this fleet signs commits in SSH format
       # (`gpg.format = "ssh"`, modules/home/default.nix), so no gpg-agent or
