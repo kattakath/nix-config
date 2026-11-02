@@ -981,6 +981,9 @@ in
         # with workspace-gtd and declared below so its settings have a home.
         "google-workspace-mcp"
         "jsonresume-tailor"
+        # Render PDFs whose text layer ATS parsers read in order: Typst + PDF/UA-1, one column,
+        # a multi-reader check (kattakath/skills#167).
+        "ats-safe-pdf"
         "github-release-gate"
         "skill-curator"
         # Deterministic, reconcile-gated statement extraction (QFX/OFX, CSV, PDF) to masked,
@@ -1238,6 +1241,11 @@ in
     # to-recipient / key-backup flow, harvested 2026-10-17. Declared, not clicked, so a
     # fresh machine has it alongside the brew GnuPG and keychain-secrets lane it names.
     "pgp-ops@kattakath" = true;
+
+    # ats-safe-pdf (kattakath/skills#167): rendering machine-readable PDFs, harvested
+    # 2026-11-02 after HTML print-to-PDF résumés measured badly in ATS checkers. Declared,
+    # not clicked, so every repo that produces a document PDF loads it.
+    "ats-safe-pdf@kattakath" = true;
 
     "statement-extract@kattakath" = true;
     "beancount@kattakath" = true;
