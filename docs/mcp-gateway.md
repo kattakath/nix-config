@@ -389,9 +389,8 @@ model and the three-objects-per-publish trap are in
 > not about this fleet, so re-adopting it anywhere needs that checked first. And the **`gmail`**
 > entry below is the one capability that SURVIVED the purge: the same four addresses, the same
 > one-process-per-account design and the same shared-OAuth-client + per-account-browser-auth
-> pattern, moved to `local.gmailMcp` + the `gmail` plugin on 2026-10-01. Read it as the spec that
-> `packages/gmail-mcp.nix` now implements.
-> Retired 2026-11-01 — the claude.ai Gmail connector replaced it.
+> pattern, moved to `local.gmailMcp` + the `gmail` plugin on 2026-10-01, then retired
+> 2026-11-01 — the claude.ai Gmail connector replaced it.
 
 - **`telegram`** — chaindead/telegram-mcp. Needs a one-time phone auth **before** activating,
   or it darks the gateway. **Enabling it now also fails `nix flake check`**, deliberately: it
@@ -438,7 +437,7 @@ and fails gracefully headless; `apify` instead reads `APIFY_TOKEN` from the Keyc
 > A capability is either a **plugin's** `.mcp.json` (with a nix-config PATH package behind it when
 > it needs a Keychain read) or a **claude.ai connector**. The three groups below that
 > "structurally CANNOT move" all moved or died: `gmail` moved by splitting the launcher out
-> (`packages/gmail-mcp.nix`), the generic utilities simply **left the fleet**, and
+> (since retired), the generic utilities simply **left the fleet**, and
 > `desktop-commander` went with them. That last outcome is the honest cost of the purge and is not
 > softened here: a dozen ownerless utilities were removed rather than rehomed, and the 94% call
 > share in the measurement below was theirs.

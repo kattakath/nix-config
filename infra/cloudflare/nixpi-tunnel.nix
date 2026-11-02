@@ -60,7 +60,8 @@ let
   # nixpi is the only tunnelled host: macos is a client only, nixvm has no
   # public ingress.
   tunnelName = "nixpi";
-  publicHostname = "${tunnelName}.${domainName}"; # nixpi.kattakath.com — the SSH ingress host
+  # The SSH ingress host — one spelling shared with deploy-rs and ~/.ssh/config.
+  publicHostname = (import ../../modules/_lib/derived-names.nix).nixpiSshHostname domainName;
 
   tunnelId = "\${cloudflare_zero_trust_tunnel_cloudflared.nixpi.id}";
 

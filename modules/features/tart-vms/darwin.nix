@@ -30,80 +30,70 @@
 let
   cfg = config.local.tart;
 
-  vmModule =
-    { name, ... }:
-    {
-      options = {
-        cpu = lib.mkOption {
-          type = lib.types.ints.positive;
-          default = 4;
-          description = "Number of virtual CPUs (applied with `tart set` before each run).";
-        };
+  vmModule = _: {
+    options = {
+      cpu = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 4;
+        description = "Number of virtual CPUs (applied with `tart set` before each run).";
+      };
 
-        memory = lib.mkOption {
-          type = lib.types.ints.positive;
-          default = 8192;
-          description = "Memory in MiB (applied with `tart set` before each run).";
-        };
+      memory = lib.mkOption {
+        type = lib.types.ints.positive;
+        default = 8192;
+        description = "Memory in MiB (applied with `tart set` before each run).";
+      };
 
-        headless = lib.mkOption {
-          type = lib.types.bool;
-          default = false;
-          description = "Run without a VM window (`tart run --no-graphics`).";
-        };
+      headless = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = "Run without a VM window (`tart run --no-graphics`).";
+      };
 
-        dirs = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
-          example = [ "Downloads:/Users/me/Downloads" ];
-          description = ''
-            Host directories shared into the guest via VirtioFS, in tart's
-            `NAME:PATH[:ro]` syntax (mounted under /Volumes/My Shared Files).
-          '';
-        };
+      dirs = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [ "Downloads:/Users/me/Downloads" ];
+        description = ''
+          Host directories shared into the guest via VirtioFS, in tart's
+          `NAME:PATH[:ro]` syntax (mounted under /Volumes/My Shared Files).
+        '';
+      };
 
-        autoStart = lib.mkOption {
-          type = lib.types.bool;
-          default = false;
-          description = ''
-            Start the VM at login via a launchd user agent (KeepAlive: it is
-            restarted if it stops). Off by default: a VM you start by hand
-            still benefits from the declared cpu/memory via `tart-vm start`.
-          '';
-        };
+      autoStart = lib.mkOption {
+        type = lib.types.bool;
+        default = false;
+        description = ''
+          Start the VM at login via a launchd user agent (KeepAlive: it is
+          restarted if it stops). Off by default: a VM you start by hand
+          still benefits from the declared cpu/memory via `tart-vm start`.
+        '';
+      };
 
-        extraRunArgs = lib.mkOption {
-          type = lib.types.listOf lib.types.str;
-          default = [ ];
-          example = [ "--vnc" ];
-          description = "Extra arguments appended to `tart run`.";
-        };
+      extraRunArgs = lib.mkOption {
+        type = lib.types.listOf lib.types.str;
+        default = [ ];
+        example = [ "--vnc" ];
+        description = "Extra arguments appended to `tart run`.";
+      };
 
-        logDir = lib.mkOption {
-          type = lib.types.str;
-          default = "/tmp";
-          description = ''
-            Directory for the agent's stdout/stderr log
-            (tart-vm-<name>.log). Point it at ~/Library/Logs in practice;
-            the default stays $HOME-free so the module evaluates without
-            knowing the operator's home.
+      logDir = lib.mkOption {
+        type = lib.types.str;
+        default = "/tmp";
+        description = ''
+          Directory for the agent's stdout/stderr log
+          (tart-vm-<name>.log). Point it at ~/Library/Logs in practice;
+          the default stays $HOME-free so the module evaluates without
+          knowing the operator's home.
 
-            Consequence of that default: macOS purges /tmp, so the log of the
-            run you want to debug may already be gone. Set this for any VM you
-            intend to diagnose. (The CI lanes' own state has no such excuse —
-            local.tart.runnerStateDir is durable by default, see ./slots.nix.)
-          '';
-        };
-
-        _name = lib.mkOption {
-          type = lib.types.str;
-          default = name;
-          internal = true;
-          readOnly = true;
-          description = "The VM's tart name (the attribute name).";
-        };
+          Consequence of that default: macOS purges /tmp, so the log of the
+          run you want to debug may already be gone. Set this for any VM you
+          intend to diagnose. (The CI lanes' own state has no such excuse —
+          local.tart.runnerStateDir is durable by default, see ./slots.nix.)
+        '';
       };
     };
+  };
 
   # One nix-<kebab> wrapper per VM — see the ARG0 RULE header comment.
   mkRunner =

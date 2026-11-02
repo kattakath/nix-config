@@ -80,7 +80,8 @@
  * POLICY CHANGE (2026-08-19, a redirect-rule task): the plain "raw
  * request to api.cloudflare.com" sub-check of Rule 1 downgrades to a
  * non-blocking nudge (RULE1_API_HOST_BLOCKING = false below) — the same
- * nudge-not-block shape the since-removed Rule 3 used. Reason: mcp__cloudflare__execute's OAuth grant was confirmed (live
+ * nudge-not-block shape the since-removed Rule 3 used. Reason: the Cloudflare MCP's execute tool (named
+ * mcp__cloudflare__execute at the time; read today's name from the session) had its OAuth grant confirmed (live
  * 9109 Unauthorized on both Rulesets and Page Rules writes, even after a full
  * reconnect) to NOT include WAF/Rulesets/Page-Rules write access — a limit of
  * Cloudflare's own official MCP app, not a fixable per-session scope — so the

@@ -85,6 +85,9 @@ Every capsule is entered **only** through `flake-module.nix`. From there it publ
 | `capsuleModules.<class>.<name>` | `lazyAttrsOf raw` — a definition passed through **UNWRAPPED** (`modules/parts/capsules.nix`) | `keychain-secrets`, `media-cli`, `local-rag`, `cloud-cli` (home-manager), `tart-vms` (darwin) | **measured, not stylistic.** `flake.modules`' element type is `types.deferredModule`, whose merge always wraps in `{ imports = [ … ]; }` (pinned nixpkgs `lib/types.nix`, `deferredModuleWith`), and flake-parts wraps again for any class but `generic`. For a NixOS module that is invisible. For a **home-manager** module it is not: `home.packages` is a LIST, merged in module-collection order = `buildEnv`'s `paths` order = **who wins a filename collision**. Routing `keychain-secrets` through `flake.modules` moved its four CLIs ahead of postgresql and `nix-bedrock-gate` and **changed `darwin-system`'s drvPath**, with byte-identical package derivations. |
 | `capsuleSources.<capsule>.<name>` | a **path**, nothing else | `tart-vms` only (`gitlab-tart.nix`) | the inward hole above: `modules/home/default.nix` must build it with the HOST's pkgs, and publishing the path keeps `flake-module.nix` the only thing outside the capsule that names a file inside it |
 
+A capsule may also export flake **packages** from its `flake-module.nix` (`tart-vms` does —
+its Packer plugin, GitLab executor and config printer); that file is the list, not this map.
+
 `flake.modules` is deliberately **not** re-exported as a public flake output (`touchup.nix`) —
 the satellites published `nixosModules.*` to strangers; in-tree the only consumer is
 `hosts/nixpi.nix`.

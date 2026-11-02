@@ -40,8 +40,11 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
    secret REVEAL (`secret reveal *`, `security find-*-password -w*`, and environment dumps
    — `env`, `printenv`, `set`, `export`, `declare -x` and kin, EXACT match only, so
    `printenv NAME` and `env FOO=1 cmd` stay allowed); decryption (`agenix
-   -d*`, `age -d*`); and reads of decrypted secret paths (`/run/agenix/**`, the tunnel/MCP
-   state dirs, `~/.aws/sso/cache/**`). A deny entry is mechanical; conversational
+   -d*`, `age -d*`); reads of decrypted secret paths (`/run/agenix/**`, the tunnel/MCP
+   state dirs, `~/.aws/sso/cache/**`); edits to persistence and credential config
+   (`~/Library/LaunchAgents/**`, `~/.ssh/**`, shell rc files, `~/.config/git/**` — Home
+   Manager owns them); and writing secrets to the cloud (`gcloud secrets create` /
+   `versions add`). A deny entry is mechanical; conversational
    authorization does not lift it.
 
    The `--force-with-lease` carve-out is spelled out above rather than left to the
