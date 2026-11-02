@@ -127,6 +127,13 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   `nix-ld-libraries.nix` is a `pkgs:`-taking function, not a module. **§9b is now DONE**: those
   two moved to `modules/nixos/nix-cache.nix` and `modules/_lib/nix-ld-libraries.nix` on 2026-10-02, so
   the §8 rename has nothing left to mislead on.)
+  [`ADR-010`](../scheduled-runs-adr.md) (**DECIDED 2026-11-01 — research, no code**: where a
+  recurring Claude run lives. Claude Desktop's **Scheduled** page is the one official pane,
+  listing local and cloud tasks; **default lane = Desktop local task** (this Mac's files, DB,
+  Drive), cloud task for connector-only jobs, **launchd + `claude -p` only when the Desktop app
+  must not be required**. Community `claude -p` dashboards are rejected as a second pane. §4
+  records the costs — skipped runs when asleep (one catch-up within 7 days), and schedules that
+  are **not declarative**.)
 - [`docs/workspace-runbook.md`](../workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](../identity-and-offboarding.md) — the single lever:
