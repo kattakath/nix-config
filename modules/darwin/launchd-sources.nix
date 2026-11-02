@@ -72,11 +72,9 @@
 # `strandedGui`) reads `launchd.user.agents` only: a new unit there fails the
 # build, one in nix-darwin's `launchd.agents` does not.
 #
-# The last `launchd.user.agents` text left in the tree is in
-# modules/features/tart-vms/darwin.nix (`local.tart.vms.*`), and it reaches no
-# host: modules/parts/compose.nix inherits only the two runner lanes from the
-# capsule — so `local.tart.vms` is not even a declared option on `macos`. It is
-# the subject of docs/macvm-readd-runbook.md and moves with that re-add.
+# No `launchd.user.agents` text is left in the tree: the last one,
+# modules/features/tart-vms/darwin.nix (`local.tart.vms.*`, in no composition), was
+# retired 2026-11-02. docs/macvm-readd-runbook.md restores it with that re-add.
 #
 # Do not "fix" a future unit here by widening ./launchd-reconcile.nix. Both
 # bullets above say why it cannot work: nix-darwin's own activation is diff-gated

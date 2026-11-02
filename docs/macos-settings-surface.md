@@ -275,7 +275,7 @@ way to "start X at login" is a **launchd user agent** with `RunAtLoad`.
 
 **Allow in the Background** names each item by `ProgramArguments[0]`'s **basename**
 (verify with `sfltool dumpbtm`). Fleet rule: that basename **must** be
-`nix-<activity>` (e.g. `nix-file-rotation-desktop`, `nix-tart-vm-<name>`; `nix-mcp-gateway` and `nix-open-maccy` were ones until 2026-10-02 and 2026-10-27) so items are obviously
+`nix-<activity>` (e.g. `nix-file-rotation-desktop`; `nix-mcp-gateway`, `nix-open-maccy` and `nix-tart-vm-<name>` were ones until 2026-10-02, 2026-10-27 and 2026-11-02) so items are obviously
 from this nix-config, not bare `sh`/`python3` or third-party helpers.
 
 | Bad (shows as phantom `sh` / `python3` / `open`) | Good |
@@ -395,7 +395,7 @@ already an activation no-op: its target still exists and already holds
    a "verify on your macOS version" hedge for `alf`/wallpaper/menu-bar keys.
 5. **App-internal state that apps rewrite at runtime** (e.g. Claude Desktop's config)
    — reachable only via an activation-script merge, never fully *owned* (the jq
-   merge in `modules/home/claude-desktop.nix`, plus a `WatchPaths` agent, because a
+   merge the retired `modules/home/claude-desktop.nix` did, plus a `WatchPaths` agent, because a
    **running** Desktop rewrites the whole file from memory rather than ignoring an unknown key).
    Proof that "never fully owned" is the right framing: a stale entry naming **destroyed**
    infrastructure survived a full day after the 2026-10-02 purge, because the writer had been

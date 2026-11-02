@@ -103,7 +103,8 @@ in
       # omission; the fleet's own hosts opt in here, where the host is declared.
       inherit hostedSites operatorSshKey;
       # The slug registry local.serviceHeartbeat asserts against
-      # (modules/parts/heartbeats.nix). Only nixpi pings today.
+      # (modules/parts/heartbeats.nix). Only nixpi pings among the HOSTS; the other
+      # entries are pinged by workflows and a cloud routine.
       fleetHeartbeats = heartbeats;
     };
 

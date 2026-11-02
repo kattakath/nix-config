@@ -149,7 +149,7 @@ operator. The one exception already exists: the `mcp-utilities` plugin
 
 - **Claude Code only (CLI and Desktop's Code tab).** Desktop CHAT ignores a plugin's local MCP and Cowork takes plugins
   from the claude.ai account (claude.com/docs/plugins/platform-support), so a plugin-declared server never reaches
-  Desktop chat or Cowork (Desktop's own set: `docs/claude-desktop-mcp.md` § CURRENT STATE).
+  Desktop chat or Cowork (Desktop chat's MCP comes only from claude.ai connectors: `docs/claude-desktop-mcp.md` § CURRENT STATE).
   Nothing detects this.
 - **No `flake.lock` pin** on the server's version — plugin content floats on the marketplace
   branch. The 2026-09-14 recovery levers (**pin the input, override the package**) do not apply to

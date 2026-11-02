@@ -75,8 +75,8 @@
 # was, until it was retired 2026-10-27.
 #
 # PATHS ARE DERIVED, NOT TYPED. Two traps a hand-written list walks straight into:
-#   (a) claude-desktop-mcp-sync declares StandardErrorPath and NO StandardOutPath,
-#       so enumerating one key silently misses the file.
+#   (a) an agent may declare StandardErrorPath and NO StandardOutPath (the retired
+#       claude-desktop-mcp-sync did), so enumerating one key silently misses the file.
 #   (b) media-queue and media-queue-power declare the SAME path (4 declarations,
 #       one file), so a per-agent list double-covers it. newsyslog keys on the
 #       PATH, so the set must be deduped.

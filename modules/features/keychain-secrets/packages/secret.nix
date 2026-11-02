@@ -21,6 +21,7 @@
   writeShellApplication,
   set-secret,
   pb-conceal,
+  indexService,
 }:
 writeShellApplication {
   name = "secret";
@@ -31,7 +32,7 @@ writeShellApplication {
   text = ''
     security=/usr/bin/security
     account="$(/usr/bin/id -un)"
-    index_service="__set_secret_index__"
+    index_service="${indexService}"
 
     # Optional non-default keychain (positional trailing arg to `security`),
     # mirroring set-secret — lets tests run against a throwaway keychain.

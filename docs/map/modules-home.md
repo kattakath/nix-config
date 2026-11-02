@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-desktop.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
+`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -398,7 +398,10 @@ in the repo can catch that; see that fixture file's header for the measurement.
   user re-binds the helper and breaks the first. Colima is per-user by construction — one
   launchd agent in the user's own gui domain, `$COLIMA_HOME` and the docker socket under the
   user's home — so two accounts mean two VMs and no shared helper to fight over. Genuinely
-  custom here: nothing but the `enable` switch and the profile's `settings` values.
+  custom here: nothing but the `enable` switch and the profile's `settings` values. The
+  `docker` client is nixpkgs' `docker-client` (not brew, since 2026-11-02), whose wrapper
+  already carries buildx + compose via `DOCKER_CLI_PLUGIN_DIRS`; it is also colima's
+  `dockerPackage`.
 - **`claude-code-settings.nix`** — makes Claude Code's **user-scope** `settings.json` LAYERED:
   a Nix-owned floor re-asserted every rebuild, merged over a real, writable file the app and
   the operator can change. Exists because of an UPSTREAM design, not a local mistake: the
@@ -477,21 +480,11 @@ in the repo can catch that; see that fixture file's header for the measurement.
     replacement: this file is the only tier that reaches the devcontainer and machines this
     Home Manager config never touched. See [`modules-darwin.md`](modules-darwin.md)
     § `modules/darwin/`.
-- **`claude-desktop.nix`** — `local.claudeDesktop`. Desktop CHAT runs no plugin stdio server (its Code tab does load plugins), so chat's ONLY lane is
-  `extraServers` (empty in public since 2026-11-01) plus a hand-placed Desktop overlay for client servers (the gateway portal
-  it used to dial was destroyed 2026-10-02). **The module stays ENABLED on purpose** — the set
-  Desktop should see is a state something must *write*. Switching the writer off leaves whatever
-  is on disk, which is exactly how a stale `kattakath-portal` entry pointing at destroyed
-  infrastructure survived for a day after the purge (#732). `checks.claude-desktop-config-shape`
-  asserts the module is on; what it may render is defined by that check's own legs (`modules/parts/checks.nix`).
-  The machinery still earns its keep: Desktop accepts ONLY the stdio shape, so the renderer
-  stamps a marker on stdio entries (`lib.hm.mcp.transformMcpServer` + one `extraTransform`, the
-  codex module's pattern; the `mcp-remote` shim for `url` entries was removed 2026-11-02, so a
-  `url` entry fails eval, or is skipped in the overlay); an activation plus the
-  `claude-desktop-mcp-sync` watch agent merge ONLY `.mcpServers` and ONLY entries carrying the
-  `NIX_CONFIG_MANAGED` env marker, so `preferences`, `coworkUserFilesPath`, `extraServers` and
-  anything added in Desktop's UI survive an empty render. Full rationale, including the clobber
-  that forced the watch agent: [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md).
+- **`claude-desktop.nix` — RETIRED 2026-11-02** (operator decision D4), with its
+  `nix-claude-desktop-mcp-sync` watch agent and `checks.claude-desktop-config-shape`. It merged
+  `extraServers` (empty in public since 2026-11-01) into Desktop's `claude_desktop_config.json`;
+  Desktop chat's MCP now comes only from claude.ai connectors. Design record:
+  [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md).
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces` **+ `.declared`**, the
   **N-marketplace** Claude Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure
@@ -587,8 +580,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   itself lives in `/nix/store` could never run one. This is **mandatory
   for every launchd unit this repo authors**: HM user agents are auto-wrapped here, and any
   hand-written `launchd.daemons`/`launchd.agents` MUST point `arg0` at a
-  `nix-<activity>` wrapper (the last hand-rolled one is `nix-tart-vm-<name>` in the `tart-vms`
-  capsule; boot-time daemons use the rule's boot-ordering exception) — codified as the path-scoped
+  `nix-<activity>` wrapper (none is hand-rolled today; boot-time daemons use the rule's
+  boot-ordering exception) — codified as the path-scoped
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md) rule, which also documents the
   three known-upstream `/bin/sh` exceptions that are NOT ours and must never be renamed.
   **The fork is GONE (2026-09-14).** It shrank to one file, then to none: the pinned

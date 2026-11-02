@@ -74,9 +74,10 @@ mandatory, not as a security boundary to rely on. Live example:
    ShellCheck), **never** directly at `${pkgs.bash}/bin/sh -c …` or
    `${python}/bin/python3 …`. Put the `exec` logic inside that wrapper — and NOT a
    `wait4path`, for the reason in item 1: it is unreachable from a store-resident wrapper.
-   Canonical example — and the ONLY hand-written user agent left:
-   `modules/features/tart-vms/darwin.nix`'s `launchd.user.agents.tart-vm-<name>`, whose
-   `arg0` is a `writeShellApplication "nix-tart-vm-<name>"`. Both CI runner lanes
+   No hand-written user agent is left: the last one,
+   `modules/features/tart-vms/darwin.nix`'s `launchd.user.agents.tart-vm-<name>` (arg0 a
+   `writeShellApplication "nix-tart-vm-<name>"`), was retired 2026-11-02 and is the example
+   to restore from git history if one is needed. Both CI runner lanes
    (`tart-vms/gitlab-runner.nix`, `github-runner.nix`) moved to item 1's home-manager lane
    on 2026-10-02, as did `modules/darwin/core.nix`'s `open-maccy` (retired 2026-10-27) and two trash sweeps
    (`modules/home/macos-user-agents.nix`), where the launcher supplies the `nix-*` arg0 and
@@ -213,13 +214,13 @@ so they form one contiguous block instead of scattering under d/d.
 
 Home Manager agents get this for free — `launchd.agents.<n>.launcher.name` defaults to
 `nix-<attr>` (`modules/home/launchd-launcher.nix`), so `nix-media-queue` /
-`nix-media-queue-power` and `nix-claude-desktop-mcp-sync` / `nix-claude-otel-collector`
-already sort together — and since 2026-10-02 the trash sweeps get it the same way
+`nix-media-queue-power` already sort together — and since 2026-10-02 the trash sweeps get it the same way
 (`modules/home/macos-user-agents.nix`; the Maccy opener did too until its 2026-10-27
 retirement). The nix-darwin lane hand-rolls its
 wrapper, which is where a prefix gets dropped — `mkNixAgent` passed `suffix = "maccy"` into
-`nix-${suffix}` and lost the `open-` until 2026-09-22. That helper is gone with the move;
-`tart-vms/darwin.nix`'s `nix-tart-vm-<name>` is the last hand-rolled wrapper.
+`nix-${suffix}` and lost the `open-` until 2026-09-22. That helper is gone with the move,
+and the last hand-rolled wrapper (`tart-vms/darwin.nix`'s `nix-tart-vm-<name>`) was retired
+2026-11-02.
 
 **Two regroupings were considered and REJECTED, so they do not get re-proposed:**
 

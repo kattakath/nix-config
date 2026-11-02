@@ -373,6 +373,11 @@ in
         #   3. `chrome.fontSettings.setFont()` is extension-only and lasts only
         #      while the extension is enabled (measured: it reverted on removal),
         #      so `bg.js` reapplies it on `onInstalled`/`onStartup` + top level.
+        # PERMANENT, so its manifest name's "(one-shot, remove after use)" is
+        # stale — but the name sits inside the SIGNED crx, and the packing key is
+        # not in the repo: renaming means repacking with that key, or a new key and
+        # a new `id` below. `checks.<system>.malayalam-crx-parity` fails if the
+        # source dir and the crx ever disagree.
         (localCrxExtension {
           id = "eaaffdlmgpmjccgdneagbjfckkdehama";
           version = "1.0";

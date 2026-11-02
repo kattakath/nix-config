@@ -17,11 +17,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   [`modules-home.md`](modules-home.md) § `macos-user-agents.nix`. With the `tart-vms` CI runners moved the same
   week, **nothing composed on `macos` is left on `launchd.user.agents` at all**, and
   `checks.<system>.launchd-selfheal-lane` gates that emptiness as its first leg rather than
-  only naming the five Labels. The one place the option is still WRITTEN is
-  `modules/features/tart-vms/darwin.nix` (`local.tart.vms.*`), which reaches no host:
-  `modules/parts/compose.nix` inherits only the two runner lanes from that capsule, so
-  `local.tart.vms` is not even a declared option on `macos`. It moves with the re-add
-  [`macvm-readd-runbook.md`](../macvm-readd-runbook.md) plans.
+  only naming the five Labels. The last file that WROTE the option,
+  `modules/features/tart-vms/darwin.nix` (`local.tart.vms.*`, in no composition), was retired
+  2026-11-02; [`macvm-readd-runbook.md`](../macvm-readd-runbook.md) restores it with a re-add.
 - **`user-folders.nix`** — the `local.folders.{desktop,downloads}` options: unset = the
   macOS system default (`~/Desktop`, `~/Downloads`), override = the relocation seam; an
   invalid (non-absolute) value fails loudly at eval rather than silently falling back.
@@ -176,8 +174,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   `ollama` daemon and the `StartInterval` `ollama-metal-guard` — the one log in the fleet no
   mechanism could reach before.
   **Paths are derived, not typed**, off the composed agents, because a hand-written list
-  walks into two traps: `claude-desktop-mcp-sync` declares `StandardErrorPath` and **no**
-  `StandardOutPath` (enumerate one key and the file is silently missed), and `media-queue` +
+  walks into two traps: an agent may declare `StandardErrorPath` and **no** `StandardOutPath`
+  (the retired `claude-desktop-mcp-sync` did; enumerate one key and the file is silently missed), and `media-queue` +
   `media-queue-power` declare the **same** path — 4 declarations, one file — so a per-agent
   list double-covers it. Reading both keys and `lib.unique`-ing makes both structural.
   Gates: `sudo newsyslog -nv -f <rendered>` parses every entry and resolves every path;

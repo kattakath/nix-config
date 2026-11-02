@@ -82,12 +82,9 @@ activate                                     # Activate macos, from ANY director
                                              #   (+ DIRTY) it is about to build. attr = HostName, NOT LocalHostName
                                              #   (mDNS renames that to `macos-2` on a .local clash). It always builds the MAIN
                                              #   checkout's CURRENT branch, never a worktree's, so from a worktree
-                                             #   session MERGING IS STEP 1 OF 2 — `git -C <main checkout> merge
-                                             #   --ff-only origin/main` BEFORE `activate`, or you rebuild the same
-                                             #   generation and the fix reads as FAILED. The TELL is a MISSING
-                                             #   `Activating <name>` line, so DIFF the step list rather than
-                                             #   scanning for errors. Mechanism, the measured cost, and the
-                                             #   plugin/marketplace FALSE alarm: docs/map/packages.md
+                                             #   session MERGING IS STEP 1 OF 2 (`git -C <main checkout> merge
+                                             #   --ff-only origin/main`), or the fix reads as FAILED. The tell, the
+                                             #   cost and the FALSE alarm: docs/map/packages.md
 nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
 nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo
                                              # nixos-rebuild is NOT on the Mac's PATH; without --sudo activation fails as ismail.
@@ -228,8 +225,8 @@ deliberate, not drift.
 Servers come from an enabled plugin's `.mcp.json` — unless a claude.ai connector serves the
 same URL, which wins (its plugin twin is denied in `deniedMcpServers`); a launcher doing what a JSON file CANNOT — a
 Keychain read — is a PATH package (`local.pluginMcp`;
-`desktop-commander` is now the official plugin, unfenced). **Desktop CHAT runs no plugin stdio server** (it takes plugins from the claude.ai account and ignores their local MCP; Desktop's Code tab loads plugins like the CLI), so its only
-lane is `local.claudeDesktop.extraServers` (EMPTY in public; client servers come from the operator's Desktop overlay file; GitHub there is claude.ai's official integration).
+`desktop-commander` is now the official plugin, unfenced). **Desktop CHAT runs no plugin stdio server** (its Code tab loads plugins like the CLI);
+its MCP comes only from claude.ai connectors — the `claude-desktop.nix` writer was RETIRED 2026-11-02.
 [`docs/map/claude-code.md`](docs/map/claude-code.md) § MCP after the gateway.
 
 ## Code Style & Conventions
@@ -326,7 +323,7 @@ How a host gets composed — change these knobs, not the hosts' internals:
   (1) `local.macosGithubRunner` (`modules/darwin/github-runner.nix`, `count = 2`): bare-metal
   ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `local.tart.githubRunners.*`
   (the `tart-vms` capsule's `github-runner.nix`, configured in `hosts/macos.nix`): **ephemeral
-  Tart-VM-per-job** runners for `dontsell-ai` (`kattakath` declared, off; label
+  Tart-VM-per-job** runners for `dontsell-ai` (label
   `dontsell-vm`), sharing Apple's hard 2-concurrent-VM budget via a slot semaphore. Both mint ~1h
   tokens from GitHub App keys (agenix); since 2026-09-06 **both lanes share ONE App**,
   `ismailkattakath-ci` (appId 4849830, operator-owned + public), which replaced the retired
@@ -390,13 +387,10 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   the ROOT disk, so `/home`, PERSISTS in `$XDG_STATE_HOME/nixvm/nixvm.qcow2` until you `rm` it
   (only the Nix store image is rebuilt per boot). The filesystem split, and the per-CWD trap
   the app's wrapper defeats: [`docs/map/hosts.md`](docs/map/hosts.md).
-- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (ephemeral
-  Apple-Virtualization VM). Two traps: `determinate-nixd` logged OUT of FlakeHub (or a logged-in
-  daemon that came up featureless — kickstart it) silently kills it, and every build then fails
-  as `platform mismatch`; and `cp --no-preserve=mode` into `$out` EPERMs, which breaks every
-  Mac-side build of a Caddy-serving `nixpi` generation. **Never fix
-  that by building on the Pi** — CI warms the cache so the Mac substitutes instead.
-  Measurements, the `memoryBytes` OOM knob, and why it is NOT a general chmod ban:
+- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder**. Two traps:
+  a `determinate-nixd` logged OUT of FlakeHub (or featureless — kickstart it) fails every build
+  as `platform mismatch`, and `cp --no-preserve=mode` into `$out` EPERMs (a Caddy-serving `nixpi`
+  generation). **Never fix that by building on the Pi** — CI warms the cache. Detail:
   [`docs/map/hosts.md`](docs/map/hosts.md) § Building aarch64-linux on the Mac.
 
 ## Documentation

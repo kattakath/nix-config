@@ -1,8 +1,8 @@
 # Claude Desktop / claude.ai — custom instructions (manual, account-level)
 
 The one piece of Claude Desktop state this repo **cannot** manage declaratively. (Its MCP
-servers it can — see [`claude-desktop-mcp.md`](claude-desktop-mcp.md) for what it writes
-there today.)
+servers it no longer manages either — they come from claude.ai connectors since 2026-11-02;
+see [`claude-desktop-mcp.md`](claude-desktop-mcp.md).)
 
 `~/.claude/CLAUDE.md` (Claude Code's global instructions) is placed by Home
 Manager from [`claude/CLAUDE.md`](../claude/CLAUDE.md). **Claude Desktop and

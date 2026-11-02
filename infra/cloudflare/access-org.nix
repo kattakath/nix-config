@@ -100,11 +100,12 @@
   # load-bearing rather than tidy. Every safety claim above is a reading of
   # 5.25.0's encoder and model; a provider bump can re-derive all of them. The
   # sibling stacks survive a bump because their resources fail loudly; this one
-  # fails by silently sending a null. `.terraform.lock.hcl` lives in the state
-  # dir, outside git, so the lock is NOT the pin — this is.
+  # fails by silently sending a null. The pin itself is shared with the other
+  # Cloudflare stacks in ../provider-pins.nix, so raising it there re-opens this
+  # stack's argument too.
   terraform.required_providers.cloudflare = {
     source = "cloudflare/cloudflare";
-    version = "= 5.25.0";
+    version = "= ${(import ../provider-pins.nix).cloudflare}";
   };
 
   provider.cloudflare = { };

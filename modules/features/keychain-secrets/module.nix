@@ -40,7 +40,10 @@
 }:
 let
   cfg = config.local.keychainSecrets;
-  setSecret = pkgs.callPackage ./packages/set-secret.nix { };
+  # The index item's Keychain service name — one binding for the whole capsule
+  # (./index-service.nix), passed to every package that touches the index.
+  indexService = import ./index-service.nix;
+  setSecret = pkgs.callPackage ./packages/set-secret.nix { inherit indexService; };
   # The pasteboard half `secret copy` pipes to. Installed alongside the CLI so
   # it is usable on its own with any value on stdin, not only via the Keychain.
   pbConceal = pkgs.callPackage ./packages/pb-conceal.nix { };
@@ -48,6 +51,7 @@ let
   secretCmd = pkgs.callPackage ./packages/secret.nix {
     set-secret = setSecret;
     pb-conceal = pbConceal;
+    inherit indexService;
   };
   # ADR-004 Phase 2: the write/recovery side. Config-free derivations (they read
   # SECRETS_BACKEND* from the environment the loader exports), so these are the
@@ -55,6 +59,7 @@ let
   backendCmds = pkgs.callPackage ./packages/secrets-backend.nix {
     set-secret = setSecret;
     secret = secretCmd;
+    inherit indexService;
   };
   refsPath = "${config.home.homeDirectory}/${cfg.refsRelPath}";
   loaderPath = "${config.home.homeDirectory}/${cfg.loaderRelPath}";
@@ -83,7 +88,7 @@ let
           # Capture the index read's exit code: rc != 0 means the index item is
           # UNREADABLE (Keychain locked, or nothing registered yet) — distinct from a
           # readable-but-empty index. Only a readable index sets the sentinel.
-          __ss_index="$(/usr/bin/security find-generic-password -a "$__ss_account" -s __set_secret_index__ -w ''${__ss_kc:+"$__ss_kc"} 2>/dev/null)"
+          __ss_index="$(/usr/bin/security find-generic-password -a "$__ss_account" -s ${indexService} -w ''${__ss_kc:+"$__ss_kc"} 2>/dev/null)"
           __ss_rc=$?
           if [ "$__ss_rc" -ne 0 ]; then
             __ss_dbg "index unreadable (rc=$__ss_rc): Keychain locked or no secrets registered; NOT caching — a later shell will retry"
@@ -181,7 +186,7 @@ let
         # unbound). Shared by set-secret/adopt so one grammar reader serves both.
         # Prints the bound name on stdout so callers can unset it later.
         __secrets_bound_env() {
-          __sbe_idx="$(/usr/bin/security find-generic-password -a "$(/usr/bin/id -un)" -s __set_secret_index__ -w ''${SET_SECRET_KEYCHAIN:+"$SET_SECRET_KEYCHAIN"} 2>/dev/null || true)"
+          __sbe_idx="$(/usr/bin/security find-generic-password -a "$(/usr/bin/id -un)" -s ${indexService} -w ''${SET_SECRET_KEYCHAIN:+"$SET_SECRET_KEYCHAIN"} 2>/dev/null || true)"
           __sbe_rest="$__sbe_idx"
           while [ -n "$__sbe_rest" ]; do
             __sbe_t="''${__sbe_rest%% *}"

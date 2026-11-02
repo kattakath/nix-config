@@ -192,6 +192,35 @@ head SHA's `required-checks` check run (now `gate`). A **workflow-run** conclusi
 mean the arm job ran: since #713 the `arm decision` job succeeds on every run. Read the
 **job** conclusion.
 
+#### #723 re-read — the arming record (moved here from `pr-title.md`, 2026-11-02)
+
+The rule text (`.claude/rules/pr-title.md`) was wrong in BOTH directions until 2026-10-02. It first
+claimed arming *survives* the draft state; the 2026-10-01 rewrite claimed `ready_for_review`
+does **not** restore it and told you to re-arm by hand. The second claim is also false, and
+the #723 table it rested on had its two rows **swapped**. Matching each run to its event by
+`head_sha` — the PR head was `848a6c0e` until the push created `78f956b3` — #723 reads:
+
+| Time | Event | Run head | arm job | Why |
+|---|---|---|---|---|
+| 14:01:52 | `opened`, non-draft | `848a6c0e` | **success** | armed — `auto_squash_enabled` 14:02:02 |
+| 14:04:50 | `convert_to_draft` | no run (no trigger) | — | **`auto_merge_disabled` the same second. THIS dropped it** |
+| 14:05:38 | push → `78f956b3` | — | — | fired BEFORE the ready transition |
+| 14:05:40 | `ready_for_review` | `848a6c0e` | **cancelled** | killed by `cancel-in-progress`, then `true` |
+| 14:05:46 | `synchronize` | `78f956b3` | **skipped** | payload `draft=true` — CORRECT, the push preceded the toggle |
+
+The old table read the cancelled run as the push's and the skipped run as the ready
+transition's. Both are the other way round: the cancelled run carries the **pre-push** head,
+so it is the ready transition, and the skip is a by-design draft skip, not the defect. What
+left #723 unarmed is the **cancellation** — removed by #750 (`cancel-in-progress: false`,
+2026-10-02), not by anything in the rule file.
+
+Both of the old claims are refuted at job level, not inferred:
+
+| What the old text said | Measured |
+|---|---|
+| a push drops the arming | **14/14** `synchronize` runs on non-draft operator PRs armed; #737 was force-pushed 3x while armed and `enabledAt` never moved |
+| `ready_for_review` does not restore it | **3 of the 4** armed-PR conversions re-armed on the ready transition (#559, #737, #757); only #723 did not, by the cancellation above. Of 5 `ready_for_review` runs with a recorded payload, 4 armed and 1 was cancelled — **zero skips** |
+
 ## Derived vs assumed
 
 - **Derived:** the CI decomposition (census), the deploy-schema root cause (trace), the

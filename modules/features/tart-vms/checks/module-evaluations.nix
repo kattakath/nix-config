@@ -4,7 +4,7 @@
 # At that move only the plumbing changed, and only because the capsule
 # invariant forced it:
 #
-#   * the four module files and the four tart-runner sub-derivations arrive as
+#   * the module files and the four tart-runner sub-derivations arrive as
 #     ARGUMENTS instead of as `./modules/…` / `pkgs.callPackage ./packages/…`
 #     literals. A leaf inside a capsule may not reach UP with `..`
 #     (ast-grep/rules/capsule-must-not-reach-out.yml, severity error), so the
@@ -26,8 +26,7 @@
 {
   lib,
   pkgs,
-  # The capsule's four module files, passed down from ../flake-module.nix.
-  darwinModule,
+  # The capsule's module files, passed down from ../flake-module.nix.
   githubRunnerModule,
   gitlabRunnerModule,
   slotsModule,
@@ -121,55 +120,6 @@ let
   homeAgents = eval: (eval.config.home-manager.users.tester or { }).launchd.agents or { };
 in
 {
-  darwin-module =
-    let
-      eval = lib.evalModules {
-        modules = [
-          darwinModule
-          # Stub just the nix-darwin option surface the module writes
-          # to — enough for a smoke eval without a nix-darwin input.
-          {
-            options.environment.systemPackages = lib.mkOption {
-              type = lib.types.listOf lib.types.package;
-              default = [ ];
-            };
-            options.launchd.user.agents = lib.mkOption {
-              type = lib.types.attrsOf lib.types.anything;
-              default = { };
-            };
-          }
-          {
-            _module.args.pkgs = pkgs;
-            local.tart.vms.smoke = {
-              cpu = 2;
-              memory = 4096;
-              headless = true;
-              autoStart = true;
-              dirs = [ "Downloads:/tmp/downloads" ];
-            };
-          }
-        ];
-      };
-      agent = eval.config.launchd.user.agents."tart-vm-smoke".serviceConfig;
-    in
-    pkgs.runCommand "darwin-module-eval"
-      {
-        arg0 = builtins.head agent.ProgramArguments;
-      }
-      ''
-        # The arg0 rule, asserted mechanically: BTM/TCC legibility
-        # requires a nix-<kebab> wrapper, never bare tart/sh.
-        case "$(basename "$arg0")" in
-          nix-tart-vm-smoke) : ;;
-          *)
-            echo "arg0 rule violated: $arg0" >&2
-            exit 1
-            ;;
-        esac
-        test -x "$arg0"
-        touch "$out"
-      '';
-
   runner-module =
     let
       eval = lib.evalModules {
@@ -509,7 +459,7 @@ in
   # composition is exactly the failure ADR-002 §8 describes — invisible to
   # `nix flake check`, visible only on the Mac.
   #
-  # So: evaluate all four together with ZERO configuration and assert the
+  # So: evaluate them together with ZERO configuration and assert the
   # contributions are EMPTY. `local.tart.gitlabRunner.enable` defaults false; the two
   # attrset options default `{ }`. If any of that changes, this fails here
   # rather than on the operator's daily machine.
@@ -517,7 +467,6 @@ in
     let
       eval = lib.evalModules {
         modules = [
-          darwinModule
           githubRunnerModule
           gitlabRunnerModule
           slotsModule

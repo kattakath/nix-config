@@ -1,32 +1,28 @@
 # Claude Desktop / Cowork — MCP (2026-09-15, rewritten 2026-10-02)
 
-> # ⚠ CURRENT STATE (2026-11-01): this repo renders NO public MCP server into Claude Desktop (the local `github` server gave way to claude.ai's official GitHub Integration, 2026-11-01) — and no private overlay is placed. Desktop Commander reaches Desktop separately, as a Desktop Extension this repo does not render.
+> # ⚠ CURRENT STATE (2026-11-02): RETIRED. This repo writes NOTHING into Claude Desktop.
 >
-> The gateway and its Cloudflare portal were destroyed on 2026-10-02, and **Desktop chat runs no
-> plugin stdio server** (claude.com/docs/plugins/platform-support; its Code tab DOES load plugins, like the CLI), so no plugin-owned
-> server reaches chat, and Cowork reads the claude.ai account's plugins. `local.claudeDesktop.extraServers`
-> renders nothing public; client servers arrive through the hand-placed Desktop overlay (`claude-desktop.nix`, merged at activation, so
-> this public repo names none). Stdio entries only: the `mcp-remote` shim for `url` entries was removed 2026-11-02, and a `url` overlay entry is now skipped with a warning.
-> `checks.aarch64-darwin.claude-desktop-config-shape` asserts the module is enabled and that
-> no public server is rendered from Nix.
+> Operator decision D4 (2026-11-02) retired `modules/home/claude-desktop.nix`, its
+> `nix-claude-desktop-mcp-sync` watch agent and `checks.aarch64-darwin.claude-desktop-config-shape`.
+> Desktop chat runs no plugin stdio server (claude.com/docs/plugins/platform-support; its Code tab
+> DOES load plugins, like the CLI), the public render had been empty since 2026-11-01, and no
+> private overlay was placed — so Desktop chat's MCP now comes **only from claude.ai connectors**.
+> Desktop Commander reaches Desktop separately, as a Desktop Extension.
 >
-> **The module stays ENABLED. Do not "clean it up" by switching it off.** The set Desktop should
-> see is a state something must **write**. A disabled module writes nothing, which leaves
-> whatever is already on disk — and that is not hypothetical: for a full day after the purge a
-> stale `kattakath-portal` entry pointing at **destroyed** infrastructure survived exactly that
-> way, because the first attempt set `enable = false` instead of emptying the render (#732).
+> The retirement accepts the risk the old module's header warned about: with no writer, whatever
+> sits in `claude_desktop_config.json`'s `mcpServers` stays as it is. At retirement the Nix
+> render was empty, so no `NIX_CONFIG_MANAGED` entry should remain; if one does, delete it by hand.
+> After the first `activate` without the module, `launchd-doctor` must not list
+> `nix-claude-desktop-mcp-sync` as ORPHANED.
 >
-> The merge still protects foreign state: `preferences`, `coworkUserFilesPath` and anything a
-> human added in Desktop's UI survive every render, because only entries carrying the
-> `NIX_CONFIG_MANAGED` marker are ever touched.
->
-> **Everything below is the design record**, including the clobber that forced the watch agent —
-> which is still live machinery and still the reason this module is not a one-line activation.
+> **Everything below is the design record** of the merge and the watch agent, kept for the day a
+> writer is needed again (`git log --diff-filter=D -- modules/home/claude-desktop.nix` names the
+> retiring commit; `git show <sha>^:modules/home/claude-desktop.nix` restores it).
 
 **The original decision (superseded as to its subject, not its mechanism): Claude Desktop is
 "Client side D" of the MCP hub.** The same connector Claude Code got — the Cloudflare MCP portal
 in front of the gateway — was rendered into Desktop's `claude_desktop_config.json` by
-[`modules/home/claude-desktop.nix`](../modules/home/claude-desktop.nix). Cowork got
+`modules/home/claude-desktop.nix` (retired 2026-11-02). Cowork got
 them for free through Desktop's device bridge.
 
 This is the first piece of Desktop state nix-config manages;
