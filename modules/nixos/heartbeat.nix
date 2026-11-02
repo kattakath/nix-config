@@ -1,15 +1,15 @@
 # The HOST-SIDE half of the fleet heartbeat abstraction: where to ping, and the
 # credential to ping with. It owns no timer and pings nothing itself — pingers
-# (modules/nixos/service-heartbeat.nix today) read these two values and add their
-# own slug. The registry of WHICH checks exist is `config.fleet.heartbeats`
+# (modules/nixos/service-heartbeat.nix today, through runitor) read these two values
+# and add their own slug. The registry of WHICH checks exist is `config.fleet.heartbeats`
 # (modules/parts/heartbeats.nix); this file is deliberately only the shared
 # endpoint + key, so a second pinger on the same host cannot grow a second copy.
 #
 # URL SHAPE (healthchecks.io "project ping key" form):
 #   <baseUrl>/<ping-key>/<slug>            success
-#   <baseUrl>/<ping-key>/<slug>/start      begin   (not used yet)
-#   <baseUrl>/<ping-key>/<slug>/fail       failure (not used yet)
-#   <baseUrl>/<ping-key>/<slug>/<exit>     exit status (not used yet)
+#   <baseUrl>/<ping-key>/<slug>/start      begin        (runitor, before the job)
+#   <baseUrl>/<ping-key>/<slug>/fail       failure      (runitor, if the job cannot exec)
+#   <baseUrl>/<ping-key>/<slug>/<exit>     exit status  (runitor, on a non-zero exit)
 # One key per PROJECT, so a host holds one credential however many checks it feeds.
 # `?create=1` is not used — see modules/parts/heartbeats.nix.
 #

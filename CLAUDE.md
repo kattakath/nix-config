@@ -228,8 +228,8 @@ deliberate, not drift.
 Servers come from an enabled plugin's `.mcp.json` — unless a claude.ai connector serves the
 same URL, which wins (its plugin twin is denied in `deniedMcpServers`); a launcher doing what a JSON file CANNOT — a
 Keychain read — is a PATH package (`local.pluginMcp`;
-`desktop-commander` is now the official plugin, unfenced). **Desktop CHAT runs no plugin stdio server** (it takes plugins from the claude.ai account and ignores their local MCP; Desktop's Code tab loads plugins like the CLI), so its only
-lane is `local.claudeDesktop.extraServers` (EMPTY in public; client servers come from the operator's Desktop overlay file; GitHub there is claude.ai's official integration).
+`desktop-commander` is now the official plugin, unfenced). **Desktop CHAT runs no plugin stdio server** (its Code tab loads plugins like the CLI);
+its MCP comes only from claude.ai connectors — the `claude-desktop.nix` writer was RETIRED 2026-11-02.
 [`docs/map/claude-code.md`](docs/map/claude-code.md) § MCP after the gateway.
 
 ## Code Style & Conventions
@@ -326,7 +326,7 @@ How a host gets composed — change these knobs, not the hosts' internals:
   (1) `local.macosGithubRunner` (`modules/darwin/github-runner.nix`, `count = 2`): bare-metal
   ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `local.tart.githubRunners.*`
   (the `tart-vms` capsule's `github-runner.nix`, configured in `hosts/macos.nix`): **ephemeral
-  Tart-VM-per-job** runners for `dontsell-ai` (`kattakath` declared, off; label
+  Tart-VM-per-job** runners for `dontsell-ai` (label
   `dontsell-vm`), sharing Apple's hard 2-concurrent-VM budget via a slot semaphore. Both mint ~1h
   tokens from GitHub App keys (agenix); since 2026-09-06 **both lanes share ONE App**,
   `ismailkattakath-ci` (appId 4849830, operator-owned + public), which replaced the retired

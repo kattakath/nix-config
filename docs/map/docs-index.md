@@ -35,13 +35,10 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
     — **zero enrolled devices, so a `device_posture` require evaluates false forever and takes
     the tier OFFLINE.** That trap applies to ANY future Access policy on this account, which is
     why the file is kept rather than deleted.
-- [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md) — **LIVE, unlike the three above.**
-  Desktop chat runs no plugin stdio server (its Code tab does), so chat's only MCP lane is `local.claudeDesktop.extraServers`
-  (empty in public, pinned by `checks.aarch64-darwin.claude-desktop-config-shape`; client servers
-  come from the operator's hand-placed Desktop overlay). Read the
-  CURRENT STATE header first: the module stays ENABLED because a disabled one writes nothing
-  and leaves stale entries on disk (#732); the body is the design record of the merge and the
-  watch agent.
+- [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md) — **HISTORY since 2026-11-02**, like
+  the three above. The `claude-desktop.nix` writer, its watch agent and
+  `checks.*.claude-desktop-config-shape` were retired (operator decision D4); Desktop chat's MCP
+  comes only from claude.ai connectors. The body stays as the design record of the merge.
 - [`docs/private-home-modules.md`](../private-home-modules.md) — the two composition seams,
   `lib.mkDarwin { extraHomeModules }` and `lib.mkNixos { hostedSites }`, both still real.
   `extraHomeModules` has been unused since the private [redacted] flake was retired

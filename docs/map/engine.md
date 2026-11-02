@@ -200,7 +200,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
 `checks.<system>.template-consumer` composes alike, not just the host that enables them.
 
 - **Owns:** `local.tart.githubRunners.*` (ephemeral Tart-VM-per-job runners), `local.tart.gitlabRunner`,
-  `local.tart.vms.*`, `local.tart.runnerSlots` / `local.tart.runnerStateDir`, and five packages.
+  `local.tart.runnerSlots` / `local.tart.runnerStateDir`, and five packages.
 - **Seam:** `capsuleModules.darwin` — the RAW seam, for a reason independent of `home.packages`
   ordering: both runner modules do `imports = [ ./slots.nix ]`, and **the module system dedupes
   by PATH identity**. `deferredModule` would hand the base list two anonymous
@@ -219,12 +219,12 @@ the one exported host (`macos`) and the stranger-identity Mac that
   stays an error. Which names, their reasons, which are tested, and how far the companion
   `nix-home-path-lint` hook has drifted from them: the header of
   `ast-grep/rules/nix-hardcoded-home-path.yml`.
-- **Checks:** five eval checks carried verbatim, five build checks folded into one
+- **Checks:** the satellite's eval checks carried verbatim (minus `tart-vms-darwin-module`, retired
+  with `./darwin.nix`), five build checks folded into one
   `tart-vms-packages`, plus a NEW `tart-vms-inert` — `compose.nix` had always ASSERTED IN PROSE
   that these modules are inert in every composition, and nothing measured it.
-- **`./darwin.nix` (`local.tart.vms.*`) has no consumer today and is kept on purpose:**
-  [`macvm-readd-runbook.md`](../macvm-readd-runbook.md)'s step 1 *is* that module. Its re-add step is
-  now a `compose.nix` line, not a re-added input.
+- **`./darwin.nix` (`local.tart.vms.*`) was RETIRED 2026-11-02** — it had no consumer.
+  [`macvm-readd-runbook.md`](../macvm-readd-runbook.md)'s step 1 restores it from git history.
 - **Two stale `modules/…` references survive** inside `''…''` shell script bodies
   (`modules/features/tart-vms/packages/tart-runner.nix` and
   `modules/features/tart-vms/packages/gitlab-tart.nix`). Fixing them changes the script

@@ -326,14 +326,9 @@ in
     # NOTE for anything added to modules/home/ later: THIS LIST is the only entry
     # point for that directory. A module dropped in there and not named here is
     # silently inert.
-    # Client side D: the writer for Claude Desktop's stateful
-    # claude_desktop_config.json — it merges ONE key, `mcpServers`, and what it
-    # renders there is `local.claudeDesktop.extraServers` plus
-    # an optional hand-placed overlay (none placed on `macos`). Desktop CHAT runs no plugin stdio server, so the plugin lane above cannot reach it; the
-    # module stays enabled because Desktop's server set is a state something must WRITE. NOT gated on any gateway option —
-    # that gating was the 2026-10-01 regression `checks.aarch64-darwin.claude-desktop-config-shape`
-    # now has a leg for.
-    ./claude-desktop.nix
+    # No Claude Desktop writer: modules/home/claude-desktop.nix was RETIRED 2026-11-02
+    # (operator decision D4). Desktop CHAT runs no plugin stdio server and its MCP now
+    # comes only from claude.ai connectors (docs/claude-desktop-mcp.md).
     ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
     ./terminal-app.nix # Terminal.app type + colours (all darwin)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)

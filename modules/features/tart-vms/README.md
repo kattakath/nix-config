@@ -18,8 +18,9 @@ Declarative lifecycle + plug-and-play provisioning for
 [Tart](https://tart.run) **macOS guest VMs** on Apple Silicon, as a single Nix
 flake: one `tart-vm` CLI that creates/pulls/**bakes** a generic image,
 starts/stops/doctors it, and **bootstraps** it over SSH into *your* machine
-(your login user, Determinate Nix, your nix-darwin flake, your key) — plus a
-nix-darwin module (`local.tart.vms.<name>`) for the host side.
+(your login user, Determinate Nix, your nix-darwin flake, your key). The host-side
+`local.tart.vms.<name>` module was retired 2026-11-02 for having no consumer — see
+[`docs/macvm-readd-runbook.md`](../../../docs/macvm-readd-runbook.md) to restore it.
 
 **Why this exists:** the Tart ecosystem has excellent pieces — Tart itself,
 cirruslabs' [packer plugin](https://github.com/cirruslabs/packer-plugin-tart)
@@ -51,7 +52,7 @@ and no personal data is ever baked into a disk you might publish.
   > collapsing them is precisely what went wrong.
   >
   > **This capsule is still macOS-only — re-verified:** zero occurrences of
-  > "linux" in `packages/tart-vm.nix`, `darwin.nix`, `github-runner.nix`,
+  > "linux" in `packages/tart-vm.nix`, `github-runner.nix`,
   > `gitlab-runner.nix`, `flake-module.nix` and `slots.nix`; `create` runs
   > `tart create --from-ipsw=` and nothing else (`cmd_create` in `packages/tart-vm.nix`);
   > `pull`/`bake`/`bootstrap` assume a macOS setup user (`admin`/`admin` → Setup
@@ -118,7 +119,7 @@ Nothing to add to `flake.nix`. The capsule registers itself, so:
 |---|---|
 | `nix run github:kattakath/nix-tart-vms#tart-vm -- …` | `nix run .#tart-vm -- …` |
 | `packages.aarch64-darwin.tart-vm` | same attribute, on **this** flake |
-| `darwinModules.default` / `.tart` | `config.capsuleModules.darwin.tart-vms` |
+| `darwinModules.default` / `.tart` | retired 2026-11-02 (git history; see the re-add runbook) |
 | `darwinModules.github-runner` / `.runner` | `config.capsuleModules.darwin.tart-github-runner` |
 | `darwinModules.gitlab-runner` | `config.capsuleModules.darwin.tart-gitlab-runner` |
 
@@ -126,8 +127,7 @@ The two runner modules are already in `mkDarwin`'s base list
 (`modules/parts/compose.nix`), so **every** darwin composition in the fleet has
 the `local.tart.githubRunners.*` and `local.tart.gitlabRunner` option surface; they are
 inert until a host sets them, which `checks.<system>.tart-vms-inert` asserts
-rather than assumes. `local.tart.vms.*` is registered but in **no** composition — see
-[`docs/macvm-readd-runbook.md`](../../../docs/macvm-readd-runbook.md).
+rather than assumes.
 
 Use them as bare PATHS in a module list, never wrapped: both runner modules
 `imports = [ ./slots.nix ]`, and the module system dedupes by **path identity**.
@@ -199,37 +199,14 @@ Env overrides: `TART_VM_DISK_GB` / `TART_VM_CPUS` / `TART_VM_MEMORY_MB`
 (create defaults), `TART_VM_DOWNLOADS` (host dir shared as `Downloads`),
 `TART_VM_LOG_DIR`, `TART_VM_SSH_IDENTITY`, `TART_VM_IP_WAIT`.
 
-## The nix-darwin module
+## The nix-darwin module — retired
 
-Declarative host-side management of running VMs — cpu/memory/shares, and
-optional start-at-login via launchd:
-
-```nix
-{
-  imports = [ inputs.tart-vms.darwinModules.default ];
-
-  local.tart.vms.dev = {
-    cpu = 6;
-    memory = 12288;          # MiB
-    headless = true;
-    dirs = [ "Downloads:/Users/alice/Downloads" ];
-    autoStart = true;        # launchd user agent, KeepAlive
-    logDir = "/Users/alice/Library/Logs";
-  };
-}
-```
-
-Creating the VM stays imperative (`tart-vm create|pull|bake`) **by design** —
-disks and IPSWs must never enter the Nix store; the module manages runtime
-shape only.
-
-Every launchd agent the module emits execs through a
-`writeShellApplication "nix-tart-vm-<name>"` wrapper — never bare `tart`, never
-`sh -c`. macOS's Background Task Manager lists agents by executable basename,
-so the `nix-` prefix keeps Nix-managed persistence auditable at a glance; and
-macOS TCC attributes protected-folder access (e.g. a shared `~/Downloads`) to
-that same arg0, where an attributable Apple interpreter like `/bin/sh` can be
-silently denied. `nix flake check` asserts the rule mechanically.
+`local.tart.vms.<name>` (`./darwin.nix`: cpu/memory/shares and an optional
+start-at-login launchd agent behind a `nix-tart-vm-<name>` arg0 wrapper) was
+retired 2026-11-02, since no host composed it. Creating a VM stays imperative
+(`tart-vm create|pull|bake`) by design — disks and IPSWs never enter the Nix
+store. To bring the module back, follow step 1 of
+[`docs/macvm-readd-runbook.md`](../../../docs/macvm-readd-runbook.md).
 
 ## Guest agent
 

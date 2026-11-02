@@ -22,28 +22,29 @@
 # UPSTREAM-FIRST: the pinned nixpkgs `nixos/modules` has no push-style dead man's
 # switch (`services/logging/heartbeat.nix` is Elastic Heartbeat, which probes
 # OUTWARD; `services/web-apps/healthchecks.nix` is the healthchecks SERVER). Tool
-# axis: nixpkgs ships `runitor` (a command runner that wraps a job and sends
-# /start, /fail and /<exit> pings). CONSIDERED AND DEFERRED, not rejected: runitor
-# fits a JOB that runs and finishes (a backup, a workflow step) and reports how it
-# ended. This module is the opposite shape — a self-test whose only signal is the
-# ABSENCE of a ping, so there is no exit status to report and the argument above
-# ("absence is the signal") stands. Revisit when a second pinger wraps a real batch
-# job; it would then share the base URL + key that `local.heartbeat`
-# (heartbeat.nix) already carries.
+# axis: nixpkgs ships `runitor`, the healthchecks.io-recommended command runner —
+# ADOPTED 2026-11-02 (operator decision D3). It wraps the self-test below and sends
+# /start, then the success ping on exit 0 or `/<exit code>` on a non-zero exit
+# (runitor's `-on-nonzero-exit` default, cmd/runitor/main.go), so a FAILING
+# self-test now alerts at once instead of after the 15-min grace. The earlier
+# objection ("absence is the signal, there is no exit status to report") still
+# holds for a DEAD host — no timer fires, no ping leaves — and runitor does not
+# change that; it adds the explicit failure for a host that is up but not serving.
 #
 # THE URL is `<local.heartbeat.baseUrl>/<ping key>/<slug>` (healthchecks.io's
-# project-ping-key form). The slug must exist in `config.fleet.heartbeats`
-# (modules/parts/heartbeats.nix) — asserted at eval, so a typo fails the build
-# instead of pinging a check that does not exist. `urlFile` (a full URL) still wins
-# when set, so a host planted before the registry existed keeps working.
+# project-ping-key form), built by runitor from `-api-url`, `-ping-key file:<path>`
+# (read at run time, whitespace stripped, never in argv) and `-slug`. The slug must
+# exist in `config.fleet.heartbeats` (modules/parts/heartbeats.nix) — asserted at
+# eval, so a typo fails the build instead of pinging a check that does not exist.
 #
 # WHY A SELF-TEST AND NOT A BARE PING. A bare `curl` on a timer is VACUOUS here:
 # every failure that kills userspace also kills `cloudflared`, which the Cloudflare
 # `tunnel_health_event` alert already catches from the edge (infra/cloudflare/
 # nixpi-tunnel.nix). So the only failures this adds are the ones that leave
 # `cloudflared` ALIVE — Caddy dead, rootfs read-only, disk full — and a bare ping
-# sails straight through all of them. Pinging only on a passing self-test is what
-# turns "am I powered" into "am I actually serving".
+# sails straight through all of them. A success ping only on a passing self-test
+# (a failing one sends `/<exit code>`) is what turns "am I powered" into "am I
+# actually serving".
 #
 # THE TESTS ARE DELIBERATELY NARROW. A test that is too strict stops pinging on a
 # healthy host, and a monitor that cries wolf gets ignored — this repo already paid
@@ -73,14 +74,14 @@ let
   cfg = config.local.serviceHeartbeat;
   hb = config.local.heartbeat;
 
-  # Which file holds the credential, and what it means. A full-URL file (`urlFile`)
-  # is the override and wins; otherwise the project ping key file is combined with
-  # the slug. One binding, so the messages below cannot disagree about which.
-  usingUrlFile = cfg.urlFile != null;
-  credFile = if usingUrlFile then cfg.urlFile else hb.pingKeyFile;
+  # toString: null only when the assertions below already fail; keeps eval reaching them.
+  keyFile = toString hb.pingKeyFile;
 
-  heartbeat = pkgs.writeShellApplication {
-    name = "service-heartbeat";
+  # The SELF-TEST alone: exit 0 = serving, non-zero = not. It pings nothing — runitor
+  # (below) turns its exit status into the ping, so this script stays testable on its
+  # own and its stderr lands in both the journal and the ping body.
+  selftest = pkgs.writeShellApplication {
+    name = "service-heartbeat-selftest";
     # systemd EXPLICITLY, for `systemctl is-active`. `writeShellApplication`
     # prepends runtimeInputs to the inherited PATH rather than replacing it, so a
     # systemd service would probably find systemctl anyway — "probably" is not a
@@ -91,24 +92,6 @@ let
       pkgs.systemd
     ];
     text = ''
-      # ---- 0. The ping credential. WARN, DO NOT ABORT, when it is absent. -------
-      # Taken from cloudflared-connector/module.nix's boot-time behaviour, and for
-      # the same reason: ABORTING WOULD BRICK A LIVE SERVER OVER A MONITORING
-      # CREDENTIAL — the inverse of the failure this module exists to prevent. A Pi
-      # flashed without the key must boot, serve, and simply not heartbeat.
-      #
-      # Exit 0, not 1: a missing optional credential is not a service fault, and
-      # failing the unit every interval would fill the journal with a condition the
-      # operator already knows about. The alert still arrives, because no ping was
-      # sent — which gives the honest semantics: no heartbeat means NOT VERIFIED
-      # HEALTHY, not "down". A fresh flash alerts until the key is planted, and that
-      # is correct rather than a bug.
-      if [ ! -r "${credFile}" ]; then
-        echo "service-heartbeat: ${credFile} is absent or unreadable — not heartbeating." >&2
-        echo "service-heartbeat: plant it on the FIRMWARE partition; see local.firmwareProvisioning." >&2
-        exit 0
-      fi
-
       # ---- 1. Is the web server answering at all? ------------------------------
       # Loopback, so this tests the SERVICE and not the network path — the tunnel
       # alert already covers the network path from Cloudflare's side.
@@ -160,24 +143,54 @@ let
         fi
       done
 
-      # ---- 3. Everything passed. Ping. -----------------------------------------
-      # `-K -` reads the URL from curl's own config on STDIN, so the URL never
-      # reaches argv and never appears in `ps`. The file is root-only in /run; this
-      # keeps it out of the process table as well, which is the same argv-hygiene
-      # rule the rest of this fleet follows for secrets. In key+slug mode the URL
-      # CONTAINS the ping key, so the same hygiene applies with more force.
+      echo "service-heartbeat: self-test passed."
+    '';
+  };
+
+  heartbeat = pkgs.writeShellApplication {
+    name = "service-heartbeat";
+    runtimeInputs = [
+      pkgs.coreutils
+      pkgs.runitor
+    ];
+    text = ''
+      # ---- The ping credential. WARN, DO NOT ABORT, when it is absent. ----------
+      # Checked HERE, before runitor, and never inside the self-test: if this exit 0
+      # ran under runitor it would be reported as a PASSING self-test, so a Pi with
+      # no key would ping success — the opposite of the intent. So runitor is never
+      # started without a key.
       #
-      # A failed ping exits non-zero so the journal records it, and the monitor
-      # alerts anyway because no ping arrived. Both directions covered.
-      cred=$(tr -d '[:space:]' < "${credFile}")
-      if [ -z "$cred" ]; then
-        echo "service-heartbeat: ${credFile} is empty — not heartbeating." >&2
+      # Why warn-and-exit-0 at all: taken from cloudflared-connector/module.nix's
+      # boot-time behaviour, and for the same reason — ABORTING WOULD BRICK A LIVE
+      # SERVER OVER A MONITORING CREDENTIAL, the inverse of the failure this module
+      # exists to prevent. A Pi flashed without the key must boot, serve, and simply
+      # not heartbeat. Exit 0, not 1: a missing optional credential is not a service
+      # fault, and failing the unit every interval would fill the journal with a
+      # condition the operator already knows about. The alert still arrives, because
+      # no ping was sent — no heartbeat means NOT VERIFIED HEALTHY, not "down". A
+      # fresh flash alerts until the key is planted, and that is correct.
+      if [ ! -r "${keyFile}" ]; then
+        echo "service-heartbeat: ${keyFile} is absent or unreadable — not heartbeating." >&2
+        echo "service-heartbeat: plant it on the FIRMWARE partition; see local.firmwareProvisioning." >&2
         exit 0
       fi
-      ${if usingUrlFile then ''url="$cred"'' else ''url="${hb.baseUrl}/$cred/${cfg.slug}"''}
-      printf 'url = "%s"\n' "$url" \
-        | curl -sS --max-time ${toString cfg.probeTimeout} -o /dev/null -K - \
-        || { echo "service-heartbeat: self-test PASSED but the ping failed to send." >&2; exit 1; }
+      # An EMPTY file gets the same treatment; runitor would otherwise die on a
+      # missing ping key, which reads as a unit fault rather than an unplanted key.
+      if [ -z "$(tr -d '[:space:]' < "${keyFile}")" ]; then
+        echo "service-heartbeat: ${keyFile} is empty — not heartbeating." >&2
+        exit 0
+      fi
+
+      # ---- Run the self-test under runitor ---------------------------------------
+      # `-ping-key file:` makes runitor read the key itself, so it reaches neither
+      # argv nor `ps` (the same argv hygiene the hand-rolled `curl -K -` gave). Its
+      # exit status is the self-test's; a ping that fails to send is only logged, and
+      # the monitor alerts anyway because no ping arrived.
+      exec runitor \
+        -api-url ${lib.escapeShellArg hb.baseUrl} \
+        -ping-key "file:${keyFile}" \
+        -slug ${lib.escapeShellArg (toString cfg.slug)} \
+        -- ${selftest}/bin/service-heartbeat-selftest
     '';
   };
 in
@@ -204,31 +217,12 @@ in
       example = "nixpi-serving";
       description = ''
         The check this host pings: a key of `config.fleet.heartbeats`
-        (modules/parts/heartbeats.nix), asserted at eval. The URL is
-        `''${config.local.heartbeat.baseUrl}/<ping key>/<slug>`, the key read at run
+        (modules/parts/heartbeats.nix), asserted at eval. runitor builds the URL
+        `''${config.local.heartbeat.baseUrl}/<ping key>/<slug>`, reading the key at run
         time from `config.local.heartbeat.pingKeyFile`.
 
         No default HERE: which check a host feeds is the host's fact, so it is set in
         hosts/<host>.nix rather than baked into the module.
-      '';
-    };
-
-    urlFile = lib.mkOption {
-      type = lib.types.nullOr lib.types.str;
-      default = null;
-      example = "/run/heartbeat-url";
-      description = ''
-        OVERRIDE. Path to a root-only file containing a COMPLETE ping URL and nothing
-        else. When set it wins over `local.heartbeat.pingKeyFile` + `slug`, so a host
-        planted with a full URL (the pre-registry shape) keeps working.
-
-        Plant it with `local.firmwareProvisioning` — the generic firmware-partition
-        mechanism, whose own header describes it as exactly this: an operator-planted
-        file copied into a root-only /run path at boot. NOT agenix: that encrypts to
-        the SSH host key, and a fresh SD flash mints a new one.
-
-        Absence is tolerated by design — the unit warns and does not heartbeat, so a
-        host flashed without it still boots and serves.
       '';
     };
 
@@ -279,23 +273,27 @@ in
     probeTimeout = lib.mkOption {
       type = lib.types.int;
       default = 10;
-      description = "Per-request timeout in seconds, for both the self-test and the ping.";
+      description = ''
+        Timeout in seconds for the self-test's loopback HTTP probe. The pings are
+        runitor's, on its own `-api-timeout` (5 s, 2 retries — runitor's defaults).
+      '';
     };
   };
 
   config = lib.mkIf cfg.enable {
     assertions = [
       {
-        assertion = usingUrlFile || cfg.slug != null;
-        message = "local.serviceHeartbeat: set `slug` (a key of fleet.heartbeats) or the `urlFile` override.";
+        assertion = cfg.slug != null;
+        message = "local.serviceHeartbeat: set `slug` (a key of fleet.heartbeats).";
       }
       {
-        assertion = usingUrlFile || (hb.enable && hb.pingKeyFile != null);
-        message = "local.serviceHeartbeat: key+slug mode needs `local.heartbeat.enable = true` and a `local.heartbeat.pingKeyFile`; or set the `urlFile` override.";
+        assertion = hb.enable && hb.pingKeyFile != null;
+        message = "local.serviceHeartbeat needs `local.heartbeat.enable = true` and a `local.heartbeat.pingKeyFile`.";
       }
       {
-        # The slug lands inside a double-quoted shell string above, so its alphabet is
-        # pinned to the provider's own validator (`^[a-z0-9_-]+$`) rather than trusted.
+        # The slug lands on runitor's command line above, so its alphabet is pinned to
+        # the provider's own validator (`^[a-z0-9_-]+$`) rather than trusted — which
+        # also rules out runitor's `file:` indirection prefix.
         assertion = cfg.slug == null || builtins.match "[a-z0-9_-]+" cfg.slug != null;
         message = "local.serviceHeartbeat.slug must match [a-z0-9_-]+ (healthchecks.io's slug alphabet).";
       }
@@ -306,14 +304,16 @@ in
     ];
 
     systemd.services.service-heartbeat = {
-      description = "Self-test this host's services and heartbeat an external monitor on success";
+      description = "Self-test this host's services under runitor and report the result to an external monitor";
       serviceConfig = {
         Type = "oneshot";
         ExecStart = "${heartbeat}/bin/service-heartbeat";
-        # Short oneshot with a hard timeout, matching uplink-watchdog.nix's TimeoutStartSec — a
-        # hung probe dies rather than wedging the timer. It would fail toward
-        # alerting anyway, but a wedged unit is worse to diagnose than a dead one.
-        TimeoutStartSec = "60s";
+        # Short oneshot with a hard timeout, as in uplink-watchdog.nix — a hung probe
+        # dies rather than wedging the timer. 90 s, not 60, since runitor: two pings
+        # (start + result) x 3 attempts x 5 s = 30 s worst case, plus the probe's
+        # `probeTimeout` and the unit checks. A run killed here sends no result ping,
+        # so it still fails toward alerting.
+        TimeoutStartSec = "90s";
         # Owns the directory it writes its rootfs probe into, so the test depends on
         # no other service's paths.
         StateDirectory = "service-heartbeat";
