@@ -51,6 +51,10 @@
   coreutils,
   iproute2,
 }:
+let
+  # The login-Keychain item this tool reads — spelled once.
+  keychainItem = "rogers:cgm4981:admin-password";
+in
 writeShellApplication {
   name = "rogers-gw";
   runtimeInputs = [
@@ -102,7 +106,7 @@ writeShellApplication {
 
     env:
       ROGERS_GW_PASSWORD  required for everything but `ports`. Inject it, never inline it:
-                            secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- nix run .#rogers-gw -- status
+                            secret exec ROGERS_GW_PASSWORD=${keychainItem} -- nix run .#rogers-gw -- status
       ROGERS_GW_HOST      default: the default route's gateway
       ROGERS_GW_USER      default: admin
       ROGERS_GW_JSON      set to emit raw JSON from `logs` instead of TSV
@@ -117,7 +121,7 @@ writeShellApplication {
     need_password() {
       if [ -z "''${ROGERS_GW_PASSWORD:-}" ]; then
         echo "rogers-gw: ROGERS_GW_PASSWORD is unset." >&2
-        echo "  secret exec ROGERS_GW_PASSWORD=rogers:cgm4981:admin-password -- nix run .#rogers-gw -- $*" >&2
+        echo "  secret exec ROGERS_GW_PASSWORD=${keychainItem} -- nix run .#rogers-gw -- $*" >&2
         exit 2
       fi
     }

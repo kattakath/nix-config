@@ -1,13 +1,8 @@
 # Self-hosted GitHub Actions runner(s) for the `macos` host — hand-rolled as launchd
-# daemons. Originally built + retired 2026-07-16 (commit 309751c) when nix-config's
-# OWN CI stopped needing it (GitHub-hosted covers this repo; local aarch64-linux
-# builds use Determinate's native Linux builder). Revived 2026-08-23 for a DIFFERENT
-# consumer: `dontsell-ai`'s repos, whose CI/deploy workflows need real macOS +
-# Playwright + Prisma jobs that neither GitHub-hosted (org has no hosted-minutes
-# budget configured) nor the native builder (build-only, ephemeral, 1-CPU/8GB by default — not
-# a persistent-daemon host) can serve. Generalized from a single hardcoded instance
-# to N parallel ones — `nixvm`'s own runner history already proved 2 in parallel
-# before that fleet was retired too.
+# daemons, for `dontsell-ai`'s repos: their CI/deploy workflows need real macOS +
+# Playwright + Prisma jobs that GitHub-hosted runners (no hosted-minutes budget on that
+# org) and Determinate's native Linux builder (build-only, ephemeral) cannot serve.
+# nix-config's own CI uses none of this.
 #
 # WHY NOT nix-darwin's `services.github-runners`? That module hard-asserts
 # `nix.enable = true` (it pulls the runner's `nix` from `config.nix.package`),
@@ -18,17 +13,14 @@
 # re-registration via launchd `KeepAlive.SuccessfulExit` — plus the privilege
 # split below, which nix-darwin's module does not have.
 #
-# AUTH: a GitHub App (2026-08-23, upgraded from a static PAT — see git history for
-# the PAT version). The agenix secret is the App's RS256 PRIVATE KEY
+# AUTH: a GitHub App. The agenix secret is the App's RS256 PRIVATE KEY
 # (`config.age.secrets."gh-app-${org}-key"`). It is LONG-LIVED and App-WIDE: any
 # holder can mint tokens carrying the shared fleet App's full permission set on
 # every installation (recorded with its id in hosts/macos.nix — App-GLOBAL, far
 # wider than this lane needs). So the uid that runs JOBS must never read it.
 #
-# PRIVILEGE SPLIT. Until 2026-10-30 the key was owned by `_github-runner` and the
-# daemon ran as `_github-runner` — the uid every CI job runs as — so any job could
-# read the key, and the `--pat` it registered with was a full installation token.
-# Now the key is root-only and each daemon starts as ROOT (`runDaemon`): it mints
+# PRIVILEGE SPLIT (since 2026-10-30; before it, every CI job's uid could read the key).
+# The key is root-only and each daemon starts as ROOT (`runDaemon`): it mints
 # JWT → ~1h installation token → ~1h REGISTRATION token, then exec-drops to
 # `_github-runner` (`runAsRunner`) holding only the registration token, which can
 # register a runner and nothing else. Precedent: nixpkgs' NixOS github-runner

@@ -506,40 +506,44 @@
   # and a tmpfiles rule would race it and land on the SD card under the mount
   # point. RequiresMountsFor also keeps the server down while the volume is
   # missing, rather than letting an upload fill the SD card instead.
-  systemd.services.audiobookshelf = {
-    unitConfig.RequiresMountsFor = "/mnt/storage";
-    # Parents are listed BEFORE their children: `install -d` creates missing parents
-    # as root 0755, which would lock the service out of adding its own siblings.
-    serviceConfig.ExecStartPre =
-      map (d: "+${pkgs.coreutils}/bin/install -d -m 2775 -o audiobookshelf -g audiobookshelf ${d}")
-        [
-          "/mnt/storage/audiobooks"
-          "/mnt/storage/audiobookshelf"
-          "/mnt/storage/audiobookshelf/metadata"
-          "/mnt/storage/audiobookshelf/metadata/backups"
-          "/mnt/storage/audiobookshelf/metadata/items"
-          "/mnt/storage/audiobookshelf/metadata/authors"
-          "/mnt/storage/audiobookshelf/metadata/logs"
-        ];
-    # The metadata root re-roots items/, authors/, logs/, cache/ and streams/ (index.js;
-    # every manager joins its dir onto global.MetadataPath). It MUST be the
-    # `--metadata` FLAG: nixpkgs' bin/audiobookshelf launcher sets
-    # `METADATA_PATH="$metadata"` itself (default `$(pwd)/metadata`), clobbering any
-    # unit Environment= — measured 2026-10-18, the env var reached the unit and the
-    # startup log still said /var/lib. The module has no extra-args option (its
-    # ExecStart passes only --host/--port), hence mkForce, rebuilt from its own cfg.
-    serviceConfig.ExecStart =
-      let
-        cfg = config.services.audiobookshelf;
-      in
-      lib.mkForce "${cfg.package}/bin/audiobookshelf --host ${cfg.host} --port ${toString cfg.port} --metadata /mnt/storage/audiobookshelf/metadata";
-    # BACKUP_PATH stays an env var — the launcher passes it through untouched. It is
-    # needed on top of --metadata: first-run setup PERSISTS backupPath in the
-    # database, so a new metadata root alone leaves backups where they were; the env
-    # var overrides the stored value and locks the UI field (ServerSettings.js,
-    # `backupPathEnvSet`).
-    environment.BACKUP_PATH = "/mnt/storage/audiobookshelf/metadata/backups";
-  };
+  systemd.services.audiobookshelf =
+    let
+      metadata = "/mnt/storage/audiobookshelf/metadata";
+    in
+    {
+      unitConfig.RequiresMountsFor = "/mnt/storage";
+      # Parents are listed BEFORE their children: `install -d` creates missing parents
+      # as root 0755, which would lock the service out of adding its own siblings.
+      serviceConfig.ExecStartPre =
+        map (d: "+${pkgs.coreutils}/bin/install -d -m 2775 -o audiobookshelf -g audiobookshelf ${d}")
+          [
+            "/mnt/storage/audiobooks"
+            "/mnt/storage/audiobookshelf"
+            "${metadata}"
+            "${metadata}/backups"
+            "${metadata}/items"
+            "${metadata}/authors"
+            "${metadata}/logs"
+          ];
+      # The metadata root re-roots items/, authors/, logs/, cache/ and streams/ (index.js;
+      # every manager joins its dir onto global.MetadataPath). It MUST be the
+      # `--metadata` FLAG: nixpkgs' bin/audiobookshelf launcher sets
+      # `METADATA_PATH="$metadata"` itself (default `$(pwd)/metadata`), clobbering any
+      # unit Environment= — measured 2026-10-18, the env var reached the unit and the
+      # startup log still said /var/lib. The module has no extra-args option (its
+      # ExecStart passes only --host/--port), hence mkForce, rebuilt from its own cfg.
+      serviceConfig.ExecStart =
+        let
+          cfg = config.services.audiobookshelf;
+        in
+        lib.mkForce "${cfg.package}/bin/audiobookshelf --host ${cfg.host} --port ${toString cfg.port} --metadata ${metadata}";
+      # BACKUP_PATH stays an env var — the launcher passes it through untouched. It is
+      # needed on top of --metadata: first-run setup PERSISTS backupPath in the
+      # database, so a new metadata root alone leaves backups where they were; the env
+      # var overrides the stored value and locks the UI field (ServerSettings.js,
+      # `backupPathEnvSet`).
+      environment.BACKUP_PATH = "${metadata}/backups";
+    };
   # Group membership so books can be copied in over SSH (`scp … nixpi.local:/mnt/storage/audiobooks/<Author>/<Title>/`;
   # the Mac's /usr/bin/rsync is openrsync, which rejects `--mkpath`).
   users.users.${loginName}.extraGroups = [ "audiobookshelf" ];
