@@ -13,9 +13,11 @@
  *
  * Silent (no decision) on the paths agents are told to use: the harness session
  * scratchpad, the gh-clones-<session> directory, sibling repos, user data folders.
- * FAIL OPEN: any error prints nothing and exits 0, so the normal permission flow runs.
+ * FAIL OPEN: a malformed payload prints nothing and exits 0, so the normal
+ * permission flow runs. This is an ask gate, not a boundary.
  */
 "use strict";
+const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
@@ -26,17 +28,57 @@ const LOGIN_DIRS = ["Library/LaunchAgents", ".ssh", ".config/git"].map((d) => pa
 
 // Harness-provisioned working space, under a system root but meant for agents.
 const SCRATCHPAD = /^\/(private\/)?tmp\/claude-\d+\/[^/]+\/[^/]+\/scratchpad(\/|$)/;
-const GH_CLONES = /^\/(private\/)?(var\/folders\/[^/]+\/[^/]+\/T|tmp)\/gh-clones-[^/]+(\/|$)/;
+const GH_CLONES = /^\/(private\/)?(var\/folders\/[^/]+\/[^/]+\/t|tmp)\/gh-clones-[^/]+(\/|$)/i;
+
+// APFS is case-insensitive and paths can be symlinks, so `~/.ZSHRC` or a link into
+// /etc would slip past a plain string compare. Each rule is checked against the
+// path as written AND its real path (the target's, or its nearest existing
+// parent's for a file not yet written), case-folded on darwin.
+const fold = (p) => (process.platform === "darwin" ? p.toLowerCase() : p);
+const F_ROOTS = SYSTEM_ROOTS.map(fold);
+const F_FILES = LOGIN_FILES.map(fold);
+const F_DIRS = LOGIN_DIRS.map(fold);
+
+function realish(p) {
+  let head = p;
+  const tail = [];
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync(head), ...tail);
+    } catch (_) {
+      const parent = path.dirname(head);
+      if (parent === head) return p;
+      tail.unshift(path.basename(head));
+      head = parent;
+    }
+  }
+}
+
+function verdictFor(candidate, abs) {
+  const c = fold(candidate);
+  if (SCRATCHPAD.test(c) || GH_CLONES.test(c)) return null;
+  if (F_FILES.includes(c) || F_DIRS.some((d) => c.startsWith(d))) {
+    return `Write to ${abs} — a login/credential file Home Manager declares; it runs code or grants access next login. Allow anyway?`;
+  }
+  if (F_ROOTS.some((r) => c.startsWith(r))) {
+    return `Write to ${abs} — an OS system path, outside the session scratchpad. Allow anyway?`;
+  }
+  return null;
+}
 
 function verdict(filePath, projectDir) {
   if (typeof filePath !== "string" || !filePath) return null;
   const abs = path.resolve(projectDir || process.cwd(), filePath);
-  if (SCRATCHPAD.test(abs) || GH_CLONES.test(abs)) return null;
-  if (LOGIN_FILES.includes(abs) || LOGIN_DIRS.some((d) => abs.startsWith(d))) {
-    return `Write to ${abs} — a login/credential file Home Manager declares; it runs code or grants access next login. Allow anyway?`;
+  // A real path inside the scratchpad/clones is silent even when the spelled path is
+  // its /tmp → /private/tmp symlink; otherwise the first rule either form hits wins.
+  const real = realish(abs);
+  for (const candidate of [real, abs]) {
+    const c = fold(candidate);
+    if (SCRATCHPAD.test(c) || GH_CLONES.test(c)) return null;
   }
-  if (SYSTEM_ROOTS.some((r) => abs.startsWith(r))) {
-    return `Write to ${abs} — an OS system path, outside the session scratchpad. Allow anyway?`;
+  for (const candidate of new Set([abs, real])) {
+    const reason = verdictFor(candidate, abs);
+    if (reason) return reason;
   }
   if (projectDir && filePath.split(/[\\/]/).includes("..")) {
     const rel = path.relative(path.resolve(projectDir), abs);

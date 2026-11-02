@@ -31,6 +31,10 @@ ck ask /Users/x/.ssh/config
 ck ask /Users/x/Library/LaunchAgents/evil.plist
 ck ask /Users/x/.config/git/config
 ck ask "$P/../../../../../.profile"
+# APFS is case-insensitive: a case variant names the same file.
+ck ask /Users/x/.ZSHRC
+ck ask /ETC/hosts
+ck ask /Users/x/library/launchagents/evil.plist
 
 echo "== must stay SILENT =="
 ck none /private/tmp/claude-501/-Users-x-repo/0f3a-session/scratchpad/notes.md
@@ -42,6 +46,15 @@ ck none /Users/x/Downloads/report.md
 ck none /Users/x/Library/CloudStorage/GoogleDrive-a/My\ Drive/f.md
 ck none /Users/x/.claude/plans/p.md
 ck none "$P/docs/../CLAUDE.md"
+
+echo "== a symlink into a system path is judged by its target =="
+link="$PWD/.write-target-test-link"
+rm -f "$link"; ln -s /etc "$link"
+out="$(python3 -c 'import json,sys;print(json.dumps({"tool_input":{"file_path":sys.argv[1]}}))' "$link/hosts" \
+  | CLAUDE_PROJECT_DIR="$PWD" node "$H" 2>/dev/null)"
+rm -f "$link"
+case "$out" in *'"ask"'*) echo "  ok    ask   symlink -> /etc"; pass=$((pass+1));;
+  *) echo "  FAIL  symlink -> /etc not asked: $out"; fail=$((fail+1));; esac
 
 echo "== fail open on a malformed payload =="
 out="$(printf 'not json' | node "$H")"; rc=$?
