@@ -315,6 +315,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     "Read(~/.local/state/nix-config-cf-zones/**)"
     "Read(~/.local/state/nix-config-gcp-foundation/**)"
     "Read(~/.local/state/nix-config-gcp-budget/**)"
+    "Read(~/.local/state/nix-config-hc-checks/**)"
 
     # ── Secret Manager writes go through `secrets-push`, never raw gcloud ──
     # secrets-push is the only writer that enforces the billable-version cap

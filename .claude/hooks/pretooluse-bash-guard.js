@@ -186,12 +186,12 @@ const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE abo
 // infra app is added, renamed or removed, not from memory — the apps it names
 // must still exist, or the rule reads as policy covering something it does not.
 //
-// Only `cf-tunnel` survives with both halves: of the five remaining stacks only
-// it exposes a `-destroy` app (cf-zones, cf-access-org, gcp-foundation and
+// Only `cf-tunnel` survives with both halves: of the six remaining stacks only
+// it exposes a `-destroy` app (cf-zones, cf-access-org, gcp-foundation, hc-checks and
 // gcp-budget are plan/apply only — modules/parts/terranix.nix says why for
 // each), so the DESTROY regex below has exactly one app to catch.
 //
-// THE APPLY REGEX COVERS ALL FIVE, as of 2026-10-02 — it previously named only
+// THE APPLY REGEX COVERS ALL SIX (hc-checks joined 2026-11-02; was FIVE as of 2026-10-02) — it previously named only
 // cf-tunnel, which was never a decision. It was the residue of a two-literal
 // `(?:cf-tunnel|mcp-public)` alternation: when mcp-public was deleted the second
 // literal went and nothing replaced it, leaving four apply apps that mutate live
@@ -199,7 +199,7 @@ const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE abo
 // *-plan first — every stack has one" — so covering one stack was incomplete
 // enforcement of an existing rule, not a narrower policy.
 //
-// Every one of the five wrappers has a REFUSING guard, so the nudge's claim holds
+// Every one of the six wrappers has a REFUSING guard, so the nudge's claim holds
 // for all of them; what differs is the worst case, which is why the nudge names it
 // per app (verified in modules/parts/terranix.nix, not assumed):
 //   cf-tunnel-apply      site-free render blanks nixpi's ingress
@@ -207,8 +207,9 @@ const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE abo
 //   cf-access-org-apply  un-imported state, or reverting a dashboard auth_domain
 //   gcp-foundation-apply a render declaring NO state bucket
 //   gcp-budget-apply     DELETES the spend alarm, leaving billing unwatched
+//   hc-checks-apply      a render dropping a check DELETES its dead-man alarm
 //
-// Named TERRANIX_MUTATING_APP, not CF_*: two of the five are GCP, and a `CF_`
+// Named TERRANIX_MUTATING_APP, not CF_*: two of the six are GCP, and a `CF_`
 // prefix on a rule that catches `gcp-budget-apply` is the same misdescription
 // this header warns about one paragraph up.
 //
@@ -218,7 +219,7 @@ const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE abo
 // (terranixRun), so only a segment that RUNS `nix run` can match — a mention
 // inside an echo, a grep pattern or a commit message cannot.
 const TERRANIX_MUTATING_APP =
-  /^(?:\S*\/)?nix\s+run\s+(?:-\S+\s+)*["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel-(?:apply|destroy)|cf-zones-apply|cf-access-org-apply|gcp-(?:foundation|budget)-apply)\b/;
+  /^(?:\S*\/)?nix\s+run\s+(?:-\S+\s+)*["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel-(?:apply|destroy)|cf-zones-apply|cf-access-org-apply|gcp-(?:foundation|budget)-apply|hc-checks-apply)\b/;
 
 // The DESTROY half of that family, split out 2026-09-22 so `apply` can relax
 // while teardown stays hard-blocked. See the POLICY CHANGE note in the header.
@@ -1008,6 +1009,7 @@ function main() {
       "cf-access-org": "un-imported state, or reverting a dashboard auth_domain",
       "gcp-foundation": "a render declaring NO state bucket",
       "gcp-budget": "DELETES the spend alarm, leaving billing unwatched",
+      "hc-checks": "a render dropping a check DELETES its dead-man alarm, and silence reads as healthy",
     };
     const stack = Object.keys(worstCase).find((k) => applyRun.includes(`#${k}-`));
     nudges.push(

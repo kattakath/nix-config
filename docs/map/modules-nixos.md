@@ -276,9 +276,16 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     change is DEPLOYED before attributing a symptom to it.
 - **`modules/nixos/service-heartbeat.nix`** — `local.serviceHeartbeat`, on `nixpi` only: a
   **dead man's switch** for "still SERVING", not "powered". A systemd timer pings an external
-  check (URL read at runtime from `urlFile`, so no endpoint reaches the store) only after a
+  check only after a
   loopback self-test passes: the local web server answers on `httpPort` and every unit in
-  `requireUnits` (nixpi: `caddy.service`, `cloudflared-connector.service`) is active. The
+  `requireUnits` (nixpi: `caddy.service`, `cloudflared-connector.service`) is active. The URL is
+  `<local.heartbeat.baseUrl>/<ping key>/<slug>` — the key read at runtime from
+  `local.heartbeat.pingKeyFile` (`modules/nixos/heartbeat.nix`; nixpi: `/run/heartbeat-ping-key`,
+  planted on the FIRMWARE partition as `heartbeat-ping-key`), so no key reaches the store or `ps`.
+  The `slug` (nixpi: `nixpi-serving`, set in `hosts/nixpi.nix`) must be a key of
+  `config.fleet.heartbeats` (`modules/parts/heartbeats.nix`, the registry
+  [`infra.md`](infra.md) § `infra/healthchecks/checks.nix` renders into healthchecks.io checks) —
+  asserted at eval. `urlFile` (a complete URL) remains as an override that wins over key+slug. The
   ALERT is the missing ping, which is why it is the right shape for the 2026-09-23 → 10-01
   outage (userspace dead, kernel up, ICMP answering): with userspace dead the timer cannot
   fire. Every failure of the pinger fails toward alerting. It complements Cloudflare's tunnel

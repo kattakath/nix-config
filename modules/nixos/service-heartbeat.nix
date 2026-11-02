@@ -22,8 +22,20 @@
 # UPSTREAM-FIRST: the pinned nixpkgs `nixos/modules` has no push-style dead man's
 # switch (`services/logging/heartbeat.nix` is Elastic Heartbeat, which probes
 # OUTWARD; `services/web-apps/healthchecks.nix` is the healthchecks SERVER). Tool
-# axis: nixpkgs ships `runitor` (a command runner with healthchecks.io pings). It
-# has NOT been compared against this self-test yet — unmeasured, so no verdict.
+# axis: nixpkgs ships `runitor` (a command runner that wraps a job and sends
+# /start, /fail and /<exit> pings). CONSIDERED AND DEFERRED, not rejected: runitor
+# fits a JOB that runs and finishes (a backup, a workflow step) and reports how it
+# ended. This module is the opposite shape — a self-test whose only signal is the
+# ABSENCE of a ping, so there is no exit status to report and the argument above
+# ("absence is the signal") stands. Revisit when a second pinger wraps a real batch
+# job; it would then share the base URL + key that `local.heartbeat`
+# (heartbeat.nix) already carries.
+#
+# THE URL is `<local.heartbeat.baseUrl>/<ping key>/<slug>` (healthchecks.io's
+# project-ping-key form). The slug must exist in `config.fleet.heartbeats`
+# (modules/parts/heartbeats.nix) — asserted at eval, so a typo fails the build
+# instead of pinging a check that does not exist. `urlFile` (a full URL) still wins
+# when set, so a host planted before the registry existed keeps working.
 #
 # WHY A SELF-TEST AND NOT A BARE PING. A bare `curl` on a timer is VACUOUS here:
 # every failure that kills userspace also kills `cloudflared`, which the Cloudflare
@@ -51,10 +63,21 @@
   config,
   lib,
   pkgs,
+  # The registry, threaded by mkNixos (modules/parts/compose.nix). Defaulted so a
+  # template consumer that passes none still evaluates — the slug assertion below
+  # then fires only if it actually sets a `slug`.
+  fleetHeartbeats ? { },
   ...
 }:
 let
   cfg = config.local.serviceHeartbeat;
+  hb = config.local.heartbeat;
+
+  # Which file holds the credential, and what it means. A full-URL file (`urlFile`)
+  # is the override and wins; otherwise the project ping key file is combined with
+  # the slug. One binding, so the messages below cannot disagree about which.
+  usingUrlFile = cfg.urlFile != null;
+  credFile = if usingUrlFile then cfg.urlFile else hb.pingKeyFile;
 
   heartbeat = pkgs.writeShellApplication {
     name = "service-heartbeat";
@@ -68,20 +91,20 @@ let
       pkgs.systemd
     ];
     text = ''
-      # ---- 0. The ping URL. WARN, DO NOT ABORT, when it is absent. -------------
+      # ---- 0. The ping credential. WARN, DO NOT ABORT, when it is absent. -------
       # Taken from cloudflared-connector/module.nix's boot-time behaviour, and for
       # the same reason: ABORTING WOULD BRICK A LIVE SERVER OVER A MONITORING
       # CREDENTIAL — the inverse of the failure this module exists to prevent. A Pi
-      # flashed without the URL must boot, serve, and simply not heartbeat.
+      # flashed without the key must boot, serve, and simply not heartbeat.
       #
       # Exit 0, not 1: a missing optional credential is not a service fault, and
       # failing the unit every interval would fill the journal with a condition the
       # operator already knows about. The alert still arrives, because no ping was
       # sent — which gives the honest semantics: no heartbeat means NOT VERIFIED
-      # HEALTHY, not "down". A fresh flash alerts until the URL is planted, and that
+      # HEALTHY, not "down". A fresh flash alerts until the key is planted, and that
       # is correct rather than a bug.
-      if [ ! -r "${cfg.urlFile}" ]; then
-        echo "service-heartbeat: ${cfg.urlFile} is absent or unreadable — not heartbeating." >&2
+      if [ ! -r "${credFile}" ]; then
+        echo "service-heartbeat: ${credFile} is absent or unreadable — not heartbeating." >&2
         echo "service-heartbeat: plant it on the FIRMWARE partition; see local.firmwareProvisioning." >&2
         exit 0
       fi
@@ -141,15 +164,17 @@ let
       # `-K -` reads the URL from curl's own config on STDIN, so the URL never
       # reaches argv and never appears in `ps`. The file is root-only in /run; this
       # keeps it out of the process table as well, which is the same argv-hygiene
-      # rule the rest of this fleet follows for secrets.
+      # rule the rest of this fleet follows for secrets. In key+slug mode the URL
+      # CONTAINS the ping key, so the same hygiene applies with more force.
       #
       # A failed ping exits non-zero so the journal records it, and the monitor
       # alerts anyway because no ping arrived. Both directions covered.
-      url=$(tr -d '[:space:]' < "${cfg.urlFile}")
-      if [ -z "$url" ]; then
-        echo "service-heartbeat: ${cfg.urlFile} is empty — not heartbeating." >&2
+      cred=$(tr -d '[:space:]' < "${credFile}")
+      if [ -z "$cred" ]; then
+        echo "service-heartbeat: ${credFile} is empty — not heartbeating." >&2
         exit 0
       fi
+      ${if usingUrlFile then ''url="$cred"'' else ''url="${hb.baseUrl}/$cred/${cfg.slug}"''}
       printf 'url = "%s"\n' "$url" \
         | curl -sS --max-time ${toString cfg.probeTimeout} -o /dev/null -K - \
         || { echo "service-heartbeat: self-test PASSED but the ping failed to send." >&2; exit 1; }
@@ -157,6 +182,11 @@ let
   };
 in
 {
+  # heartbeat.nix owns local.heartbeat (baseUrl + ping key). Imported here so this
+  # module is self-sufficient; the module system dedupes it by path if a host also
+  # imports it.
+  imports = [ ./heartbeat.nix ];
+
   options.local.serviceHeartbeat = {
     enable = lib.mkEnableOption ''
       a dead man's switch that pings an external monitor ONLY when a local
@@ -168,11 +198,29 @@ in
       server, a read-only rootfs.
     '';
 
+    slug = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      example = "nixpi-serving";
+      description = ''
+        The check this host pings: a key of `config.fleet.heartbeats`
+        (modules/parts/heartbeats.nix), asserted at eval. The URL is
+        `''${config.local.heartbeat.baseUrl}/<ping key>/<slug>`, the key read at run
+        time from `config.local.heartbeat.pingKeyFile`.
+
+        No default HERE: which check a host feeds is the host's fact, so it is set in
+        hosts/<host>.nix rather than baked into the module.
+      '';
+    };
+
     urlFile = lib.mkOption {
-      type = lib.types.str;
+      type = lib.types.nullOr lib.types.str;
+      default = null;
       example = "/run/heartbeat-url";
       description = ''
-        Path to a root-only file containing the monitor's ping URL and nothing else.
+        OVERRIDE. Path to a root-only file containing a COMPLETE ping URL and nothing
+        else. When set it wins over `local.heartbeat.pingKeyFile` + `slug`, so a host
+        planted with a full URL (the pre-registry shape) keeps working.
 
         Plant it with `local.firmwareProvisioning` — the generic firmware-partition
         mechanism, whose own header describes it as exactly this: an operator-planted
@@ -236,6 +284,27 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    assertions = [
+      {
+        assertion = usingUrlFile || cfg.slug != null;
+        message = "local.serviceHeartbeat: set `slug` (a key of fleet.heartbeats) or the `urlFile` override.";
+      }
+      {
+        assertion = usingUrlFile || (hb.enable && hb.pingKeyFile != null);
+        message = "local.serviceHeartbeat: key+slug mode needs `local.heartbeat.enable = true` and a `local.heartbeat.pingKeyFile`; or set the `urlFile` override.";
+      }
+      {
+        # The slug lands inside a double-quoted shell string above, so its alphabet is
+        # pinned to the provider's own validator (`^[a-z0-9_-]+$`) rather than trusted.
+        assertion = cfg.slug == null || builtins.match "[a-z0-9_-]+" cfg.slug != null;
+        message = "local.serviceHeartbeat.slug must match [a-z0-9_-]+ (healthchecks.io's slug alphabet).";
+      }
+      {
+        assertion = cfg.slug == null || fleetHeartbeats ? ${cfg.slug};
+        message = "local.serviceHeartbeat.slug = \"${toString cfg.slug}\" is not in fleet.heartbeats (modules/parts/heartbeats.nix); known: ${lib.concatStringsSep ", " (builtins.attrNames fleetHeartbeats)}.";
+      }
+    ];
+
     systemd.services.service-heartbeat = {
       description = "Self-test this host's services and heartbeat an external monitor on success";
       serviceConfig = {

@@ -159,6 +159,12 @@ for is not cosmetic** — the broad one is refused on the newest API surface:
 | ~~`cf:cloudflare.com:mcp-connector`~~ | **ORPHANED 2026-10-02.** Was the published gateway's tunnel connector token (a credential the connector ran with, not an API token). `nix-mcp-tunnel-connector` no longer exists | **no** |
 | `cf:cloudflare.com:api` | broad (both accounts, all zones) — ad-hoc work, and the stacks no scoped handle serves yet (the `cf-*` wrappers' own hints in `modules/parts/terranix.nix` name it) | **no** (was bound, now unbound) |
 
+**Not Cloudflare, same lane:** `hc:healthchecks.io:api` is the healthchecks.io project's
+read-write **API key**, used only by `hc-checks-{plan,apply}` as
+`secret exec HEALTHCHECKSIO_API_KEY=hc:healthchecks.io:api -- …` (unbound, like the tokens above).
+It is not the **ping key** — that one only pings, is planted on nixpi's FIRMWARE partition as
+`heartbeat-ping-key`, and never enters the Keychain flow (`modules/nixos/heartbeat.nix`).
+
 **Measured 2026-09-14, and worth keeping although its subject is gone:** `cf:cloudflare.com:api`,
 despite being the **broad** token, returned **403 Forbidden** on
 `/accounts/<id>/access/ai-controls/mcp/servers/*`. The `mcp-public` stack was deleted 2026-10-02 so
