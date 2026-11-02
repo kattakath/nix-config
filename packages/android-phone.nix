@@ -59,6 +59,8 @@
   gnused,
   gawk,
   findutils,
+  # Homebrew prefix, passed by modules/home/default.nix (nix-darwin's homebrew.prefix).
+  brewPrefix,
 }:
 writeShellApplication {
   name = "android-phone";
@@ -101,13 +103,13 @@ writeShellApplication {
     ADB="''${ADB:-}"
     SCRCPY="''${SCRCPY:-}"
     if [ -z "$ADB" ]; then
-      if [ -x /opt/homebrew/bin/adb ]; then ADB=/opt/homebrew/bin/adb
+      if [ -x ${brewPrefix}/bin/adb ]; then ADB=${brewPrefix}/bin/adb
       elif [ -x /usr/local/bin/adb ]; then ADB=/usr/local/bin/adb
       else ADB=$(command -v adb 2>/dev/null || true)
       fi
     fi
     if [ -z "$SCRCPY" ]; then
-      if [ -x /opt/homebrew/bin/scrcpy ]; then SCRCPY=/opt/homebrew/bin/scrcpy
+      if [ -x ${brewPrefix}/bin/scrcpy ]; then SCRCPY=${brewPrefix}/bin/scrcpy
       elif [ -x /usr/local/bin/scrcpy ]; then SCRCPY=/usr/local/bin/scrcpy
       else SCRCPY=$(command -v scrcpy 2>/dev/null || true)
       fi

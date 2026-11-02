@@ -32,6 +32,8 @@
 }:
 let
   cfg = config.local.meTube;
+  # How many yt-dlp downloads run at once. MeTube's own default.
+  maxConcurrentDownloads = 3;
   pkg = pkgs.callPackage ../../packages/metube.nix { };
   # Downloads must NOT live inside the state directory. main.py's
   # state_dir_guard returns 404 for any file whose real path is under
@@ -85,7 +87,7 @@ let
       export STATE_DIR=${lib.escapeShellArg stateDir}
       export TEMP_DIR=${lib.escapeShellArg "${rootDir}/tmp"}
       export CORS_ALLOWED_ORIGINS='*'
-      export MAX_CONCURRENT_DOWNLOADS=${toString cfg.maxConcurrentDownloads}
+      export MAX_CONCURRENT_DOWNLOADS=${toString maxConcurrentDownloads}
       # Age-gated YouTube needs a signed-in browser session. This is the
       # Chromium profile the extension runs in. A one-element list is what
       # yt-dlp's cookiesfrombrowser parser accepts. The secret stays in the
@@ -110,12 +112,6 @@ in
       type = lib.types.port;
       default = 8081;
       description = "Loopback port. The Chrome extension is pointed at this.";
-    };
-
-    maxConcurrentDownloads = lib.mkOption {
-      type = lib.types.ints.positive;
-      default = 3;
-      description = "How many yt-dlp downloads run at once. MeTube's own default.";
     };
   };
 

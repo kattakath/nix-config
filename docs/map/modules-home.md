@@ -484,9 +484,10 @@ in the repo can catch that; see that fixture file's header for the measurement.
   is on disk, which is exactly how a stale `kattakath-portal` entry pointing at destroyed
   infrastructure survived for a day after the purge (#732). `checks.claude-desktop-config-shape`
   asserts the module is on; what it may render is defined by that check's own legs (`modules/parts/checks.nix`).
-  The machinery is unchanged and still earns its keep: Desktop accepts ONLY the stdio shape, so
-  any `url` becomes a pinned `mcp-remote` shim (`lib.hm.mcp.transformMcpServer` + one
-  `extraTransform`, the codex module's pattern); an activation plus the
+  The machinery still earns its keep: Desktop accepts ONLY the stdio shape, so the renderer
+  stamps a marker on stdio entries (`lib.hm.mcp.transformMcpServer` + one `extraTransform`, the
+  codex module's pattern; the `mcp-remote` shim for `url` entries was removed 2026-11-02, so a
+  `url` entry fails eval, or is skipped in the overlay); an activation plus the
   `claude-desktop-mcp-sync` watch agent merge ONLY `.mcpServers` and ONLY entries carrying the
   `NIX_CONFIG_MANAGED` env marker, so `preferences`, `coworkUserFilesPath`, `extraServers` and
   anything added in Desktop's UI survive an empty render. Full rationale, including the clobber

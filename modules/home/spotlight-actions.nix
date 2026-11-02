@@ -60,7 +60,10 @@ let
   # Its own callPackage rather than a value threaded from default.nix: the two
   # calls are identical, so Nix realises ONE derivation, and this module stays
   # independently importable instead of depending on a binding next door.
-  inherit (pkgs.callPackage ../../packages/spotlight-launchers.nix { })
+  inherit
+    (pkgs.callPackage ../../packages/spotlight-launchers.nix {
+      brewPrefix = import ../_lib/brew-prefix.nix osConfig;
+    })
     commandApps
     aliasApps
     ;

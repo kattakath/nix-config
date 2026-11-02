@@ -363,6 +363,9 @@ The layer exists for its files' shape rather than their count:
   `macos-user-agents.nix`, `spotlight-actions.nix`, `tor-browser-backup-exclusion.nix`. It reads
   `local.operatorHost` (`modules/darwin/operator-host.nix`), NOT the hostname: a template
   consumer may name its own Mac "macos" (`checks.*.template-consumer` builds one to prove it).
+- **`modules/_lib/brew-prefix.nix`** — `osConfig -> string`, the ONE Homebrew prefix
+  (nix-darwin's `homebrew.prefix`, else `/opt/homebrew`) that every runtime brew path in
+  `modules/home/` and the android/spotlight `packages/` is built from.
 
 **Why `modules/_lib/` and not `modules/nixos/` — and not a top-level `lib/` either.** It sat in
 `modules/shared/` until 2026-10-02 — wrong twice over, since it is neither home-manager nor a

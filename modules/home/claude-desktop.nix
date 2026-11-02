@@ -15,10 +15,10 @@
 # THE TRANSPORT TRAP (why `toStdioShim` exists)
 # Desktop's parser accepts ONLY the stdio shape — {command, args, env}. A
 # `url` or `type` key fails its schema validation and the entry is dropped (or
-# the whole mcpServers block is). So a `url`-shaped entry (an HTTP MCP server) is
-# wrapped in `mcp-remote` (geelen/mcp-remote: a stdio⇄Streamable-HTTP bridge),
-# pinned by version and launched by a store-path npx — a shim, not a server: one
-# thin bridge process, with any OAuth handshake happening inside it.
+# the whole mcpServers block is). So only stdio entries are rendered; a `url`
+# entry is stripped here and skipped (with a warning) in the overlay. The
+# `mcp-remote` bridge that once shimmed `url` entries went with the last one
+# (2026-11-02); a remote server reaches Desktop as a claude.ai connector instead.
 #
 # `checks.<system>.claude-desktop-config-shape` reads
 # `local.claudeDesktop.{enable,renderedServers}` (modules/parts/checks.nix) and
@@ -72,11 +72,6 @@
 let
   cfg = config.local.claudeDesktop;
 
-  npx = lib.getExe' pkgs.nodejs "npx";
-  # Bridge stdio ⇄ Streamable HTTP. Pinned: an unpinned `mcp-remote` would be a
-  # silent runtime bump on every Desktop launch. Bump deliberately, here.
-  mcpRemote = "mcp-remote@${cfg.mcpRemoteVersion}";
-
   # The marker that says "nix-config wrote this entry". An env var because it is
   # the ONE extra field Desktop's stdio schema tolerates (attrsOf string) and it
   # is harmless to every server that receives it. Not a name prefix (would leak
@@ -84,31 +79,18 @@ let
   marker = "NIX_CONFIG_MANAGED";
   markerValue = "claude-desktop";
 
-  # Hub → stdio shim. The one client-specific transform; everything universal
-  # (enabled/disabled, env file-refs, null pruning) is upstream's job.
+  # Hub → stdio: stamp the marker. The one client-specific transform; everything
+  # universal (enabled/disabled, env file-refs, null pruning) is upstream's job.
+  # A `url` entry loses its `url` to `exclude` below and then fails the
+  # stdio-shape assertion — loudly, at eval.
   toStdioShim =
     server:
-    if (server.url or null) != null then
-      {
-        command = npx;
-        args = [
-          "-y"
-          mcpRemote
-          server.url
-          "--transport"
-          "http-only"
-        ];
-        env = (server.env or { }) // {
-          ${marker} = markerValue;
-        };
-      }
-    else
-      server
-      // {
-        env = (server.env or { }) // {
-          ${marker} = markerValue;
-        };
+    server
+    // {
+      env = (server.env or { }) // {
+        ${marker} = markerValue;
       };
+    };
 
   render =
     _name: server:
@@ -175,22 +157,19 @@ let
       tmp=$(mktemp)
       # Keep everything; inside .mcpServers keep FOREIGN entries (no marker),
       # drop OUR stale ones, then lay the overlay and the current rendering on
-      # top. Overlay entries get the SAME stdio shim and marker as `extraServers`
-      # (so removing one from the overlay prunes it next run), and the Nix
-      # rendering is the right operand, so a Nix-declared name always wins.
+      # top. Overlay entries get the SAME marker as `extraServers` (so removing
+      # one from the overlay prunes it next run), and the Nix rendering is the
+      # right operand, so a Nix-declared name always wins. A `url` overlay entry
+      # has no stdio form any more, so it is skipped with a warning.
+      skipped=$(jq -r 'to_entries[] | select(.value | has("url")) | .key' <<< "$ovServers")
+      [ -z "$skipped" ] || echo "claude-desktop: url overlay entries are unsupported, skipped: $skipped" >&2
       if jq --arg m ${marker} --arg v ${lib.escapeShellArg markerValue} \
-           --arg npx ${lib.escapeShellArg npx} --arg remote ${lib.escapeShellArg mcpRemote} \
            --argjson ov "$ovServers" \
            --slurpfile want ${desiredJson} '
-             ($ov | with_entries(.value |= (
-               if has("url") then
-                 { command: $npx,
-                   args: ["-y", $remote, .url, "--transport", "http-only"],
-                   env: ((.env // {}) + { ($m): $v }) }
-               else
+             ($ov | with_entries(select(.value | has("url") | not))
+                  | with_entries(.value |= (
                  { command: .command, args: (.args // []),
-                   env: ((.env // {}) + { ($m): $v }) }
-               end))) as $ovr
+                   env: ((.env // {}) + { ($m): $v }) }))) as $ovr
              | .mcpServers = (
                ((.mcpServers // {}) | with_entries(select((.value.env[$m] // "") != $v)))
                + $ovr
@@ -239,25 +218,19 @@ in
         Optional, hand-placed `{ "mcpServers": { … } }` merged at activation (and on
         every Desktop rewrite) for servers this PUBLIC repo must not name (none placed on
         `macos` since 2026-11-01). Same hub shape as
-        `extraServers`; a `url` entry gets the same mcp-remote shim. Never read at eval,
+        `extraServers`, stdio entries only (a `url` entry is skipped). Never read at eval,
         so it reaches neither the store nor `renderedServers` (and so not the
         config-shape check either). A Nix-declared name wins over an overlay one.
       '';
-    };
-
-    mcpRemoteVersion = lib.mkOption {
-      type = lib.types.str;
-      default = "0.14.2";
-      description = "Pinned mcp-remote version used to shim a `url`-shaped `extraServers` entry into Desktop's stdio-only schema (npm: mcp-remote).";
     };
 
     extraServers = lib.mkOption {
       type = lib.types.attrsOf lib.types.attrs;
       default = { };
       description = ''
-        Additional servers for Desktop only, in the hub shape ({ url } or
-        { command, args, env }). A `url` entry is wrapped in the pinned mcp-remote
-        shim, because Desktop's schema accepts stdio only. This is the only way a
+        Additional servers for Desktop only, stdio-shaped ({ command, args, env }):
+        Desktop's schema accepts nothing else, and a `url` entry fails the
+        assertion below. This is the only way a
         Nix-declared entry reaches Desktop (the private lane is `overlayFile`).
       '';
     };
