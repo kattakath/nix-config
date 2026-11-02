@@ -206,6 +206,10 @@ let
       # (modules/parts/hosts.nix); a caller that passes nothing still gets Caddy,
       # with zero vhosts.
       hostedSites ? [ ],
+      # The heartbeat slug registry (`config.fleet.heartbeats`), for
+      # modules/nixos/service-heartbeat.nix's eval-time "the slug exists" assertion.
+      # Defaults to none: a host that pings nothing never reads it.
+      fleetHeartbeats ? { },
     }:
     nixpkgs.lib.nixosSystem {
       # Set the platform via the MODERN `nixpkgs.hostPlatform` module option
@@ -225,6 +229,7 @@ let
           cachixKey
           operatorSshKey
           hostedSites
+          fleetHeartbeats
           ;
         # MODULES, not flakes — hence the names. Both of these were flake INPUTS
         # consumed as `.nixosModules.default` until ADR-002 absorbed them

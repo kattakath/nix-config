@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
-**Five stacks, and the split is deliberate: a stack is a blast radius, not a category.**
+**Six stacks, and the split is deliberate: a stack is a blast radius, not a category.**
 
 | Stack | State | Breaking it takes down |
 |---|---|---|
@@ -11,8 +11,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `cf-access-org` | GCS `cf-access-org/` | **every Access app at once** |
 | `gcp-budget` | GCS `gcp-budget/` | the spend alert |
 | `gcp-foundation` | **local** (still encrypted) | the bucket the others live in |
+| `hc-checks` | GCS `hc-checks/` | the fleet's dead-man's-switch ALARMS (a host cannot go down because of it) |
 
-> **A SIXTH stack, `mcp-public`, was DESTROYED AND DELETED on 2026-10-02.** It owned the
+> **A FORMER stack, `mcp-public`, was DESTROYED AND DELETED on 2026-10-02.** It owned the
 > published MCP gateway's Cloudflare side — tunnel, portal, per-server registrations, Access
 > apps, service token. Two destroy runs removed **65 objects**; the API then reported **0** MCP
 > server registrations (was 27), **0** portals (was 1), **0** `mcp-public` tunnel, **0**
@@ -141,6 +142,35 @@ authority would live in the Admin console, which no provider reaches:
 A **5 CAD** spend budget. **An alert, not a cap** — Google offers no hard spending limit on a
 billing account, and the currency must match the account's own or the API rejects it as a bare
 `400`. Applied via `gcp-budget-apply`.
+
+### `infra/healthchecks/checks.nix`
+
+One `healthchecksio_check` per entry of **`config.fleet.heartbeats`**
+(`modules/parts/heartbeats.nix`) — the fleet's heartbeat (dead man's switch) registry, pure data,
+no secrets. The attribute name is the healthchecks.io **slug**; a host pings
+`<baseUrl>/<project ping key>/<slug>` (`local.heartbeat` + `local.serviceHeartbeat`,
+[`modules-nixos.md`](modules-nixos.md)), so the check created here and the URL a pinger builds
+cannot drift. An entry sets exactly one of `schedule` (cron) or `period` (seconds) plus a
+mandatory `grace`; the render refuses both/neither, a bad slug, or more than the free plan's 20.
+
+- **Provider:** `kristofferahl/healthchecksio` **pinned to 2.3.0** (OpenTofu registry; nixpkgs
+  does not package it). `tofu validate` was run against the real provider schema.
+- **Auth:** `HEALTHCHECKSIO_API_KEY` (the provider's own env var — not `HEALTHCHECKS_API_KEY`),
+  the project's read-write **API key**, via
+  `nix develop -c secret exec HEALTHCHECKSIO_API_KEY=hc:healthchecks.io:api -- nix run .#hc-checks-plan`.
+  Hosts hold a different credential, the **ping key**, which can only ping.
+- **Apps:** `hc-checks-plan` (read-only, run first) and `hc-checks-apply`. No import (the first
+  apply creates the checks) and no destroy. Guards: refuses a render that **drops** a check state
+  holds (`HC_CHECKS_ALLOW_DROPS=1`), an apply against **empty state** (`HC_CHECKS_ALLOW_CREATE=1`,
+  the legitimate first-apply override) and `-auto-approve`.
+- **Alert channels:** empty `fleet.heartbeatChannels` (the default) means the project's email
+  integration, found by a guarded data lookup that fails the plan if it is missing; set the
+  option only to override with explicit UUIDs.
+- **Declared is not wired.** Only `nixpi-serving` has a pinger today; the other entries make the
+  check exist, but a never-pinged check stays `new` and **never alerts** — its alarm arms at the
+  first ping (`Check.get_status`).
+- State object `hc-checks/` in the shared encrypted bucket; the working dir is
+  `$XDG_STATE_HOME/nix-config-hc-checks`.
 
 ### `infra/cloudflare/nixpi-tunnel.nix`
 

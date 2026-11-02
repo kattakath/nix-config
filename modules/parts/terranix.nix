@@ -1,4 +1,4 @@
-# ---- terranix (Nix -> OpenTofu JSON) and the five tofu app families ---------
+# ---- terranix (Nix -> OpenTofu JSON) and the six tofu app families ---------
 #
 # Renderers + `writeShellApplication` wrappers, moved verbatim from flake.nix's
 # `let` (ADR-002 wave 2). Every guard here — the site-free refusal, the
@@ -17,11 +17,17 @@ let
   # The login-Keychain item every Cloudflare stack's unset-token guard tells the operator to use.
   cfTokenItem = "cf:cloudflare.com:api";
 
+  # The healthchecks.io project API key's handle — `<service>:<host>:<scope>` like
+  # the Cloudflare ones. One project, one key, so `api` rather than a per-stack name.
+  hcApiKeyItem = "hc:healthchecks.io:api";
+
   inherit (config.fleet)
     domainName
     cloudflareAccountId
     cloudflareZoneId
     hostedSites
+    heartbeats
+    heartbeatChannels
     accessOrg
     gcpBillingAccountId
     gcpBudgetAmount
@@ -182,7 +188,7 @@ let
         # scratch — the rendered config.tf.json and the guards' address lists.
         umask 077
         # The tfstate chmod is NOT a GCS-era vestige, and this is the one line of
-        # why for all five wrappers: ADR-005 moved this stack's state to the bucket
+        # why for all six wrappers: ADR-005 moved this stack's state to the bucket
         # but did not delete the local copy tofu wrote during the migration, so a
         # `terraform.tfstate.backup` still sits in this XDG dir. Measured
         # 2026-09-22 by reading the bytes: it is ENCRYPTED, same
@@ -190,7 +196,7 @@ let
         # behind it — NOT the pre-migration plaintext an earlier draft of this
         # comment claimed. It is a redundant offline snapshot, not an exposure.
         # Only gcp-foundation still writes these files live (and its local state is
-        # encrypted too); the other four keep the line because 0600 on a stale
+        # encrypted too); the other five keep the line because 0600 on a stale
         # encrypted state costs nothing and the file is real.
         chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
         echo "tofu working directory: $state_dir" >&2
@@ -824,7 +830,7 @@ let
   };
 
   # ---- Remote state: the GCS backend's encryption, shared ------------------
-  # ADR-005 phase 1. The invariant is ENCRYPTION, not remoteness: all FIVE stacks
+  # ADR-005 phase 1. The invariant is ENCRYPTION, not remoteness: all SIX stacks
   # source this, including gcp-foundation, which keeps state LOCAL on purpose (it
   # declares the bucket the other four live in) and still encrypts it. So the
   # encryption can never be configured on one stack and forgotten on another.
@@ -1053,6 +1059,149 @@ let
       '';
     };
 
+  # ---- healthchecks.io checks (terranix -> OpenTofu) -----------------------
+  # Renders infra/healthchecks/checks.nix: one `healthchecksio_check` per
+  # `config.fleet.heartbeats` entry (modules/parts/heartbeats.nix). The SIXTH
+  # stack and the only one whose provider is neither Cloudflare nor Google — a
+  # different credential (a healthchecks.io project API key), a different vendor
+  # outage mode, and a blast radius that is only "an alarm goes quiet".
+  hcChecksConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/healthchecks/checks.nix
+        (tofuGcsBackend "hc-checks")
+        {
+          _module.args = {
+            inherit heartbeats;
+            channels = heartbeatChannels;
+          };
+        }
+      ];
+    };
+
+  # Auth is HEALTHCHECKSIO_API_KEY (the provider's own env var, read at
+  # healthchecksio/config.go `APIKeyEnvName` in the pinned 2.3.0 — not the
+  # HEALTHCHECKS_API_KEY spelling the vendor's docs use). Same Keychain-handle +
+  # `secret exec` lane as every cf-* wrapper, so the value never reaches argv, the
+  # store or a rendered file.
+  #
+  # NO `-import` app: the checks are created by the first apply. The registry is the
+  # source of truth, and no check pre-exists at the monitor, so there is nothing to
+  # adopt (contrast cf-tunnel / cf-access-org, whose objects predate their stacks).
+  #
+  # Its three guards are the ones this stack's own failure modes need, not copies:
+  #   (1) DROP guard — a render that no longer declares a check state holds would
+  #       DELETE it at the monitor, silencing that alarm with a clean-looking plan.
+  #   (2) EMPTY-STATE guard, apply only — an apply with no state would try to
+  #       CREATE checks that may already exist (state lost, or run from the wrong
+  #       backend prefix). The first-ever apply is the legitimate case, so it is a
+  #       conscious override rather than a refusal with no way through.
+  #   (3) no `-auto-approve` — an unattended apply here is exactly what the drop
+  #       guard exists to make you read.
+  mkHcChecksTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    let
+      pkgs = pkgsFor system;
+    in
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [
+        pkgs.opentofu
+        pkgs.coreutils
+        pkgs.gnugrep
+        pkgs.gnused
+        pkgs.jq
+      ];
+      text = ''
+        if [ -z "''${HEALTHCHECKSIO_API_KEY:-}" ]; then
+          echo "ERROR: HEALTHCHECKSIO_API_KEY is unset." >&2
+          echo "  nix develop -c secret exec HEALTHCHECKSIO_API_KEY=${hcApiKeyItem} -- nix run .#${name}" >&2
+          echo "  The value is the healthchecks.io project's READ-WRITE API key" >&2
+          echo "  (Project Settings -> API Access) — NOT the ping key hosts hold, which can" >&2
+          echo "  only ping. Store it once:  secret set ${hcApiKeyItem}" >&2
+          exit 1
+        fi
+
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-hc-checks"
+        mkdir -p "$state_dir"
+        chmod 700 "$state_dir"
+        cd "$state_dir"
+        umask 077
+        chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
+        echo "tofu working directory: $state_dir" >&2
+
+        rm -f config.tf.json
+        cp ${hcChecksConfig { inherit system; }} config.tf.json
+        chmod 600 config.tf.json
+        ${tofuRemoteStatePrelude}
+        tofu init
+
+        rendered=$(jq '[.resource.healthchecksio_check // {} | keys[]] | length' config.tf.json)
+        echo "rendered checks: $rendered" >&2
+
+        # Absent state and unreadable state are different answers (see mkCfZonesTofu
+        # for the measurement): absent is an empty roster, unreadable must refuse.
+        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
+          if grep -qF "No state file was found" .state-list.err; then
+            : > .state-addrs.raw
+          else
+            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
+            echo "  an apply would delete live checks. tofu said:" >&2
+            sed 's/^/    /' .state-list.err >&2
+            exit 1
+          fi
+        fi
+        grep -E '^healthchecksio_check\.' .state-addrs.raw | sort > .state-addrs || true
+        jq -r '
+          .resource // {} | to_entries[] | .key as $type
+          | .value | keys[] | $type + "." + .
+        ' config.tf.json | sort > .render-addrs
+
+        dropped=$(comm -23 .state-addrs .render-addrs)
+        if [ -n "$dropped" ]; then
+          echo "REFUSING: this render DROPS checks that state already holds:" >&2
+          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
+          echo "  Applying it would DELETE each check at healthchecks.io: the alarm" >&2
+          echo "  goes quiet, and a quiet dead man's switch looks exactly like a" >&2
+          echo "  healthy host. tofu apply has NO rollback." >&2
+          echo "    HC_CHECKS_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
+          [ "''${HC_CHECKS_ALLOW_DROPS:-}" = "1" ] || exit 1
+          echo "WARNING: HC_CHECKS_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
+        fi
+
+        ${pkgs.lib.optionalString (action == "apply") ''
+          render_count=$(wc -l < .render-addrs | tr -d ' ')
+          if [ ! -s .state-addrs ] && [ "''${render_count:-0}" -gt 0 ]; then
+            echo "REFUSING: state is EMPTY but this render declares ''${render_count} check(s)." >&2
+            echo "  Correct ONLY for the first-ever apply. Otherwise (state lost, wrong" >&2
+            echo "  backend prefix) it would CREATE duplicates of live checks. Run the" >&2
+            echo "  matching *-plan first and read it, then:" >&2
+            echo "    HC_CHECKS_ALLOW_CREATE=1 nix develop -c nix run .#${name}" >&2
+            [ "''${HC_CHECKS_ALLOW_CREATE:-}" = "1" ] || exit 1
+            echo "WARNING: HC_CHECKS_ALLOW_CREATE=1 set — proceeding against empty state." >&2
+          fi
+
+          for a in "$@"; do
+            case "$a" in
+              -auto-approve|--auto-approve)
+                echo "REFUSING: -auto-approve on the heartbeat checks." >&2
+                echo "  Read the plan: a dropped or replaced check silences its alarm." >&2
+                exit 1
+                ;;
+            esac
+          done
+        ''}
+
+        tofu ${action} "$@"
+      '';
+    };
+
 in
 {
   # The renderers, exported for private/external callers (see the header).
@@ -1146,6 +1295,19 @@ in
           name = "gcp-budget-apply";
           action = "apply";
         };
+        # No `hc-checks-destroy`, and no `hc-checks-import`: destroy would silence
+        # every dead man's switch at once (remove an entry and let the drop guard make
+        # you confirm), and the checks are created by the first apply, not adopted.
+        hc-checks-plan = mkHcChecksTofu {
+          inherit system;
+          name = "hc-checks-plan";
+          action = "plan";
+        };
+        hc-checks-apply = mkHcChecksTofu {
+          inherit system;
+          name = "hc-checks-apply";
+          action = "apply";
+        };
         # destroy intentionally keeps hostedSites at its [ ] default: rendering
         # "nothing" against non-empty state is exactly what trips the guards
         # above, so tearing down the real stack still needs the explicit
@@ -1170,7 +1332,7 @@ in
       # the alternative is rediscovering the 8760h default the hard way.
       #
       # Declared HERE rather than in modules/parts/checks.nix because `flake.lib`
-      # exports only one of the five renderers; the other four are in scope only
+      # exports only one of the six renderers; the other five are in scope only
       # inside this file.
       #
       # WHAT THIS CANNOT DO, so the limit is a choice and not an oversight: eval
@@ -1284,6 +1446,16 @@ in
           type = "app";
           program = "${config.packages.gcp-budget-apply}/bin/gcp-budget-apply";
           meta.description = "tofu apply the GCP billing budget — an ALERT at thresholds, NOT a spending cap; Google offers no hard cap (needs ADC)";
+        };
+        hc-checks-plan = {
+          type = "app";
+          program = "${config.packages.hc-checks-plan}/bin/hc-checks-plan";
+          meta.description = "Render infra/healthchecks/checks.nix (terranix) and tofu PLAN the healthchecks.io dead-man's-switch checks from fleet.heartbeats — read-only, run it before hc-checks-apply (needs HEALTHCHECKSIO_API_KEY)";
+        };
+        hc-checks-apply = {
+          type = "app";
+          program = "${config.packages.hc-checks-apply}/bin/hc-checks-apply";
+          meta.description = "tofu apply the healthchecks.io checks — refuses a render that drops a check, an apply against empty state, and -auto-approve (needs HEALTHCHECKSIO_API_KEY)";
         };
         cf-zones-plan = {
           type = "app";

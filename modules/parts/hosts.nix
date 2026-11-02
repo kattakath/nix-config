@@ -9,6 +9,7 @@ let
   inherit (config.flake.lib) mkDarwin mkNixos;
   inherit (config.fleet)
     hostedSites
+    heartbeats
     orgName
     repoName
     # The operator's login credential. Reached here rather than defaulted inside
@@ -101,6 +102,9 @@ in
       # null so a downstream consumer of `lib.mkNixos` cannot inherit it by
       # omission; the fleet's own hosts opt in here, where the host is declared.
       inherit hostedSites operatorSshKey;
+      # The slug registry local.serviceHeartbeat asserts against
+      # (modules/parts/heartbeats.nix). Only nixpi pings today.
+      fleetHeartbeats = heartbeats;
     };
 
     # Unprovisioned aarch64-linux dev VM, materialised ONLY as the `build-vm`
