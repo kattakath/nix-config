@@ -56,6 +56,23 @@ rm -f "$link"
 case "$out" in *'"ask"'*) echo "  ok    ask   symlink -> /etc"; pass=$((pass+1));;
   *) echo "  FAIL  symlink -> /etc not asked: $out"; fail=$((fail+1));; esac
 
+echo "== a symlink planted in the allowlisted scratchpad still asks =="
+# A real allowlist-shaped path (claude-<digits>/<slug>/<session>/scratchpad), so the
+# case proves the allowlist is bypassed, not merely missed.
+sp="/tmp/claude-9$$${RANDOM}"
+mkdir -p "$sp/proj/sess/scratchpad"
+touch "$sp/proj/sess/scratchpad/plain.md"
+out0="$(python3 -c 'import json,sys;print(json.dumps({"tool_input":{"file_path":sys.argv[1]}}))' "$sp/proj/sess/scratchpad/plain.md" \
+  | CLAUDE_PROJECT_DIR="$PWD" node "$H" 2>/dev/null)"
+if [ -z "$out0" ]; then echo "  ok    none  real scratchpad file (control)"; pass=$((pass+1))
+else echo "  FAIL  real scratchpad file asked: $out0"; fail=$((fail+1)); fi
+ln -s /etc "$sp/proj/sess/scratchpad/sneaky"
+out="$(python3 -c 'import json,sys;print(json.dumps({"tool_input":{"file_path":sys.argv[1]}}))' "$sp/proj/sess/scratchpad/sneaky/hosts" \
+  | CLAUDE_PROJECT_DIR="$PWD" node "$H" 2>/dev/null)"
+rm -rf "$sp"
+case "$out" in *'"ask"'*) echo "  ok    ask   scratchpad symlink -> /etc"; pass=$((pass+1));;
+  *) echo "  FAIL  scratchpad symlink -> /etc not asked: $out"; fail=$((fail+1));; esac
+
 echo "== fail open on a malformed payload =="
 out="$(printf 'not json' | node "$H")"; rc=$?
 if [ "$rc" = 0 ] && [ -z "$out" ]; then echo "  ok    fail-open"; pass=$((pass+1))

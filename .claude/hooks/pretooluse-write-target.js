@@ -56,7 +56,6 @@ function realish(p) {
 
 function verdictFor(candidate, abs) {
   const c = fold(candidate);
-  if (SCRATCHPAD.test(c) || GH_CLONES.test(c)) return null;
   if (F_FILES.includes(c) || F_DIRS.some((d) => c.startsWith(d))) {
     return `Write to ${abs} — a login/credential file Home Manager declares; it runs code or grants access next login. Allow anyway?`;
   }
@@ -69,14 +68,13 @@ function verdictFor(candidate, abs) {
 function verdict(filePath, projectDir) {
   if (typeof filePath !== "string" || !filePath) return null;
   const abs = path.resolve(projectDir || process.cwd(), filePath);
-  // A real path inside the scratchpad/clones is silent even when the spelled path is
-  // its /tmp → /private/tmp symlink; otherwise the first rule either form hits wins.
+  // Silence is decided on the RESOLVED path only: a symlink planted in the scratchpad
+  // that points at ~/.zshrc must still ask. (realish maps /tmp → /private/tmp, which
+  // the allowlist regexes accept, so the spelled path is never needed for silence.)
   const real = realish(abs);
-  for (const candidate of [real, abs]) {
-    const c = fold(candidate);
-    if (SCRATCHPAD.test(c) || GH_CLONES.test(c)) return null;
-  }
-  for (const candidate of new Set([abs, real])) {
+  const rc = fold(real);
+  if (SCRATCHPAD.test(rc) || GH_CLONES.test(rc)) return null;
+  for (const candidate of new Set([real, abs])) {
     const reason = verdictFor(candidate, abs);
     if (reason) return reason;
   }
