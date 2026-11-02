@@ -129,9 +129,7 @@ let
   # all four dirs DENIED, a plain read works. Retire this patch only if the built-in profile
   # ever denies those paths itself; the deny list is the whole reason it exists.
   #
-  # History: the profile used to extend `workspace` (CWD writable), because `read-only` refused
-  # to start on a symlinked deny path — Docker Desktop's /run/docker.sock. Docker Desktop left
-  # on 2026-09-16 (modules/home/containers.nix), the socket is gone, and `read-only` starts.
+  # It extended `workspace` until Docker Desktop's symlinked /run/docker.sock (gone 2026-09-16) stopped blocking `read-only`.
   #
   # NAME: a GROK sandbox profile (`[profiles.<name>]` in ~/.grok/sandbox.toml), not a macOS
   # Seatbelt profile. Its deny list renders from modules/_lib/secret-read-paths.nix.

@@ -985,6 +985,114 @@ in
             };
         }
         // {
+          # ---- Workflow literals that restate a fleet fact -----------------------
+          #
+          # GitHub Actions YAML cannot import Nix, so two fleet facts are RE-TYPED in
+          # .github/workflows/: the Cachix public key (every `extra-trusted-public-keys`
+          # line) and the heartbeat slug + cron of the two scheduled workflows that ping
+          # healthchecks.io. A second copy is a bug with a delayed fuse, so these gate
+          # the copies against the one source (config.fleet.cachixKey,
+          # config.fleet.heartbeats) instead of trusting them. Rendering the YAML from
+          # Nix was the alternative; it loses because a workflow is proven only by the
+          # run it changes, and a generated file would still need this comparison to
+          # catch a hand edit.
+          cachix-key-parity =
+            let
+              dir = ../../.github/workflows;
+              files = lib.attrNames (
+                lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".yml" n) (builtins.readDir dir)
+              );
+              # Every `<cache>.cachix.org-1:<base64>` literal in a file.
+              keysIn =
+                n:
+                map builtins.head (
+                  builtins.filter builtins.isList (
+                    builtins.split "([a-z0-9-]+\\.cachix\\.org-1:[A-Za-z0-9+/=]+)" (builtins.readFile (dir + "/${n}"))
+                  )
+                );
+              found = lib.concatMap (n: map (k: { inherit n k; }) (keysIn n)) files;
+              wrong = builtins.filter (e: e.k != config.fleet.cachixKey) found;
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "cachix-key-parity";
+              subject = "every workflow's Cachix key literal equals config.fleet.cachixKey";
+              expect = [
+                {
+                  name = "at least one workflow carries the key (else this check proves nothing)";
+                  ok = found != [ ];
+                }
+              ]
+              ++ map (e: {
+                name = "${e.n}: ${e.k} != config.fleet.cachixKey";
+                ok = false;
+              }) wrong;
+              advice = [
+                "The key is defined once, in modules/parts/identity.nix (cachixKey). Fix the"
+                "workflow literal to match it; rotate the key there first, then here."
+              ];
+            };
+
+          heartbeat-workflow-parity =
+            let
+              dir = ../../.github/workflows;
+              # slug -> the workflow that pings it. Kept HERE, not as a field on the
+              # registry type: it is a fact about this repo's YAML, not about a check.
+              pingers = {
+                nix-config-update-flake-lock = "update-flake-lock.yml";
+                nix-config-gitleaks = "gitleaks.yml";
+              };
+              hb = config.fleet.heartbeats;
+              legs = lib.concatLists (
+                lib.mapAttrsToList (
+                  slug: file:
+                  let
+                    text = builtins.readFile (dir + "/${file}");
+                    entry = hb.${slug} or null;
+                  in
+                  [
+                    {
+                      name = "${slug} is in fleet.heartbeats with a cron schedule";
+                      ok = entry != null && entry.schedule != null;
+                    }
+                    {
+                      name = "${slug}: timezone is UTC, the only zone GitHub cron runs in";
+                      ok = entry != null && entry.timezone == "UTC";
+                    }
+                    {
+                      name = "${file} schedules the registry cron (${toString (entry.schedule or "")})";
+                      ok = entry != null && lib.hasInfix "cron: \"${toString entry.schedule}\"" text;
+                    }
+                    {
+                      name = "${file} pings the slug ${slug}";
+                      ok = lib.hasInfix "/\${PING_KEY}/${slug}" text;
+                    }
+                  ]
+                ) pingers
+              );
+              # A new `nix-config-*` entry is a workflow pinger by naming convention, so
+              # it must be added to `pingers` above or this check cannot see it.
+              unmapped = builtins.filter (n: lib.hasPrefix "nix-config-" n && !(pingers ? ${n})) (
+                lib.attrNames hb
+              );
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "heartbeat-workflow-parity";
+              subject = "the workflow heartbeat pingers match fleet.heartbeats (slug + cron)";
+              expect = legs ++ [
+                {
+                  name = "every nix-config-* heartbeat has a workflow in the pingers map (unmapped: ${toString unmapped})";
+                  ok = unmapped == [ ];
+                }
+              ];
+              advice = [
+                "modules/parts/heartbeats.nix is the registry; the workflow's `cron:` and its"
+                "Heartbeat ping step's slug must restate it exactly, or the check alerts on a"
+                "schedule the workflow does not run (or never hears its pings)."
+              ];
+            };
+
           # ---- Linting the acceptance harness WITHOUT packaging it ---------------
           #
           # scripts/drv-snapshot.sh is the second test suite (CLAUDE.md § Testing):

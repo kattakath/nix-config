@@ -22,7 +22,7 @@
 **The original decision (superseded as to its subject, not its mechanism): Claude Desktop is
 "Client side D" of the MCP hub.** The same connector Claude Code got — the Cloudflare MCP portal
 in front of the gateway — was rendered into Desktop's `claude_desktop_config.json` by
-[`modules/home/claude-desktop.nix`](../modules/home/claude-desktop.nix). Cowork got
+`modules/home/claude-desktop.nix` (retired 2026-11-02). Cowork got
 them for free through Desktop's device bridge.
 
 This is the first piece of Desktop state nix-config manages;

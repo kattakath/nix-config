@@ -162,8 +162,9 @@ for is not cosmetic** — the broad one is refused on the newest API surface:
 **Not Cloudflare, same lane:** `hc:healthchecks.io:api` is the healthchecks.io project's
 read-write **API key**, used only by `hc-checks-{plan,apply}` as
 `secret exec HEALTHCHECKSIO_API_KEY=hc:healthchecks.io:api -- …` (unbound, like the tokens above).
-It is not the **ping key** — that one only pings, is planted on nixpi's FIRMWARE partition as
-`heartbeat-ping-key`, and never enters the Keychain flow (`modules/nixos/heartbeat.nix`).
+It is not the **ping key**, `hc:healthchecks.io:ping-key` — that one only pings, and reaches
+nixpi as the FIRMWARE-planted `heartbeat-ping-key`, written from the Keychain over stdin
+(`docs/nixpi-sd-flashing-runbook.md` § 4b; consumer `modules/nixos/heartbeat.nix`).
 
 **Measured 2026-09-14, and worth keeping although its subject is gone:** `cf:cloudflare.com:api`,
 despite being the **broad** token, returned **403 Forbidden** on

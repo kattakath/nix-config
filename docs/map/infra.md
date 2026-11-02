@@ -170,9 +170,12 @@ mandatory `grace`; the render refuses both/neither, a bad slug, or more than the
 - **Alert channels:** empty `fleet.heartbeatChannels` (the default) means the project's email
   integration, found by a guarded data lookup that fails the plan if it is missing; set the
   option only to override with explicit UUIDs.
-- **Declared is not wired.** Only `nixpi-serving` has a pinger today; the other entries make the
-  check exist, but a never-pinged check stays `new` and **never alerts** — its alarm arms at the
-  first ping (`Check.get_status`).
+- **Every check is wired (2026-11-02).** `nixpi-serving` ← nixpi's `service-heartbeat` (runitor);
+  `nix-config-update-flake-lock` and `nix-config-gitleaks` ← each workflow's "Heartbeat ping" step,
+  on **scheduled** runs only (#1032; slug + cron parity gated by
+  `checks.<system>.heartbeat-workflow-parity`); `evidence-discover` ← the agentic-jobseek cloud
+  routine, a different repo. A FUTURE entry still needs its pinger: a never-pinged check stays
+  `new` and **never alerts** (`Check.get_status`).
 - State object `hc-checks/` in the shared encrypted bucket; the working dir is
   `$XDG_STATE_HOME/nix-config-hc-checks`.
 

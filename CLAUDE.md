@@ -82,12 +82,9 @@ activate                                     # Activate macos, from ANY director
                                              #   (+ DIRTY) it is about to build. attr = HostName, NOT LocalHostName
                                              #   (mDNS renames that to `macos-2` on a .local clash). It always builds the MAIN
                                              #   checkout's CURRENT branch, never a worktree's, so from a worktree
-                                             #   session MERGING IS STEP 1 OF 2 — `git -C <main checkout> merge
-                                             #   --ff-only origin/main` BEFORE `activate`, or you rebuild the same
-                                             #   generation and the fix reads as FAILED. The TELL is a MISSING
-                                             #   `Activating <name>` line, so DIFF the step list rather than
-                                             #   scanning for errors. Mechanism, the measured cost, and the
-                                             #   plugin/marketplace FALSE alarm: docs/map/packages.md
+                                             #   session MERGING IS STEP 1 OF 2 (`git -C <main checkout> merge
+                                             #   --ff-only origin/main`), or the fix reads as FAILED. The tell, the
+                                             #   cost and the FALSE alarm: docs/map/packages.md
 nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
 nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo
                                              # nixos-rebuild is NOT on the Mac's PATH; without --sudo activation fails as ismail.
@@ -390,13 +387,10 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   the ROOT disk, so `/home`, PERSISTS in `$XDG_STATE_HOME/nixvm/nixvm.qcow2` until you `rm` it
   (only the Nix store image is rebuilt per boot). The filesystem split, and the per-CWD trap
   the app's wrapper defeats: [`docs/map/hosts.md`](docs/map/hosts.md).
-- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder** (ephemeral
-  Apple-Virtualization VM). Two traps: `determinate-nixd` logged OUT of FlakeHub (or a logged-in
-  daemon that came up featureless — kickstart it) silently kills it, and every build then fails
-  as `platform mismatch`; and `cp --no-preserve=mode` into `$out` EPERMs, which breaks every
-  Mac-side build of a Caddy-serving `nixpi` generation. **Never fix
-  that by building on the Pi** — CI warms the cache so the Mac substitutes instead.
-  Measurements, the `memoryBytes` OOM knob, and why it is NOT a general chmod ban:
+- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder**. Two traps:
+  a `determinate-nixd` logged OUT of FlakeHub (or featureless — kickstart it) fails every build
+  as `platform mismatch`, and `cp --no-preserve=mode` into `$out` EPERMs (a Caddy-serving `nixpi`
+  generation). **Never fix that by building on the Pi** — CI warms the cache. Detail:
   [`docs/map/hosts.md`](docs/map/hosts.md) § Building aarch64-linux on the Mac.
 
 ## Documentation

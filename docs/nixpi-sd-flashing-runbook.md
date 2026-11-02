@@ -356,6 +356,20 @@ nix run .#nixpi-provision -- --wifi       # just refresh Wi-Fi
   default route at metric 1002 and beats a working `wlan0` at 3003 — traffic
   blackholes down the wired path. Unplug Ethernet to force the failover.
 
+- **Heartbeat ping key** (`heartbeat-ping-key` → `/run/heartbeat-ping-key`) — the THIRD planted
+  file, and OPTIONAL: the healthchecks.io project ping key that `local.serviceHeartbeat` pings
+  with (`hosts/nixpi.nix`). Absent ⇒ the Pi boots and serves but sends no heartbeat, so the
+  `nixpi-serving` check alerts until it is planted — by design, not a fault. **`nixpi-provision`
+  and `nixpi-flash` have no flag for it**; plant it by hand from the Keychain item
+  `hc:healthchecks.io:ping-key`, so the key goes over stdin and never reaches argv:
+
+  ```bash
+  # onto a mounted card (macOS mounts FIRMWARE at /Volumes/FIRMWARE):
+  secret exec K=hc:healthchecks.io:ping-key -- sh -c 'printf %s "$K" > /Volumes/FIRMWARE/heartbeat-ping-key'
+  # onto the LIVE Pi — the copy unit runs at boot, so restart it (or reboot) afterwards:
+  secret exec K=hc:healthchecks.io:ping-key -- sh -c 'printf %s "$K" | ssh ismail@nixpi.kattakath.com "sudo tee /boot/firmware/heartbeat-ping-key >/dev/null && sudo systemctl restart firmware-file-heartbeat-ping-key.service"'
+  ```
+
 If you skip planting, the Pi still boots and is reachable on the LAN (`nixpi.local`),
 but the Cloudflare tunnel stays down — no `ssh nixpi` and no hosted site — until you
 plant the token and reboot.
