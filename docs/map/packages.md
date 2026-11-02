@@ -241,8 +241,7 @@ Smaller, single-purpose CLIs:
 `kattakath-userscripts` input, every `local.ungoogledChromium.userScripts.scripts` entry and
 `checks.<system>.userscripts`; nix-personal (`c013aa5`) deleted `modules/userscripts.nix`, its
 own `gitlab:ismailkattakath/userscripts` input and both `checks.userscripts-lint` /
-`checks.userscripts-meta` the same day. The scripts are **published to Greasy Fork** (Sleazy
-Fork for adult-site scripts) instead — the last one out, `google-photos-icon-nav`, is
+`checks.userscripts-meta` the same day. The scripts are **published to Greasy Fork** instead — the last one out, `google-photos-icon-nav`, is
 `greasyfork.org/scripts/595764`.
 
 **Why publication beat declaration, stated as the trade it is.** A fork-installed copy carries

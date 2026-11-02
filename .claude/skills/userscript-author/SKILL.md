@@ -3,7 +3,7 @@ name: userscript-author
 description: >
   The FLEET layer for Violentmonkey userscripts — what the portable plugin cannot
   know: how a script reaches this Mac, and why this repo no longer declares or
-  gates any. Since 2026-09-14 delivery is PUBLICATION (Greasy/Sleazy Fork, then
+  gates any. Since 2026-09-14 delivery is PUBLICATION (Greasy Fork, then
   one install click), not a Nix declaration. Use alongside the
   `page-lab:userscript-author` skill when asked to "make <site> do X", "write a
   userscript for <site>", "fix my <site> script", "this site's X annoys me", or
@@ -77,12 +77,10 @@ its gates the same day.
 
 - [ ] Lint with the plugin's `scripts/userscript-meta-lint.sh` — the only gate left, and it is
       the same one the deleted check ran.
-- [ ] **Publish** per the plugin's `greasyfork.md`: Greasy Fork, or **Sleazy Fork** for an
-      adult-adjacent site (one codebase, but a site lands on only one of the two).
+- [ ] **Publish** per the plugin's `greasyfork.md`: Greasy Fork.
 - [ ] **Updates ship by webhook — push to `main`, nothing else** (since 2026-10-21). Both repos
       run the same pipeline: lint + parse, then a publish job fast-forwards a **`published`**
-      branch, but only when both are green. Greasy Fork listens on a GitHub push hook, Sleazy Fork on a GitLab one, and
-      both sync from `published`, never `main`. A pushed file reaches a listing only if it
+      branch, but only when both are green. Greasy Fork listens on a push hook and syncs from `published`, never `main`. A pushed file reaches a listing only if it
       **exactly** equals that listing's sync URL (`…/published/<f>.user.js`, plus
       `listings/<f>.md` for the additional info).
       A **new** script never triggers one: the hook reads only *modified* files, not *added*
@@ -95,8 +93,8 @@ its gates the same day.
       updates" and its internal `CheckUpdate` command left civitai-declutter on the OLD version, with
       no error in the service-worker console. So after each push, install the release yourself:
       1. Wait until the fork's API reports the new version
-         (`api.greasyfork.org/en/scripts/<id>.json` or `api.sleazyfork.org/...`, field `version`).
-      2. In a fresh `about:blank` tab, open the script's `update.(greasy|sleazy)fork.org/.../*.user.js`
+         (`api.greasyfork.org/en/scripts/<id>.json`, field `version`).
+      2. In a fresh `about:blank` tab, open the script's `update.greasyfork.org/.../*.user.js`
          URL. The stored `custom.lastInstallURL` in Violentmonkey's `scr:<n>` record holds it.
          Starting from an extension page swallows the navigation.
       3. Violentmonkey's confirm page opens. Take a snapshot and make one trusted `click` on
@@ -217,7 +215,7 @@ PYEOF
 - **Approach:** (attribute set | rules lifted by condition in band X–Y | constructed UI)
 - **Selectors shipped:** (each one, with the date measured — or "none")
 - **Lint:** plugin `userscript-meta-lint.sh` ✅/❌
-- **Published:** Greasy Fork | Sleazy Fork | not yet (why) — with the listing URL
+- **Published:** Greasy Fork | not yet (why) — with the listing URL
 - **Operator action:** install from the listing once; it self-updates thereafter
 - **Verdict:** SHIPPED | BLOCKED (why) | ESCALATED (vite-plugin-monkey, in the script's own repo)
 ```

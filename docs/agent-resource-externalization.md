@@ -45,7 +45,7 @@ Lock nodes at the time: **56 → 59**.
 > Both userscript pins are gone (nix-config `535f1ef`, nix-personal `c013aa5`), along with every
 > script declaration and **all three** lint gates (`checks.<system>.userscripts` here;
 > `checks.userscripts-lint` + `checks.userscripts-meta` there). The scripts are **published to
-> Greasy/Sleazy Fork** instead. The reason is the one thing extraction could not fix: this
+> Greasy Fork** instead. The reason is the one thing extraction could not fix: this
 > pipeline **banned** `@updateURL`, so a materialised `file://` copy could never self-update,
 > while a fork-installed one does. Violentmonkey itself stays, sideloaded by
 > `modules/home/chromium.nix`. Lock nodes 59 → 58. Details: [`map/packages.md`](map/packages.md) § Userscripts.
@@ -127,7 +127,7 @@ inputs: the linter from `kattakath-ai`, the scripts from
 the first time those four scripts had ever been gated.
 
 **The rule held when the content left for good.** On 2026-09-14 the scripts moved out of Nix
-altogether, to Greasy/Sleazy Fork — and all three gates were deleted in the same commits rather
+altogether, to Greasy Fork — and all three gates were deleted in the same commits rather
 than left green over nothing. The gate went where the content went; here that destination
 enforces its own rules at upload, so the gate had no operand left to hold.
 

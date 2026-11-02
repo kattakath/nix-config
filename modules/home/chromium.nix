@@ -379,7 +379,7 @@ in
           crxPath = ./chromium-extensions/malayalam-font-setter.crx;
         })
         # Violentmonkey, the userscript manager. The fleet declares no userscripts
-        # (they are published to Greasy/Sleazy Fork and installed from there), so
+        # (they are published to Greasy Fork and installed from there), so
         # this installs the manager only. Its MV3 `userScripts` permission sits
         # behind Chrome 138+'s per-extension "Allow User Scripts" toggle, which
         # policy deliberately cannot set: flip it once in chrome://extensions.
