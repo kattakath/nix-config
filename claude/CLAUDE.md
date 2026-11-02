@@ -33,24 +33,27 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
    `sudo darwin-rebuild switch` ran fine straight from a tool call.)
 2. **Only if a mechanism genuinely forbids you**, hand it over — and then `pbcopy` it so he
    pastes rather than types. That mechanism is the `permissions.deny` list in
-   `modules/home/claude-guardrails.nix` — **several families, not one**, so re-read the file
-   rather than quoting this line from memory: force-push — **bare `--force`/`-f` ONLY;
-   `--force-with-lease` is deliberately ALLOWED and you are expected to use it**; the MCP config
-   writers (`claude mcp add`/`add-json`/`add-from-claude-desktop`, `Edit(~/.claude.json)`);
-   secret REVEAL (`secret reveal *`, `security find-*-password -w*`, and environment dumps
-   — `env`, `printenv`, `set`, `export`, `declare -x` and kin, EXACT match only, so
-   `printenv NAME` and `env FOO=1 cmd` stay allowed); decryption (`agenix
-   -d*`, `age -d*`); reads of decrypted secret paths (`/run/agenix/**`, the tunnel/MCP
-   state dirs, `~/.aws/sso/cache/**`); edits to persistence and credential config
-   (`~/Library/LaunchAgents/**`, `~/.ssh/**`, shell rc files, `~/.config/git/**` — Home
-   Manager owns them); and writing secrets to the cloud (`gcloud secrets create` /
-   `versions add`). A deny entry is mechanical; conversational
-   authorization does not lift it.
+   `modules/home/claude-guardrails.nix` — the **secret-egress** families only, so re-read the
+   file rather than quoting this line from memory: secret REVEAL (`secret reveal *`,
+   `security find-*-password -w*`, and environment dumps — `env`, `printenv`, `set`,
+   `export`, `declare -x` and kin, EXACT match only, so `printenv NAME` and `env FOO=1 cmd`
+   stay allowed); decryption (`agenix -d*`, `age -d*`); and reads of decrypted secret paths
+   (`/run/agenix/**`, the tunnel/MCP state dirs, `~/.aws/sso/cache/**`). A deny entry is
+   mechanical; conversational authorization does not lift it.
+
+   **An `ask` rule is NOT a reason to hand over** — run the command and let the permission
+   prompt reach him; he is the gate, exactly as with `sudo`. Since 2026-11-02 these families
+   ask instead of deny (same file, `permissions.ask`): force-push — **bare `--force`/`-f`
+   only; `--force-with-lease` matches no rule and is expected**; the MCP config writers
+   (`claude mcp add`/`add-json`/`add-from-claude-desktop`, `Edit(~/.claude.json)`); edits to
+   persistence and credential config (`~/Library/LaunchAgents/**`, `~/.ssh/**`, shell rc
+   files, `~/.config/git/**` — Home Manager owns them, so prefer the Nix change); and writing
+   secrets to the cloud (`gcloud secrets create` / `versions add` — prefer `secrets-push`).
 
    The `--force-with-lease` carve-out is spelled out above rather than left to the
    "re-read the file" instruction because that instruction **measurably failed**: on
    2026-09-29 two independent sessions both told Ismail force-push was denied, each
-   quoting this summary line instead of opening the `git push --force` deny block in
+   quoting this summary line instead of opening the `git push --force` block (deny then, ask since 2026-11-02) in
    `claude-guardrails.nix` (`grep -n force-with-lease` finds it — a line number here
    rotted once already), whose own comment keeps the lease form allowed as "the safe way
    to update an agent's own rebased PR branch". Both then handed him a command to paste — the exact outcome
