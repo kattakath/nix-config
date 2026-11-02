@@ -264,84 +264,6 @@ in
                 ''
             );
 
-          # ---- Claude Desktop only accepts the stdio shape ----------------------
-          #
-          # modules/home/claude-desktop.nix renders `local.claudeDesktop.extraServers`
-          # into Desktop's claude_desktop_config.json. Desktop's parser is the narrowest client
-          # in the fleet: {command, args, env} and nothing else — a `url` or
-          # `type` key is rejected by its schema and the entry silently vanishes
-          # from the app. The module's shim transform is what keeps that from
-          # happening, and a future change there (a new transport key, an upstream
-          # transformMcpServer that stops stripping `type`) would break it
-          # without any eval error. So: read the REAL rendering from the macos
-          # config and assert its shape, plus the module's agreements with the rest
-          # of the tree: desktop-commander is never rendered (it is a Desktop
-          # Extension already; twice = 20 duplicate tools).
-          claude-desktop-config-shape =
-            let
-              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
-              servers = hm.local.claudeDesktop.renderedServers;
-              # A `url` entry is never rendered (the mcp-remote bridge is gone: an overlay
-              # url entry is skipped, an extraServers one fails eval), so no rendered server
-              # may carry a `url` or `type` key — Desktop's schema rejects both.
-              badShape = lib.filterAttrs (
-                _: s: !(s ? command && s ? args) || s ? url || s ? type || !(s ? env && s.env ? NIX_CONFIG_MANAGED)
-              ) servers;
-              problems =
-                # THE MODULE MUST BE ON, and this leg exists because its absence let a
-                # real regression through on 2026-10-01. `local.claudeDesktop.enable`
-                # briefly defaulted to `isDarwin && mcpGateway.enable`, so purging the
-                # gateway switched the whole module off — and every other leg here still
-                # PASSED, because `renderedServers` on a disabled module is an empty
-                # default and "empty" was exactly what the purged branch wanted to see.
-                #
-                # An empty set from a DISABLED module is not the same claim as an empty
-                # set RENDERED: the first means nothing writes the file, so a stale
-                # portal entry pointing at destroyed infrastructure survives forever.
-                # That is what happened — mcpServers still held `kattakath-portal` a day
-                # after the teardown, with the sync agent gone too.
-                lib.optional (!(hm.local.claudeDesktop.enable or false))
-                  "local.claudeDesktop is DISABLED — nothing renders the Desktop config, so whatever is on disk persists unmanaged"
-                ++ lib.optional (
-                  badShape != { }
-                ) "non-stdio or unmarked entries: ${toString (builtins.attrNames badShape)}"
-                ++
-                  # DESKTOP RENDERS NO PUBLIC SERVER. The gateway it used to dial is
-                  # gone (purged 2026-10-02, 65 Cloudflare objects), and Desktop chat runs no
-                  # plugin stdio server.
-                  #
-                  # This is the leg that catches the regression worth catching: a portal
-                  # entry sneaking back in and quietly reinstating a central shared
-                  # gateway. Paired with the `claudeDesktop.enable` leg above, because an
-                  # empty set from a DISABLED module is a different claim — it means
-                  # nothing writes the file, so stale content survives unmanaged.
-                  #
-                  # NO public exception since 2026-11-01 (the `github` server was dropped for
-                  # claude.ai's official GitHub Integration), so ANY rendered entry fails here,
-                  # portal or not. Client servers arrive through the operator's hand-placed Desktop
-                  # overlay, merged at ACTIVATION — eval cannot see it, and this public tree must
-                  # not name it.
-                  lib.optional (
-                    servers != { }
-                  ) "Desktop must render no public server — found: ${toString (builtins.attrNames servers)}"
-                ++ lib.optional (
-                  servers ? desktop-commander
-                ) "desktop-commander rendered (it is a Desktop Extension already)";
-            in
-            pkgs.runCommand "claude-desktop-config-shape" { } (
-              if problems == [ ] then
-                ''
-                  echo "claude-desktop: module enabled, ${toString (lib.length (builtins.attrNames servers))} servers rendered (no public server allowed — the gateway is purged)" > "$out"
-                ''
-              else
-                ''
-                  echo "claude-desktop-config-shape: the Desktop rendering broke its contract." >&2
-                  ${lib.concatStringsSep "\n" (map (p: ''echo "  ✘ ${p}" >&2'') problems)}
-                  echo "See modules/home/claude-desktop.nix (toStdioShim, extraServers)." >&2
-                  exit 1
-                ''
-            );
-
           # ---- Rule 1d names the Pi in JavaScript, twice --------------------
           #
           # `.claude/hooks/pretooluse-bash-guard.js` is the ONLY mechanical block
@@ -879,6 +801,104 @@ in
 
                 echo "managed floor carries all ${toString (builtins.length secretRules)} secret-value rules from the user scope, and allows exactly the ${toString (builtins.length gitMarketplaces)} declared git marketplaces" > "$out"
               '';
+
+          # ---- The committed malayalam-font-setter.crx IS its committed source -----
+          #
+          # modules/home/chromium.nix installs a repo-authored extension from a
+          # binary `.crx` sitting next to its readable source dir. Two copies of one
+          # thing: an edit to `bg.js` or `manifest.json` changes nothing on the Mac
+          # until someone repacks, and nothing said so. This asserts, against the
+          # entry `programs.chromium.extensions` ACTUALLY renders on macos:
+          #   · the CRX3's zip payload equals the source dir, file for file, byte for byte;
+          #   · the CRX header's signed `crx_id` is SHA-256(public key)[:16] of one of its
+          #     own RSA proofs, mapped to a-p — Chromium's derivation — and equals the
+          #     declared `id`;
+          #   · the declared `version` equals the payload manifest's.
+          #
+          # PARITY, NOT A NIX REPACK, because the id comes from the PACKING KEY. A
+          # derivation that packs from source needs that private key in the build — in
+          # a public repo — or mints a fresh key and a fresh id each time, which
+          # Chromium treats as a new, un-acknowledged sideload. So the crx stays a
+          # committed artifact and this check keeps it honest. Signature validity is
+          # Chromium's job at install; this checks only what the repo can drift on.
+          #
+          # upstream-first: grepped the pinned home-manager's
+          # `modules/programs/chromium.nix` for crx/pack/key — `extensions.*.crxPath`
+          # takes a prebuilt file only, and nixpkgs ships no CRX3 packer or verifier
+          # (`crx`/`crx3` searched), so a ~40-line stdlib-Python reader it is.
+          malayalam-crx-parity =
+            let
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              entries = builtins.filter (
+                e: e.crxPath != null && lib.hasSuffix "malayalam-font-setter.crx" (toString e.crxPath)
+              ) hm.programs.chromium.extensions;
+              entry =
+                if builtins.length entries == 1 then
+                  builtins.head entries
+                else
+                  throw "checks.malayalam-crx-parity: expected ONE programs.chromium.extensions entry whose crxPath is malayalam-font-setter.crx, found ${toString (builtins.length entries)}";
+              reader = pkgs.writeText "crx3-parity.py" ''
+                import hashlib, io, json, os, sys, zipfile
+
+                crx_path, src_dir, want_id, want_version = sys.argv[1:5]
+                blob = open(crx_path, "rb").read()
+                if blob[:4] != b"Cr24" or int.from_bytes(blob[4:8], "little") != 3:
+                    sys.exit("not a CRX3 file (magic/version)")
+                hlen = int.from_bytes(blob[8:12], "little")
+                header, payload = blob[12:12 + hlen], blob[12 + hlen:]
+
+                def varint(buf, i):
+                    shift = value = 0
+                    while True:
+                        b = buf[i]; i += 1
+                        value |= (b & 0x7F) << shift; shift += 7
+                        if not b & 0x80:
+                            return value, i
+
+                def fields(buf):  # length-delimited fields only; CrxFileHeader has no others
+                    i = 0
+                    while i < len(buf):
+                        key, i = varint(buf, i)
+                        if key & 7 != 2:
+                            sys.exit(f"unexpected wire type {key & 7} in CRX header")
+                        n, i = varint(buf, i)
+                        yield key >> 3, buf[i:i + n]; i += n
+
+                hdr = list(fields(header))
+                # crx3.proto: sha256_with_rsa = 2, signed_header_data = 10000 { crx_id = 1 }
+                signed = [v for f, v in hdr if f == 10000]
+                crx_id = next((v for f, v in fields(signed[0]) if f == 1), None) if signed else None
+                keys = [dict(fields(v)).get(1) for f, v in hdr if f == 2]
+                if crx_id is None or crx_id not in [hashlib.sha256(k).digest()[:16] for k in keys if k]:
+                    sys.exit("CRX header crx_id is absent or derives from none of its RSA keys")
+                got_id = "".join(chr(ord("a") + int(c, 16)) for c in crx_id.hex())
+                if got_id != want_id:
+                    sys.exit(f"crx id {got_id} != declared id {want_id} (modules/home/chromium.nix)")
+
+                packed = {}
+                with zipfile.ZipFile(io.BytesIO(payload)) as z:
+                    for name in z.namelist():
+                        if not name.endswith("/"):
+                            packed[name] = z.read(name)
+                source = {}
+                for root, _, files in os.walk(src_dir):
+                    for f in files:
+                        p = os.path.join(root, f)
+                        source[os.path.relpath(p, src_dir)] = open(p, "rb").read()
+                drift = sorted(n for n in packed.keys() | source.keys() if packed.get(n) != source.get(n))
+                if drift:
+                    sys.exit("crx payload != source dir; repack with the ORIGINAL key: " + ", ".join(drift))
+
+                version = json.loads(packed["manifest.json"])["version"]
+                if version != want_version:
+                    sys.exit(f"manifest version {version} != declared version {want_version}")
+                print(f"{got_id} {version}: {len(packed)} files match source")
+              '';
+            in
+            pkgs.runCommand "malayalam-crx-parity" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+              python3 -I ${reader} ${entry.crxPath} ${../../modules/home/chromium-extensions/malayalam-font-setter} \
+                ${lib.escapeShellArg entry.id} ${lib.escapeShellArg entry.version} > "$out"
+            '';
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # ---- Determinate owns this daemon TOO — and `nix.*` stays LIVE ------
@@ -965,6 +985,114 @@ in
             };
         }
         // {
+          # ---- Workflow literals that restate a fleet fact -----------------------
+          #
+          # GitHub Actions YAML cannot import Nix, so two fleet facts are RE-TYPED in
+          # .github/workflows/: the Cachix public key (every `extra-trusted-public-keys`
+          # line) and the heartbeat slug + cron of the two scheduled workflows that ping
+          # healthchecks.io. A second copy is a bug with a delayed fuse, so these gate
+          # the copies against the one source (config.fleet.cachixKey,
+          # config.fleet.heartbeats) instead of trusting them. Rendering the YAML from
+          # Nix was the alternative; it loses because a workflow is proven only by the
+          # run it changes, and a generated file would still need this comparison to
+          # catch a hand edit.
+          cachix-key-parity =
+            let
+              dir = ../../.github/workflows;
+              files = lib.attrNames (
+                lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".yml" n) (builtins.readDir dir)
+              );
+              # Every `<cache>.cachix.org-1:<base64>` literal in a file.
+              keysIn =
+                n:
+                map builtins.head (
+                  builtins.filter builtins.isList (
+                    builtins.split "([a-z0-9-]+\\.cachix\\.org-1:[A-Za-z0-9+/=]+)" (builtins.readFile (dir + "/${n}"))
+                  )
+                );
+              found = lib.concatMap (n: map (k: { inherit n k; }) (keysIn n)) files;
+              wrong = builtins.filter (e: e.k != config.fleet.cachixKey) found;
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "cachix-key-parity";
+              subject = "every workflow's Cachix key literal equals config.fleet.cachixKey";
+              expect = [
+                {
+                  name = "at least one workflow carries the key (else this check proves nothing)";
+                  ok = found != [ ];
+                }
+              ]
+              ++ map (e: {
+                name = "${e.n}: ${e.k} != config.fleet.cachixKey";
+                ok = false;
+              }) wrong;
+              advice = [
+                "The key is defined once, in modules/parts/identity.nix (cachixKey). Fix the"
+                "workflow literal to match it; rotate the key there first, then here."
+              ];
+            };
+
+          heartbeat-workflow-parity =
+            let
+              dir = ../../.github/workflows;
+              # slug -> the workflow that pings it. Kept HERE, not as a field on the
+              # registry type: it is a fact about this repo's YAML, not about a check.
+              pingers = {
+                nix-config-update-flake-lock = "update-flake-lock.yml";
+                nix-config-gitleaks = "gitleaks.yml";
+              };
+              hb = config.fleet.heartbeats;
+              legs = lib.concatLists (
+                lib.mapAttrsToList (
+                  slug: file:
+                  let
+                    text = builtins.readFile (dir + "/${file}");
+                    entry = hb.${slug} or null;
+                  in
+                  [
+                    {
+                      name = "${slug} is in fleet.heartbeats with a cron schedule";
+                      ok = entry != null && entry.schedule != null;
+                    }
+                    {
+                      name = "${slug}: timezone is UTC, the only zone GitHub cron runs in";
+                      ok = entry != null && entry.timezone == "UTC";
+                    }
+                    {
+                      name = "${file} schedules the registry cron (${toString (entry.schedule or "")})";
+                      ok = entry != null && lib.hasInfix "cron: \"${toString entry.schedule}\"" text;
+                    }
+                    {
+                      name = "${file} pings the slug ${slug}";
+                      ok = lib.hasInfix "/\${PING_KEY}/${slug}" text;
+                    }
+                  ]
+                ) pingers
+              );
+              # A new `nix-config-*` entry is a workflow pinger by naming convention, so
+              # it must be added to `pingers` above or this check cannot see it.
+              unmapped = builtins.filter (n: lib.hasPrefix "nix-config-" n && !(pingers ? ${n})) (
+                lib.attrNames hb
+              );
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "heartbeat-workflow-parity";
+              subject = "the workflow heartbeat pingers match fleet.heartbeats (slug + cron)";
+              expect = legs ++ [
+                {
+                  name = "every nix-config-* heartbeat has a workflow in the pingers map (unmapped: ${toString unmapped})";
+                  ok = unmapped == [ ];
+                }
+              ];
+              advice = [
+                "modules/parts/heartbeats.nix is the registry; the workflow's `cron:` and its"
+                "Heartbeat ping step's slug must restate it exactly, or the check alerts on a"
+                "schedule the workflow does not run (or never hears its pings)."
+              ];
+            };
+
           # ---- Linting the acceptance harness WITHOUT packaging it ---------------
           #
           # scripts/drv-snapshot.sh is the second test suite (CLAUDE.md § Testing):

@@ -14,7 +14,7 @@ description: >
 
 # nixpi firmware provisioning
 
-nixpi reads two operator-planted files off the SD card's FAT `FIRMWARE` partition at
+nixpi reads three operator-planted files off the SD card's FAT `FIRMWARE` partition at
 boot (`local.firmwareProvisioning`, the in-tree
 `modules/features/firmware-secrets/` capsule),
 copying each into a root-only `/run` file before its consumer starts:
@@ -23,6 +23,18 @@ copying each into a root-only `/run` file before its consumer starts:
 |---|---|---|
 | `cloudflared-token` (`TUNNEL_TOKEN=…`) | `cloudflared-token` | `cloudflared-connector` |
 | `wpa_supplicant.conf` (`country=` + `network={}`) | `wpa_supplicant-firmware.conf` | `supplicant-wlan0` (upstream `networking.supplicant`) |
+| `heartbeat-ping-key` (the healthchecks.io project ping key, one line) — OPTIONAL | `heartbeat-ping-key` | `service-heartbeat` (`local.serviceHeartbeat`); absent ⇒ no heartbeat ⇒ the `nixpi-serving` check alerts until planted |
+
+**No tool plants the heartbeat key** — `nixpi-provision`/`nixpi-flash` have no flag for it.
+Plant it from the Keychain item `hc:healthchecks.io:ping-key` over stdin (never argv):
+
+```bash
+secret exec K=hc:healthchecks.io:ping-key -- sh -c 'printf %s "$K" > /Volumes/FIRMWARE/heartbeat-ping-key'   # mounted card
+secret exec K=hc:healthchecks.io:ping-key -- sh -c 'printf %s "$K" | ssh ismail@nixpi.kattakath.com "sudo tee /boot/firmware/heartbeat-ping-key >/dev/null && sudo systemctl restart firmware-file-heartbeat-ping-key.service"'   # live Pi
+```
+
+The copy unit (`firmware-file-heartbeat-ping-key`) runs at boot, so on a live Pi restart it
+(or reboot) — otherwise the plant looks like it failed. Full text: `docs/nixpi-sd-flashing-runbook.md` § 4b.
 
 ## Why not agenix (read this first)
 

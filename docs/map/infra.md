@@ -29,6 +29,10 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 `checks.access-service-token-duration` (in `modules/parts/terranix.nix`) fails any rendered
 Access service token that leaves its expiry to the provider.
 
+Every provider VERSION is pinned exactly in one file, `infra/provider-pins.nix`; each stack keeps
+its own `source` address (changing a source is a `tofu state replace-provider`, not a bump). Its
+header records why those are registry downloads and not nixpkgs `opentofu.withPlugins`.
+
 **Run every one of these inside `nix develop`.** Not a style preference — `CLOUDSDK_CONFIG`
 scopes `gcloud`, but it does **not** scope Terraform: the Go auth library ignores it and reads
 the well-known ADC path instead, so only the devShell's `GOOGLE_APPLICATION_CREDENTIALS`
@@ -153,8 +157,8 @@ no secrets. The attribute name is the healthchecks.io **slug**; a host pings
 cannot drift. An entry sets exactly one of `schedule` (cron) or `period` (seconds) plus a
 mandatory `grace`; the render refuses both/neither, a bad slug, or more than the free plan's 20.
 
-- **Provider:** `kristofferahl/healthchecksio` **pinned to 2.3.0** (OpenTofu registry; nixpkgs
-  does not package it). `tofu validate` was run against the real provider schema.
+- **Provider:** `kristofferahl/healthchecksio`, **pinned exactly** in `infra/provider-pins.nix`
+  (OpenTofu registry; nixpkgs does not package it). `tofu validate` was run against the real provider schema.
 - **Auth:** `HEALTHCHECKSIO_API_KEY` (the provider's own env var — not `HEALTHCHECKS_API_KEY`),
   the project's read-write **API key**, via
   `nix develop -c secret exec HEALTHCHECKSIO_API_KEY=hc:healthchecks.io:api -- nix run .#hc-checks-plan`.
@@ -166,9 +170,12 @@ mandatory `grace`; the render refuses both/neither, a bad slug, or more than the
 - **Alert channels:** empty `fleet.heartbeatChannels` (the default) means the project's email
   integration, found by a guarded data lookup that fails the plan if it is missing; set the
   option only to override with explicit UUIDs.
-- **Declared is not wired.** Only `nixpi-serving` has a pinger today; the other entries make the
-  check exist, but a never-pinged check stays `new` and **never alerts** — its alarm arms at the
-  first ping (`Check.get_status`).
+- **Every check is wired (2026-11-02).** `nixpi-serving` ← nixpi's `service-heartbeat` (runitor);
+  `nix-config-update-flake-lock` and `nix-config-gitleaks` ← each workflow's "Heartbeat ping" step,
+  on **scheduled** runs only (#1032; slug + cron parity gated by
+  `checks.<system>.heartbeat-workflow-parity`); `evidence-discover` ← the agentic-jobseek cloud
+  routine, a different repo. A FUTURE entry still needs its pinger: a never-pinged check stays
+  `new` and **never alerts** (`Check.get_status`).
 - State object `hc-checks/` in the shared encrypted bucket; the working dir is
   `$XDG_STATE_HOME/nix-config-hc-checks`.
 

@@ -242,7 +242,8 @@ in
 
   terraform.required_providers.cloudflare = {
     source = "cloudflare/cloudflare";
-    version = ">= 5.0.0";
+    # Exact, from ../provider-pins.nix — a `>= 5.0.0` floor until 2026-11-02.
+    version = "= ${(import ../provider-pins.nix).cloudflare}";
   };
 
   # ---- (a) The remotely-managed tunnel --------------------------------------
@@ -491,7 +492,7 @@ in
   # dead uplink and a dead host alike.
   #
   # SCHEMA VERIFIED AGAINST THE PROVIDER, NOT THE DOCS, and that distinction is
-  # load-bearing: this stack pins `>= 5.0.0` and the v4 docs describe an
+  # load-bearing: this stack is on provider v5 and the v4 docs describe an
   # INCOMPATIBLE shape. v4 had `email_integration` as a BLOCK SET and `filters` as a
   # BLOCK LIST; terranix renders a block as a JSON ARRAY, which is the wrong type for
   # both in v5. Confirmed identical at v5.0.0, 5.5.0, 5.8.0 and 5.26.0, so no

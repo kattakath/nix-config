@@ -11,7 +11,7 @@
 # It declares the bucket that holds every OTHER stack's state. A stack cannot
 # store its state in a bucket it is itself creating — the first `init` would need
 # the bucket to exist before the apply that creates it. So this one keeps local
-# state, in its own pinned directory, and the other four move to GCS.
+# state, in its own pinned directory, and every other stack moves to GCS.
 #
 # That is not a gap left open: this stack changes roughly never (an API, an IAM
 # binding, a bucket setting), and the per-user-state hazard that motivated a
@@ -50,7 +50,11 @@ let
   };
 in
 {
-  terraform.required_providers.google.source = "hashicorp/google";
+  # Version pinned exactly in ../provider-pins.nix (one place for every stack).
+  terraform.required_providers.google = {
+    source = "hashicorp/google";
+    version = "= ${(import ../provider-pins.nix).google}";
+  };
 
   # NO impersonation here, and that is a privilege decision rather than an
   # oversight. This stack enables APIs, manages service accounts and writes

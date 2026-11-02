@@ -60,7 +60,11 @@ let
     // lib.optionalAttrs (r ? comment) { inherit (r) comment; };
 in
 {
-  terraform.required_providers.cloudflare.source = "cloudflare/cloudflare";
+  # Version pinned exactly in ../provider-pins.nix (one place for every stack).
+  terraform.required_providers.cloudflare = {
+    source = "cloudflare/cloudflare";
+    version = "= ${(import ../provider-pins.nix).cloudflare}";
+  };
 
   provider.cloudflare = { };
 

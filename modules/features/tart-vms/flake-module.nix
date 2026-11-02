@@ -101,13 +101,9 @@
 # next change that touches those scripts for a real reason.
 
 #
-# ---- ./darwin.nix HAS NO CONSUMER TODAY, and is kept on purpose -------------
-# `local.tart.vms.<name>` (the generic guest lifecycle module) is in no host
-# composition. docs/macvm-readd-runbook.md names it as step 1 of re-adding a
-# Tart guest host, and .claude/rules/launchd-naming.md cites it as the last
-# hand-rolled launchd wrapper. It is registered below and covered by
-# `tart-vms-darwin-module`; nothing imports it, which is stated rather than
-# implied (ADR-002 §7).
+# ---- ./darwin.nix (`local.tart.vms.*`) was RETIRED 2026-11-02 ---------------
+# It was in no host composition and only kept as docs/macvm-readd-runbook.md's
+# step 1; that step now restores it from git history instead.
 #
 # UPSTREAM FIRST → ✅ `flake-parts.flakeModules.modules` exists and is already
 # adopted by modules/parts/capsules.nix → using its shape. Grepped the pinned
@@ -138,9 +134,6 @@
     # local.tart.gitlabRunner.* — declarative gitlab-runner on the same custom
     # executor and the same two-guest slot budget.
     tart-gitlab-runner = ./gitlab-runner.nix;
-    # local.tart.vms.* — the generic guest lifecycle module. No consumer today; see
-    # the ./darwin.nix note above.
-    tart-vms = ./darwin.nix;
   };
 
   perSystem =
@@ -189,7 +182,6 @@
       evalChecks = import ./checks/module-evaluations.nix {
         inherit lib tartRunner;
         pkgs = pkgsTart;
-        darwinModule = ./darwin.nix;
         githubRunnerModule = ./github-runner.nix;
         gitlabRunnerModule = ./gitlab-runner.nix;
         slotsModule = ./slots.nix;
@@ -208,7 +200,6 @@
           template = ./templates/vanilla-tahoe.pkr.hcl;
         };
 
-        tart-vms-darwin-module = evalChecks.darwin-module;
         tart-vms-runner-module = evalChecks.runner-module;
         tart-vms-gitlab-runner-module = evalChecks.gitlab-runner-module;
         tart-vms-state-dir = evalChecks.state-dir;

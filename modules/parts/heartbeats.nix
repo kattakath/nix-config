@@ -1,13 +1,18 @@
 # ---- The fleet's heartbeat (dead man's switch) REGISTRY ---------------------
 #
-# ONE place that names every check the fleet expects to hear from. Three readers,
-# none of which re-types a slug:
+# ONE place that names every check the fleet expects to hear from. Its readers:
 #
 #   infra/healthchecks/checks.nix   renders one `healthchecksio_check` per entry
 #   modules/nixos/service-heartbeat.nix   asserts, at eval time, that the slug it
 #                                         pings exists here (mkNixos threads this
 #                                         attrset in as the `heartbeats` specialArg)
-#   (later phases)                  other pingers: workflows, launchd agents
+#   checks.<system>.heartbeat-workflow-parity   asserts the two workflow pingers
+#                                         below carry the same slug + cron as here
+#
+# EVERY ENTRY IS WIRED (2026-11-02): nixpi-serving by the host's service-heartbeat;
+# the two nix-config-* checks by a ping step in their workflow (scheduled runs
+# only, #1032); evidence-discover by the agentic-jobseek cloud routine — a
+# DIFFERENT repo, so nothing here can check that pinger.
 #
 # PURE DATA, NO SECRETS. A slug names a check; it does not authorise a ping. The
 # ping KEY (the project secret in `https://hc-ping.com/<ping-key>/<slug>`) is
@@ -23,11 +28,10 @@
 # would silently mint a stray check instead of failing, and the registry would stop
 # being the source of truth.
 #
-# DECLARED ≠ WIRED. An entry here makes the check EXIST at the monitor, but its
-# clock starts at the FIRST PING: a never-pinged check stays `new` and never alerts
-# (healthchecks hc/api/models.py `Check.get_status`, read 2026-11-02). So an
-# unwired entry is a placeholder whose silence is NOT yet watched — the alarm arms
-# when its pinger lands, not when this entry does.
+# DECLARED ≠ WIRED, for any FUTURE entry. An entry here makes the check EXIST at
+# the monitor, but its clock starts at the FIRST PING: a never-pinged check stays
+# `new` and never alerts (healthchecks hc/api/models.py `Check.get_status`, read
+# 2026-11-02). So the alarm arms when the pinger lands, not when the entry does.
 #
 # Typed in its own file rather than in identity.nix: `options.fleet` is a freeform
 # submodule there, and a second declaration of the same option merges at the
@@ -120,7 +124,7 @@ in
 
   config.fleet = {
     heartbeats = {
-      # WIRED in this phase: modules/nixos/service-heartbeat.nix on nixpi.
+      # WIRED: modules/nixos/service-heartbeat.nix on nixpi (under runitor).
       #
       # period 300 = `local.serviceHeartbeat.interval` (5min). grace 900 = 3x that,
       # per the interval option's own advice: a single missed ping must not page
@@ -136,7 +140,8 @@ in
         desc = "nixpi self-test passes (Caddy answers, rootfs writable, required units active). Silence = not verified healthy.";
       };
 
-      # DECLARED, NOT YET WIRED (agentic-jobseek's evidence-discover job). Monday 14:00 UTC.
+      # WIRED in ANOTHER repo: agentic-jobseek's evidence-discover cloud routine pings
+      # it. Monday 14:00 UTC.
       # grace 1 day: a weekly job that is a few hours late is not an incident.
       evidence-discover = {
         schedule = "0 14 * * 1";
@@ -149,8 +154,9 @@ in
         desc = "Weekly career-evidence discovery run. Silence = the run did not complete.";
       };
 
-      # DECLARED, NOT YET WIRED. Cron copied from .github/workflows/update-flake-lock.yml
-      # (`23 4 * * 1`, Monday 04:23 UTC). grace 1 day because that workflow's own header
+      # WIRED: the workflow's "Heartbeat ping" step (scheduled runs only). Cron must
+      # equal .github/workflows/update-flake-lock.yml's (`23 4 * * 1`, Monday 04:23
+      # UTC) — checks.<system>.heartbeat-workflow-parity asserts it. grace 1 day because that workflow's own header
       # measured GitHub starting :00-adjacent schedules 0.5-6 h late and DROPPING one
       # outright (2026-09-21) — a tighter grace would page on GitHub's queueing.
       nix-config-update-flake-lock = {
@@ -165,8 +171,9 @@ in
         desc = "Weekly flake.lock update workflow. Silence = the schedule did not fire or the job died.";
       };
 
-      # DECLARED, NOT YET WIRED. Cron copied from .github/workflows/gitleaks.yml
-      # (`41 2 * * 0`, Sunday 02:41 UTC). Same 1-day grace and for the same reason.
+      # WIRED: the workflow's "Heartbeat ping" step (scheduled runs only). Cron must
+      # equal .github/workflows/gitleaks.yml's (`41 2 * * 0`, Sunday 02:41 UTC) —
+      # same parity check. Same 1-day grace and for the same reason.
       nix-config-gitleaks = {
         schedule = "41 2 * * 0";
         timezone = "UTC";

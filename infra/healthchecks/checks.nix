@@ -13,11 +13,11 @@
 # (modules/nixos/service-heartbeat.nix) and the slug created here are the SAME
 # attribute name — that is the whole point of the registry.
 #
-# PROVIDER: kristofferahl/healthchecksio, pinned EXACTLY (2.3.0, published
-# 2025-04-13). Served by the OpenTofu registry (registry.opentofu.org lists 2.3.0
+# PROVIDER: kristofferahl/healthchecksio, pinned EXACTLY in ../provider-pins.nix
+# (2.3.0, published 2025-04-13). Served by the OpenTofu registry (registry.opentofu.org lists 2.3.0
 # with darwin/arm64 and linux/arm64 builds); nixpkgs does not package it, so
 # `tofu init` fetches it — the same lane cloudflare/cloudflare and hashicorp/google
-# use. EXACT rather than `>=` (nixpi-tunnel.nix uses a floor) because this render
+# use. EXACT rather than `>=` because this render
 # is written against the schema read at that tag (resource_check.go: slug, timeout,
 # grace, schedule, timezone, channels, tags, desc) — a community SDKv2 plugin, so a
 # later minor is a re-read, not a free upgrade.
@@ -83,7 +83,7 @@ in
 {
   terraform.required_providers.healthchecksio = {
     source = "kristofferahl/healthchecksio";
-    version = "2.3.0";
+    version = "= ${(import ../provider-pins.nix).healthchecksio}";
   };
 
   # api_key comes from HEALTHCHECKSIO_API_KEY (see AUTH above).

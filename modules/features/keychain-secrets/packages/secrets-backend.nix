@@ -54,12 +54,13 @@
   openssl,
   set-secret,
   secret,
+  indexService,
 }:
 let
   common = ''
     security=/usr/bin/security
     account="$(/usr/bin/id -un)"
-    index_service="__set_secret_index__"
+    index_service="${indexService}"
     kc=()
     if [ -n "''${SET_SECRET_KEYCHAIN:-}" ]; then kc=("$SET_SECRET_KEYCHAIN"); fi
 

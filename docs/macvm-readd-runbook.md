@@ -9,17 +9,18 @@ the durable re-add path (it survives refactors where a `git revert` would not).
 
 | Asset | Where it lives now |
 |---|---|
-| ALL generic Tart machinery — lifecycle CLI (`tart-vm`), plug-and-play `bootstrap`, packer golden-image `bake`, `tart-guest-agent` packaging, a `local.tart.vms.<name>` darwin module | **`modules/features/tart-vms/`, in THIS repo.** It was `github:kattakath/nix-tart-vms` until ADR-002 wave 5 absorbed it as a capsule; the origin repo is archived. `local.tart.vms.*` (`modules/features/tart-vms/darwin.nix`) is the one module in the fleet with **no consumer today**, kept precisely so this runbook still has a step 1. |
+| ALL generic Tart machinery — lifecycle CLI (`tart-vm`), plug-and-play `bootstrap`, packer golden-image `bake`, `tart-guest-agent` packaging | **`modules/features/tart-vms/`, in THIS repo.** It was `github:kattakath/nix-tart-vms` until ADR-002 wave 5 absorbed it as a capsule; the origin repo is archived. |
+| The `local.tart.vms.<name>` darwin module (`modules/features/tart-vms/darwin.nix`) | **git history** — retired 2026-11-02 for having no consumer. `git log --diff-filter=D -- modules/features/tart-vms/darwin.nix` names the retiring commit; `git show <sha>^:modules/features/tart-vms/darwin.nix` restores it. |
 | A baked, operator-neutral **golden image** (`tahoe-golden`) | `~/.tart/vms/` on the macos host (imperative artifact — check `tart list` before assuming) |
 | The removed thin layer, verbatim | git history — the removal commit is `dea51c7` (#459); `git show dea51c7^:hosts/macvm.nix` etc. |
 
 ## Re-add procedure
 
-1. **Module back — no input, no lock change.** The `local.tart.vms.<name>` module is
-   already in-tree and already registered by the capsule
-   (`modules/features/tart-vms/flake-module.nix`, `capsuleModules.darwin.tart-vms`);
-   it is simply not in any composition. Add it to `mkDarwin`'s base list in
-   `modules/parts/compose.nix`, next to the two runner modules:
+1. **Module back — no input, no lock change.** Restore
+   `modules/features/tart-vms/darwin.nix` from git history (`git log --diff-filter=D -- modules/features/tart-vms/darwin.nix` names the commit, then `git show <sha>^:modules/features/tart-vms/darwin.nix` restores it),
+   register it in the capsule's `flake-module.nix` as `capsuleModules.darwin.tart-vms = ./darwin.nix;`
+   (and restore its `tart-vms-darwin-module` check from the same commit), then add it to
+   `mkDarwin`'s base list in `modules/parts/compose.nix`, next to the two runner modules:
 
    ```nix
    inherit (config.capsuleModules.darwin) tart-github-runner tart-gitlab-runner tart-vms;

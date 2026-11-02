@@ -119,13 +119,18 @@
       # the satellite had exactly this split, and the argument wiring (secret
       # needs set-secret + pb-conceal; remove-secret needs set-secret) is
       # carried over unchanged so the drv paths do not move.
-      set-secret = pkgs.callPackage ./packages/set-secret.nix { };
+      # The index item's Keychain service name, ONE binding (./index-service.nix)
+      # shared with ./module.nix, so both install byte-identical CLIs.
+      indexService = import ./index-service.nix;
+      set-secret = pkgs.callPackage ./packages/set-secret.nix { inherit indexService; };
       pb-conceal = pkgs.callPackage ./packages/pb-conceal.nix { };
-      secret = pkgs.callPackage ./packages/secret.nix { inherit set-secret pb-conceal; };
+      secret = pkgs.callPackage ./packages/secret.nix { inherit set-secret pb-conceal indexService; };
       remove-secret = pkgs.callPackage ./packages/remove-secret.nix { inherit set-secret; };
       # ADR-004 Phase 2. Config-free by design (see the package header), so the
       # module installs these exact derivations.
-      backend = pkgs.callPackage ./packages/secrets-backend.nix { inherit set-secret secret; };
+      backend = pkgs.callPackage ./packages/secrets-backend.nix {
+        inherit set-secret secret indexService;
+      };
       inherit (backend)
         secrets-status
         secrets-rehydrate
@@ -197,7 +202,7 @@
         # argument-passing shape as the two above, for the same capsule-invariant
         # reason: the leaf may not write `../tests/grammar.sh`.
         keychain-secrets-grammar-lint = import ./checks/grammar-lint.nix {
-          inherit pkgs;
+          inherit pkgs indexService;
           script = ./tests/grammar.sh;
         };
       };
