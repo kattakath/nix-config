@@ -1,8 +1,8 @@
 # ADR-003: the externalization boundary — what may leave `nix-config`, and what may never
 
-**Status:** **Decided (design). NOT implemented** — 2026-09-15. Nothing in this ADR has shipped:
-there is no `local.agentOverlay` option, no overlay directory, and no behaviour change on any
-host. It records a boundary and a rejection, so that the next time the "let a CLI install it at
+**Status:** **Decided (design), 2026-09-15. `local.agentOverlay` NOT implemented** — there is
+no such option and no overlay directory. The boundary itself has been applied piecemeal since;
+§10 records each application. It records a boundary and a rejection, so that the next time the "let a CLI install it at
 runtime" idea arrives it is answered from a decision rather than re-litigated.
 
 **Read §10 before trusting §§1-9.** ADR-002 exists

@@ -8,17 +8,13 @@
 # here (or anywhere in Nix) any more — see WHERE THE IDENTITY LIVES NOW below.
 #
 # WHY CLAUDE_CODE_USE_BEDROCK IS NOT DECLARED HERE — or anywhere in Nix.
-# (Carried over from the private [redacted] flake's `modules/claude-bedrock.nix`,
-# which this module absorbed before that flake was retired 2026-09-15; the
-# reasoning is the reason the gate below has to exist.)
 #
 #   CLAUDE_CODE_USE_BEDROCK is deliberately excluded from this module. Claude
 #   Code applies settings.json's `env` block to every session, which would
 #   shadow/override whatever the shell already exported — so declaring the
 #   flag here would make it permanently "on" (or permanently "off") regardless
 #   of shell state, defeating the point of a runtime toggle. It must survive
-#   every `nix-config#macos` reactivation without being reset (and, while the
-#   private [redacted] flake existed, its `#macos` too), which rules out
+#   every `nix-config#macos` reactivation without being reset, which rules out
 #   anything Nix-managed (activation regenerates
 #   settings.json every time). Instead it lives purely in the macOS Keychain,
 #   outside any store path, toggled with:
@@ -58,15 +54,10 @@
 # erroring out would just reproduce the outage.
 #
 # Why this lives in the PUBLIC repo: a gate shipped from a private overlay would
-# be dropped by the very activation it defends against — [redacted] was that
-# overlay until it was retired 2026-09-15, and the argument holds for any
-# successor. Same reasoning as `local.keychainSecrets` being wired here.
+# be dropped by the very activation it defends against. Same reasoning as
+# `local.keychainSecrets` being wired here.
 #
-# WHERE THE IDENTITY LIVES NOW: ~/.aws/config, owned by the `aws` CLI.
-# It is in NO repo. [redacted] used to define `local.claudeBedrock.{region,
-# profile}` and store-symlink ~/.aws/config; it was retired 2026-09-15 and
-# those options were deleted with it (nothing sets them anywhere, so the pair
-# and the settings.json writer they fed are gone — see the `config` block).
+# WHERE THE IDENTITY LIVES NOW: ~/.aws/config, owned by the `aws` CLI, in NO repo.
 # The identity is therefore RUNTIME state — exactly like the SSO tokens in
 # ~/.aws/sso/cache always were: `aws configure sso` writes the profile, the gate
 # reads it, and the shell hook exports that profile's `region`, because Claude
@@ -297,10 +288,8 @@ let
   '';
 in
 {
-  # This module declares NO options. `local.claudeBedrock.{region,profile}` was
-  # deprecated when the AWS identity became runtime-owned, and DELETED
-  # 2026-09-15 once [redacted] — the only thing that ever set them — was
-  # retired. Do not reintroduce them: a value there pins `AWS_*` into the
+  # This module declares NO options. Do not reintroduce
+  # `local.claudeBedrock.{region,profile}` (deleted 2026-09-15): a value there pins `AWS_*` into the
   # Nix floor of `settings.json` (re-asserted every activation) and overrides the runtime `~/.aws/config` in every
   # session, which is exactly the failure this module exists to prevent.
   #

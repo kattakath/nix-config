@@ -42,7 +42,7 @@ let
   # documented four-field identity, and a fifth required field there is the exact
   # breakage `publicMcpPort` caused on 2026-09-16.
   # Fleet code reads it as config.fleet.googleAccount.
-  googleAccount = "${loginName}@${domainName}";
+  googleAccount = (import ../_lib/derived-names.nix).googleAccount { inherit loginName domainName; };
 
   # Git identity. Its own binding rather than "${loginName}@${domainName}",
   # so the commit address can be GitHub's noreply (which never leaks a real

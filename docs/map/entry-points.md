@@ -298,6 +298,12 @@ Deliberately **not** warmed via `checks`: `checks` is strictly lint-only (`nix f
 `/eval`, `nix-ci.yml` all build it), and paying a Rust build on every `/eval` to save it on a
 rare fresh-machine `nix develop` is the worse trade.
 
+### `.vscode/` and `.worktreeinclude`
+
+Editor and tooling convenience only — workspace extension recommendations and tasks, and the
+list of untracked files Claude Code copies into a new worktree. Neither is read by any flake
+output.
+
 ### `scripts/drv-snapshot.sh`
 
 The ONE file under `scripts/`: ADR-002's acceptance harness ("moved code, changed no build"),
