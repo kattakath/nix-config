@@ -28,15 +28,17 @@
 # different credential from the *ping key* hosts hold: the API key manages checks,
 # the ping key can only ping them.
 #
-# ALERT CHANNELS are data (`channels`, a list of integration UUIDs), EMPTY by
-# default. Create the integration once in the healthchecks.io dashboard
-# (Integrations -> Add), copy its UUID into `fleet.heartbeatChannels`. REJECTED:
-# `data "healthchecksio_channel"` lookups by kind — they would keep the UUID out of
-# the repo, but with `name` omitted they take the FIRST channel of that kind
-# (data_source_channel.go `isTarget`), and an unmatched lookup sets an empty id with
-# no error. A pinned UUID is explicit and fails loudly (the provider validates
-# `channels` as UUIDs).
-#
+# ALERT CHANNELS: by default every check notifies the account's EMAIL integration,
+# found by a `data "healthchecksio_channel"` lookup — so no per-account UUID sits in
+# this public repo (the no-data rule). The lookup's two documented traps
+# (data_source_channel.go at v2.3.0, read 2026-11-02): with `name` omitted it takes
+# the FIRST channel of that kind, and an unmatched lookup sets an EMPTY id with no
+# error. The second is closed by the `postcondition` below, so a missing email
+# integration fails the plan loudly instead of creating checks that notify nobody.
+# The first is accepted: the project has exactly one email integration (the default
+# one healthchecks.io creates at signup). `fleet.heartbeatChannels`, when non-empty,
+# OVERRIDES the lookup with explicit UUIDs (e.g. to add ntfy/Telegram).
+
 # FREE PLAN LIMIT: 20 checks. The module refuses a registry over it at eval rather
 # than letting the 21st fail mid-apply with a partial roster.
 {
@@ -66,7 +68,9 @@ let
       inherit slug;
       inherit (hb) grace tags desc;
     }
-    // lib.optionalAttrs (channels != [ ]) { inherit channels; }
+    // {
+      channels = if channels != [ ] then channels else [ "\${data.healthchecksio_channel.email.id}" ];
+    }
     // (
       if hb.schedule != null then
         {
@@ -84,6 +88,20 @@ in
 
   # api_key comes from HEALTHCHECKSIO_API_KEY (see AUTH above).
   provider.healthchecksio = { };
+
+  # The default alert channel (see ALERT CHANNELS above). Rendered only when no
+  # explicit UUIDs override it.
+  data = lib.optionalAttrs (channels == [ ]) {
+    healthchecksio_channel.email = {
+      kind = "email";
+      lifecycle.postcondition = [
+        {
+          condition = "\${self.id != \"\"}";
+          error_message = "No email integration in the healthchecks.io project: create one (Integrations -> Email) or set fleet.heartbeatChannels.";
+        }
+      ];
+    };
+  };
 
   # The limit assert sits INSIDE the value, not above the module's attrset: a module
   # argument forced while the function is still being called to learn its shape

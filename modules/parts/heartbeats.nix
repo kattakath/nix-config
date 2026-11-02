@@ -105,12 +105,11 @@ in
           default = [ ];
           description = ''
             healthchecks.io integration (channel) UUIDs every check notifies.
-            EMPTY BY DEFAULT: the integration is created once in the dashboard
-            (Integrations -> add email/Telegram/…), which is the only place that
-            can verify the destination, and its UUID is per-account data, not
-            something this public repo should carry. With none set, checks still
-            exist and the dashboard shows them down; they just notify nobody.
-            Provider-side, `channels` is validated as a UUID list.
+            EMPTY BY DEFAULT, and empty means "the project's email integration",
+            found at plan time by a guarded `data "healthchecksio_channel"` lookup
+            (infra/healthchecks/checks.nix § ALERT CHANNELS) — so this public repo
+            carries no per-account UUID. Set it only to OVERRIDE that default (e.g.
+            to add ntfy or Telegram); the provider validates the list as UUIDs.
           '';
         };
       };
