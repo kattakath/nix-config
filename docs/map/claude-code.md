@@ -193,7 +193,22 @@ and, above it on `macos`, root-owned managed scope in
   supervisor for command-type decision hooks). It structurally CANNOT wrap `type: "prompt"`
   hooks, which is why the remaining `Write|Edit` secret-detection gate in
   `.claude/settings.json` stays unsupervised prompt-based — that one is a genuine semantic
-  judgment call, unlike the Bash gate's mostly-syntactic rules.
+  judgment call, unlike the Bash gate's mostly-syntactic rules. Since 2026-11-02 it judges
+  the CONTENT only; its old write-target rules moved to the next bullet.
+- **`pretooluse-write-target.js`** — `PreToolUse:Write|Edit`, wired directly in
+  `.claude/settings.json` (command type, so it can ASK; a prompt hook can only deny). Asks
+  before a write to an OS system path, a `../` escape from the project, or a login/credential
+  file; silent on the harness scratchpad, `gh-clones-<session>`, sibling repos and data
+  folders. Fails open. Suite: `.claude/hooks/tests/write-target.sh`.
+- **DENY vs ASK (operator decision 2026-11-02).** A gate hard-blocks only when the damage has
+  no undo or a secret value would print: Rules 1c/1d/1e/1f, terranix destroy, and the
+  secret-egress `permissions.deny` families. Every other former block ASKS — `wrangler` and
+  Rule 2 in the Bash guard (`emitAsk`), the write-target hook, the project's `rm -rf` /
+  `home-manager switch` rules and the user-scope `permissions.ask` families. Measured on
+  2.1.296 under `bypassPermissions`: neither a hook `ask` nor a `permissions.ask` match ever
+  ran silently, a subagent's ask behaved the same, an unattended (`-p`) ask became a deny
+  that Claude reads as the reason, and `additionalContext` beside an ask did NOT reach
+  Claude — so each ask reason is one line written for both readers.
 - **How the wrapping is delivered — a PLUGIN HOOK since 2026-09-30, no longer a PATH package.**
   The `superhook` plugin's own `hooks/hooks.json` declares `Stop`, `PreToolUse:Bash` and a
   `SessionStart` digest, each calling `${CLAUDE_PLUGIN_ROOT}/scripts/superhook.js` in front of

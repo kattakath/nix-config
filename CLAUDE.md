@@ -214,7 +214,8 @@ fails OPEN. Mechanism:
 [`docs/map/claude-code.md`](docs/map/claude-code.md) § `.claude/hooks/`; message decoder:
 [`docs/claude-hook-messages.md`](docs/claude-hook-messages.md).
 All of the above is **project-scoped** — it guards sessions in THIS repo only. Policy that is
-wrong in EVERY repo sits in two wider tiers: user-scope `permissions.deny` in
+wrong in EVERY repo sits in two wider tiers: user-scope `permissions.deny` (secret egress)
+and `permissions.ask` (recoverable actions, since 2026-11-02) in
 `modules/home/claude-guardrails.nix`, and above it the root-owned MANAGED file
 `modules/darwin/claude-managed-settings.nix` (`macos` only) — a managed deny cannot be
 retracted by any lower scope. Deny lists from every scope COMBINE, so that duplication is
