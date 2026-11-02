@@ -147,7 +147,7 @@ PR #558:
 **That is ONE PR, not the norm — do not read 10m27s as typical.** Measured 2026-10-01 over the
 last 37 successful `pull_request` runs of `nix-ci.yml`: **median 7.1 min**, p90 8.2, max 10.2, min
 5.2. #558's 10m27s sat at the top of that range, and its 18m56s open→merged reflects the queue
-leg that no longer exists.
+leg.
 
 *The expiry.* The queue was adopted to escape a strict up-to-date policy that the
 queue itself then disabled. With strict off, plain auto-merge has nothing to stall
@@ -204,8 +204,8 @@ The real reason is stronger: **PR CI already tests the merged result.** The chec
 logs `Merge <sha> into <base>`, so a PR is validated as merged, not as its branch. The
 queue's only marginal value is therefore the ~7-minute window in which `main` can move
 between that merge-test and the actual merge — and across the visible history, with a
-24-27% stale-base share, that window produced **zero** conflicts. The post-merge `push: main` leg still evaluates the
-merged result and surfaces a bad merge, and `required_linear_history` + squash makes the
+24-27% stale-base share, that window produced **zero** conflicts. The post-merge `push: main` leg (gone 2026-11-02, above) then evaluated the
+merged result and surfaced a bad merge, and `required_linear_history` + squash makes the
 follow-up fix a one-commit PR.
 
 **Two caveats on that safety net, measured rather than assumed.** It used to be cancelled
@@ -218,7 +218,7 @@ per-merge attribution was what the cancellation destroyed — which is why #698 
 measurability fix rather than a coverage one.
 
 **PRs stay independent.** The reasoning survives the queue's removal on different
-grounds: CI is now a single ~10 min gate per PR, so there is no reason to batch a
+grounds (one heavy run per PR, in the queue, since 2026-11-02), so there is no reason to batch a
 session's work onto one long-lived PR. The default holds — **one PR per change,
 branched off `main`** ([`.claude/rules/pr-title.md`](../.claude/rules/pr-title.md)).
 
@@ -254,7 +254,7 @@ be resolved", and it fires **instantly**, looking nothing like the (b) timeout:
 
 | | `merge_group:` missing (b) | rule the queue can't satisfy (c) |
 | --- | --- | --- |
-| Time in queue | `check_response_timeout_minutes` (60 min) | ~15 s |
+| Time in queue | `check_response_timeout_minutes` | ~15 s |
 | `gh-readonly-queue/main/...` ref | created | **never created** |
 | `merge_group` Actions runs | none — that *is* the bug | **none** |
 | Rule-suite evaluation | present | **none** |

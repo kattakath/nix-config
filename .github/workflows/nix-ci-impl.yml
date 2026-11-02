@@ -191,7 +191,7 @@ jobs:
             echo "::group::eval $a"
             # NEVER `nix eval … && echo`: POSIX exempts every non-final command
             # of an AND-OR list from errexit, so a failing eval left the loop —
-            # and this whole REQUIRED gate — green (measured: run 34006823201
+            # and `gate` — green (measured: run 34006823201
             # printed a `does not provide attribute` error and still passed).
             # Keep the eval a command of its own so `set -e` can see it fail.
             nix eval --raw "$a"

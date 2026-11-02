@@ -22,12 +22,8 @@
 #     None states the reverse. It is belt-and-braces regardless:
 #     modules/home/claude-guardrails.nix sets the identical three values at user
 #     scope, so the two agree whichever one wins.
-# NOT evidence for either, though this header cited it as such: "server-managed >
-# MDM (managed plist / HKLM) > managed-settings.json". Read in context it is the
-# managed-source composition mode ("first-wins" default vs "merge") describing how
-# managed SOURCES compose AMONG THEMSELVES, not the managed-vs-user/project/flag
-# ladder. Still worth knowing — this fleet has exactly one managed source, so
-# first-wins is a no-op here.
+# (The docs' "server-managed > MDM > managed-settings.json" order is about managed
+# sources among themselves, not this ladder; this fleet has one, so it is a no-op.)
 # Either way the floor holds in a session where ~/.claude was never materialised,
 # was hand-edited, or was started under `bypassPermissions` — which this fleet's
 # VS Code extension and its `claude` terminal profile BOTH do
@@ -84,12 +80,9 @@
 # ── WHY THERE IS NO managed-mcp.json HERE, so nobody re-adds it ────────────────
 # Deploying that file SUPPRESSES the claude.ai connectors Claude Code fetches for
 # itself, unless `allowAllClaudeAiMcps` is set alongside it — and this fleet runs
-# claude.ai connectors (Gmail, Drive, Calendar and more). The MCP source of truth
-# is NOTHING ANY MORE: `modules/shared/mcp.nix` was DELETED 2026-10-02 along with
-# the gateway and its Cloudflare portal, and `modules/shared/` itself became
-# `modules/home/` (#775). MCP servers now come from an enabled plugin's own
-# `.mcp.json`, with a PATH launcher where one needs a Keychain read. One file,
-# one owner, no MCP.
+# claude.ai connectors (Gmail, Drive, Calendar and more). MCP servers come from an
+# enabled plugin's own `.mcp.json`, with a PATH launcher where one needs a Keychain
+# read.
 #
 # ── WHY `merge` ALSO GUARDS THE FLOOR AGAINST BEING HOLLOWED OUT ─────────────
 # `managedSourcesBehavior = "merge"` below was set to stop a higher-ranked managed

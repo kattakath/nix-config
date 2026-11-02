@@ -4,7 +4,7 @@
 taken in §3. §6 records what each phase actually delivered, §8 what executing them invalidated,
 and §8a/§8b the traps each one cost.
 
-> **STACK COUNT, 2026-10-02: FIVE.** `mcp-public` was **destroyed and deleted** when the MCP
+> **STACK COUNT, 2026-10-02: FIVE** (six since #1030 added `hc-checks`, 2026-11-02 — the live count is [`map/infra.md`](map/infra.md); every count below is as of its date). `mcp-public` was **destroyed and deleted** when the MCP
 > gateway and its portal were purged — 65 Cloudflare objects across two destroy runs, 0
 > registrations (was 27), 0 portals, 0 tunnel, `https://mcp.kattakath.com/mcp` → **403**. Its
 > module, its five `mcp-public-*` apps, its `packages.mcp-worker-probe` helper, its GCS state

@@ -32,7 +32,7 @@ running the reusable **`nix-ci-impl.yml`**, the called `gitleaks` and `cclint` w
 the aggregate **`gate`** (the ONE required check), built on the shared
 [`kattakath/.github`](https://github.com/kattakath/.github) landing system. A leg *builds* `.#checks.<system>` (among them `pre-commit` = treefmt **and** a gitleaks scan of the working tree,
 `modules/parts/devshell.nix`) with plain `nix build` (enumerated from
-the flake, so a NEW check needs no workflow edit; pushed to the `kattakath` Cachix cache —
+the flake, so a NEW check needs no workflow edit; when it pushes to Cachix: `nix-ci.yml` header —
 `nix-fast-build` was dropped 2026-09-22, its own closure was half the darwin leg) and
 *evaluates* (no build) host toplevels — this workflow builds none (its own header says so).
 nixpi's toplevel is built by `warm-nixpi-cache.yml` instead (below; why:
@@ -98,7 +98,8 @@ bare-metal ephemeral runners on the **`dontsell-ai`** org
 (`local.tart.githubRunners.*` — `dontsell-vm`, plus `kattakath` declared `enable = false`), and one GitLab runner
 (`local.tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
 
-Also in `.github/workflows/`: `auto-merge.yml`, `build-devcontainer.yml`,
+Also in `.github/workflows/`: `auto-merge.yml`, `status-labels.yml` (the shared derived
+`auto-merge`/`merge-queue` labels), `build-devcontainer.yml`,
 `build-installers.yml`, `claude*.yml` (`claude-config-lint.yml` is a job `gate` needs — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, and `flakehub-publish.yml` — the last
 publishes each push to `main` as a rolling release to FlakeHub via
 `DeterminateSystems/flakehub-push`, authenticated by OIDC/`id-token: write` with **no** stored

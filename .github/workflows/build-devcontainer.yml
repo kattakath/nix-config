@@ -30,7 +30,7 @@ name: build-devcontainer
 #
 # PRs eval-only (the `gate` job's pure drvPath eval, over BOTH arches); push to main
 # builds+publishes. build-devcontainer is not a required check, so PRs stay mergeable
-# with only `gate` having run.
+# with only `publish-gate` having run.
 
 on:
   pull_request:

@@ -135,7 +135,7 @@ and ast-grep structural-lint gates). Run it before declaring any change done —
 evaluates on one system can still break the other.
 
 - Two-system coverage is mandatory for LOCAL verification: `aarch64-darwin` and `aarch64-linux`.
-- CI (`nix-ci.yml`) gates LINUX only: `gate` runs in the merge queue; darwin is ADVISORY on
+- CI (`nix-ci.yml`) gates LINUX only, in the merge queue; darwin is ADVISORY on
   PRs (runs, never gates). Details: [`docs/map/ci.md`](docs/map/ci.md).
 - **Never report a config as passing on a system only CI evaluated.** If `nix` is unavailable
   locally, validate syntax with `nix-instantiate --parse` and say the rest is CI-deferred. The
@@ -172,7 +172,7 @@ the `docs/map/` file [`docs/repo-map.md`](docs/repo-map.md) routes each path to.
 | `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |
 | `claude/` | The **global** (all-projects) agent context this repo installs on `macos` (`CLAUDE.md` + one rule — plugins cannot carry either) — not to be confused with **this** file, which is project-scoped. |
 | `.claude/` | Project agent config — see the lists below. |
-| `.github/workflows/` | `nix-ci.yml` + `nix-ci-impl.yml` (hosted legs VERIFIED against the fleet's host systems), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), `auto-merge.yml`, `build-*`, `claude*.yml`, `gitleaks.yml`, `flakehub-publish.yml`, `update-flake-lock.yml`, `arm-dependabot.yml`. |
+| `.github/workflows/` | `nix-ci.yml` + `nix-ci-impl.yml` (hosted legs VERIFIED against the fleet's host systems), `warm-nixpi-cache.yml` (**keeps the Pi from ever building** — see § Important Notes), the rest: [`docs/map/ci.md`](docs/map/ci.md). |
 | `docs/` | Runbooks + design docs — indexed at the bottom of this file. |
 
 **Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in
@@ -342,8 +342,8 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
 
 | Situation | Use |
 |---|---|
-| Explain architecture / get the big picture | `cartographer` agent (read-only, ASCII diagrams) |
-| Touching `infra/**.nix`, or **before any** `cf-tunnel-apply` / `cf-zones-apply` / `cf-access-org-apply` | `terranix-infra-reviewer` agent — reviews + plans, never applies |
+| Explain architecture / get the big picture | `cartographer` agent (`brain-signals` plugin; read-only, ASCII diagrams) |
+| Touching `infra/**.nix`, or **before any** `*-apply` | `terranix-infra-reviewer` agent — reviews + plans, never applies |
 | "Does it evaluate?" | `/eval` (stage + `nix flake check`) — no agent needed |
 | LEAN/DRY/doc-drift cleanup | `/hygiene` → skill `nix-hygiene` (audit → fix → gate) |
 | Cross-repo fleet sweep | `/fleet-doctor` (repos listed in `.claude/skills/fleet-doctor/fleet-repos.txt`) |

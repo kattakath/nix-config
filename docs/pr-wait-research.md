@@ -66,7 +66,7 @@ Builds are cheap. In 38/40 runs darwin rebuilt only checks linux also builds.
 |---|---|---|
 | 1 | **IMPLEMENTED** | [`.claude/rules/landing-changes.md`](../.claude/rules/landing-changes.md) § 1 (this repo), plus `claude/CLAUDE.md` § CI waits (every repo, because the cost comes from the harness, not the repo). `pr-title.md`'s `autoMergeRequest` race note moved there, so it has ONE home |
 | 2 | **IMPLEMENTED** | `deploySchemaSubject` feeds a context-free placeholder path. Darwin eval of the check: **13,871 → 1,827** derivations instantiated, `linux-rpi`/`raspberrypi-firmware` **5 → 0**. `deploy.nodes.nixpi` keeps the real toplevel (same `.drv`); a bad `magicRollback` type still fails the check |
-| 3 | **IMPLEMENTED** | `legs` is a parallel verifier (no `needs:` edge); the linux leg evaluates every host incl. macos (pure eval + IFD off, measured on the Mac, then green on a real linux evaluator: run 39127414938, `build (aarch64-linux)`); (darwin half SUPERSEDED 2026-11-02, lever 4) the darwin PR leg builds only its **29 of 52** darwin-only checks (after renaming the two `determinate-daemon` host contracts apart), push:main builds all |
+| 3 | **IMPLEMENTED** | `legs` is a parallel verifier (no `needs:` edge); the linux leg evaluates every host incl. macos (pure eval + IFD off, measured on the Mac, then green on a real linux evaluator: run 39127414938, `build (aarch64-linux)`); (darwin half SUPERSEDED 2026-11-02, lever 4) the darwin PR leg builds only its **29 of 52** darwin-only checks (after renaming the two `determinate-daemon` host contracts apart) |
 | 4 | **SUPERSEDED 2026-11-02** | Darwin is now advisory on EVERY PR and out of the merge queue ([`map/ci.md`](map/ci.md)). Was: darwin ADVISORY on PRs whose author id is the operator's: the required darwin job skips, an advisory twin runs the full leg, `required-checks` does not need it. `author_association == 'OWNER'` never matches (org-owned repo, operator reads `MEMBER`) |
 | 5 | **IMPLEMENTED** | `landing-changes.md` § 2: the path allowlist plus a local gate that mirrors what the required `gate` needs. **The stated risk is closed:** `checks.<sys>.pre-commit` now runs gitleaks over the tree (`modules/parts/devshell.nix`, measured RED on a planted canary token), and the gate adds `gitleaks git` over the unpushed range. It is **not** a commit hook; the devShell installs none, by design. **The adoption test above passed** (2026-10-18, warm store, eval cache OFF): `--all-systems --no-build` 6 s, `nix flake check` 9 s with 7 checks rebuilt, the range scan 3 s. That is far under the 6.78 min PR p50, though a cold store is unmeasured |
 | 6 | **IMPLEMENTED** | `pr-title.md` § One PR per change: fold N+1 into N, or branch it off N as a **DRAFT** (`auto-merge.yml` arms any non-draft PR whatever its base) |
@@ -78,14 +78,12 @@ worked. Mechanics: [`map/ci.md`](map/ci.md).
   **Diagnosis DONE (#884):** 12 of 14 are no defect; 2 (#673, #675)
   are pre-#750 instances of #683. No code change — the 6 post-#750 ready transitions all
   armed cleanly. See § Not waiting.
-- **Merge-queue history check:** none of #1–#6 re-runs the gate on a second ref, so none
-  repeats the reason in [`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md) §3.
 
 ## Rejected — and why each lost
 
 | Option | Why it lost |
 |---|---|
-| Merge queue (GitHub, Mergify, Trunk, Bors, Aviator) | Re-runs the gate on its own ref (the 2026-09-22 removal reason); one author never contends it → 0 min |
+| Merge queue (GitHub, Mergify, Trunk, Bors, Aviator) | Re-runs the gate on its own ref (the 2026-09-22 removal reason); one author never contends it → 0 min. SUPERSEDED 2026-11-02: [`auto-merge-and-merge-queue.md`](auto-merge-and-merge-queue.md) §3 |
 | Graphite stacks | Vendor effect sizes come from review-bound teams (0 approvals here); its queue doubles CI |
 | Swap to nix-quick-install-action | ~0.9 min, but CI would run upstream Nix while the fleet runs Determinate |
 | Path filtering | Only 7% of PRs are docs-only → ~0.2 min average |
@@ -108,7 +106,7 @@ worked. Mechanics: [`map/ci.md`](map/ci.md).
 event, 13 were merged directly by the arm step, and 1 was hand-merged. **2 of the 13 direct
 merges were preceded by a #683 skip**: arming FAILED on their first ready transition, both
 on 2026-09-30, before #750. Since #750, **6 of 6** ready transitions armed cleanly (below).
-Lever #1 rests on those 6 samples; #683 is still open (as of 2026-10-21), so it is **not** declared unblocked.
+Lever #1 rests on those 6 samples; #683's root cause is still unpinned, so it is **not** declared unblocked.
 
 **Why no arm event exists.** `gh pr merge --auto` does not arm a PR that is already
 mergeable. gh's `pkg/cmd/pr/merge/merge.go` sets `autoMerge` only when
@@ -190,7 +188,7 @@ query over `timelineItems` (`AUTO_MERGE_ENABLED_EVENT`, `AUTO_SQUASH_ENABLED_EVE
 `AUTO_MERGE_DISABLED_EVENT`, `CONVERT_TO_DRAFT_EVENT`, `READY_FOR_REVIEW_EVENT`,
 `MERGED_EVENT`) with `gh api graphql --paginate` (804 PRs, 267 since 09-23). Then
 `gh api --paginate …/workflows/auto-merge.yml/runs` (342 runs), per-run `/jobs`, and the
-head SHA's `required-checks` check run. A **workflow-run** conclusion of `success` does not
+head SHA's `required-checks` check run (now `gate`). A **workflow-run** conclusion of `success` does not
 mean the arm job ran: since #713 the `arm decision` job succeeds on every run. Read the
 **job** conclusion.
 
@@ -205,8 +203,8 @@ mean the arm job ran: since #713 the `arm decision` job succeeds on every run. R
 ## How to tell a lever worked
 
 - **#2/#3:** PR nix-ci p50 baseline **6.78 min** (p90 7.93). Spread ≈1 min → SE(median) ≈0.23
-  min at n=30 PRs (~3 days), so a 1-min drop is ~4 SE. Revert if a darwin-only failure ever
-  reaches `main`.
+  min at n=30 PRs (~3 days), so a 1-min drop is ~4 SE. A darwin-only failure reaching `main` is now
+  an accepted risk ([`map/ci.md`](map/ci.md) § Residual risk).
 - **#1:** re-count in-turn wait gaps in the session transcripts weekly; target < 1 min/day.
 - **#5:** time one local `nix flake check --all-systems --no-build` + `nix flake check`; adopt
   only if it beats the PR p50.

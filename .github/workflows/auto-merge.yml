@@ -114,9 +114,8 @@ jobs:
     # never reaches the App-token step, which needs a secret a fork cannot read.
     # The author is matched by immutable numeric id (8927166 = ismailkattakath),
     # never by login: a login can be renamed and re-registered by someone else,
-    # which would hand them this App token. This is the operator predicate that
-    # nix-ci.yml keeps in sync (see its THE OPERATOR PREDICATE comment); the
-    # `explain` job above mirrors it.
+    # which would hand them this App token. claude.yml carries the same predicate;
+    # change both together. The `explain` job above mirrors it.
     if: >-
       github.event.pull_request.draft == false &&
       github.event.pull_request.user.id == 8927166
