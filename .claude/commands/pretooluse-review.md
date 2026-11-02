@@ -5,9 +5,11 @@ allowed-tools: Read, Edit, Bash(cat:*), Bash(node:*), Bash(jq:*)
 
 # pretooluse-review
 
-Claude Code's `PreToolUse` gate for `Write|Edit` in this repo is a `type: "prompt"` hook —
-evaluated internally by the harness, invisible to any sibling hook (all hooks under a matcher
-run in parallel). The `Bash` gate is a command hook (`.claude/hooks/pretooluse-bash-guard.js`,
+Claude Code's `PreToolUse` gate for `Write|Edit` in this repo is two hooks: a `type: "prompt"`
+secret-content judge — evaluated internally by the harness, invisible to any sibling hook (all
+hooks under a matcher run in parallel) — and the command hook
+`.claude/hooks/pretooluse-write-target.js`, which ASKS on system paths, `../` escapes and login
+files (not superhook-wrapped, so its reasons are NOT in `superhook.log`). The `Bash` gate is a command hook (`.claude/hooks/pretooluse-bash-guard.js`,
 wrapped by the `superhook` plugin), whose reasons also land in `superhook.log`. This command runs the "fix the hook" loop over their **actual
 verdicts**.
 
@@ -62,11 +64,13 @@ Any pattern with **count >= 2** is worth fixing. Unlike the retired heuristic, `
 `hook_name` name the responsible layer outright:
 
 - `source: hook` + a `hook_name` → that hook decided. For a `command`-type hook the full reason
-  text is in `.claude/hooks/superhook.log` (see `/superhook-review`). For a `prompt`-type hook
+  text is in `.claude/hooks/superhook.log` (see `/superhook-review`) — except
+  `pretooluse-write-target.js`, which superhook does not wrap. For a `prompt`-type hook
   the reason is not persisted anywhere — cross-reference the live prompt text in
   `.claude/settings.json`'s `PreToolUse` block and propose a wording fix.
-- `source: config` → a `permissions.deny` rule matched; the fix is in `settings.json`'s
-  `permissions`, not in a hook.
+- `source: config` → a `permissions.deny` or `permissions.ask` rule matched (project scope, or
+  user scope from `modules/home/claude-guardrails.nix`); the fix is in that `permissions`
+  block, not in a hook.
 - `source: user_*` → no deterministic rule exists yet. That is `/routing-review`'s backlog,
   which reads the same stream from the other end.
 

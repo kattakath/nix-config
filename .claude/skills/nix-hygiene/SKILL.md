@@ -40,9 +40,10 @@ under the 40k context-lint limit). The **full** fleet map lives in
 [`docs/secrets-and-keychain.md`](../../../docs/secrets-and-keychain.md) for the secrets surface.
 ([`docs/mcp-gateway.md`](../../../docs/mcp-gateway.md) used to be the third — it is **history**
 since 2026-10-02: the MCP gateway, `modules/shared/mcp.nix` and the Cloudflare portal are all
-deleted. MCP now lives entirely in plugin `.mcp.json` files outside this repo, so the only MCP
-surface here to audit is the launcher packages (`local.pluginMcp`,
-`packages/*-mcp.nix`) and `checks.*.mcp-launcher-parity`.)
+deleted. MCP now lives entirely in plugin `.mcp.json` files outside this repo, so the MCP
+surfaces here to audit are the launcher packages (`local.pluginMcp`,
+`packages/*-mcp.nix`), `checks.*.mcp-launcher-parity`, and `deniedMcpServers` in
+`modules/home/default.nix` (plugin twins of claude.ai connectors; fleet-doctor § E4 guards it).)
 Do not restate the fleet map here; open those when unsure — and when repo shape changes, fix
 **both** the CLAUDE.md one-liner and the `docs/map/` section the index routes it to.
 

@@ -135,7 +135,7 @@ let
     # an overlay can never take back a `permissions.deny`. Like the live file,
     # a key DELETED from the overlay is not removed here; set it to `false`
     # instead. The cost of `*` replacing arrays: an overlay cannot ADD to an
-    # array Nix owns (hooks, permissions) — extra hooks belong in a plugin's
+    # array Nix owns (permissions) — hooks belong in a plugin's
     # hooks.json instead.
     merged=$(printf '%s' "$base" | ${pkgs.jq}/bin/jq -s --slurpfile ov "$ov" --slurpfile nix ${nixSettings} '.[0] * $ov[0] * $nix[0]')
     # THE ONE LINE TWO CONCURRENT ACTIVATIONS CAN COLLIDE ON, and the error it
@@ -177,12 +177,10 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     lib.hm.dag.entryBetween [ "claudeCodePlugins" ] [ "linkGeneration" ]
       mergeScript;
 
-  # AND AGAIN AFTER claudeCodePlugins, because that step's CLI calls write this
-  # file too. `claude plugin marketplace remove` + `add` (the re-registration a
-  # marketplace SOURCE change triggers) rewrites extraKnownMarketplaces.<name>
-  # without the Nix-declared `autoUpdate`. Measured 2026-09-23: the first switch
-  # after moving `kattakath` from a store path to git left autoUpdate absent
-  # until a second switch. The first merge still has to run BEFORE the plugins
+  # AND AGAIN AFTER claudeCodePlugins, because its `claude plugin marketplace add`
+  # may rewrite extraKnownMarketplaces.<name> without the Nix-declared keys. Measured
+  # 2026-09-23 against the since-deleted remove + add teardown (it dropped `autoUpdate`
+  # until a second switch); UNMEASURED for `add` alone. The first merge still has to run BEFORE the plugins
   # step, so the CLI starts from a file that already carries the floor.
   home.activation.claudeCodeSettingsReassert = lib.hm.dag.entryAfter [
     "claudeCodePlugins"

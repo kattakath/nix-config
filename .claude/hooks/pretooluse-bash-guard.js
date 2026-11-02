@@ -35,8 +35,8 @@
  * api.cloudflare.com), Rule 1c (printing a secret VALUE), Rule 1d (building ON
  * nixpi), Rule 1e (dumping the environment, which holds the ambient Keychain
  * secrets), Rule 1f (a decrypted-secret PATH in any command's words), Rule 2
- * (Cloudflare docs fetches) and Rule 4 (default approve + the
- * approved-CLI allowlist). Rule 3 was REMOVED 2026-10-07 (see below); its number
+ * (Cloudflare docs fetches) and Rule 4 (default approve, plus any
+ * accumulated nudges). Rule 3 was REMOVED 2026-10-07 (see below); its number
  * is left unused so the removal stays legible. Rule 1b was added after
  * the port and retired 2026-09-15 (see below). Numbers and letters are frozen
  * once assigned — a retired one is never reused — so every rule keeps the name
@@ -93,7 +93,8 @@
  * (TERRANIX_MUTATING_APP) and the bare `wrangler` check stayed gated — those
  * mutate broader fleet infra (the nixpi tunnel) sight-unseen, a materially
  * bigger blast radius than one ad-hoc scoped API call. Flip
- * RULE1_API_HOST_BLOCKING to `true` to restore the hard block.
+ * RULE1_API_HOST_BLOCKING to `true` to make it ASK again (an ask, not a block,
+ * per the DENY vs ASK note above: a raw API call is recoverable).
  *
  * POLICY CHANGE (2026-09-22, publish-all-MCP-servers task): the terranix family
  * SPLITS. `-destroy` stays hard-blocked unconditionally; `-apply` downgrades to a
@@ -115,7 +116,14 @@
  * remote ingress — the tunnel, its ingress rules and the Access app in front of
  * sshd. That app vanished once on its own (2026-08-20) and took `ssh` plus both
  * deploy legs with it, leaving the LAN path as the sole way back in. Flip
- * RULE1_TERRANIX_APPLY_BLOCKING to `true` to restore the old undivided block.
+ * RULE1_TERRANIX_APPLY_BLOCKING to `true` to make apply ASK (never block: an
+ * apply prints its plan first, so it is the recoverable half).
+ *
+ * BOTH terranix halves match PER-SEGMENT, on a segment whose command is `nix run`
+ * (after unwrap() peels wrappers and a `secret exec … --` prefix), plus the bodies
+ * of `$(…)`/backticks. Until 2026-11-02 they were tested against the WHOLE command
+ * string, so an `echo`, a `grep` or a `git commit -m` that merely NAMED the destroy
+ * app was hard-blocked — the substring trap Rule 1d's comment records.
  *
  * RULE 1b IS RETIRED (2026-09-15). It hard-blocked the two live-fleet activations
  * this repo could launch — `deploy` and `darwin-rebuild switch --flake .#macos` —
@@ -146,9 +154,14 @@
  * does not throw. Add a case there with every rule change.
  *
  * Contract (superhook.js, NOT the raw Claude Code hook protocol, since this
- * always runs wrapped): always exit 0; stdout is
- * `{"decision":"approve"}` or `{"decision":"block","reason":"...","systemMessage":"..."}`.
- * superhook.js re-emits (or loop-breaks) that for the harness.
+ * always runs wrapped): always exit 0; stdout is ONE of three shapes:
+ *   `{"decision":"approve"}` (optionally with a `systemMessage` nudge),
+ *   `{"decision":"block","reason":"...","systemMessage":"..."}`, or
+ *   `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask",
+ *     "permissionDecisionReason":"..."}}` (emitAsk below).
+ * superhook.js re-emits approve/block (or loop-breaks a repeated block) for the
+ * harness, and passes the ask shape through unchanged — its loop breaker counts
+ * only blocks, so an ask never trips it.
  *
  * Input: hook JSON on stdin — tool_input.command.
  */
@@ -157,60 +170,9 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const RULE1_API_HOST_BLOCKING = false; // see 2026-08-19 POLICY CHANGE above; true = restore hard block
-const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE above; true = restore hard block
+const RULE1_API_HOST_BLOCKING = false; // see 2026-08-19 POLICY CHANGE above; true = ASK
+const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE above; true = ASK
 // NOTE: `-destroy` is NOT covered by that flag and stays hard-blocked unconditionally.
-
-// Rule 4's allowlist. It used to double as Rule 3's exemption set; that rule is
-// gone, so this is now only the list whose presence makes a command "a known CLI
-// invocation" for the default-approve path.
-const APPROVED_CLIS = new Set([
-  "git",
-  "nix",
-  "nix-instantiate",
-  "nix-build",
-  "nix-store",
-  "darwin-rebuild",
-  "nixos-rebuild",
-  "nixos-install",
-  "nixos-enter",
-  "home-manager",
-  "cloudflared",
-  "ssh",
-  "scp",
-  "sshpass",
-  "ssh-keygen",
-  "ssh-keyscan",
-  "rsync",
-  "curl",
-  "dig",
-  "host",
-  "nc",
-  "ping",
-  "arp",
-  "brew",
-  "open",
-  "osascript",
-  "plutil",
-  "qemu-img",
-  "parted",
-  "mkfs.fat",
-  "mkfs.ext4",
-  "lsblk",
-  "blkid",
-  "wipefs",
-  "udevadm",
-  "sudo",
-  "statix",
-  "deadnix",
-  "utmctl",
-  "gh",
-  "jq",
-  "node",
-  "python3",
-  "bash",
-  "zsh",
-]);
 
 // Rule 1: terranix apply/destroy apps that mutate Cloudflare infra via the API.
 //
@@ -250,16 +212,18 @@ const APPROVED_CLIS = new Set([
 // prefix on a rule that catches `gcp-budget-apply` is the same misdescription
 // this header warns about one paragraph up.
 //
-// Shape copied from PUBLIC_MACOS_APP below rather than reinvented — it already
-// handles the two evasions a bare `\.#` misses: a quoted flake ref, and the
-// `github:kattakath/nix-config#…` form that runs the same app without a checkout.
+// The shape handles the two evasions a bare `\.#` misses: a quoted flake ref, and
+// the `github:kattakath/nix-config#…` form that runs the same app without a
+// checkout. Anchored at `^`: main() tests it against each UNWRAPPED segment
+// (terranixRun), so only a segment that RUNS `nix run` can match — a mention
+// inside an echo, a grep pattern or a commit message cannot.
 const TERRANIX_MUTATING_APP =
-  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel-(?:apply|destroy)|cf-zones-apply|cf-access-org-apply|gcp-(?:foundation|budget)-apply)\b/;
+  /^(?:\S*\/)?nix\s+run\s+(?:-\S+\s+)*["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel-(?:apply|destroy)|cf-zones-apply|cf-access-org-apply|gcp-(?:foundation|budget)-apply)\b/;
 
 // The DESTROY half of that family, split out 2026-09-22 so `apply` can relax
 // while teardown stays hard-blocked. See the POLICY CHANGE note in the header.
 const CF_TERRANIX_DESTROY =
-  /\bnix\s+run\s+["']?(?:\.|github:kattakath\/nix-config)#cf-tunnel-destroy\b/;
+  /^(?:\S*\/)?nix\s+run\s+(?:-\S+\s+)*["']?(?:\.|github:kattakath\/nix-config)#cf-tunnel-destroy\b/;
 
 // Rule 1c — the two ways a secret VALUE reaches stdout, and therefore this
 // session's transcript.
@@ -894,8 +858,9 @@ const WRAPPER_NUMERIC_ARG = /^\d+(?:\.\d+)?[smhd]?$/;
 // `nix … develop … -c|--command <payload>` runs the payload, so the payload is
 // argv0's real answer. Scoped to `develop` ON PURPOSE: `nix run`, `nix build`
 // and bare `nix` are commands several rules reason about by name (Rule 1d's
-// `case "nix"`, APPROVED_CLIS), and putting `nix` in the set above would hide
+// `case "nix"`, Rule 1's terranix match), and putting `nix` in the set above would hide
 // all of them.
+const SECRET_EXEC_PREFIX = /^(?:\S*\/)?secret\s+exec\s+(?:\S+\s+)*?--\s+/;
 const NIX_DEVELOP_COMMAND =
   /^(?:\S*\/)?nix\s+(?:\S+\s+)*?develop\b(?:\s+\S+)*?\s+(?:-c|--command)\s+/i;
 
@@ -928,6 +893,15 @@ function unwrap(segment) {
     const nd = s.match(NIX_DEVELOP_COMMAND);
     if (nd) {
       s = s.slice(nd[0].length).trim();
+      sawWrapper = true;
+      continue;
+    }
+    // `secret exec K=V … -- CMD` execs CMD with secrets in its env — the
+    // sanctioned way to run every terranix app (docs/map/infra.md), so it is a
+    // transparent wrapper too. Peeled only when the `--` is there.
+    const se = s.match(SECRET_EXEC_PREFIX);
+    if (se) {
+      s = s.slice(se[0].length).trim();
       sawWrapper = true;
       continue;
     }
@@ -1008,21 +982,25 @@ function main() {
   const nudges = [];
 
   // ---- Rule 1: Cloudflare API calls (terranix apply/destroy, wrangler, api.cloudflare.com) ----
-  if (CF_TERRANIX_DESTROY.test(cmd)) {
+  // Per-segment (see TERRANIX_MUTATING_APP): every segment's unwrapped tail, plus
+  // the segments of each `$(…)`/backtick body, so `x=$(nix run .#…)` still counts.
+  // A leading `(`/`{` is a subshell or group, not a command: stripped before the peel.
+  const runViews = [...rawSegs, ...substitutionBodies(cmd).flatMap((b) => segments(b))].map(
+    (seg) => unwrap(seg.replace(/^[({\s]+/, "")).tail,
+  );
+  const terranixRun = (re) => runViews.find((t) => re.test(t));
+  if (terranixRun(CF_TERRANIX_DESTROY)) {
     emit(
       "block",
       "Runs a terranix Cloudflare DESTROY app, which tears down live infra via the API.",
       "This DESTROYS Cloudflare infra and tofu has no rollback. Re-run it manually if that is genuinely the intent.",
     );
   }
-  if (TERRANIX_MUTATING_APP.test(cmd)) {
+  const applyRun = terranixRun(TERRANIX_MUTATING_APP);
+  if (applyRun) {
     // apply-only by here: the destroy branch above already returned.
     if (RULE1_TERRANIX_APPLY_BLOCKING) {
-      emit(
-        "block",
-        "Runs a terranix apply app, which mutates live infra via the API.",
-        "This applies live infra. Run the stack's *-plan first, or confirm this is intentional and re-run manually.",
-      );
+      emitAsk("Runs a terranix apply app, which mutates live infra via the API. Ran the stack's *-plan first? Allow anyway?");
     }
     const worstCase = {
       "cf-tunnel": "a site-free render blanks nixpi's ingress",
@@ -1031,7 +1009,7 @@ function main() {
       "gcp-foundation": "a render declaring NO state bucket",
       "gcp-budget": "DELETES the spend alarm, leaving billing unwatched",
     };
-    const stack = Object.keys(worstCase).find((k) => cmd.includes(`#${k}-`));
+    const stack = Object.keys(worstCase).find((k) => applyRun.includes(`#${k}-`));
     nudges.push(
       `Applies live infra via terranix${stack ? ` (${stack})` : ""}. Run its *-plan first: ` +
         "`tofu apply` has NO rollback. The wrapper's own REFUSING guard runs before tofu, " +
@@ -1161,7 +1139,7 @@ function main() {
 
   if (segs.includes("wrangler")) {
     emitAsk(
-      "Direct `wrangler` call — a Cloudflare API change (Workers/Pages/D1/KV/R2/Queues); the Cloudflare MCP server's API tools are the usual route. Allow anyway?",
+      "Direct `wrangler` call — a Cloudflare API change (Workers/Pages/D1/KV/R2/Queues); the claude.ai Cloudflare connector (mcp__claude_ai_cloudflare__*) is the usual route. Allow anyway?",
     );
   }
   {
@@ -1173,14 +1151,14 @@ function main() {
       if (host.toLowerCase() === "api.cloudflare.com") {
         const reason = `Direct HTTP request to ${host} — a Cloudflare API endpoint.`;
         if (RULE1_API_HOST_BLOCKING) {
-          emit("block", reason, "Use the Cloudflare MCP server's API tools instead of a raw request to api.cloudflare.com (read the live tool name from the session).");
+          emitAsk(`${reason} The claude.ai Cloudflare connector (mcp__claude_ai_cloudflare__*) is the usual route. Allow anyway?`);
         }
         // Non-blocking by default (see 2026-08-19 POLICY CHANGE in file header).
-        nudges.push(`${reason} (the Cloudflare MCP server lacks Rulesets/Page-Rules write scope — raw call allowed.)`);
+        nudges.push(`${reason} (the claude.ai Cloudflare connector (mcp__claude_ai_cloudflare__*) lacks Rulesets/Page-Rules write scope — raw call allowed.)`);
       }
       // ---- Rule 2: Cloudflare docs lookups ----
       if (isCloudflareDocsHost(host)) {
-        emitAsk(`Direct fetch of ${host} — the Cloudflare MCP server's docs tool is the usual route. Allow anyway?`);
+        emitAsk(`Direct fetch of ${host} — the claude.ai Cloudflare connector's docs tool (mcp__claude_ai_cloudflare__docs) is the usual route. Allow anyway?`);
       }
     }
   }

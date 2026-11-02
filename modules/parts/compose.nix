@@ -159,16 +159,6 @@ let
           # input ever existed): the AWS CLI + `~/.aws/config.example` capsule,
           # modules/features/cloud-cli/. RAW seam for the home.packages reason.
           cloudCliModule = cloud-cli;
-          # A SOURCE PATH, not a module and not a derivation — modules/home/default.nix
-          # `callPackage`s it with the HOST's pkgs so the gitlab-tart slot
-          # shims are built against `nixpkgs.config.allowUnfree` from
-          # modules/darwin/core.nix, exactly as they were when this came from the
-          # nix-tart-vms input. It was the `nix-tart-vms` flake input until
-          # ADR-002 wave 5; keeping it in extraSpecialArgs rather than per-call
-          # is the two-composition-call-sites lesson, unchanged. Why a capsule
-          # publishes a path at all: modules/parts/capsules.nix § The SOURCE
-          # seam.
-          gitlabTartSource = config.capsuleSources.tart-vms.gitlab-tart;
         };
         users.${idArgs.loginName} = {
           # `../home` is a DIRECTORY literal — Nix resolves it to
