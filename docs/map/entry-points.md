@@ -304,6 +304,13 @@ Editor and tooling convenience only — workspace extension recommendations and 
 list of untracked files Claude Code copies into a new worktree. Neither is read by any flake
 output.
 
+### `.devcontainer/devcontainer.json`
+
+Points VS Code / Codespaces at the prebuilt devcontainer IMAGE — it builds nothing itself. The
+image is `modules/parts/devcontainer.nix` (`withSystem "x86_64-linux"`, see
+[engine.md](engine.md)) and `packages/devcontainer-image.nix`, published by
+`.github/workflows/build-devcontainer*.yml`.
+
 ### `scripts/drv-snapshot.sh`
 
 The ONE file under `scripts/`: ADR-002's acceptance harness ("moved code, changed no build"),

@@ -27,14 +27,18 @@
 # into the work account everywhere (read in the loader's export loop, 2026-10-26) — the
 # opposite of this wrapper.
 { writeShellApplication }:
+let
+  # The login-Keychain item this tool reads — spelled once.
+  keychainItem = "claude:work:oauth";
+in
 writeShellApplication {
   name = "claude-work";
   text = ''
-    token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s claude:work:oauth -w 2>/dev/null || true)"
+    token="$(/usr/bin/security find-generic-password -a "$(id -un)" -s ${keychainItem} -w 2>/dev/null || true)"
     if [ -z "$token" ]; then
-      echo "claude-work: no login-Keychain secret for service claude:work:oauth." >&2
+      echo "claude-work: no login-Keychain secret for service ${keychainItem}." >&2
       echo "  1. run: claude setup-token  (approve in the browser as the WORK account)" >&2
-      printf "%s\n" "  2. copy the token, then: pbpaste | tr -d '\\r\\n' | secret set --no-export claude:work:oauth" >&2
+      printf "%s\n" "  2. copy the token, then: pbpaste | tr -d '\\r\\n' | secret set --no-export ${keychainItem}" >&2
       exit 1
     fi
     # A wrong value only surfaces as a 401 mid-session, and `claude auth status`
@@ -43,7 +47,7 @@ writeShellApplication {
       sk-ant-oat01-*) ;;
       *)
         echo "claude-work: the stored value is not a setup-token token (no sk-ant-oat01- prefix)." >&2
-        printf "%s\n" "  Re-mint it and re-store; if it wrapped when copied: pbpaste | tr -d '\\r\\n' | secret set --no-export claude:work:oauth" >&2
+        printf "%s\n" "  Re-mint it and re-store; if it wrapped when copied: pbpaste | tr -d '\\r\\n' | secret set --no-export ${keychainItem}" >&2
         exit 1
         ;;
     esac
