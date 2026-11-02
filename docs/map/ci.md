@@ -124,6 +124,12 @@ Three more, each self-documenting in its header:
 - `update-flake-lock.yml` — the scheduled counterpart to `/update-input`: a weekly
   `nix flake update` PR, opened with a GitHub App token so `nix-ci` actually runs on it, and
   self-arming for auto-merge.
+- **Heartbeats** — `update-flake-lock.yml` and `gitleaks.yml` end with a `Heartbeat ping` step
+  (healthchecks.io dead man's switch; slugs `nix-config-update-flake-lock` / `nix-config-gitleaks`,
+  registry `fleet.heartbeats`). It fires on the `schedule` event only (a manual run would mask a
+  dead cron), pings `/fail` on failure, pings nothing when cancelled, and skips with a notice when
+  the `HC_PING_KEY` repo secret is unset (forks). The key sits in the URL, so the step builds it
+  from `env` and never echoes it.
 - `arm-dependabot.yml` — a scheduled job that arms auto-merge on open `dependabot[bot]` PRs,
   which had no unattended landing path. Scheduled rather than event-driven because a
   Dependabot-triggered run gets no Actions secrets, so it cannot mint the App token; its header
