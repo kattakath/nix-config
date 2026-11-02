@@ -177,8 +177,8 @@ and, above it on `macos`, root-owned managed scope in
   `modules/_lib/secret-read-paths.nix`, never copied). Rule 1b — which
   blocked `deploy` and public-`#macos` activation while a private layer existed — was
   RETIRED 2026-09-15 with that layer.
-- **`.claude/hooks/tests/*.sh`** — the case suites for BOTH hooks: one per guard rule
-  (`rule1*.sh`, `rule2*.sh`) plus `stop-gate-fail-closed.sh`, **gated by
+- **`.claude/hooks/tests/*.sh`** — the case suites for both gates and the SessionStart
+  digests (the directory is the list), **gated by
   `claude-config-lint.yml`** as the REQUIRED `Lint .claude config` status check — it BLOCKS a
   merge, it does not merely run. Each asserts BOTH
   halves — the shapes that must block and the shapes that must stay approved — and that the

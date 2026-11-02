@@ -80,12 +80,6 @@ let
       type = lib.types.listOf lib.types.anything;
       default = [ ];
     };
-    # mkRenamedOptionModule records its deprecation notice here — the
-    # stub must declare it for the alias to eval.
-    options.warnings = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-    };
     options.system.primaryUser = lib.mkOption {
       type = lib.types.str;
       default = "tester";
@@ -184,9 +178,7 @@ in
           darwinStubs
           {
             _module.args.pkgs = pkgs;
-            # Deliberately the OLD name — this check also proves the
-            # local.tart.runners → local.tart.githubRunners rename alias fires.
-            local.tart.runners.smoke = {
+            local.tart.githubRunners.smoke = {
               scope = {
                 type = "org";
                 value = "example-org";

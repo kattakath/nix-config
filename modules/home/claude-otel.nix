@@ -79,6 +79,13 @@ in
       };
     in
     {
+      # packages/claude-otel-doctor.nix is a generic flake package and reads these first;
+      # its own defaults are only fallbacks, so a changed option reaches it here.
+      home.sessionVariables = {
+        CLAUDE_OTEL_OTLP_HOST_PORT = grpcHostPort;
+        CLAUDE_OTEL_EVENTS_FILE = cfg.eventsFile;
+      };
+
       # The file exporter does not create its parent directory — ensure it
       # exists before the collector's first write attempt.
       # upstream-first: grepped home-manager/modules/files.nix — `home.file`
