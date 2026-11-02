@@ -267,7 +267,7 @@
     # grok on PATH + Node; grok must be authenticated. That PATH entry is the
     # STORE one from hosts/macos.nix's environment.systemPackages, NOT
     # `~/.grok/bin` — home.sessionPath dropped that on purpose 2026-09-15 so a
-    # stale self-updated copy cannot shadow the pinned binary (packages/grok.nix).
+    # stale self-updated copy cannot shadow the store binary (nixpkgs' grok-build).
     grok-build-plugin-cc = {
       url = "github:xai-org/grok-build-plugin-cc";
       flake = false;
