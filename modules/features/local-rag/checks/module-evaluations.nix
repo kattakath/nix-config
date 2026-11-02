@@ -68,7 +68,7 @@ in
   #   * `local.rag.pgvector.databaseUri` is pinned as a LITERAL, and so is the
   #     `RAGDB_URI` session variable the module exports from it. That option is
   #     the seam modules/home/plugin-mcp.nix hands to the `postgres` MCP launcher
-  #     as `DATABASE_URI`, i.e. the career RAG (`career_docs` in `ragdb`) reaches
+  #     as `DATABASE_URI`, i.e. the local RAG store (`ragdb`) reaches
   #     Claude Code's tool layer through this one string, while RAGDB_URI is the
   #     same string for a plain `psql` consumer that cannot read a Nix option.
   #     Reading either option back to build the expected value would make the

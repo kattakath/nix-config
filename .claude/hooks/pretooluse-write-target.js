@@ -12,7 +12,7 @@
  * hook keeps the one judgement that needs a model: a secret VALUE in the content.
  *
  * Silent (no decision) on the paths agents are told to use: the harness session
- * scratchpad, the gh-clones-<session> directory, sibling repos, user data folders.
+ * scratchpad, sibling repos, user data folders.
  * FAIL OPEN: a malformed payload prints nothing and exits 0, so the normal
  * permission flow runs. This is an ask gate, not a boundary.
  */
@@ -28,7 +28,6 @@ const LOGIN_DIRS = ["Library/LaunchAgents", ".ssh", ".config/git"].map((d) => pa
 
 // Harness-provisioned working space, under a system root but meant for agents.
 const SCRATCHPAD = /^\/(private\/)?tmp\/claude-\d+\/[^/]+\/[^/]+\/scratchpad(\/|$)/;
-const GH_CLONES = /^\/(private\/)?(var\/folders\/[^/]+\/[^/]+\/t|tmp)\/gh-clones-[^/]+(\/|$)/i;
 
 // APFS is case-insensitive and paths can be symlinks, so `~/.ZSHRC` or a link into
 // /etc would slip past a plain string compare. Each rule is checked against the
@@ -73,7 +72,7 @@ function verdict(filePath, projectDir) {
   // the allowlist regexes accept, so the spelled path is never needed for silence.)
   const real = realish(abs);
   const rc = fold(real);
-  if (SCRATCHPAD.test(rc) || GH_CLONES.test(rc)) return null;
+  if (SCRATCHPAD.test(rc)) return null;
   for (const candidate of new Set([real, abs])) {
     const reason = verdictFor(candidate, abs);
     if (reason) return reason;

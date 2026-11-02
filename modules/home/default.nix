@@ -33,13 +33,6 @@
   # The fleet's DNS zone (identityArgs in modules/parts/identity.nix). Used to build nixpi's
   # tunnelled SSH hostname below, so the domain is never re-typed.
   domainName,
-  # SOURCE PATH of the tart-vms capsule's packages/gitlab-tart.nix — the
-  # gitlab-tart slot shims below. A path, not a derivation, deliberately: they
-  # are `callPackage`d with THIS host's pkgs (modules/darwin/core.nix's
-  # `nixpkgs.config.allowUnfree = true`), not with the flake's perSystem pkgs.
-  # Was the `nix-tart-vms` flake input until ADR-002 wave 5 absorbed it into
-  # modules/features/tart-vms/; threaded in by modules/parts/compose.nix.
-  gitlabTartSource,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-vercel,
@@ -142,23 +135,8 @@ let
   # kernel-enforced `deny` list for the paths that actually matter. Retire this patch once xAI
   # resolves symlinked runtime-socket deny paths instead of refusing to start.
   #
-  # NAME DISAMBIGUATION (2026-10-07). This is a GROK sandbox profile — grok's own config
-  # concept, a `[profiles.<name>]` table in ~/.grok/sandbox.toml with bases like
-  # `read-only`/`strict`/`workspace`/`devbox`. It is NOT a macOS Seatbelt profile (this repo
-  # generated one for desktop-commander until 2026-11-01); the two are configured in
-  # completely different languages.
-  #
-  # Worth a comment rather than a rename, for two reasons. First, "sandbox profile" is
-  # grok's OWN vocabulary, so renaming away from it would diverge from the thing being
-  # configured. Second, the confusion is SUBSTANTIVE and not merely lexical: both are agent
-  # sandboxes, and both deny by path — the paragraphs above describe grok's as
-  # kernel-enforced too. A /hygiene audit on 2026-10-07 read this binding as a second
-  # Seatbelt generator and had to check the source to find out otherwise.
-  #
-  # That near-miss is also what produced the real fix: the two now share ONE credential-path
-  # inventory (modules/_lib/secret-read-paths.nix), because the audit found this profile
-  # denying ~/.ssh while the newer Seatbelt fence left the operator's agenix identity
-  # readable. Two sandboxes, two languages, one list of paths that matter.
+  # NAME: a GROK sandbox profile (`[profiles.<name>]` in ~/.grok/sandbox.toml), not a macOS
+  # Seatbelt profile. Its deny list renders from modules/_lib/secret-read-paths.nix.
   grokSandboxProfile = "nix-agent-workspace";
 
   # The sandbox profile's CONTENT, as a store file. It is copied to
@@ -171,13 +149,7 @@ let
     extends = "workspace"
     deny = [
     ${
-      # RENDERED from modules/_lib/secret-read-paths.nix, not hand-listed, since
-      # 2026-10-07. It was a third independent copy of "paths an agent must not
-      # read" — and a /hygiene audit found it was the STRICTEST of the three while
-      # the newest (desktop-commander's Seatbelt fence, since retired) left ~/.ssh readable.
-      # Sharing the inventory is what makes that divergence visible; grok still
-      # gets the WIDE list because its sandbox has no file-level granularity, and
-      # that asymmetry is priced in that file's table.
+      # Whole dirs: grok's sandbox has no file-level granularity (secret-read-paths.nix).
       lib.concatMapStringsSep "\n" (
         d: "      \"${config.home.homeDirectory}/${d}\","
       ) secretReadPaths.agentCredentialDirs
@@ -313,94 +285,8 @@ let
     dontCheckRuntimeDeps = true;
   });
 
-  # `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
-  # provisioning on first run. If the SDK packages or the AVD are missing it
-  # installs them via the Homebrew `sdkmanager`/`avdmanager` (the
-  # android-commandlinetools cask + ANDROID_HOME set below), then launches.
-  # Uses a native arm64 system image (fast on Apple Silicon). macOS-only.
-  #
-  # The AVD name selects the system image: a name containing "play" — the DEFAULT
-  # `pixel_play`, launched by a bare `android-emu` — gets the Google Play image (has
-  # the Play Store, not rootable); any other name (e.g. `android-emu pixel`) gets
-  # Google APIs (no Play Store, dev-friendly). Each AVD is created with a 64G data
-  # partition (the `pixel` device default of 6G fills up fast).
-  #
-  # Launch defaults that make the emulator actually usable on Apple Silicon:
-  #   -gpu swiftshader_indirect  software rendering; host-GPU emulation renders a
-  #                              gray screen here, so we force software.
-  #   -no-snapshot               always cold boot; a corrupt saved snapshot is
-  #                              what makes the *second* launch hang on gray.
-  # Both are also baked into each AVD's config.ini (alongside hw.keyboard=yes so
-  # the Mac keyboard types into Android). Extra args after the name override the
-  # emulator flags, so `android-emu pixel -gpu host` still works.
-  androidEmu = pkgs.writeShellApplication {
-    name = "android-emu";
-    runtimeInputs = [
-      pkgs.coreutils
-      pkgs.gnugrep
-      pkgs.gnused
-    ];
-    text = ''
-      ANDROID_HOME="''${ANDROID_HOME:-${androidSdkRoot}}"
-      export ANDROID_HOME
-      avd="''${1:-pixel_play}"
-      sdkmanager="/opt/homebrew/bin/sdkmanager"
-      avdmanager="/opt/homebrew/bin/avdmanager"
-      emulator="$ANDROID_HOME/emulator/emulator"
-
-      # Google Play image for *play* AVDs, Google APIs otherwise.
-      case "$avd" in
-        *play*) image="system-images;android-35;google_apis_playstore;arm64-v8a" ;;
-        *)      image="system-images;android-35;google_apis;arm64-v8a" ;;
-      esac
-
-      if [ ! -x "$sdkmanager" ]; then
-        echo "android-emu: sdkmanager not found — run 'activate' to install the android-commandlinetools cask" >&2
-        exit 1
-      fi
-
-      # First run: accept licenses + install the emulator and platform-tools.
-      if [ ! -x "$emulator" ]; then
-        echo "android-emu: installing SDK packages (first run, a few GB)…" >&2
-        yes | "$sdkmanager" --licenses >/dev/null || true
-        "$sdkmanager" "platform-tools" "emulator"
-      fi
-
-      # Ensure the chosen system image is present (~1.5 GB per image).
-      if [ ! -d "$ANDROID_HOME/''${image//;//}" ]; then
-        echo "android-emu: downloading system image ($image)…" >&2
-        yes | "$sdkmanager" --licenses >/dev/null || true
-        "$sdkmanager" "$image"
-      fi
-
-      # Create the AVD on first use (decline the custom-hardware prompt), then
-      # persist the settings that make it work: software GPU + hardware keyboard,
-      # and PlayStore.enabled for play images.
-      if ! "$avdmanager" list avd -c | grep -qx "$avd"; then
-        echo "android-emu: creating AVD '$avd'…" >&2
-        echo "no" | "$avdmanager" create avd -n "$avd" -k "$image" -d pixel
-
-        cfg="$HOME/.android/avd/$avd.avd/config.ini"
-        set_key() {
-          if grep -q "^$1=" "$cfg"; then
-            sed -i "s|^$1=.*|$1=$2|" "$cfg"
-          else
-            echo "$1=$2" >> "$cfg"
-          fi
-        }
-        set_key hw.gpu.enabled yes
-        set_key hw.gpu.mode swiftshader_indirect
-        set_key hw.keyboard yes
-        # Serious internal-storage bump: the `pixel` device profile defaults to a
-        # cramped 6G data partition (fills up fast once the Play Store + a few apps
-        # land). 64G is sparse (qcow2), so it costs real disk only as it fills.
-        set_key disk.dataPartition.size 64G
-        case "$avd" in *play*) set_key PlayStore.enabled yes ;; esac
-      fi
-
-      exec "$emulator" -avd "$avd" -no-snapshot -gpu swiftshader_indirect "''${@:2}"
-    '';
-  };
+  # `android-emu` — the Android emulator launcher (packages/android-emu.nix).
+  androidEmu = pkgs.callPackage ../../packages/android-emu.nix { inherit androidSdkRoot; };
 
   # "Focus-or-launch" Spotlight .app bundle for the Android emulator
   # (macos host only, below) — see packages/spotlight-launchers.nix.
@@ -574,13 +460,7 @@ in
   services.ollama = lib.mkIf isMacosHost { inherit (osConfig.local.ollamaDaemon) host port; };
   local.mediaCli.ollamaHost = lib.mkIf isMacosHost "${osConfig.local.ollamaDaemon.host}:${toString osConfig.local.ollamaDaemon.port}";
 
-  # The server-side tuning that used to live here (OLLAMA_NUM_PARALLEL,
-  # MAX_LOADED_MODELS, KEEP_ALIVE) moved to `local.ollamaDaemon.environmentVariables`
-  # in modules/darwin/ollama-daemon.nix, along with the reasoning for each value.
-  # It HAD to move: `services.ollama.environmentVariables` only ever reaches
-  # home-manager's own agent, so once the server became a system daemon this
-  # block evaluated fine and configured nothing — the 35W power budget was
-  # silently unenforced. Do not re-add it here.
+  # Server tuning lives in `local.ollamaDaemon.environmentVariables`; `services.ollama`'s would reach no server.
 
   local.rag.pgvector.enable = isMacosHost;
 
@@ -677,6 +557,9 @@ in
     # spare the first session after a bump — a directory-source plugin loads
     # LIVE from the marketplace dir (measured 2026-09-30), so the patch reaches
     # Claude Code with no cache copy to go stale.
+    # Runtime: the `grok` binary (packages/grok.nix, shared via environment.systemPackages)
+    # + Node — the bridge shells out to `grok models`. Remove that package only together
+    # with this plugin and its flake input.
     xai-grok-build = {
       source = lib.mkDefault "${grokBuildPluginPatched}";
       plugins = [ "grok-build" ];
@@ -693,8 +576,8 @@ in
         # in-repo to the marketplace (source "./plugins/security-guidance"), so it is
         # fully pinned.
         "security-guidance"
-        # Neon DB: neon-postgres skill + Neon MCP server (from claude-plugins-official →
-        # neondatabase/agent-skills plugins/neon-postgres). Needs neonctl on PATH (macos brew).
+        # Neon DB: skills only; server denied in favour of the claude.ai connector
+        # (deniedMcpServers). Needs neonctl on PATH (macos brew).
         "neon"
         # Stripe OFFICIAL plugin (git-subdir of stripe/ai providers/claude/plugin, pinned by
         # the marketplace sha): the full Stripe agent kit in one unit — its skills, the company-researcher agent,
@@ -734,8 +617,8 @@ in
         "aws-core"
         "aws-serverless"
         "databases-on-aws"
-        # The ONE Slack plugin since 2026-11-01 (hosted mcp.slack.com, one sign-in; the
-        # workspace is switched by re-login, never named here).
+        # Slack: skills only; server denied in favour of the claude.ai connector
+        # (deniedMcpServers).
         "slack"
         "swift-lsp"
         "desktop-commander"
@@ -1000,10 +883,9 @@ in
         # your own address, publish a calling card, read the peer roster, judge whether
         # to act on another session's message (kattakath/skills#26).
         "session-relay"
-        # ---- MERGED IN skills, NEVER DELIVERED, until the `declared` block below ----
+        # ---- Merged in kattakath/skills; resolvable here so `declared` can enable them ----
         # Each was merged into kattakath/skills and absent from this list, so no id
-        # existed to enable. A peer session went to load `prior-art-recon` for a
-        # research task this morning and could not.
+        # existed to enable.
         #
         # Listing them here is what makes the ids RESOLVABLE: `local.claudePlugins
         # .declared` asserts every key against this catalogue, so these entries and
@@ -1056,30 +938,17 @@ in
     # skill set, and the release discipline, and this repo stops cherry-picking
     # subdirectories out of a tarball.
     #
-    # DELIBERATELY `plugins = [ ]` on every one of these whose plugin is not yet in
-    # `local.claudePlugins.declared` (step 2 below) — that is the whole point of #650
-    # rather than an oversight. Registering a marketplace INSTALLS NOTHING — it
-    # only makes `<plugin>@<marketplace>` resolvable. The plugins must be enabled
-    # before any of their skills appears, so removing an input in the
-    # same change would open a real capability gap between the two events, and even
-    # a plugin whose skill directory looks identical (anthropic-agent-skills'
-    # `document-skills` bundles pdf/docx/pptx/xlsx as one unit) has to be enabled
-    # and SEEN in a session before the `skills` entry can go. The sequence is:
-    #   1. declare the marketplaces;
-    #   2. operator enables the plugins he wants — `local.claudePlugins.declared`
-    #      (ADR-008's lane, added 2026-10-02) or /plugin. NOT by adding a name to a
-    #      `plugins` list: that is a catalogue and enables nothing, which is exactly
-    #      what #751 got wrong and #754 reverted;
-    #   3. verify the skills actually appear in a session;
-    #   4. a FOLLOW-UP PR removes the matching inputs + `skills` entries.
-    # Nothing below removes an input or a skill entry; do not fold step 4 in here.
+    # Registering a marketplace INSTALLS NOTHING — it only makes `<plugin>@<marketplace>`
+    # resolvable. Enabling is `local.claudePlugins.declared` (ADR-008), never a name in a
+    # `plugins` list (that is a catalogue — #751 got it wrong, #754 reverted). Remove a
+    # skills-only input only after its plugin is enabled AND seen in a session.
     #
     # `autoUpdate` is left at its `false` default on every entry here, matching every other
     # third-party marketplace in this attrset (`claude-plugins-official`,
     # `context7-marketplace`) — only `kattakath` (the operator's own repo) is `true`.
     # These are other people's repos, and autoUpdate means whatever lands on their
     # `main` reaches this Mac on a background refresh with no review. Revisit it
-    # per-marketplace in step 2.
+    # per-marketplace when enabling one.
     #
     # LICENCE, and why marketplace-not-vendor is the RIGHT shape here:
     # `trailofbits/skills` is CC-BY-SA-4.0 — a share-alike licence. Consuming it as
@@ -1087,8 +956,7 @@ in
     # attribution intact; republishing those skills into `kattakath/skills` (the
     # alternative, since that is where this fleet's own plugins live) would put
     # CC-BY-SA content into a repo that is not CC-BY-SA, plus 44 forked copies to
-    # keep in step with upstream. `anthropics/skills` has NO LICENSE file at all
-    # (source-available), which is the same argument even harder.
+    # keep in step with upstream.
     #
     # Every KEY below is the `name` field of that repo's own
     # .claude-plugin/marketplace.json, fetched and read 2026-09-30 — NOT the repo or
@@ -1096,14 +964,11 @@ in
     # "<plugin>@<key>", so a guessed key silently resolves nothing.
     #   cloudflare/skills     -> "cloudflare"                 (1 plugin)
     #   trailofbits/skills    -> "trailofbits"                (44 plugins)
-    #   obra/superpowers      -> "superpowers-dev"            (1 plugin)  <- NOT "superpowers"
-    #   anthropics/skills     -> "anthropic-agent-skills"     (5 plugins) <- NOT "anthropic" / "-official"
     #   apify/apify-claude-code-plugin -> "apify"            (1 plugin, 2026-10-26)
 
     # OFFICIAL Cloudflare (Apache-2.0). One plugin, `cloudflare`, carrying the whole product
-    # reference (incl. `cloudflare`, `cloudflare-one`). All four plan steps DONE 2026-11-01:
-    # catalogued here, declared in `local.claudePlugins.declared`, seen in a fresh session, and
-    # the former skills-only flake input removed. It was live before as `cloudflare@synced`
+    # reference (incl. `cloudflare`, `cloudflare-one`). Catalogued, declared, seen in a
+    # session, and its former skills-only flake input removed (2026-11-01). It was live before as `cloudflare@synced`
     # (claude.ai account sync); a same-named plugin from a declared marketplace SHADOWS the
     # synced copy rather than doubling it (`claude plugin list`).
     cloudflare = {
@@ -1119,28 +984,6 @@ in
         "gh-cli"
         "supply-chain-risk-auditor"
       ];
-    };
-
-    # obra/superpowers (MIT), input `agent-skills-superpowers`. The marketplace
-    # publishes as `superpowers-dev`; its single `superpowers` plugin is the whole
-    # skills library, of which this repo currently pins TWO skills
-    # (`systematic-debugging`, `verification-before-completion`) by subpath. Steps 2–4
-    # not taken; its input and `skills` entries stay until they are.
-    superpowers-dev = {
-      source = lib.mkDefault "https://github.com/obra/superpowers.git";
-      plugins = [ ];
-    };
-
-    # anthropics/skills (no LICENSE file — source-available), a marketplace only —
-    # there is no flake input for it. Its `document-skills` plugin bundles the four
-    # document skills (pdf/docx/pptx/xlsx) as ONE unit, and `example-skills`
-    # carries mcp-builder + webapp-testing. DISTINCT from
-    # `claude-plugins-official` above (anthropics/claude-plugins-official) — two
-    # different Anthropic repos, two different marketplaces. Steps 2–3 not
-    # taken; there is no input or `skills` entry to remove.
-    anthropic-agent-skills = {
-      source = lib.mkDefault "https://github.com/anthropics/skills.git";
-      plugins = [ ];
     };
 
     # Apify's OFFICIAL plugin (Apache-2.0), github:apify/apify-claude-code-plugin —
@@ -1199,14 +1042,7 @@ in
     # shadow note, measured 2026-11-01).
     "cloudflare@cloudflare" = true;
 
-    # ---- The same failure, four more times ---------------------------------
-    # Measured on the live ~/.claude/settings.json, 2026-10-02, before this block:
-    #   prior-art-recon   ABSENT from enabledPlugins — the one a peer could not load
-    #   empire            ABSENT
-    #   foundation-audit  present, but ONLY because the operator clicked it
-    #   mac-app-send      present, same
-    # So two were unusable and two were working-but-unreproducible: a fresh machine
-    # restored neither. That is the whole case for this lane in four lines.
+    # Clicked toggles do not survive a fresh Mac; these four were absent or click-only (2026-10-02).
     "prior-art-recon@kattakath" = true;
     "foundation-audit@kattakath" = true;
     "mac-app-send@kattakath" = true;
@@ -1287,6 +1123,15 @@ in
     # `declared` is a DEFAULT rather than a lock, so a session can still turn it on
     # by hand until the next `activate`.
     "empire@kattakath" = false;
+
+    # Live-off by the operator's toggle; declared `false` (the `empire` reason above) so a
+    # fresh Mac reproduces the same state instead of leaving them unset.
+    "resend@claude-plugins-official" = false;
+    "claude-security@claude-plugins-official" = false;
+    "mcp-server-dev@claude-plugins-official" = false;
+    "llmstxt@kattakath" = false;
+    "jsonresume-tailor@kattakath" = false;
+    "logo-construction-geometry@kattakath" = false;
 
     # DELIBERATELY ABSENT: `brag-dossier`. It is merged in skills, but the brag
     # subsystem was removed from this repo on 2026-09-12 at the operator's request.
@@ -1391,11 +1236,7 @@ in
       theme-sh
       # Postgres lives in the local-rag capsule, NOT here. See pgvector-local.nix's
       # `pgPkg` — it is what puts a pgvector-capable postgresql_16 in this profile.
-      # (A second `hiPrio (postgresql_16.withPackages [ pgvector ])` used to sit here
-      # and was wrong twice over: its comment called it the superset when the capsule's
-      # is — the capsule adds pgsql-http too — so `hiPrio` made the SUBSET win, and a
-      # profile `initdb` got no `http.control`. And because this list is SHARED, it put
-      # 408 MiB of postgres into nixpi's SD-card closure for a Mac-only CI reason.)
+      # No second `hiPrio` postgres here: it made the capsule's superset lose and bloated nixpi.
     ]
     # claude-code: on darwin it is installed by the programs.claude-code module
     # below (which also owns the plugin/marketplace state and the global
@@ -1421,18 +1262,8 @@ in
     ++ lib.optional isMacosHost androidEmu
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       # awscli2 is NOT here: the cloud-cli capsule's programs.awscli owns it (local.cloudCli.aws).
-      # buku — the bookmark manager of record (SQLite + CLI), chosen over rolling anything
-      # custom: `buku --ai` reads Chrome/Brave/Chromium/Firefox profiles DIRECTLY off disk
-      # (it does NOT need the browser installed), collapses duplicates on URL, and maps each
-      # browser folder to a tag. It then exports Netscape HTML, which is exactly what
-      # Chromium's importer eats — so it round-trips a cleanup without a single line of glue.
-      # Measured 2026-08-31 merging the dead Chrome + Brave profiles: 1372 raw → 765 unique.
-      # GOTCHA: `buku -i <file>.json` does NOT understand Chrome's own `Bookmarks` JSON (it
-      # wants buku/Firefox JSON) and silently imports 0 records — always use `--ai`.
-      # DB location is pinned by $BUKU_DEFAULT_DBDIR (home.sessionVariables below).
-      buku
       codecov-cli # Codecov CLI (`codecovcli`) — upload coverage reports / local upload from CI; reads the CODECOV_TOKEN env var (a Keychain secret, never in this repo)
-      fnm # Fast Node Manager — per-project Node version switching honoring .nvmrc/.node-version; the `fnm env --use-on-cd` shell hook is wired into zsh/bash below. No `programs.fnm` HM module in this pinned home-manager, so it's a bare package + hand-wired init.
+      fnm # Fast Node Manager — no `programs.fnm` HM module in this pinned home-manager; hook: interactiveShellInit
     ]
     # OPERATOR-ONLY: the three gist-fed tools (jsonResumeUrl / logoUrl / tokensUrl)
     # are installed only on the macos host, never on a template consumer's Mac.
@@ -1442,7 +1273,6 @@ in
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
     ]
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
-      jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
       # PREREQUISITE for the MCP ownership split (#657): the `nixos` server moves
       # out of the gateway into the nix-flake-kit plugin, and a plugin's
       # `.mcp.json` can only name a bare command on PATH — it cannot carry a
@@ -1464,7 +1294,6 @@ in
       gitTidy # `git-tidy` — switch to the default branch, fast-forward, delete branches whose GitHub PR merged (gh-poi, so squash merges count) (packages/git-tidy.nix)
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
-      resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
       wp-cli # WordPress CLI (`wp`) — manage WordPress installs/plugins/themes/db from the shell; nixpkgs-native (bundles its own PHP), so no Homebrew `wp-cli` formula or `curl … wp-cli.phar` install (single source per the reuse/declarative convention)
       pandoc # Universal doc converter — nixpkgs-native on aarch64-darwin (no Homebrew needed); backs the docx/pptx/xlsx skills' `pandoc` dependency (see programs.claude-code.skills NOTE below)
       poppler-utils # pdftoppm/pdftotext/pdfimages CLI — NOT `poppler` (that's the glib-bindings library, no binaries); moved here from the macos Homebrew `poppler` formula (nixpkgs is the single source per modules/darwin/homebrew.nix's dedup comment); backs the pdf/docx/pptx skills
@@ -1474,25 +1303,20 @@ in
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
       nixosVm # `nixos-vm <verb>` (verbs: the case in packages/nixos-vm.nix) — the long-lived nixos UTM guest (packages/nixos-vm.nix); on PATH so the "NixOS VM" Spotlight launcher can run `nixos-vm start`
       pkgs.scrcpy # mirror/control a PHYSICAL Android phone. Was the `scrcpy` BREW until 2026-09-29 (hosts/macos.nix records the move). Its nixpkgs wrapper prepends its OWN android-tools adb to PATH for its own process only — so it drives adb 37.0.0 while mobile-mcp/android-phone use the cask's 37.0.1. Harmless: both speak protocol 1.0.41, so they share one adb server instead of killing each other's. `adb` itself stays on the cask
+      # Operator-personal: his bookmark DB, his job search, his Resend Keychain key.
+      # buku — the bookmark manager of record (SQLite + CLI), chosen over rolling anything
+      # custom: `buku --ai` reads Chrome/Brave/Chromium/Firefox profiles DIRECTLY off disk
+      # (it does NOT need the browser installed), collapses duplicates on URL, and maps each
+      # browser folder to a tag. It then exports Netscape HTML, which is exactly what
+      # Chromium's importer eats — so it round-trips a cleanup without a single line of glue.
+      # Measured 2026-08-31 merging the dead Chrome + Brave profiles: 1372 raw → 765 unique.
+      # GOTCHA: `buku -i <file>.json` does NOT understand Chrome's own `Bookmarks` JSON (it
+      # wants buku/Firefox JSON) and silently imports 0 records — always use `--ai`.
+      # DB location is pinned by $BUKU_DEFAULT_DBDIR (home.sessionVariables below).
+      buku
+      jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
+      resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
     ]
-    # GitLab-CI slot shims (the tart-vms capsule's gitlab-tart): on PATH so the
-    # runner's config.toml can reference the STABLE
-    # /etc/profiles/per-user/<user>/bin/nix-gitlab-tart-* paths — GC-rooted
-    # by the profile and upgraded in place, unlike bare /nix/store paths from
-    # `nix run` output (which garbage-collect out from under the runner).
-    # The executor VMs share the local.tart.githubRunners two-guest slot budget; the
-    # config.toml itself is rendered at agent start (tart-vms/gitlab-runner.nix).
-    ++ lib.optionals isMacosHost (
-      builtins.attrValues {
-        inherit (pkgs.callPackage gitlabTartSource { })
-          prepare
-          run
-          cleanup
-          configShim
-          printConfig
-          ;
-      }
-    )
   # The media stack itself is NOT listed here any more — `local.mediaCli`
   # above installs it, along with exiftool/auge/rclipCli via that module's
   # extraSearchPackages seam.
@@ -1524,12 +1348,6 @@ in
       # set, indexing and search both work.
       RCLIP_USE_ONNX_ON_MACOS = "1";
 
-      # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
-      # platform-guessed data dir, and this DB is the single surviving copy of the merged
-      # Chrome+Brave bookmark set — it must live somewhere backed up and obvious, next to
-      # the other $HOME/Developer/local data dirs. $HOME-relative so it is
-      # username-portable; never a literal /Users/<name>.
-      BUKU_DEFAULT_DBDIR = "$HOME/Developer/local/bookmarks";
       # BASH_ENV (the secret loader) + the loader file itself are now set by
       # local.keychainSecrets (the keychain-secrets capsule's HM module).
 
@@ -1554,27 +1372,26 @@ in
       # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
       PUPPETEER_SKIP_DOWNLOAD = "true";
     }
-    # Both point into casks only hosts/macos.nix installs (ungoogled-chromium,
-    # android-commandlinetools), so a template consumer's Mac must not get them.
+    # macos-only: two point into casks only hosts/macos.nix installs (ungoogled-chromium,
+    # android-commandlinetools), and buku's DB is the operator's own data.
     // lib.optionalAttrs isMacosHost {
       PUPPETEER_EXECUTABLE_PATH = "/Applications/Chromium.app/Contents/MacOS/Chromium";
       ANDROID_HOME = androidSdkRoot;
+
+      # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
+      # platform-guessed data dir, and this DB is the single surviving copy of the merged
+      # Chrome+Brave bookmark set — it must live somewhere backed up and obvious, next to
+      # the other $HOME/Developer/local data dirs. $HOME-relative so it is
+      # username-portable; never a literal /Users/<name>.
+      BUKU_DEFAULT_DBDIR = "$HOME/Developer/local/bookmarks";
     }
   );
 
   home.sessionPath = lib.optionals isMacosHost [
     "${androidSdkRoot}/emulator"
     "${androidSdkRoot}/platform-tools"
-    # `$HOME/.grok/bin` is GONE on purpose (2026-09-15). grok is now a pinned
-    # package (packages/grok.nix) shared through environment.systemPackages, so
-    # this entry would only let a stale, self-updated per-user copy shadow the
-    # reviewed one. Per-user grok STATE still lives in ~/.grok — just not the
-    # binary. Do not re-add it.
+    # No `$HOME/.grok/bin`: a self-updated per-user grok must not shadow packages/grok.nix.
   ];
-
-  # The day-to-day command is `activate` (packages/activate.nix, `darwinActivate`
-  # in home.packages above). An OLDER `activate` that reconciled this repo against
-  # a separate private composition flake was retired with that flake 2026-09-15.
 
   # ---- Git identity include files -----------------------------------------------
   # Every per-namespace identity (work, client, persona) and allowed_signers left
@@ -1584,15 +1401,6 @@ in
   # `local.inc` (programs.git.includes below), which holds the operator's own
   # includeIf blocks. A missing include file is a silent git no-op — so after a
   # fresh bootstrap, write it before authoring (docs/new-mac-runbook.md).
-  # `adoptGitIdentityFiles` below keeps the EXISTING copies across the activation
-  # that stops managing them.
-
-  # ---- Claude Desktop: extra servers ------------------------------------------
-  # Desktop CHAT runs no plugin stdio server (./claude-desktop.nix says why that is its only
-  # lane). Nothing public is rendered there since 2026-11-01: the local `github` server was
-  # dropped for claude.ai's official GitHub Integration (operator). Client servers come only
-  # from the operator's hand-placed Desktop overlay, so this public file names none, and
-  # `claude-desktop-config-shape` requires the public rendering to stay EMPTY.
 
   # ---- Home Manager program modules --------------------------------------------
   programs = {
@@ -1639,51 +1447,15 @@ in
       # collision risk.
       context = ../../claude/CLAUDE.md;
 
-      # An EXPLICIT empty array (the reason is in the note below): the Slack draft-redirect
-      # hook that lived here was RETIRED 2026-11-01 by the operator, who chose direct posts
-      # with the hosted server's footer. There are no client folder ROUTING hooks any more
-      # (the private plugins that carried them were deleted 2026-11-01).
-      # ./claude-code-settings.nix merges arrays WHOLESALE (jq `*`): a PreToolUse hook
-      # added by hand to ~/.claude/settings.json is replaced at the next rebuild —
-      # declare it here, or in a plugin's hooks.json, instead.
-      settings.hooks.PreToolUse = lib.mkIf isMacosHost [ ];
-
-      # An EXPLICIT empty array, not an absent key: the wholesale merge keeps whatever
-      # the live file holds for a key Nix does not name, so dropping the key would leave
-      # a retired hook pointing at a stale store path. A client folder's context is a
-      # hand-placed `CLAUDE.md` at its root, which Claude Code loads natively.
-      settings.hooks.SessionStart = lib.mkIf isMacosHost [ ];
-
       # Marketplaces and `settings.enabledPlugins` are NOT declared here — the
       # marketplace set is DATA (`local.claudePlugins.marketplaces` above) and its
       # registration + install mechanism lives in ./claude-plugins.nix, which also
       # records why upstream's `marketplaces.*` option cannot be used.
-      # Runtime for grok-build: grok on PATH + Node; `grok models` must work.
-      #
-      # The `grok` BINARY stays (packages/grok.nix) even though grok is no longer
-      # an MCP client. Removed 2026-09-22: its `~/.grok/config.toml` MCP wiring,
-      # so claude-code and claude-desktop are the only MCP clients this flake
-      # configures. The binary is kept for exactly one reason — the grok-build
-      # bridge shells out to `grok models`, so deleting the package would break a
-      # Claude Code plugin rather than tidy anything. Remove the package only
-      # together with the grok-build plugin and its flake input.
 
       # Claude Code user settings, now Nix-owned.
       # NOTE: editing any of these in the Claude UI won't persist — a rebuild
       # reverts them; change them HERE instead.
       settings = {
-        # ONE owner per stdio MCP server (2026-11-01). Claude Code never dedups stdio servers,
-        # so two plugins naming the same server both spawn it. A NAME deny drops just that
-        # server: the plugin's skills and hooks still load, and the name survives the plugin's
-        # own updates. Measured on CLI 2.1.296 with a scratch plugin: `serverName =
-        # "plugin:<plugin>:<server>"` removed exactly that server and nothing else.
-        #   aws-core        its `aws-mcp` runs `--skip-auth` (UNSIGNED). The one AWS path is the
-        #                   official claude.ai AWS MCP connector, signed in with Identity Center
-        #                   SSO (operator, 2026-11-01); before the deny the model picked the
-        #                   unsigned twin 1,644 times across all transcripts.
-        #   aws-serverless  `@latest --allow-write` from PyPI at every spawn, no AWS identity,
-        #                   0 calls ever. Its 7 skills + SAM-validate hook stay.
-        # The guard against a silent upstream server rename is fleet-doctor's MCP-owner step.
         # google-workspace-mcp's settings, declared (they lived in the operator's private overlay
         # repo until it was deleted 2026-11-01: the fleet keeps only public repos). Nothing here
         # is a secret: `credential_command` reads the OAuth client from the login Keychain at
@@ -1697,13 +1469,21 @@ in
           credential_command = "secret exec GOOGLE_OAUTH_CLIENT_ID=GMAIL_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET=GMAIL_OAUTH_CLIENT_SECRET --";
         };
 
+        # ONE owner per stdio MCP server (2026-11-01). Claude Code never dedups stdio servers,
+        # so two plugins naming the same server both spawn it. A NAME deny drops just that
+        # server: the plugin's skills and hooks still load, and the name survives the plugin's
+        # own updates. Measured on CLI 2.1.296 with a scratch plugin: `serverName =
+        # "plugin:<plugin>:<server>"` removed exactly that server and nothing else.
+        #   aws-core        its `aws-mcp` runs `--skip-auth` (UNSIGNED). The one AWS path is the
+        #                   official claude.ai AWS MCP connector, signed in with Identity Center
+        #                   SSO (operator, 2026-11-01); before the deny the model picked the
+        #                   unsigned twin 1,644 times across all transcripts.
+        #   aws-serverless  `@latest --allow-write` from PyPI at every spawn, no AWS identity,
+        #                   0 calls ever. Its 7 skills + SAM-validate hook stay.
+        # The guard against a silent upstream server rename is fleet-doctor's MCP-owner step.
         deniedMcpServers = [
           { serverName = "plugin:aws-core:aws-mcp"; }
           { serverName = "plugin:aws-serverless:aws-serverless-mcp"; }
-          # The claude.ai Microsoft 365 connector: never usable here (the tenant blocks
-          # consent, so it only ever showed "Needs authentication"); operator removed it
-          # 2026-11-01. Measured the same way: the URL deny drops it from `claude mcp list`.
-          { serverUrl = "https://microsoft365.mcp.claude.com/mcp"; }
           # Same URL as the claude.ai connector, and Claude Code loads only one, so the
           # plugin copy hid the connector. Cloud routines can only reach the connector, so
           # denying the plugin copy gives local and cloud runs one sign-in. The plugins'
@@ -1711,6 +1491,12 @@ in
           { serverName = "plugin:cloudflare:cloudflare"; }
           { serverName = "plugin:slack:slack"; }
           { serverName = "plugin:neon:neon"; }
+        ]
+        # The operator's claude.ai Microsoft 365 connector: his tenant blocks consent, so it
+        # only ever showed "Needs authentication"; removed 2026-11-01. The URL deny drops it
+        # from `claude mcp list`.
+        ++ lib.optionals isMacosHost [
+          { serverUrl = "https://microsoft365.mcp.claude.com/mcp"; }
         ];
 
         theme = "auto";
@@ -1945,8 +1731,7 @@ in
       # lists every mailbox the operator authors as, two of which are personal
       # personas that do not belong in a public repo (ADR-004 §7, inventory #3).
       # Upstream's `signing.allowedSigners` would write it from Nix, so it is left
-      # empty and `gpg.ssh.allowedSignersFile` points at the runtime path instead;
-      # `adoptGitIdentityFiles` below kept the previously generated copy. Signing
+      # empty and `gpg.ssh.allowedSignersFile` points at the runtime path instead. Signing
       # itself needs no principals file — only VERIFYING does — so a fresh machine
       # signs correctly before the file exists. Shape of a line:
       #   <mailbox> namespaces="git" <the operator ssh public key>
@@ -1978,7 +1763,9 @@ in
       enableDefaultConfig = false;
 
       settings = {
-        # Keychain-backed agent for git SSH signing / non-interactive SSH. Only the
+        # Keychain-backed agent for git SSH signing / non-interactive SSH. IdentityFile
+        # lives ONLY here: ssh_config(5) accumulates it across matching blocks, so a
+        # per-host repeat offers the same key twice. Only the
         # three values that carry a DECISION are set; the rest of home-manager's
         # retired default block (ForwardAgent/Compression/ServerAlive*/HashKnownHosts/
         # Control*/UserKnownHostsFile) were OpenSSH's own compiled defaults restated,
@@ -1993,7 +1780,6 @@ in
         # admin work over SSH from the Mac.
         "*.local" = {
           User = config.home.username;
-          IdentityFile = operatorPrivateKey;
           ForwardAgent = true;
         };
 
@@ -2014,7 +1800,6 @@ in
         # it silently vanished once (2026-08-20). Symptom + fix: docs/private-home-modules.md.
         ${derivedNames.nixpiSshHostname domainName} = {
           User = config.home.username;
-          IdentityFile = operatorPrivateKey;
           ProxyCommand = "${lib.getExe pkgs.cloudflared} access ssh --hostname %h";
           # A fresh SD flash reuses the hostname with a BRAND-NEW host key, so a
           # pinned entry would abort every post-reflash connection. accept-new
@@ -2066,11 +1851,7 @@ in
       # macOS Keychain secret loader is wired into bash's profileExtra/bashrcExtra
       # by local.keychainSecrets (the keychain-secrets capsule's HM module).
 
-      # fnm (Fast Node Manager) shell hook — darwin-only (node dev is Mac-only; the
-      # servers stay lean). `--use-on-cd` auto-switches Node on `cd` into a dir with
-      # a .nvmrc/.node-version. Absolute store path so it resolves before the nix
-      # profile is on PATH. When no project version is active/installed, PATH falls
-      # through to the Homebrew node (an inert dependency of bruno-cli/devcontainer).
+      # fnm hook + ssh-agent load (interactiveShellInit); darwin-only.
       initExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (interactiveShellInit "bash");
       profileExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin sshAuthSockFromLaunchd;
     };
@@ -2291,10 +2072,7 @@ in
         blue = "echo 'background: #09193C' | theme.sh";
       };
 
-      # fnm (Fast Node Manager) shell hook — darwin-only. Lives in initContent
-      # (.zshrc, interactive) not envExtra, because `--use-on-cd` installs a chpwd
-      # hook that only makes sense in an interactive shell. Honors .nvmrc and
-      # .node-version; falls through to the Homebrew node when no version is active.
+      # interactiveShellInit in initContent (.zshrc): fnm's chpwd hook is interactive-only.
       initContent = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (interactiveShellInit "zsh");
       envExtra = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin sshAuthSockFromLaunchd;
     };
@@ -2528,32 +2306,11 @@ in
   };
 
   home.activation = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    # The one-shot adoption: when a file we USED to manage is still a symlink into a home-manager
-    # generation, copy it out as a real 0600 file BEFORE linkGeneration's orphan
-    # cleanup would delete it. A no-op on a machine where the file is already real
-    # or absent, so it is safe to leave in place forever (and it is what a
-    # template consumer's fresh Mac hits: absent → nothing).
-    # upstream-first: grepped home-manager/modules/lib/file-type.nix — home.file has no
-    # copy/mutable mode (enable/target/text/source/executable/recursive/ignorelinks/
-    # onChange/force only) → custom; the same holds for grokSandboxProfile below.
-    adoptGitIdentityFiles = lib.hm.dag.entryBetween [ "linkGeneration" ] [ "writeBoundary" ] ''
-      hmFiles="$(readlink -e ${builtins.storeDir})/*-home-manager-files/*"
-      for f in "$HOME/.config/git/allowed_signers"; do
-        if [[ -L "$f" && "$(readlink "$f")" == $hmFiles ]]; then
-          if [[ -r "$f" ]]; then
-            run cp -L $VERBOSE_ARG "$f" "$f.adopt"
-            run chmod 600 "$f.adopt"
-            run mv -f $VERBOSE_ARG "$f.adopt" "$f"
-          else
-            warnEcho "$f links into a dead home-manager generation; recreate it by hand (docs/new-mac-runbook.md)."
-          fi
-        fi
-      done
-    '';
-
     # ~/.grok/sandbox.toml as a REAL FILE, not a store symlink — grok counts it as a
     # hooks-paths registry entry and refuses to start on a symlink, taking every
     # grok-build run down with it. Rationale in full beside grokSandboxToml above.
+    # upstream-first: grepped home-manager/modules/lib/file-type.nix — home.file has no
+    # copy/mutable mode → custom.
     grokSandboxProfile = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       run mkdir -p "$HOME/.grok"
       run rm -f "$HOME/.grok/sandbox.toml"

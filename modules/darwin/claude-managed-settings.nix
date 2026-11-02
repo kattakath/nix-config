@@ -109,16 +109,16 @@
 # GitHub issue search on anthropics/claude-code found ZERO reports either way.
 #
 # AND IT CHANGES NOTHING BELOW. This argument was raised as a reason to promote the
-# `--force` denies into this file, and REJECTED on § WHO IS RESTRAINED's own test:
+# `--force` rules (user-scope ASK since 2026-11-02) into this file, and REJECTED on § WHO IS RESTRAINED's own test:
 # promoting them would mean the operator cannot force-push on repos he OWNS without
 # a root-owned edit and a rebuild, because 2.1.260 refuses the retraction outright.
 # "User scope can be switched off by an org policy" is not a weakness there — it IS
 # the override, and it is load-bearing. Read that § before proposing the same move.
 #
-# One related finding, because it is the fear that usually motivates the move and it
-# is UNFOUNDED: an org policy that ALLOWS force-push cannot defeat a user-scope deny.
-# Per the permissions docs, "if a tool is denied at any level, no other level can
-# allow it" and "deny rules from any scope are evaluated before allow rules." Only
+# One related finding, because it is the fear that usually motivates the move: an org
+# policy that ALLOWS an action cannot defeat a deny at any lower scope. Per the
+# permissions docs, "if a tool is denied at any level, no other level can allow it"
+# and "deny rules from any scope are evaluated before allow rules." Only
 # the ignore-key above can drop a lower rule — which is why it is the one that
 # matters, and why it already sits in the deliberately-unset list below.
 #
@@ -306,7 +306,7 @@ let
       # the shared list down to these entries by string match — yields `[ ]` the
       # moment an upstream rule is reworded, producing a well-formed and
       # completely EMPTY floor. That is the exact silent-vacuum failure
-      # claude-guardrails.nix records in its mcpfinder and `attribution` notes —
+      # claude-guardrails.nix records in its `attribution` note —
       # a rule matching nothing is not a weak floor but NO floor. The cost is
       # real and accepted: an edit to the secret-value rules must touch BOTH —
       # and claude-guardrails.nix carries the matching pointer beside the very
@@ -374,9 +374,8 @@ let
       "Bash(age --decrypt*)"
       "Bash(age * -d*)"
       "Bash(age * --decrypt*)"
-      # NOT elevated to this tier, on purpose — they stay at user scope where
-      # they already work, because they narrow a WORKFLOW rather than protect a
-      # value, and a wrong one here has no in-session undo: the imperative-MCP
+      # NOT elevated to this tier, on purpose — they stay as user-scope ASK rules,
+      # because they narrow a WORKFLOW rather than protect a value, and a wrong one here has no in-session undo: the imperative-MCP
       # group (`claude mcp add *`, `Edit(~/.claude.json)`) and the irreversible
       # remote group (the four `git push --force` spellings).
     ];
@@ -456,10 +455,6 @@ let
       }
       {
         source = "github";
-        repo = "obra/*";
-      }
-      {
-        source = "github";
         repo = "apify/*";
       }
 
@@ -477,10 +472,6 @@ let
       }
       {
         source = "git";
-        url = "https://github.com/anthropics/skills.git";
-      }
-      {
-        source = "git";
         url = "https://github.com/upstash/context7.git";
       }
       {
@@ -490,10 +481,6 @@ let
       {
         source = "git";
         url = "https://github.com/trailofbits/skills.git";
-      }
-      {
-        source = "git";
-        url = "https://github.com/obra/superpowers.git";
       }
       {
         source = "git";

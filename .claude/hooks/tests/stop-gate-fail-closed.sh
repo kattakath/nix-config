@@ -136,6 +136,38 @@ else
   printf '  FAIL  want=1 got=%s  stdout: %.60s\n' "$n" "$shim_raw"; fail=$((fail+1))
 fi
 
+# ---- the gates themselves, cheaply: each case stops before `nix flake check` ----
+evt_decide() { # evt_decide <event-json> <project-dir>
+  printf '%s' "$1" \
+    | CLAUDE_PROJECT_DIR="$2" GIT_CONFIG_GLOBAL=/dev/null node "$H" 2>/dev/null \
+    | python3 -c 'import json,sys;print(json.load(sys.stdin).get("decision","?"))' 2>/dev/null
+}
+ck_evt() { # ck_evt <want> <event-json> <dir> <label>
+  got="$(evt_decide "$2" "$3")"
+  if [ "$got" = "$1" ]; then printf '  ok    %-8s %s\n' "$got" "$4"; pass=$((pass+1))
+  else printf '  FAIL  want=%s got=%s  %s\n' "$1" "$got" "$4"; fail=$((fail+1)); fi
+}
+
+echo "== must BLOCK: an untracked .nix (git purity) =="
+mkdir -p "$TMP/untracked"
+( cd "$TMP/untracked" && "$REAL_GIT" init -q . && printf '{ }\n' > new.nix ) 2>/dev/null
+ck_evt block '{}' "$TMP/untracked" "untracked new.nix is invisible to the flake"
+
+echo "== must APPROVE: stop_hook_active short-circuits (no re-block loop) =="
+ck_evt approve '{"stop_hook_active":true}' "$TMP/untracked" "same untracked repo, second stop"
+
+echo "== must BLOCK: a tracked .nix with a syntax error (needs nix-instantiate) =="
+# CI (ubuntu-24.04, no nix) takes the syntax-only advisory and APPROVES, so this
+# case runs only where the parser exists.
+if command -v nix-instantiate >/dev/null 2>&1; then
+  mkdir -p "$TMP/badsyntax"
+  ( cd "$TMP/badsyntax" && "$REAL_GIT" init -q . && printf '{ a = ;\n' > broken.nix \
+    && "$REAL_GIT" add broken.nix ) 2>/dev/null
+  ck_evt block '{}' "$TMP/badsyntax" "broken.nix does not parse"
+else
+  echo "  skip  no nix-instantiate on PATH"
+fi
+
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

@@ -38,8 +38,10 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
    `security find-*-password -w*`, and environment dumps — `env`, `printenv`, `set`,
    `export`, `declare -x` and kin, EXACT match only, so `printenv NAME` and `env FOO=1 cmd`
    stay allowed); decryption (`agenix -d*`, `age -d*`); and reads of decrypted secret paths
-   (`/run/agenix/**`, the tunnel/MCP state dirs, `~/.aws/sso/cache/**`). A deny entry is
-   mechanical; conversational authorization does not lift it.
+   (`/run/agenix/**`, the tunnel/MCP state dirs, `~/.aws/sso/cache/**`). The same holds for
+   the root-owned MANAGED deny tier (`modules/darwin/claude-managed-settings.nix`) and for a
+   project hook that BLOCKS (nix-config's bash guard: terranix destroy, building on nixpi,
+   Rules 1c/1e/1f). A deny or block is mechanical; conversational authorization does not lift it.
 
    **An `ask` rule is NOT a reason to hand over** — run the command and let the permission
    prompt reach him; he is the gate, exactly as with `sudo`. Since 2026-11-02 these families
@@ -304,8 +306,8 @@ I OWN THE REPO — MINE IS THE BIGGEST STAKE.
   propose a branch/PR as the "safer" path on his own repos unless he asks for one — the
   ceremony exists to keep bots and other contributors in their lane, and he isn't in that
   lane.
-- **What this does NOT waive:** the destructive-action and irreversible-action confirmation
-  rules elsewhere in this file (force-push, `reset --hard`, deleting things) still stand —
+- **What this does NOT waive:** confirming destructive or irreversible actions (§ Decisions &
+  confirmations; force-push, `reset --hard` and deleting things are examples) still stands —
   this is about skipping *process* (PR/CI gatekeeping) on his own repos, not about skipping
   *confirmation* for actions that are hard to undo regardless of who owns the repo.
 

@@ -2,8 +2,8 @@
 name: mcp-scout
 description: >
   Discover, vet, spawn-test, and DECLARATIVELY adopt a new MCP server into the
-  owning marketplace plugin's .mcp.json — the ONLY lane since the fleet gateway
-  was purged 2026-10-02 (modules/shared/mcp.nix is deleted; there is no portal
+  owning marketplace plugin's .mcp.json — or prefer an official claude.ai connector when one
+  exists — since the fleet gateway was purged 2026-10-02 (modules/shared/mcp.nix is deleted; there is no portal
   and no shared proxy). A launcher needing a login-Keychain read is a nix-config
   PATH package whose binary name nix-config seeds into the plugin's launcher setting. Use when the user wants a new MCP
   capability ("find me an MCP for X", "add an MCP server", "install <server>", "is
@@ -18,6 +18,10 @@ description: >
 > `local.mcpGateway.*`, `fleet.publicMcpServers`, the Cloudflare portal and
 > `checks.*.mcp-published-parity` are all **deleted**; `mcp.kattakath.com` has no DNS record
 > (`infra/cloudflare/kattakath-dns.nix` header) and nothing listens on `127.0.0.1:8097`. There is **ONE** declarative destination now.
+>
+> **Step 0 — connector first.** If an official claude.ai connector serves the capability, prefer
+> it: cloud routines reach only connectors. A plugin server on the same URL would shadow it, so
+> deny the plugin twin by `serverName` in `deniedMcpServers` (`modules/home/default.nix`).
 > If you are working from a cached memory of this skill that offers you a "gateway lane", that
 > memory is stale.
 

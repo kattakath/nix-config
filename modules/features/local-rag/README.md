@@ -147,7 +147,7 @@ LIMIT 8;
 
 This backs the `postgres` MCP server on `macos`. `modules/home/plugin-mcp.nix`
 hands that server `local.rag.pgvector.databaseUri` as `plainEnv.DATABASE_URI` —
-one string, and the path the career RAG (`career_docs` in `ragdb`) has to Claude
+one string, and the path the local RAG store (`ragdb`) has to Claude
 Code's tool layer. Since 2026-10-02 it is no longer the *only* path: the same
 option is also exported as the `RAGDB_URI` session variable, for plain shell
 consumers (a `psql` script) that cannot read a Nix option.

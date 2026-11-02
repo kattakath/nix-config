@@ -1,7 +1,7 @@
 ---
 description: Stage all .nix files then evaluate the flake across both target systems.
 argument-hint: "[config]  # optional: macos | nixpi | nixvm | nixos"
-allowed-tools: Bash(git add:*), Bash(git status:*), Bash(nix flake check:*), Bash(nix eval:*)
+allowed-tools: Bash(git add:*), Bash(git status:*), Bash(nix flake check:*), Bash(nix eval:*), Bash(nix-instantiate:*)
 ---
 
 Run the canonical evaluation gate for this Nix mono-repo, in order:
