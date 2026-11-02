@@ -8,7 +8,8 @@
 # tarball (15.0.25 on 2026-10-17: linux-x86_64 and i686 only, aarch64 404).
 # `tor-browser-bundle-bin` is a hard alias throw, not an alternative. nixpkgs
 # will not package the aarch64 build until 16.0 goes stable
-# (NixOS/nixpkgs#491286, still open 2026-10-17), so there is no upstream
+# (NixOS/nixpkgs#491286; retire this once the pinned `tor-browser.meta.platforms`
+# includes aarch64-linux), so there is no upstream
 # option, package or flake to prefer — this is the one lane.
 #
 # WHY overrideAttrs and NOT `.override { sources = ...; }`: `sources` is a

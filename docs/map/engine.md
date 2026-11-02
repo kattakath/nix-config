@@ -26,15 +26,16 @@ nothing — hence one regex, not two calls.
 | `systems.nix` | flake-parts' `systems` = the two fleet arches. **`x86_64-linux` is deliberately NOT here** — adding it would silently spawn x86 checks, formatter and apps; the devcontainer reaches it with `withSystem "x86_64-linux"`. |
 | `compose.nix` | `mkDarwin` / `mkNixos` / `mkHomeManagerModule` — **not translated** to flake-parts, kept verbatim as plain Nix functions in the freeform `flake` attr (ADR-001's blast-radius objection, honoured). Also threads each capsule in as a named specialArg. Its two composition seams (`extraHomeModules`, `hostedSites`) and the nixpi deploy runbook are written up in [`private-home-modules.md`](../private-home-modules.md) — the filename is historical (the private `[redacted]` flake it was named for was retired 2026-09-15); the seams and the runbook are current. |
 | `hosts.nix` | `darwinConfigurations.macos`, `nixosConfigurations.{nixpi,nixvm,nixos}`. |
-| `packages.nix` | `perSystem.packages` + every non-terranix `apps.*` (the `cf-*` / `gcp-*` apps live in `terranix.nix`). |
-| `checks.nix` | The engine's own checks, including `claude-md-budget`, `line-refs-cite-constructs` (no `path:N` citation into this repo's OWN files in living text — name the option, binding or block; a pinned input's citation leads with the input's name; which files count as as-of records, and so are skipped, is listed once, in the check's own header. 75 of 146 such citations had drifted when it landed, 2026-10-17), `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (its legs: the check's own `subject`/assertions), the two Determinate host contracts (`determinate-daemon-macos` / `-nixpi` — the host is in the NAME, because nix-ci's darwin PR leg skips any check name linux also exposes) and `nixpi-security-posture` ([`modules-nixos.md`](modules-nixos.md) § `modules/nixos/` — its legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
+| `packages.nix` | `perSystem.packages` + every non-terranix `apps.*` (the terranix apps live in `terranix.nix`). |
+| `checks.nix` | The engine's own checks, including `claude-md-budget`, `line-refs-cite-constructs` (no `path:N` citation into this repo's OWN files in living text — name the option, binding or block; a pinned input's citation leads with the input's name; which files count as as-of records, and so are skipped, is listed once, in the check's own header. 75 of 146 such citations had drifted when it landed, 2026-10-17), `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (its legs: the check's own `subject`/assertions), the two Determinate host contracts (`determinate-daemon-macos` / `-nixpi` — the host is in the NAME: a check name present on two systems must come from ONE source block) and `nixpi-security-posture` ([`modules-nixos.md`](modules-nixos.md) § `modules/nixos/` — its legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its internal seam `capsuleModules`, plus `checks.<system>.capsule-registry`. |
-| `terranix.nix` | The `cf-*` / `gcp-*` tofu builders. The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
+| `terranix.nix` | The tofu builders (every `cf-*` / `gcp-*` / `hc-*` app). The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring: two hooks (treefmt, gitleaks), run by `checks.<system>.pre-commit` and never installed as git hooks. |
 | `deploy.nix` | `deploy.nodes.nixpi` (deploy-rs has **no** flakeModule — grepped; this stays hand-written in the freeform `flake` attr) + `checks.<system>.deploy-schema`. |
 | `templates.nix` | `templates.default`. |
 | `devcontainer.nix` | The image, via `withSystem "x86_64-linux"`. |
 | `lib-option.nix` | The `mkOption { type = lazyAttrsOf raw; }` declaration for `flake.lib`, copied from flake-parts' own `nixosConfigurations.nix:11`. Without it the freeform `types.unique` default would force every seam back into ONE file — silently re-creating the monolith. |
+| `heartbeats.nix` | The heartbeat (dead man's switch) REGISTRY: every check slug the fleet expects to hear from, read by `infra/healthchecks/checks.nix` and `service-heartbeat.nix` ([`infra.md`](infra.md) § `infra/healthchecks/checks.nix`). |
 | `touchup.nix` | What the flake does **not** export. A bare `mkFlake` also emits `legacyPackages`, `nixosModules`, `overlays` and `modules`; this repo has never exported any of them, and the decision (plus the one-line path back) is recorded there. |
 
 ### Where the operator's private content went
@@ -85,7 +86,7 @@ Every capsule is entered **only** through `flake-module.nix`. From there it publ
 | `capsuleModules.<class>.<name>` | `lazyAttrsOf raw` — a definition passed through **UNWRAPPED** (`modules/parts/capsules.nix`) | `keychain-secrets`, `media-cli`, `local-rag`, `cloud-cli` (home-manager), `tart-vms` (darwin) | **measured, not stylistic.** `flake.modules`' element type is `types.deferredModule`, whose merge always wraps in `{ imports = [ … ]; }` (pinned nixpkgs `lib/types.nix`, `deferredModuleWith`), and flake-parts wraps again for any class but `generic`. For a NixOS module that is invisible. For a **home-manager** module it is not: `home.packages` is a LIST, merged in module-collection order = `buildEnv`'s `paths` order = **who wins a filename collision**. Routing `keychain-secrets` through `flake.modules` moved its four CLIs ahead of postgresql and `nix-bedrock-gate` and **changed `darwin-system`'s drvPath**, with byte-identical package derivations. |
 
 A capsule may also export flake **packages** from its `flake-module.nix` (`tart-vms` does —
-its Packer plugin, GitLab executor and config printer); that file is the list, not this map.
+`packer-plugin-tart`, `gitlab-tart-executor`, `tart-gitlab-print-config`); that file is the list, not this map.
 
 `flake.modules` is deliberately **not** re-exported as a public flake output (`touchup.nix`) —
 the satellites published `nixosModules.*` to strangers; in-tree the only consumer is
@@ -97,6 +98,8 @@ the satellites published `nixosModules.*` to strangers; in-tree the only consume
 ---
 
 ### `cloudflared-connector` (wave 3)
+
+Per-file index: [`modules/features/cloudflared-connector/README.md`](../../modules/features/cloudflared-connector/README.md).
 
 The scaffold capsule — the cleanest of the seven, absorbed first precisely because the wave had
 to build the boundary machinery around it.
@@ -120,6 +123,8 @@ to build the boundary machinery around it.
 
 ### `firmware-secrets` (wave 4)
 
+Per-file index: [`modules/features/firmware-secrets/README.md`](../../modules/features/firmware-secrets/README.md).
+
 - **Owns:** reflash-safe secrets for headless NixOS devices. Plant a secret on the device's FAT
   **firmware** partition from another machine; a boot-time oneshot copies it into a root-only
   `/run` file **before** the consuming service starts.
@@ -139,6 +144,8 @@ to build the boundary machinery around it.
   to run. Two copies of one procedure is two chances for the planted BASENAMES to diverge.
 
 ### `keychain-secrets` (wave 4)
+
+Per-file index: [`modules/features/keychain-secrets/README.md`](../../modules/features/keychain-secrets/README.md).
 
 - **Owns:** `local.keychainSecrets` — the `secret set/reveal/rm/ls/exec/copy/fp/bind/unbind/adopt/load`
   CLI over the macOS login Keychain, plus a home-manager loader that exports registered secrets
@@ -185,6 +192,8 @@ to build the boundary machinery around it.
 
 ### `tart-vms` (wave 5) — the most LIVE surface
 
+Per-file index: [`modules/features/tart-vms/README.md`](../../modules/features/tart-vms/README.md).
+
 `macos` declares two Tart-VM GitHub lanes (only `dontsell-vm` enabled) and a GitLab lane off this capsule, and both runner
 modules sit in `mkDarwin`'s **base list**, so EVERY `mkDarwin` composition evaluates them —
 the one exported host (`macos`) and the stranger-identity Mac that
@@ -224,6 +233,8 @@ the one exported host (`macos`) and the stranger-identity Mac that
 
 ### `media-cli` (wave 5) — the LARGEST, with the narrowest live surface
 
+Per-file index: [`modules/features/media-cli/README.md`](../../modules/features/media-cli/README.md).
+
 **One option** in `modules/home/default.nix` is the capsule's entire live surface.
 
 - **Owns:** `local.mediaCli` — the media/photo CLIs and companion bundles `package-graph.nix`
@@ -262,6 +273,8 @@ the one exported host (`macos`) and the stranger-identity Mac that
 
 ### `local-rag` (wave 6) — the last satellite
 
+Per-file index: [`modules/features/local-rag/README.md`](../../modules/features/local-rag/README.md).
+
 - **Owns:** `local.rag.ollama` + `local.rag.pgvector` — a loopback-only
   Postgres + pgvector + pgsql-http and a loopback-only Ollama, wired by bootstrap SQL into an
   in-DB `public.embed(text)` `SECURITY DEFINER` function, a `public.docs` table and an HNSW
@@ -298,6 +311,8 @@ the one exported host (`macos`) and the stranger-identity Mac that
 
 ### `cloud-cli` (born in-tree 2026-09-20) — the one capsule that was never a satellite
 
+Per-file index: [`modules/features/cloud-cli/README.md`](../../modules/features/cloud-cli/README.md).
+
 `local.cloudCli.aws`: the AWS CLI plus `aws-sso-util`, and **`~/.aws/config.example` —
 placeholders only.** It NEVER writes `~/.aws/config`. That file is the human's, written by
 `aws configure sso` or by copying the example, living outside Nix and git, and it is what
@@ -324,7 +339,7 @@ placeholders only.** It NEVER writes `~/.aws/config`. That file is the human's, 
 
 ## `modules/_lib/` — shared DATA, not modules
 
-Four files, and the layer exists for their shape rather than their count:
+The layer exists for its files' shape rather than their count:
 
 - **`modules/_lib/nix-ld-libraries.nix`** — `pkgs: with pkgs; [ … ]`. **Not a module** — a function
   returning the nix-ld runtime library list that dynamically-linked NON-Nix binaries (VS Code

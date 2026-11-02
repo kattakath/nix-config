@@ -12,7 +12,7 @@ paths:
 # Launchd Naming — `nix-<kebab>` arg0, NEVER a bare interpreter
 
 Every launchd unit **this repo authors** MUST expose a first argument whose **basename is
-`nix-<activity-in-kebab-case>`** — e.g. `nix-ollama-local`, `nix-open-maccy` (historical, retired 2026-10-27),
+`nix-<activity-in-kebab-case>`** — e.g. `nix-ollama-local`,
 `nix-file-rotation-downloads`. The `arg0` the kernel execs (`ProgramArguments[0]`, or
 `Program` if used) is what macOS's **Background Task Manager (BTM)** and *System Settings →
 Login Items & Extensions* display. A bare interpreter there — `sh`, `bash`, `zsh`, `dash`,

@@ -139,7 +139,7 @@ jobs:
 
       # Dead man's switch (healthchecks.io, project `fleet`; registry: fleet.heartbeats).
       # SCHEDULE ONLY, on purpose: the check proves the cron still fires, and a
-      # manual workflow_dispatch / PR / push run would mask a dead scheduler.
+      # manual workflow_dispatch run would mask a dead scheduler.
       # `success()` pings OK, `failure()` pings /fail; a CANCELLED run pings neither,
       # so the check goes late instead of lying. The ping key is part of the URL, so
       # it is built here from the secret and the URL is never echoed.
