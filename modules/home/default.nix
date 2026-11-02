@@ -1706,6 +1706,7 @@ in
           # skills still load.
           { serverName = "plugin:cloudflare:cloudflare"; }
           { serverName = "plugin:slack:slack"; }
+          { serverName = "plugin:neon:neon"; }
         ];
 
         theme = "auto";
