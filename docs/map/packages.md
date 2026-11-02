@@ -4,18 +4,14 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 Core package set:
 
-- **`grok.nix`** — xAI's `grok` CLI, a pinned prebuilt vendor binary. It replaces
-  a per-user `curl … | bash` install that put a self-updating Mach-O in each account's
-  `~/.grok/bin`, outside the store and outside git. The URL pattern was read out of xAI's own
-  install.sh rather than guessed; xAI publishes NO checksum, so the `hash` is our SRI pin, and
-  every bump is verified against xAI's Mach-O signature (the header's `HOW A BUMP IS VERIFIED`
-  block has the commands). `dontFixup` and
-  `dontStrip` are load-bearing: nixpkgs' default fixup rewrites Mach-O headers and would
-  invalidate xAI's Developer ID signature. Unfree via a predicate naming ONE package, so a
-  second unfree arrival fails rather than being waved through. The self-updater is
-  deliberately defeated (read-only store, and the `$HOME/.grok/bin` PATH entry is gone) —
-  updating is a version+hash bump. Per-user state still lives in `~/.grok`, which is what
-  makes one shared binary correct rather than a conflict.
+- **grok is NOT a file here** — it is nixpkgs' `grok-build` (xAI's prebuilt `grok` CLI),
+  shared through `environment.systemPackages`. It replaced a per-user `curl … | bash` install
+  that put a self-updating Mach-O in `~/.grok/bin`. The hand-pinned `grok.nix` was retired
+  2026-11-02 once nixpkgs' build was measured byte-identical to the vendor artifact, keeping
+  xAI's Developer ID signature (`modules/parts/packages.nix` records the measurement). The
+  self-updater stays defeated (read-only store, no `$HOME/.grok/bin` PATH entry), so the
+  version moves with the nixpkgs pin. Per-user state lives in `~/.grok`, which is what makes
+  one shared binary correct.
 - **Antigravity (`agy`) is NOT a file here** — it is nixpkgs' `antigravity-cli`, shared
   through `environment.systemPackages`. The hand-pinned `antigravity-cli.nix` was retired
   2026-10-21 once the nixpkgs build was measured to keep Google's Developer ID signature
