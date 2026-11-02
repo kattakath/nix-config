@@ -2,8 +2,9 @@
 # Rule 1 (terranix family) cases, added with the 2026-09-22 split.
 #
 # The split under test: `*-destroy` is hard-blocked unconditionally; `*-apply`
-# is a non-blocking nudge (RULE1_TERRANIX_APPLY_BLOCKING = false). Both halves
-# are asserted, because a rule that only ever proves its BLOCK cases cannot
+# is a non-blocking nudge (RULE1_TERRANIX_APPLY_BLOCKING = false). Both match
+# only a segment that RUNS `nix run` — a mention (echo, grep, commit message)
+# approves silently. Both halves are asserted, because a rule that only ever proves its BLOCK cases cannot
 # tell you it has stopped approving the things it should approve.
 #
 # Every case was `mcp-public-*` until 2026-10-02: that stack and its five apps
@@ -49,6 +50,18 @@ ck approve "$NR github:kattakath/nix-config#cf-tunnel-apply"
 echo "== an apply must not launder a destroy sitting next to it =="
 ck block "$NR .#cf-tunnel-apply $AND $NR .#cf-tunnel-destroy"
 
+echo "== a real run still blocks through a subshell, a substitution or nix develop =="
+ck block "(cd /tmp $AND $NR .#cf-tunnel-destroy)"
+ck block "x=\$($NR .#cf-tunnel-destroy)"
+ck block "nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- $NR .#cf-tunnel-destroy'"
+ck block "$NR --refresh .#cf-tunnel-destroy"
+
+echo "== a MENTION is not a run (2026-11-02: these were hard-blocked by a whole-string match) =="
+ck approve "echo \"never run $NR .#cf-tunnel-destroy\""
+ck approve "grep -rn '$NR .#cf-tunnel-destroy' docs/"
+ck approve "git commit -m \"guard: $NR .#cf-tunnel-destroy stays blocked\""
+ck approve "printf '%s\\n' '$NR .#cf-tunnel-destroy' | wc -l"
+
 echo "== read-only and unrelated apps are untouched by either half =="
 ck approve "$NR .#cf-tunnel-plan"
 ck approve "$NR .#nixvm"
@@ -87,6 +100,10 @@ echo "== the nudge survives the same evasions the decision does =="
 ckn "DELETES mail records" "$NR \".#cf-zones-apply\""
 ckn "spend alarm"          "$NR github:kattakath/nix-config#gcp-budget-apply"
 ckn "auth_domain"          "secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:api -- $NR .#cf-access-org-apply"
+
+echo "== NO over-match: a mention of an apply app is not an apply =="
+ckq "echo \"run $NR .#cf-zones-apply after the plan\""
+ckq "git commit -m \"docs: $NR .#gcp-budget-apply\""
 
 echo "== NO over-match: read-only plans and the two imports stay silent =="
 ckq "$NR .#cf-tunnel-plan"

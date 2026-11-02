@@ -767,22 +767,22 @@ in
               mac = config.flake.darwinConfigurations.macos.config;
               hm = mac.home-manager.users.${loginName};
               userDeny = hm.programs.claude-code.settings.permissions.deny or [ ];
-              # The secret-value family, by the verbs that PRINT a secret. The
+              # The secret-value family: the verbs that PRINT a secret and the paths that HOLD one. The
               # environment dumps are matched as WHOLE rules, anchored at both
               # ends: they are exact-match denies, and a bare `env|set|export`
               # substring would also count unrelated rules and inflate the total.
               secretRules = builtins.filter (
                 r:
-                builtins.match ".*(secret reveal|find-generic-password|find-internet-password|agenix|/run/agenix).*" r
+                builtins.match ".*(secret reveal|find-generic-password|find-internet-password|agenix|\\(age |/run/agenix|/\\.local/state/nix-config-|/\\.aws/sso/cache).*" r
                 != null
                 ||
                   builtins.match "Bash\\((env|printenv|set|export|export -p|declare -[xp]|typeset -[xp])\\)" r != null
               ) userDeny;
               # Today's count, pinned. Raise it deliberately when the family grows;
               # a DROP means either a real retraction or a reworded rule the pattern
-              # above no longer sees, and both deserve a human. 24 = 15 measured
-              # before the environment dumps (2026-10-21) + those 9.
-              minSecretRules = 24;
+              # above no longer sees, and both deserve a human. Equals the whole user
+              # deny list today: every rule there is secret egress.
+              minSecretRules = 31;
               # The SECOND hand-kept duplicate in that file: strictKnownMarketplaces'
               # exact `git` entries restate every non-store marketplace source the
               # home profile declares, and a source missing there is REFUSED at

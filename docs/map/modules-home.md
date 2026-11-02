@@ -448,20 +448,19 @@ in the repo can catch that; see that fixture file's header for the measurement.
   Exists because every decision hook in `.claude/` is project-scoped — sessions in any other repo
   had none of them while VS Code starts in `bypassPermissions`, and the globally-wired
   `mcpfinder` exposed its config-writing tool everywhere but here. Two halves:
-  - `permissions.deny`. Entry rule: a fleet-wide policy already written down (imperative MCP
-    adoption, secret values in the transcript — `secret reveal`, `security find-*-password
-    -w/-g`, since 2026-09-21 `agenix -d` / `age -d` age decryption, and since 2026-10-21
-    exact-match environment dumps (`env`, `printenv`, `set`, `export`, … — the measured
-    matcher table is in the file) — `/run/agenix` and
-    OpenTofu-state plaintext, force-push; `gh pr merge` is deliberately NOT denied since
-    2026-10-30 — forge branch protection is the merge gate) — never repo policy. Deny rules still
+  - `permissions.deny`. Entry rule: a fleet-wide policy already written down (secret values in
+    the transcript — `secret reveal`, `security find-*-password -w`, since 2026-09-21
+    `agenix -d` / `age -d` age decryption, and since 2026-10-21 exact-match environment dumps
+    (`env`, `printenv`, `set`, `export`, … — the measured matcher table is in the file) —
+    `/run/agenix` and decrypted tunnel/SSO state) — never repo policy. Deny rules still
     apply in `bypassPermissions` (it skips prompts; a deny is not one), but they match the
     command text Claude writes, not `sh -c` or an absolute binary path — a floor, not a
     boundary. **No catch-all `Read(**)`**: a blanket Read deny disables Bash auto-approve
     everywhere, so the path denies stay narrow on purpose.
   - `permissions.ask` (2026-11-02, operator decision: guards ask, not block, when the action
     is recoverable). MOVED here from the deny list: imperative MCP adoption, login/credential
-    file edits, raw `gcloud secrets` writes and force-push. They prompt in every mode,
+    file edits, raw `gcloud secrets` writes and force-push; ADDED the same day: reads of the
+    OpenTofu state dirs not already denied. They prompt in every mode,
     `bypassPermissions` included, and become a deny in an unattended run. Only the
     secret-egress families above stay deny.
   - `attribution = { commit = ""; pr = ""; sessionUrl = false; }` (2026-09-21) — mechanises

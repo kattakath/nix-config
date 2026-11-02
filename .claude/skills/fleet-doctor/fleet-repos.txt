@@ -1,8 +1,8 @@
 # Fleet manifest for the fleet-doctor skill.
 #
 # One repo per line, relative to ~/Developer, forge/owner/repo — the SAME
-# path shape every repo already lives under (see root CLAUDE.md, global
-# ~/.claude/CLAUDE.md "repos live under ~/Developer/<forge>/<owner>/<repo>").
+# path shape every repo already lives under (see root CLAUDE.md, and
+# ~/.claude/rules/brain-signals-context.md "repos live under ~/Developer/<forge>/<owner>/<repo>").
 #
 # A fleet repo is a COMPOSITION repo. It is NOT "every repo on disk" — a product,
 # a scaffold, a published bundle, or a client/personal repo with no Nix/fleet
