@@ -398,7 +398,10 @@ in the repo can catch that; see that fixture file's header for the measurement.
   user re-binds the helper and breaks the first. Colima is per-user by construction — one
   launchd agent in the user's own gui domain, `$COLIMA_HOME` and the docker socket under the
   user's home — so two accounts mean two VMs and no shared helper to fight over. Genuinely
-  custom here: nothing but the `enable` switch and the profile's `settings` values.
+  custom here: nothing but the `enable` switch and the profile's `settings` values. The
+  `docker` client is nixpkgs' `docker-client` (not brew, since 2026-11-02), whose wrapper
+  already carries buildx + compose via `DOCKER_CLI_PLUGIN_DIRS`; it is also colima's
+  `dockerPackage`.
 - **`claude-code-settings.nix`** — makes Claude Code's **user-scope** `settings.json` LAYERED:
   a Nix-owned floor re-asserted every rebuild, merged over a real, writable file the app and
   the operator can change. Exists because of an UPSTREAM design, not a local mistake: the

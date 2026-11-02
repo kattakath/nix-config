@@ -485,9 +485,9 @@ in
       "cloudflared"
       "cmake"
       "devcontainer"
-      "docker"
-      "docker-buildx"
-      "docker-compose"
+      # `docker`, `docker-buildx`, `docker-compose` are NOT brewed (since 2026-11-02):
+      # nixpkgs' `docker-client` ships all three — modules/home/containers.nix.
+      # Brewed, `/opt/homebrew/bin` would shadow it in the login shell.
       "duf"
       "ffmpeg"
       "gettext"
@@ -601,8 +601,8 @@ in
       "claude"
       # `docker-desktop` is GONE (2026-09-16): its privileged helper bound the
       # machine-wide socket to one username. The runtime is now per-user Colima —
-      # modules/home/containers.nix (`local.containers`); the `docker*` brews
-      # above stay as the client.
+      # modules/home/containers.nix (`local.containers`), which also owns the
+      # client (nixpkgs' `docker-client`).
       "dropbox"
       # escrcpy — graphical frontend for scrcpy (nixpkgs now, see the note in the
       # brews list above; escrcpy ships its own copy under Resources/extra), for
