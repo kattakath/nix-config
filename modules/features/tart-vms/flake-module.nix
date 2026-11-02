@@ -94,8 +94,8 @@
 #   packages/gitlab-tart.nix   "(modules/gitlab-runner.nix)" /
 #                                  "MUST track modules/slots.nix's default"
 #
-# Editing either changes the script text, hence the drv, hence `home.packages`,
-# hence `darwin-system` — and ADR-002's acceptance test is that this wave moves
+# Editing either changes the script text, hence the drv, hence the runner's
+# rendered config, hence `darwin-system` — and ADR-002's acceptance test is that this wave moves
 # code without moving a single host drv. A comment fix is not worth spending
 # that, so they are recorded here instead of silently rotting: fix them in the
 # next change that touches those scripts for a real reason.
@@ -142,13 +142,6 @@
     # the ./darwin.nix note above.
     tart-vms = ./darwin.nix;
   };
-
-  # The ONE source path an engine module builds itself — modules/home/default.nix
-  # installs the gitlab-tart slot shims with the HOST's pkgs so
-  # ~/.gitlab-runner/config.toml can reference stable
-  # /etc/profiles/per-user/<user>/bin/nix-gitlab-tart-* paths. Rationale for the
-  # seam existing at all: modules/parts/capsules.nix § The SOURCE seam.
-  capsuleSources.tart-vms.gitlab-tart = ./packages/gitlab-tart.nix;
 
   perSystem =
     { pkgs, system, ... }:

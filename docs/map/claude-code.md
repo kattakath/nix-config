@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## Claude Code surface
 
-### MCP after the gateway — the plugin lane is the ONLY lane (2026-10-02)
+### MCP after the gateway — plugins and claude.ai connectors (2026-10-02)
 
 **Verdict first: there is no MCP infrastructure in this repo any more.** No shared proxy, nothing
 listening on `127.0.0.1:8097`, no tunnel, no portal, no `modules/shared/mcp.nix`, no
@@ -47,9 +47,14 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
   - **anything in a marketplace this repo does not pin.** The check covers `kattakath/skills`
     only, and that pin lags the marketplace, which tracks HEAD.
 - **Adopting a server is still a declaration, never an imperative install.** `claude mcp add`
-  and config-writing installer tools stay denied at user scope
-  (`claude-guardrails.nix`; `claude-managed-settings.nix` says why they are NOT elevated) — what changed is only *where* the
+  and config-writing installer tools ASK at user scope since 2026-11-02 (`claude-guardrails.nix`
+  `permissions.ask`; `claude-managed-settings.nix` says why they are NOT elevated) — what changed is only *where* the
   declaration lands: the owning plugin's repo, not this one.
+- **A claude.ai connector beats its plugin twin.** When an official connector serves the same
+  URL as a plugin's server, the plugin copy is denied by `serverName` in
+  `programs.claude-code.settings.deniedMcpServers` (`modules/home/default.nix`): AWS, Cloudflare,
+  Slack and Neon today. Cloud routines reach only connectors, so the connector is the one lane
+  that works everywhere. `fleet-doctor` § E4 checks the denied names still match nothing.
 
 History, kept deliberately rather than deleted — [`mcp-gateway.md`](../mcp-gateway.md) is the
 retired gateway's full record (roster, counting convention, lane-ownership rule, and the
@@ -144,7 +149,7 @@ file's `paths:` frontmatter is the source of truth.
 
 ### `.claude/hooks/`
 
-The two gates (`stop-gate.js`, `pretooluse-bash-guard.js`) guard sessions rooted in this repo only. Two wider tiers carry the fleet-wide floor: user-scope
+The gates (`stop-gate.js`, `pretooluse-bash-guard.js`, `pretooluse-write-target.js`) guard sessions rooted in this repo only. Two wider tiers carry the fleet-wide floor: user-scope
 `modules/home/claude-guardrails.nix` ([`modules-home.md`](modules-home.md) § `modules/home/`)
 and, above it on `macos`, root-owned managed scope in
 `modules/darwin/claude-managed-settings.nix`
@@ -177,7 +182,7 @@ and, above it on `macos`, root-owned managed scope in
   `modules/_lib/secret-read-paths.nix`, never copied). Rule 1b — which
   blocked `deploy` and public-`#macos` activation while a private layer existed — was
   RETIRED 2026-09-15 with that layer.
-- **`.claude/hooks/tests/*.sh`** — the case suites for both gates and the SessionStart
+- **`.claude/hooks/tests/*.sh`** — the case suites for every gate and the SessionStart
   digests (the directory is the list), **gated by
   `claude-config-lint.yml`** as the REQUIRED `Lint .claude config` status check — it BLOCKS a
   merge, it does not merely run. Each asserts BOTH
@@ -189,8 +194,8 @@ and, above it on `macos`, root-owned managed scope in
   secret-egress and Cloudflare blocks — until these suites were wired into CI. Cases live in a
   FILE rather than an argv because they are execution-shaped by construction and would
   otherwise trip the very rule under test.
-- Both are wrapped by **`superhook`** (crash-safety + loop-breaking + logging — the sole
-  supervisor for command-type decision hooks). It structurally CANNOT wrap `type: "prompt"`
+- The Stop and Bash gates are wrapped by **`superhook`** (crash-safety + loop-breaking +
+  logging); `pretooluse-write-target.js` is not (it fails open on its own). It structurally CANNOT wrap `type: "prompt"`
   hooks, which is why the remaining `Write|Edit` secret-detection gate in
   `.claude/settings.json` stays unsupervised prompt-based — that one is a genuine semantic
   judgment call, unlike the Bash gate's mostly-syntactic rules. Since 2026-11-02 it judges
@@ -198,8 +203,8 @@ and, above it on `macos`, root-owned managed scope in
 - **`pretooluse-write-target.js`** — `PreToolUse:Write|Edit`, wired directly in
   `.claude/settings.json` (command type, so it can ASK; a prompt hook can only deny). Asks
   before a write to an OS system path, a `../` escape from the project, or a login/credential
-  file; silent on the harness scratchpad, `gh-clones-<session>`, sibling repos and data
-  folders. Fails open. Suite: `.claude/hooks/tests/write-target.sh`.
+  file (judged on the real, case-folded path); silent on the harness scratchpad, sibling repos
+  and data folders. Fails open. Suite: `.claude/hooks/tests/write-target.sh`.
 - **DENY vs ASK (operator decision 2026-11-02).** A gate hard-blocks only when the damage has
   no undo or a secret value would print: Rules 1c/1d/1e/1f, terranix destroy, and the
   secret-egress `permissions.deny` families. Every other former block ASKS — `wrangler` and
@@ -279,8 +284,9 @@ Placed at `~/.claude/skills/<name>/` declaratively by `programs.claude-code.skil
 (`modules/home/default.nix`, darwin-gated) on `darwin-rebuild switch`. Most are sourced from
 PINNED `flake = false` inputs (e.g. `agent-skills-vercel` = vercel-labs/skills → `find-skills`),
 **NOT vendored**; `nix flake update` bumps them. anthropics/skills (`mcp-builder`,
-`webapp-testing`, `pdf`/`docx`/`pptx`/`xlsx`) is NOT an input any more: it is the
-`anthropic-agent-skills` marketplace in `local.claudePlugins.marketplaces`.
+`webapp-testing`, `pdf`/`docx`/`pptx`/`xlsx`) is NOT an input any more, and its marketplace
+registration was dropped 2026-11-02 (it enabled no plugin); those skills reach sessions through
+the claude.ai account.
 
 The `agent-skills-anthropic` input (anthropics/claude-code → plugin-dev + hookify authoring
 skills) was REMOVED 2026-09-29. Those eight skills now arrive as the `plugin-dev` and `hookify`
@@ -306,7 +312,7 @@ only difference between "someone else's skill" and "mine" is now who can push to
   what may happen unattended, and adoption goes through the harness: a new MCP server is a
   vetted record handed to `mcp-scout`, which since 2026-10-02 lands it in the owning plugin's
   `.mcp.json` rather than in this repo — never a `claude mcp add` (which the
-  `claude-guardrails.nix` floor denies anyway). Global because the need shows up in any repo.
+  `claude-guardrails.nix` floor makes ask). Global because the need shows up in any repo.
 - **`android-phone`** — operator knowledge for `packages/android-phone.nix`, global so ADB
   sessions launched from ANY directory know the wrapper's command surface and adb footguns,
   not just sessions rooted in this repo.

@@ -11,16 +11,10 @@
 #
 # The one imperative call left is a single `plugin marketplace add` per
 # store-path marketplace, and it only removes a first-session lag — read the
-# activation block's own comment, which carries the 2026-09-30 measurements
-# (including the premise they refuted).
+# activation block's own comment, which carries the 2026-09-30 measurements.
 #
-# It was a SINGLE-marketplace mechanism inlined in home.nix until the private
-# nix-personal flake needed a second one and grew a near-verbatim copy of the
-# whole activation script (ordered `entryAfter [ "claudeCodePlugins" ]` so the
-# two would not race on the same mutable ~/.claude state). An attrsOf option
-# merges by key instead, so any layer composed in through `extraHomeModules`
-# ADDS one attribute (none does today) and there is exactly one script — no copy to keep in sync, and no race to order
-# around.
+# An attrsOf option merges by key, so any layer composed in through `extraHomeModules`
+# ADDS one attribute (none does today) and there is exactly one activation script.
 #
 # WHY NOT `programs.claude-code.marketplaces` (upstream home-manager,
 # modules/programs/claude-code/options.nix): its lib.nix hardcodes every entry to
@@ -89,10 +83,7 @@ let
 
   # ONE predicate for "this marketplace is a store path", shared by the three
   # places that must agree: the assertion, the settings-shape branch, and the
-  # activation guard. It REPLACED a `repin` option whose only value was ever its
-  # derived default (`hasPrefix "/" source`) — nothing in this repo, and nothing
-  # a composed layer could plausibly want, ever set it. Deleted 2026-09-30 with
-  # the re-pin machinery it named.
+  # activation guard.
   isStorePath = mp: lib.hasPrefix "/nix/store/" mp.source;
 
   # The only marketplaces the activation guard touches. An https marketplace
@@ -112,8 +103,7 @@ in
   # exactly the inert shape the NixOS hosts want.
   options.local.claudePlugins.marketplaces = lib.mkOption {
     type = lib.types.attrsOf (
-      # A plain attrset module — no `{ config, ... }` head: the last option that
-      # read a sibling (`repin`, defaulting off `config.source`) is gone.
+      # A plain attrset module — no option reads a sibling, so no `{ config, ... }` head.
       lib.types.submodule {
         options = {
           source = lib.mkOption {
@@ -426,14 +416,8 @@ in
     #      plugin whose recorded `installPath` did not exist on disk still
     #      loaded and executed.
     #
-    # THE EARLIER PREMISE WAS MEASURED FALSE. Until 2026-09-30 this module
-    # claimed a store-path marketplace was "NOT COVERED" by the declarations,
-    # because `plugin install` COPIES into the cache and so a plain
-    # already-registered guard "would keep serving a previous generation's
-    # content forever". Finding 2 refutes that: there is no copy in the load
-    # path to go stale. On that premise this block ran an uninstall →
-    # marketplace-remove → re-add → re-install teardown; all of it is now
-    # deleted, along with the `repin` option that named it.
+    # Finding 2 is why the uninstall → remove → re-add → re-install teardown this
+    # block ran until 2026-09-30 is gone: there is no cache copy to go stale.
     #
     # STILL TRUE, and why the one call survives:
     #   3. The CLI does NOT propagate a settings change — neither

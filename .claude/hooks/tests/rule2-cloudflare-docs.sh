@@ -34,6 +34,21 @@ ck approve "$CU https://example.com/"
 ck approve "echo cloudflare docs live at the MCP tool"
 ck approve "grep -rn cloudflare docs/"
 
+echo "== the api.cloudflare.com nudge APPROVES and says why (decision alone proves nothing) =="
+API="api.cloud""flare.com"
+out="$(python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$CU -s https://$API/client/v4/zones" | node "$H" 2>/dev/null)"
+d="$(printf '%s' "$out" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("decision","?"))' 2>/dev/null)"
+m="$(printf '%s' "$out" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("systemMessage",""))' 2>/dev/null)"
+case "$d|$m" in
+  "approve|"*"raw call allowed"*) echo "  ok    approve  api host nudge"; pass=$((pass+1));;
+  *) echo "  FAIL  api host: decision=$d msg=$m"; fail=$((fail+1));;
+esac
+
+echo "== a non-JSON payload fails OPEN to approve, rc 0 =="
+out="$(printf 'not json' | node "$H")"; rc=$?
+if [ "$rc" = 0 ] && [ "$out" = '{"decision":"approve"}' ]; then echo "  ok    approve  malformed payload"; pass=$((pass+1))
+else echo "  FAIL  rc=$rc out=$out"; fail=$((fail+1)); fi
+
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]

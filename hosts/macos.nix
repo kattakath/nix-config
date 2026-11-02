@@ -810,7 +810,7 @@ in
       # `activate` is immune either way (packages/activate.nix).
       "kde-connect"
       # LibreOffice — provides the `soffice` CLI the docx/pptx/xlsx/pdf Claude Code
-      # skills (the anthropic-agent-skills marketplace) already hardcode
+      # skills (Anthropic's document skills) already hardcode
       # as their document-conversion engine. Cask (not nixpkgs libreoffice-bin)
       # because its command_wrapper execs the real Mach-O soffice binary directly —
       # nixpkgs' wrapper shells out via `open -na`, which won't block/report exit

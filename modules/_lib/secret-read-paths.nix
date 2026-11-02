@@ -1,24 +1,10 @@
 # The secret PATHS no agent may read, as DATA — one copy, rendered by each importer.
 #
-# WHY DATA AND NOT RULES. Two enforcement layers once needed these paths in two
-# incompatible spellings (the Seatbelt one is retired; the reasoning stands):
-#
-#   Claude Code `permissions.deny`  ->  "Read(~/.aws/sso/cache/**)"
-#     (the claude-guardrails.nix home module) — a glob in Claude's own syntax,
-#     where a leading `//` means absolute and `~/` means home-relative.
-#   a macOS Seatbelt profile        ->  (deny file-read* (subpath "<home>/.aws/sso/cache"))
-#     (desktop-commander's fence in plugin-mcp.nix, RETIRED 2026-11-01) — SBPL,
-#     absolute paths only, no `~` and no globs.
-#
-# One string cannot be both, so one layer had to be derived from the other.
-# Deriving the Seatbelt list by MATCHING the `Read(...)` strings was rejected for
-# the reason claude-guardrails.nix already records about its managed-settings
-# twin: a match-based derivation yields `[ ]` the moment a rule is reworded, and
-# `[ ]` is a well-formed, completely EMPTY floor that nothing reports. Going the
-# other way — data to strings — cannot fail that way: there is no pattern to
-# miss. An EMPTY list is still caught loudly by the consumers themselves — see
-# claude-guardrails.nix's assertion and the Bash guard hook's "Rule 1f DISARMED"
-# message.
+# WHY DATA AND NOT RULES. Each consumer renders its own spelling: Claude Code
+# `permissions.deny` globs (claude-guardrails.nix) and grok's sandbox deny list
+# (modules/home/default.nix). Data → strings cannot yield an empty floor on a
+# reword the way a match-based derivation can; an EMPTY list is still caught by
+# claude-guardrails.nix's assertion and the Bash guard hook's "Rule 1f DISARMED".
 #
 # WHAT BELONGS HERE: only paths whose CONTENT is a decrypted secret. NOT a
 # command shape (`agenix -d`, `secret reveal`, `security find-generic-password
@@ -35,13 +21,9 @@
   #
   # ALL FOUR AGENIX SPELLINGS, because `/run` is a SYMLINK on darwin: measured
   # 2026-10-07, `/run -> private/var/run` and `/run/agenix -> /run/agenix.d/1`.
-  # Layers disagree about symlinks, which is why both forms are needed:
-  #   Seatbelt (the retired fence) resolved them — measured the same day with a
-  #     decoy symlink, so for it either form alone would have sufficed.
-  #   Claude's `Read()` glob does NOT resolve them — it matches the path text the
-  #     tool call carries. So the single `Read(//run/agenix/**)` that stood here
-  #     before never covered a read spelled `/private/var/run/agenix.d/1/…`.
-  #     Rendering all four CLOSES that hole rather than restating one rule.
+  # Claude's `Read()` glob does NOT resolve symlinks — it matches the path text the
+  # tool call carries — so `Read(//run/agenix/**)` alone never covered a read spelled
+  # `/private/var/run/agenix.d/1/…`. Rendering all four closes that hole.
   absolute = [
     "/run/agenix"
     "/run/agenix.d"
@@ -57,44 +39,12 @@
     ".aws/sso/cache"
   ];
 
-  # ── The WIDER credential inventory, and the per-layer divergence ──────────
-  #
-  # WHY A SECOND TIER EXISTS. The lists above are denied at EVERY layer, because
-  # nothing legitimate reads them. These are different: they hold credentials, but
-  # some of them are also read by tools the fleet needs working. So each layer
-  # takes the subset it can AFFORD, and the point of putting them here is that the
-  # divergence is then visible in one file instead of being two lists that
-  # silently disagree.
-  #
-  # THEY SILENTLY DISAGREED, which is why this tier was added (2026-10-07). A
-  # /hygiene audit found `grok`'s sandbox.toml denying ~/.ssh while the
-  # desktop-commander Seatbelt fence left it READABLE — and `~/.ssh/id_ed25519` is
-  # the agenix OPERATOR identity (secrets/secrets.nix), the key
-  # `cloudflared-token.age` is encrypted to ALONE. Two mechanisms, one fact, no
-  # shared source, and the newer one was the weaker.
-  #
-  # EVERY ROW BELOW IS PRICED. Measured 2026-10-07 against the built profile, each
-  # rejection isolated against a control rather than assumed:
-  #
-  #   rule                     fence?  why
-  #   ~/.ssh/id_* (not .pub)   YES     free — SSH git ls-remote and `gh auth
-  #                                    status` both still work, because ssh reads
-  #                                    the key from the agent, not the file
-  #   ~/.docker                YES     free
-  #   **/*.pem, **/.env        YES     free
-  #   **/*.age                 NO      BREAKS `nix flake check` — evaluation reads
-  #                                    the ciphertexts. Isolated: dropping only
-  #                                    this rule makes the check pass again, and
-  #                                    the base fence passes too. Accepted,
-  #                                    because the KEY deny above already makes a
-  #                                    ciphertext useless on its own.
-  #   ~/.config/gh             NO      BREAKS `gh auth status`
-  #   ~/.aws (whole)           NO      blocks ~/.aws/config, which this fleet
-  #                                    documents reading; `.aws/sso/cache` is
-  #                                    already denied at every layer above
-  #
-  # grok's sandbox has no file-level granularity, so it denies whole directories.
-  # That is why it gets the wide list (the retired Seatbelt fence got the priced subset).
+  # ── The WIDER credential inventory — grok's sandbox only ──────────────────
+  # These hold credentials but are also read by tools the fleet needs (gh reads
+  # ~/.config/gh, evaluation reads **/*.age, this fleet documents ~/.aws/config), so
+  # they are NOT Claude Read denies. grok's sandbox has no file-level granularity, so
+  # it denies the whole set. `~/.ssh/id_ed25519` is the
+  # agenix OPERATOR identity (secrets/secrets.nix) — the reason this tier exists.
 
   # Home-relative credential DIRECTORIES. grok denies all of these outright.
   agentCredentialDirs = [
@@ -110,7 +60,4 @@
     "*.age"
     ".env"
   ];
-
-  # The Seatbelt subset (`fence`) went with desktop-commander's fenced launcher
-  # (retired 2026-11-01); the priced table above stays as the measurement record.
 }

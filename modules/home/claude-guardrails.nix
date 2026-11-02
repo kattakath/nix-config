@@ -8,18 +8,8 @@
 # `pretooluse-bash-guard`/`stop-gate` arrive as `superhook` plugin hooks that
 # find `.claude/hooks/` by convention. A session anywhere else (a work
 # repo, `~`) got none of it, while the VS Code extension and the `claude`
-# terminal profile start in `bypassPermissions` (default.nix). The MCP gateway was
-# the counter-example that forced the issue: it WAS global — `mcpfinder` reached
-# every session through `programs.claude-code.mcpServers`, so its config-writing
-# tool was deny-listed here and callable everywhere else. Measured 2026-09-15.
-#
-# THAT COUNTER-EXAMPLE IS GONE; THE REASON TO BE GLOBAL IS NOT. The gateway was
-# purged (CLAUDE.md § MCP servers) — modules/shared/mcp.nix deleted, the Cloudflare portal destroyed, the
-# terranix stack removed in #737 — so nothing global ships an MCP server any
-# more: servers arrive ONLY as Claude Code plugins (./plugin-mcp.nix),
-# which are per-session and carry no fleet-wide write tool.
-# The project-scope gap in the paragraph above is untouched by that, and it was
-# always the load-bearing half: a session in a work repo still gets no hook.
+# terminal profile start in `bypassPermissions` (default.nix). (The global MCP
+# gateway that first forced this was purged 2026-10-02; the project-scope gap remains.)
 #
 # UPSTREAM FIRST. `programs.claude-code.settings` is `jsonFormat.type`
 # (home-manager modules/programs/claude-code/options.nix) — freeform,
@@ -48,11 +38,7 @@
 # devcontainer deliberately does NOT mount (.devcontainer/devcontainer.json: "No
 # volume for ~/.claude (deliberate — don't re-add one)"). Inside that container,
 # and in any clone on a machine this HM config never touched, the checked-in
-# project copy is the only floor there is. (This paragraph used to name "the two
-# mcpfinder rules" as the live example. There is no such pair any more: the
-# mcpfinder deny was removed 2026-09-16 for naming a tool that does not exist —
-# see the body below — and the project file's four mcpfinder ALLOW entries went
-# with the portal. The reason survives its example.)
+# project copy is the only floor there is.
 #
 # SCOPE RULE for adding an entry: it must be a FLEET-WIDE policy already written
 # down somewhere (claude/CLAUDE.md, mcp-scout, CLAUDE.md § Security), and wrong
@@ -66,9 +52,8 @@
 # Top-level `lib.mkIf isDarwin`, matching ./claude-brain.nix: programs.claude-code
 # is darwin-only (default.nix), and the gate keeps nixpi/nixvm byte-identical.
 let
-  # The secret-path COORDINATES (once also rendered into a Seatbelt fence, retired 2026-11-01)
-  # so the two layers cannot drift. See that file for why this is data rather than
-  # a second copy of the rules, and why a match-based derivation was rejected.
+  # The secret-path COORDINATES, shared with grok's sandbox so the layers cannot drift.
+  # See that file for why this is data rather than a second copy of the rules.
   secretReadPaths = import ../_lib/secret-read-paths.nix;
 
   # `//` is Claude's ABSOLUTE spelling and `~/` its home-relative one; `/**`
@@ -147,9 +132,8 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # (root-owned managed scope, the tier above this one). Deriving one list from
     # the other by string match was rejected: it yields `[ ]` the moment a rule is
     # reworded — a well-formed, completely empty floor. That is the silent vacuum
-    # the mcpfinder note above and the `attribution` note below both record: a
-    # rule matching nothing is not a weak floor but NO floor, and nothing reports
-    # it. `checks.<system>.claude-managed-settings` fails the build when this group
+    # the `attribution` note above records: a rule matching nothing is not a weak
+    # floor but NO floor, and nothing reports it. `checks.<system>.claude-managed-settings` fails the build when this group
     # gains a rule the managed copy lacks.
     "Bash(secret reveal *)"
     "Bash(security find-generic-password -w*)"
@@ -210,21 +194,11 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # created or removes ~/.local/state/nix-config-mcp-public, so a state file
     # written before the teardown can still be sitting there with an Access
     # service-token secret in it. A deny whose target file can still exist is
-    # still load-bearing — the rule only dies when the FILE cannot exist, which is
-    # the test the mcpfinder note above applies to a tool NAME. Delete it after
-    # deleting the directory, in that order, never the reverse.
+    # still load-bearing — the rule only dies when the FILE cannot exist. Delete
+    # it after deleting the directory, in that order, never the reverse.
     #
-    # THE PATHS MOVED OUT, THE RULES DID NOT. These `Read(...)` globs (seven: four
-    # agenix spellings plus three under home) are
-    # now rendered from modules/_lib/secret-read-paths.nix, because a second
-    # enforcement layer needed the same coordinates in a spelling a glob cannot
-    # express (desktop-commander's Seatbelt fence, retired 2026-11-01, wanted
-    # `(subpath "/abs/path")`). Data with renderers,
-    # not lists — and the `assertions` at the top of this file makes an empty
-    # render a build error, which is the objection the group above raises about
-    # its managed-settings twin. The RENDER also widened the agenix rule from one
-    # spelling to four, because `/run` is a symlink on darwin and a `Read()` glob
-    # does not resolve one; that file carries the measurement.
+    # The `Read(...)` path globs render from modules/_lib/secret-read-paths.nix (shared
+    # with grok's sandbox); the `assertions` above make an empty render a build error.
   ]
   ++ secretReadDenies
   ++ [
@@ -301,71 +275,9 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # ── Imperative MCP adoption (mcp-scout: "installation IS declaration") ──
     # Servers arrive ONLY as Claude Code plugins now (./plugin-mcp.nix) —
     # the gateway that used to be the single source is gone.
-    # The rule is unchanged by that: a runtime add lands in ~/.claude.json,
-    # outside flake.lock, Cachix and every check that can see a declared server.
-    # THE PREFIX IS THE WHOLE RULE. A deny naming a tool that does not exist is
-    # not a weak guardrail, it is NO guardrail — and it fails silently, because
-    # nothing reports a rule that never matches.
-    #
-    # Measured 2026-09-15 from a live session's own tool namespace: servers then
-    # arrived as `mcp__plugin_hm_<server>__<tool>`. The two spellings that lived
-    # here before — a bare `mcp__mcpfinder__…` and an older, longer plugin prefix
-    # — matched NOTHING, so imperative MCP adoption was ungated the whole time.
-    # modules/home/default.nix in this same repo already had it right at the time.
-    #
-    # THAT PREFIX WENT STALE TWICE, exactly as this paragraph predicted. The
-    # 2026-09-22 portal collapse made the gateway ONE Claude Code server
-    # (`plugin:hm:kattakath-portal`) hosting every upstream, so its tools arrived
-    # as `mcp__plugin_hm_kattakath-portal__<server>_<tool>` — the upstream name
-    # moved INTO the tool half and lost its `__` separator. Then the gateway
-    # purge deleted that server outright, so THAT spelling can never match again
-    # either: it is absent from `claude mcp list`, checked 2026-10-02.
-    #
-    # TWO SHAPES ARE LEFT, both measured 2026-10-02 from a live session's own tool
-    # namespace rather than reasoned about:
-    #   plugin-owned  `mcp__plugin_<plugin>_<server>__<tool>` — e.g.
-    #                 `mcp__plugin_context7_context7__query-docs`,
-    #                 `mcp__plugin_nix-flake-kit_nixos__nix` (measured under the
-    #                 plugin's old name `claude-code-nix`; renamed 2026-11-01, #1012).
-    #   claude.ai connector  `mcp__claude_ai_<Server>__<tool>`, the server's
-    #                 DISPLAY name with spaces as underscores and its case kept —
-    #                 `mcp__claude_ai_cloudflare__docs`. Not a plugin, not in Nix,
-    #                 and so not declarable here; it is named because a capability
-    #                 that left the gateway can land in this lane.
-    #
-    # .claude/settings.json carried 15 allow entries on the pre-collapse spelling
-    # and matched nothing until #671 re-spelled them to the portal's — and the
-    # purge then killed all 15 again. They are now rewritten to the live shapes
-    # above where the capability survived and DELETED where it did not. Same
-    # silent failure, same file next door, twice: an allow is as dead as a deny
-    # when its prefix is, it just fails the other way — a prompt, not a hole.
-    #
-    # To re-verify after any plugin/marketplace change, read a real tool name out of
-    # a live session rather than reasoning about it; the prefix has now changed THREE
-    # times and has never announced it.
-    #
-    # THE TOOL-NAME HALF WAS DEAD TOO, and d39fc80 only fixed the prefix. Read
-    # from a live session's namespace 2026-09-16: the pinned @mcpfinder/server
-    # registers FOUR tools — browse_categories, get_install_config,
-    # get_server_details, search_mcp_servers — and `add_mcp_server_config` is not
-    # among them. So this deny named a tool that does not exist, which by this
-    # file's own header is not a weak guardrail but NO guardrail; meanwhile
-    # .claude/settings.json pre-approved the whole server by wildcard, sitting
-    # wider than the thing nominally narrowing it.
-    #
-    # It is gone rather than re-spelled, because there is no write tool to name.
-    # The narrowing lived in settings.json instead — the four read-only tools
-    # listed EXPLICITLY, so a write tool introduced by a future version pin
-    # matched no allow rule and prompted. A deny cannot be written against a name
-    # nobody knows yet; an allow-list does not need one.
-    #
-    # THOSE FOUR WENT WITH THE PORTAL and are deliberately NOT re-spelled:
-    # `mcpfinder` is absent from `claude mcp list` (2026-10-02), so its live
-    # prefix cannot be READ from a session, and the paragraphs above forbid
-    # writing one that was merely inferred. Losing an allow fails safe — every
-    # mcpfinder tool now prompts — which is why the gap is acceptable where a
-    # missing deny would not be. mcpfinder itself left the fleet 2026-11-01 (its
-    # launcher and the mcp-utilities server that named it are both gone).
+    # A runtime add lands in ~/.claude.json, outside flake.lock and every check that
+    # can see a declared server. MCP tool prefixes have changed three times without
+    # notice, so verify any MCP rule against a live session's tool names, never by reasoning.
     "Bash(claude mcp add *)"
     "Bash(claude mcp add-json *)"
     "Bash(claude mcp add-from-claude-desktop *)"
@@ -378,7 +290,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # ~/.config/git/config as store symlinks, and launchd agents come from
     # `launchd.agents`. An agent write would swap a declared file for a mutable
     # copy that the next `activate` refuses to clobber. The operator-hand-placed
-    # files beside them (`~/.config/git/local.inc`, `~/.ssh/allowed_signers`) are
+    # files beside them (`~/.config/git/local.inc`, `~/.config/git/allowed_signers`) are
     # his by CLAUDE.md § Configuration. A change to any of them goes through Nix,
     # or through the operator's own terminal.
     #
@@ -397,6 +309,13 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     "Edit(~/.gitconfig)"
     "Edit(~/.config/git/**)"
 
+    # ── OpenTofu state dirs not already denied above ──
+    # Tofu state is encrypted at rest but secrets-adjacent, so the operator confirms reads.
+    "Read(~/.local/state/nix-config-cf-access-org/**)"
+    "Read(~/.local/state/nix-config-cf-zones/**)"
+    "Read(~/.local/state/nix-config-gcp-foundation/**)"
+    "Read(~/.local/state/nix-config-gcp-budget/**)"
+
     # ── Secret Manager writes go through `secrets-push`, never raw gcloud ──
     # secrets-push is the only writer that enforces the billable-version cap
     # (keychain-secrets capsule, `backend.maxVersions`). Raw gcloud skips it, and the
@@ -406,12 +325,9 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     "Bash(gcloud --quiet secrets create *)"
     "Bash(gcloud --quiet secrets versions add *)"
 
-    # ── Irreversible remote actions an unattended agent must not take ──
-    # NO `gh pr merge` deny, on purpose (operator, 2026-10-30): it cost real time
-    # on repos where an admin merge is permitted, and it never held anyway — the
-    # GitHub MCP's `merge_pull_request` was loaded in every session. Branch
-    # protection on the forge is the merge gate; a repo that needs a human merge
-    # says so in its own CLAUDE.md or ruleset.
+    # ── Remote history rewrites ──
+    # No `gh pr merge` rule, on purpose (operator, 2026-10-30): branch protection on the
+    # forge is the merge gate, and the GitHub MCP's merge tool bypassed a Bash rule anyway.
     # Force-push, both flag positions. `--force-with-lease` stays allowed on purpose: it is
     # the safe way to update an agent's own rebased PR branch, and protected
     # branches are already force-push-proof server-side (GitHub rulesets).
