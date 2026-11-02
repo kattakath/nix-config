@@ -158,35 +158,28 @@ in
           # login Keychain.
           fal = pkgs.callPackage ../../packages/fal.nix { };
 
-          # xAI's grok CLI — a vendor-signed PREBUILT binary, the first in this
-          # tree. It replaces a `curl … | bash` install that put a
-          # self-updating copy in each user's ~/.grok/bin, outside the store and
-          # outside git. Shared via environment.systemPackages (hosts/macos.nix)
-          # so every account runs one reviewed version; per-user state stays in
-          # ~/.grok. Darwin-only by meta.platforms, so it never evaluates into
-          # the two NixOS hosts.
-          # Built from a NARROWED unfree instance, not `pkgs`, and not
-          # `allowUnfree = true`: grok is a closed-source vendor binary, and the
-          # same reasoning modules/features/tart-vms/flake-module.nix records
-          # applies — a predicate listing one name means a SECOND unfree package
-          # arriving later fails here instead of being waved through. The host
-          # itself already sets `allowUnfree = true` (modules/darwin/core.nix), so this
-          # only matters for the standalone `nix build .#grok` output, which is
-          # what CI and the cache consume.
+          # xAI's grok CLI — nixpkgs' own `grok-build`, re-exported as `.#grok`;
+          # hosts/macos.nix shares it machine-wide. Adopted 2026-11-02 over a
+          # hand-pinned packages/grok.nix (1.0.45) once nixpkgs' 1.0.50 was measured
+          # to keep xAI's Developer ID signature with NO override: the installed
+          # bin/grok is byte-identical to the vendor artifact (`cmp`), and
+          # `codesign --verify --strict` exits 0 (TeamIdentifier 5Y6N3AJ54S,
+          # chained to Apple Root CA). Re-check that on a nixpkgs bump that
+          # touches grok-build. Narrowed unfree instance, same reasoning as
+          # antigravity-cli below: a predicate naming ONE package means a second
+          # unfree arrival fails instead of being waved through.
           grok =
             (import inputs.nixpkgs {
               inherit system;
-              config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "grok" ];
-            }).callPackage
-              ../../packages/grok.nix
-              { };
+              config.allowUnfreePredicate = pkg: builtins.elem (lib.getName pkg) [ "grok-build" ];
+            }).grok-build;
 
           # Google's Antigravity CLI (`agy`) — nixpkgs' own `antigravity-cli`,
           # re-exported for `nix build .#antigravity-cli`; hosts/macos.nix shares
           # it machine-wide. Adopted 2026-10-21 over a hand-pinned copy once the
           # nixpkgs build was measured to keep Google's Developer ID signature
           # (`codesign --verify --strict` exit 0, TeamIdentifier EQHXZ8M8AV).
-          # Narrowed unfree instance, same reasoning as grok above.
+          # Narrowed unfree instance: see grok above.
           inherit
             (
               (import inputs.nixpkgs {

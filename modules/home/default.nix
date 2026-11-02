@@ -557,7 +557,7 @@ in
     # spare the first session after a bump — a directory-source plugin loads
     # LIVE from the marketplace dir (measured 2026-09-30), so the patch reaches
     # Claude Code with no cache copy to go stale.
-    # Runtime: the `grok` binary (packages/grok.nix, shared via environment.systemPackages)
+    # Runtime: the `grok` binary (nixpkgs' grok-build, shared via environment.systemPackages)
     # + Node — the bridge shells out to `grok models`. Remove that package only together
     # with this plugin and its flake input.
     xai-grok-build = {
@@ -1391,7 +1391,7 @@ in
   home.sessionPath = lib.optionals isMacosHost [
     "${androidSdkRoot}/emulator"
     "${androidSdkRoot}/platform-tools"
-    # No `$HOME/.grok/bin`: a self-updated per-user grok must not shadow packages/grok.nix.
+    # No `$HOME/.grok/bin`: a self-updated per-user grok must not shadow the store grok-build.
   ];
 
   # ---- Git identity include files -----------------------------------------------

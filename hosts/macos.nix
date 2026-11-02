@@ -94,11 +94,12 @@ in
   # profile has to declare it and none can drift to a different version.
   #
   # grok and Antigravity were per-user `curl … | bash` installs until
-  # 2026-09-15 and 2026-09-16 respectively. grok's package pins the vendor
-  # artifact; Antigravity is nixpkgs' `antigravity-cli`. Per-user state remains
-  # in ~/.grok and ~/.antigravity.
+  # 2026-09-15 and 2026-09-16 respectively. Both are nixpkgs' own builds
+  # (`grok-build`, `antigravity-cli`), each measured to keep its vendor's
+  # signature (modules/parts/packages.nix). Per-user state remains in ~/.grok
+  # and ~/.antigravity.
   environment.systemPackages = [
-    (pkgs.callPackage ../packages/grok.nix { })
+    pkgs.grok-build
     pkgs.antigravity-cli
     # acpx — the headless ACP client that drives the fleet's agents (grok,
     # Antigravity, Claude Code) as PEERS
