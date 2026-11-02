@@ -30,11 +30,23 @@
 # NOT COVERED: that the test's ASSERTIONS are right, or that it still exercises
 # the grammar. shellcheck is a syntax and quoting lint. Running it on a real
 # macOS session is still the only test of what it claims to test.
+#
+# PARITY, the other half of this gate: grammar.sh is plain bash, so it cannot take
+# `indexService` (../index-service.nix) as an argument and spells the index item's
+# service name as a literal. Every `-s <name> -w` it issues must name that one
+# binding, or the test asserts against an index item the CLIs never write.
 {
   pkgs,
   script,
+  indexService,
 }:
 pkgs.runCommand "keychain-secrets-grammar-lint" { nativeBuildInputs = [ pkgs.shellcheck ]; } ''
   shellcheck --shell=bash ${script}
-  echo "keychain-secrets tests/grammar.sh is shellcheck-clean" > "$out"
+  grep -qF -- '-s ${indexService} -w' ${script} \
+    || { echo "grammar.sh never reads the index as '${indexService}' (index-service.nix)" >&2; exit 1; }
+  if grep -oE -- '-s __[a-z_]+__ -w' ${script} | grep -vqxF -- '-s ${indexService} -w'; then
+    echo "grammar.sh names an index service other than '${indexService}' (index-service.nix)" >&2
+    exit 1
+  fi
+  echo "keychain-secrets tests/grammar.sh is shellcheck-clean and names the one index service" > "$out"
 ''

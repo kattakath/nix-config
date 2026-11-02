@@ -58,6 +58,7 @@
   writeShellApplication,
   coreutils,
   gnugrep,
+  indexService,
 }:
 writeShellApplication {
   name = "set-secret";
@@ -68,7 +69,7 @@ writeShellApplication {
   text = ''
     security=/usr/bin/security
     account="$(id -un)"
-    index_service="__set_secret_index__"
+    index_service="${indexService}"
 
     # Optional non-default keychain (positional trailing arg to `security`).
     kc=()

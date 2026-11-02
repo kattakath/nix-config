@@ -801,6 +801,104 @@ in
 
                 echo "managed floor carries all ${toString (builtins.length secretRules)} secret-value rules from the user scope, and allows exactly the ${toString (builtins.length gitMarketplaces)} declared git marketplaces" > "$out"
               '';
+
+          # ---- The committed malayalam-font-setter.crx IS its committed source -----
+          #
+          # modules/home/chromium.nix installs a repo-authored extension from a
+          # binary `.crx` sitting next to its readable source dir. Two copies of one
+          # thing: an edit to `bg.js` or `manifest.json` changes nothing on the Mac
+          # until someone repacks, and nothing said so. This asserts, against the
+          # entry `programs.chromium.extensions` ACTUALLY renders on macos:
+          #   · the CRX3's zip payload equals the source dir, file for file, byte for byte;
+          #   · the CRX header's signed `crx_id` is SHA-256(public key)[:16] of one of its
+          #     own RSA proofs, mapped to a-p — Chromium's derivation — and equals the
+          #     declared `id`;
+          #   · the declared `version` equals the payload manifest's.
+          #
+          # PARITY, NOT A NIX REPACK, because the id comes from the PACKING KEY. A
+          # derivation that packs from source needs that private key in the build — in
+          # a public repo — or mints a fresh key and a fresh id each time, which
+          # Chromium treats as a new, un-acknowledged sideload. So the crx stays a
+          # committed artifact and this check keeps it honest. Signature validity is
+          # Chromium's job at install; this checks only what the repo can drift on.
+          #
+          # upstream-first: grepped the pinned home-manager's
+          # `modules/programs/chromium.nix` for crx/pack/key — `extensions.*.crxPath`
+          # takes a prebuilt file only, and nixpkgs ships no CRX3 packer or verifier
+          # (`crx`/`crx3` searched), so a ~40-line stdlib-Python reader it is.
+          malayalam-crx-parity =
+            let
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              entries = builtins.filter (
+                e: e.crxPath != null && lib.hasSuffix "malayalam-font-setter.crx" (toString e.crxPath)
+              ) hm.programs.chromium.extensions;
+              entry =
+                if builtins.length entries == 1 then
+                  builtins.head entries
+                else
+                  throw "checks.malayalam-crx-parity: expected ONE programs.chromium.extensions entry whose crxPath is malayalam-font-setter.crx, found ${toString (builtins.length entries)}";
+              reader = pkgs.writeText "crx3-parity.py" ''
+                import hashlib, io, json, os, sys, zipfile
+
+                crx_path, src_dir, want_id, want_version = sys.argv[1:5]
+                blob = open(crx_path, "rb").read()
+                if blob[:4] != b"Cr24" or int.from_bytes(blob[4:8], "little") != 3:
+                    sys.exit("not a CRX3 file (magic/version)")
+                hlen = int.from_bytes(blob[8:12], "little")
+                header, payload = blob[12:12 + hlen], blob[12 + hlen:]
+
+                def varint(buf, i):
+                    shift = value = 0
+                    while True:
+                        b = buf[i]; i += 1
+                        value |= (b & 0x7F) << shift; shift += 7
+                        if not b & 0x80:
+                            return value, i
+
+                def fields(buf):  # length-delimited fields only; CrxFileHeader has no others
+                    i = 0
+                    while i < len(buf):
+                        key, i = varint(buf, i)
+                        if key & 7 != 2:
+                            sys.exit(f"unexpected wire type {key & 7} in CRX header")
+                        n, i = varint(buf, i)
+                        yield key >> 3, buf[i:i + n]; i += n
+
+                hdr = list(fields(header))
+                # crx3.proto: sha256_with_rsa = 2, signed_header_data = 10000 { crx_id = 1 }
+                signed = [v for f, v in hdr if f == 10000]
+                crx_id = next((v for f, v in fields(signed[0]) if f == 1), None) if signed else None
+                keys = [dict(fields(v)).get(1) for f, v in hdr if f == 2]
+                if crx_id is None or crx_id not in [hashlib.sha256(k).digest()[:16] for k in keys if k]:
+                    sys.exit("CRX header crx_id is absent or derives from none of its RSA keys")
+                got_id = "".join(chr(ord("a") + int(c, 16)) for c in crx_id.hex())
+                if got_id != want_id:
+                    sys.exit(f"crx id {got_id} != declared id {want_id} (modules/home/chromium.nix)")
+
+                packed = {}
+                with zipfile.ZipFile(io.BytesIO(payload)) as z:
+                    for name in z.namelist():
+                        if not name.endswith("/"):
+                            packed[name] = z.read(name)
+                source = {}
+                for root, _, files in os.walk(src_dir):
+                    for f in files:
+                        p = os.path.join(root, f)
+                        source[os.path.relpath(p, src_dir)] = open(p, "rb").read()
+                drift = sorted(n for n in packed.keys() | source.keys() if packed.get(n) != source.get(n))
+                if drift:
+                    sys.exit("crx payload != source dir; repack with the ORIGINAL key: " + ", ".join(drift))
+
+                version = json.loads(packed["manifest.json"])["version"]
+                if version != want_version:
+                    sys.exit(f"manifest version {version} != declared version {want_version}")
+                print(f"{got_id} {version}: {len(packed)} files match source")
+              '';
+            in
+            pkgs.runCommand "malayalam-crx-parity" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+              python3 -I ${reader} ${entry.crxPath} ${../../modules/home/chromium-extensions/malayalam-font-setter} \
+                ${lib.escapeShellArg entry.id} ${lib.escapeShellArg entry.version} > "$out"
+            '';
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # ---- Determinate owns this daemon TOO — and `nix.*` stays LIVE ------
