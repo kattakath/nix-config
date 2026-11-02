@@ -136,3 +136,23 @@ jobs:
           GH_REPO: ${{ github.repository }}
           PR_NUMBER: ${{ steps.update.outputs.pull-request-number }}
         run: gh pr merge --squash --auto "$PR_NUMBER"
+
+      # Dead man's switch (healthchecks.io, project `fleet`; registry: fleet.heartbeats).
+      # SCHEDULE ONLY, on purpose: the check proves the cron still fires, and a
+      # manual workflow_dispatch / PR / push run would mask a dead scheduler.
+      # `success()` pings OK, `failure()` pings /fail; a CANCELLED run pings neither,
+      # so the check goes late instead of lying. The ping key is part of the URL, so
+      # it is built here from the secret and the URL is never echoed.
+      - name: Heartbeat ping
+        if: github.event_name == 'schedule' && (success() || failure())
+        env:
+          PING_KEY: ${{ secrets.HC_PING_KEY }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          if [ -z "$PING_KEY" ]; then
+            echo "::notice::HC_PING_KEY unset (fork?) - heartbeat skipped"
+            exit 0
+          fi
+          suffix=""
+          [ "$JOB_STATUS" = "success" ] || suffix="/fail"
+          curl -fsS -m 10 --retry 3 -o /dev/null "https://hc-ping.com/${PING_KEY}/nix-config-update-flake-lock${suffix}"
