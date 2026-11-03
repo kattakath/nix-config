@@ -34,6 +34,9 @@
   runitor,
   # name -> the `*-plan` wrapper derivation (modules/parts/terranix.nix).
   plans,
+  # The two GCP ADC `export`s, scoped exactly as the devShell scopes them
+  # (modules/_lib/gcloud-scope.nix, handed in by modules/parts/terranix.nix).
+  gcloudScope,
   # The Home Manager profile whose `bin/secret` to call. null = `secret` from PATH, the
   # interactive `nix run .#terranix-drift` case.
   homeProfileDir ? null,
@@ -117,7 +120,7 @@ let
       mv summary.json.tmp summary.json
       echo "terranix-drift: $(jq '[.stacks[] | select(.code == 0)] | length' summary.json)/$(jq '.stacks | length' summary.json) clean"
       if [ "$reauth" = 1 ]; then
-        echo "ACTION: the Google login expired. Run: CLOUDSDK_CONFIG=~/.config/gcloud-nix-config gcloud auth application-default login"
+        echo "ACTION: the Google login expired. Run: CLOUDSDK_CONFIG=~''${CLOUDSDK_CONFIG#"$HOME"} gcloud auth application-default login"
       fi
       # Non-zero for any drift or error: runitor turns it into /fail.
       exit "$worst"
@@ -128,11 +131,10 @@ writeShellApplication {
   name = "terranix-drift";
   runtimeInputs = [ runitor ];
   text = ''
-    # GCP ADC, scoped exactly as the devShell scopes it (modules/parts/devshell.nix).
+    # GCP ADC, scoped exactly as the devShell scopes it (modules/_lib/gcloud-scope.nix).
     # launchd sets neither variable, and every GCS-backed stack's `tofu init` reads ADC,
     # so without these a plan would act as whoever last ran the global gcloud login.
-    export CLOUDSDK_CONFIG="''${XDG_CONFIG_HOME:-$HOME/.config}/gcloud-nix-config"
-    export GOOGLE_APPLICATION_CREDENTIALS="$CLOUDSDK_CONFIG/application_default_credentials.json"
+    ${gcloudScope}
 
     # --no-ping: plan and summarise, ping nothing (a manual look).
     if [ "''${1:-}" = "--no-ping" ]; then

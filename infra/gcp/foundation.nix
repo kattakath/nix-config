@@ -31,6 +31,13 @@
   automationServiceAccount,
   stateBucket,
   stateBucketLocation,
+  # ADR-011 step 11: `<org>/<repo>`, whose ONE workflow file on main may act as the rollup
+  # writer (see attribute_condition). Any other workflow, fork, or PR branch gets a token
+  # GitHub signed, and WIF refuses it on Google's side. From config.fleet's orgName/repoName,
+  # so renaming either moves this trust condition at the next apply, as it should.
+  rollupRepo,
+  # The writer's account id; modules/parts/terranix.nix also builds its email from it.
+  rollupWriterAccountId,
   ...
 }:
 let
@@ -53,11 +60,6 @@ let
     "sheets.googleapis.com" =
       "the rollup writes, and Grafana reads, the history Sheet (ADR-011 step 11)";
   };
-
-  # ADR-011 step 11: the ONE workflow file, on this repo's main branch, allowed to act as
-  # the rollup writer (see attribute_condition). Any other workflow, fork, or PR branch
-  # gets a token GitHub signed, and WIF refuses it on Google's side.
-  rollupRepo = "kattakath/nix-config";
 in
 {
   # Version pinned exactly in ../provider-pins.nix (one place for every stack).
@@ -250,7 +252,7 @@ in
 
   resource.google_service_account.grafana_rollup_writer = {
     project = projectId;
-    account_id = "grafana-rollup-writer";
+    account_id = rollupWriterAccountId;
     display_name = "Grafana rollup writer (GitHub Actions)";
     description = "No keys. Impersonated only via the github WIF pool from ${rollupRepo}@main. Edits the history Sheet it is shared on (ADR-011 step 11).";
     # A destroy soft-deletes it for 30 days (the id stays locked) and, for the reader,

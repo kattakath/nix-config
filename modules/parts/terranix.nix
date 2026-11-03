@@ -54,7 +54,12 @@ let
     gcpStateBucketLocation
     googleAccount
     orgName
+    repoName
     ;
+
+  # The Grafana rollup's writer service account, ONE spelling: infra/gcp/foundation.nix
+  # creates it from this account id, and infra/github/stack.nix is handed its email.
+  rollupWriterAccountId = "grafana-rollup-writer";
 
   # kattakath.com's records, as a PLAIN LIST rather than a `fleet.*` option.
   # Reading them through the module system recursed: `config` inside a terranix
@@ -69,6 +74,88 @@ let
   # `pkgs` module argument (flake-parts modules/nixpkgs.nix:18-22 defines that
   # as `inputs'.nixpkgs.legacyPackages`).
   pkgsFor = system: nixpkgs.legacyPackages.${system};
+
+  # ---- Guard snippets the wrappers share -----------------------------------
+  # One body each, so a fix to a guard lands on every stack that carries it. Only the
+  # per-stack WORDS are parameters; each call site keeps its own comment on why the
+  # stack needs the guard. Each returns text with no trailing newline, so a call on a
+  # line of its own renders exactly the block it replaced.
+  #
+  # Every word parameter lands inside double quotes in a REFUSAL path, so `literal`
+  # refuses at eval any text holding " $ ` or \ — a backtick there would run as a
+  # command in the very guard meant to stop the run.
+  literal =
+    l:
+    assert nixpkgs.lib.assertMsg (
+      builtins.match ".*[\"$`\\\\].*" l == null
+    ) "terranix guard text must be literal (no \" $ ` or \\): ${l}";
+    l;
+
+  # stateListGuard: absent state and UNREADABLE state are different answers. `tofu
+  # state list` exits 1 for both, so it discriminates on "No state file was found"
+  # (mkCfTunnelTofu has the measurement). Absent is an empty roster; unreadable refuses.
+  stateListGuard =
+    whyLines:
+    nixpkgs.lib.concatStringsSep "\n" (
+      [
+        "if ! tofu state list > .state-addrs.raw 2> .state-list.err; then"
+        "  if grep -qF \"No state file was found\" .state-list.err; then"
+        "    : > .state-addrs.raw"
+        "  else"
+        "    echo \"REFUSING: 'tofu state list' failed, so this run cannot tell whether\" >&2"
+      ]
+      ++ map (l: "    echo \"  ${literal l}\" >&2") whyLines
+      ++ [
+        "    sed 's/^/    /' .state-list.err >&2"
+        "    exit 1"
+        "  fi"
+        "fi"
+      ]
+    );
+
+  # dropGuard: state MINUS render (comm -23 over the sorted address lists the caller
+  # wrote) is what an apply would DELETE. Refuses unless `<env>_ALLOW_DROPS=1`, an
+  # override of its own so standing down another guard never stands this one down.
+  dropGuard =
+    {
+      name,
+      env,
+      what,
+      whyLines,
+    }:
+    nixpkgs.lib.concatStringsSep "\n" (
+      [
+        "dropped=$(comm -23 .state-addrs .render-addrs)"
+        "if [ -n \"$dropped\" ]; then"
+        "  echo \"REFUSING: this render DROPS ${literal what} that state already holds:\" >&2"
+        "  printf '%s\\n' \"$dropped\" | sed 's/^/    /' >&2"
+      ]
+      ++ map (l: "  echo \"  ${literal l}\" >&2") whyLines
+      ++ [
+        "  echo \"    ${env}_ALLOW_DROPS=1 nix develop -c nix run .#${name}\" >&2"
+        "  [ \"\${${env}_ALLOW_DROPS:-}\" = \"1\" ] || exit 1"
+        "  echo \"WARNING: ${env}_ALLOW_DROPS=1 set — proceeding with the deletions.\" >&2"
+        "fi"
+      ]
+    );
+
+  # refuseAutoApprove: an unattended apply skips the one read the guards exist to force.
+  refuseAutoApprove =
+    lines:
+    nixpkgs.lib.concatStringsSep "\n" (
+      [
+        "for a in \"$@\"; do"
+        "  case \"$a\" in"
+        "    -auto-approve|--auto-approve)"
+      ]
+      ++ map (l: "      echo \"${literal l}\" >&2") lines
+      ++ [
+        "      exit 1"
+        "      ;;"
+        "  esac"
+        "done"
+      ]
+    );
 
   # ---- Cloudflare TUNNEL provisioning (terranix -> OpenTofu) --------------
   # Renders infra/cloudflare/nixpi-tunnel.nix (the remotely-managed tunnel +
@@ -208,7 +295,7 @@ let
         # scratch — the rendered config.tf.json and the guards' address lists.
         umask 077
         # The tfstate chmod is NOT a GCS-era vestige, and this is the one line of
-        # why for all six wrappers: ADR-005 moved this stack's state to the bucket
+        # why for every wrapper that carries it: ADR-005 moved this stack's state to the bucket
         # but did not delete the local copy tofu wrote during the migration, so a
         # `terraform.tfstate.backup` still sits in this XDG dir. Measured
         # 2026-09-22 by reading the bytes: it is ENCRYPTED, same
@@ -216,7 +303,7 @@ let
         # behind it — NOT the pre-migration plaintext an earlier draft of this
         # comment claimed. It is a redundant offline snapshot, not an exposure.
         # Only gcp-foundation still writes these files live (and its local state is
-        # encrypted too); the other five keep the line because 0600 on a stale
+        # encrypted too); the others keep the line because 0600 on a stale
         # encrypted state costs nothing and the file is real.
         chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
         echo "tofu working directory: $state_dir" >&2
@@ -269,17 +356,10 @@ let
         # "No state file was found"), so discriminate on the message: absent means
         # an empty roster and the actionable guards below, unreadable means this
         # run genuinely cannot tell and must refuse.
-        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if grep -qF "No state file was found" .state-list.err; then
-            : > .state-addrs.raw
-          else
-            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
-            echo "  an apply would delete live records. Proceeding blind is the one" >&2
-            echo "  thing this guard exists to prevent. tofu said:" >&2
-            sed 's/^/    /' .state-list.err >&2
-            exit 1
-          fi
-        fi
+        ${stateListGuard [
+          "an apply would delete live records. Proceeding blind is the one"
+          "thing this guard exists to prevent. tofu said:"
+        ]}
         # EVERY cloudflare_* type, not an allow-list of two. The first version of
         # this guard named `dns_record|ruleset` and therefore inspected 2 of the 6
         # types the config renders — so a render dropping
@@ -326,21 +406,20 @@ let
           echo "WARNING: CF_TUNNEL_ALLOW_CREATE=1 set — proceeding against empty state." >&2
         fi
 
-        dropped=$(comm -23 .state-addrs .render-addrs)
-        if [ -n "$dropped" ]; then
-          echo "REFUSING: this render DROPS resources that state already holds:" >&2
-          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
-          echo "  Applying it would DELETE each of them at Cloudflare, and a tofu" >&2
-          echo "  apply has NO rollback — not a generation, not magicRollback." >&2
-          echo "  Usually this means hostedSites lost an entry it should still have." >&2
-          echo "  Override only if you genuinely mean to delete them:" >&2
-          echo "    CF_TUNNEL_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
-          # Its OWN variable. Sharing CF_TUNNEL_ALLOW_SITE_FREE would mean an
-          # operator standing down the floor for a legitimate site removal also
-          # silently stood down this check on the same run.
-          [ "''${CF_TUNNEL_ALLOW_DROPS:-}" = "1" ] || exit 1
-          echo "WARNING: CF_TUNNEL_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
-        fi
+        # Its OWN override variable. Sharing CF_TUNNEL_ALLOW_SITE_FREE would mean an
+        # operator standing down the floor for a legitimate site removal also
+        # silently stood down this check on the same run.
+        ${dropGuard {
+          inherit name;
+          env = "CF_TUNNEL";
+          what = "resources";
+          whyLines = [
+            "Applying it would DELETE each of them at Cloudflare, and a tofu"
+            "apply has NO rollback — not a generation, not magicRollback."
+            "Usually this means hostedSites lost an entry it should still have."
+            "Override only if you genuinely mean to delete them:"
+          ];
+        }}
 
         # "$@" is forwarded LAST so a caller can add flags (-auto-approve,
         # -target, -refresh=false) without a second app. It cannot weaken the
@@ -392,7 +471,7 @@ let
           echo "ERROR: CLOUDFLARE_API_TOKEN is unset." >&2
           echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=${cfTokenItem} -- nix run .#cf-tunnel-import" >&2
           echo "" >&2
-          echo "  NOT cf:cloudflare.com:nixpi-tunnel. MEASURED 2026-10-02: that handle" >&2
+          echo "  NOT ${items.cloudflare.nixpiTunnel}. MEASURED 2026-10-02: that handle" >&2
           echo "  reads the tunnel token data source fine, then 403s on the POLICY:" >&2
           echo "    GET /accounts/<acct>/access/policies/<id> -> 403 code 1010 auth.forbidden" >&2
           echo "  The tunnel token carries no Access scope, and this stack grew an Access" >&2
@@ -546,16 +625,7 @@ let
         # "No state file was found"), so discriminate on the message: absent means
         # an empty roster and the actionable guards below, unreadable means this
         # run genuinely cannot tell and must refuse.
-        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if grep -qF "No state file was found" .state-list.err; then
-            : > .state-addrs.raw
-          else
-            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
-            echo "  the organisation is already tracked. tofu said:" >&2
-            sed 's/^/    /' .state-list.err >&2
-            exit 1
-          fi
-        fi
+        ${stateListGuard [ "the organisation is already tracked. tofu said:" ]}
         if ! grep -q '^cloudflare_zero_trust_organization\.' .state-addrs.raw; then
           echo "REFUSING: state does not track the organisation yet." >&2
           echo "  There is exactly ONE per account and it has existed since" >&2
@@ -652,16 +722,11 @@ let
           # The interactive confirmation is the last line of defence here, because
           # unlike the sibling stacks this one has no address-level drop guard —
           # its whole risk is at the ATTRIBUTE level, inside one resource.
-          for a in "$@"; do
-            case "$a" in
-              -auto-approve|--auto-approve)
-                echo "REFUSING: -auto-approve on the Access organisation." >&2
-                echo "  Read the diff. An unattended apply here can rewrite the" >&2
-                echo "  sign-in host for every Access application in the account." >&2
-                exit 1
-                ;;
-            esac
-          done
+          ${refuseAutoApprove [
+            "REFUSING: -auto-approve on the Access organisation."
+            "  Read the diff. An unattended apply here can rewrite the"
+            "  sign-in host for every Access application in the account."
+          ]}
         ''}
 
         ${savedPlanRun pkgs action name}
@@ -796,16 +861,7 @@ let
         # "No state file was found"), so discriminate on the message: absent means
         # an empty roster and the actionable guards below, unreadable means this
         # run genuinely cannot tell and must refuse.
-        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if grep -qF "No state file was found" .state-list.err; then
-            : > .state-addrs.raw
-          else
-            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
-            echo "  an apply would delete live records. tofu said:" >&2
-            sed 's/^/    /' .state-list.err >&2
-            exit 1
-          fi
-        fi
+        ${stateListGuard [ "an apply would delete live records. tofu said:" ]}
         grep -E '^cloudflare_[a-z0-9_]+\.' .state-addrs.raw | sort > .state-addrs || true
         jq -r '
           .resource // {} | to_entries[] | .key as $type
@@ -824,17 +880,16 @@ let
           echo "WARNING: CF_ZONES_ALLOW_CREATE=1 set — proceeding against empty state." >&2
         fi
 
-        dropped=$(comm -23 .state-addrs .render-addrs)
-        if [ -n "$dropped" ]; then
-          echo "REFUSING: this render DROPS objects that state already holds:" >&2
-          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
-          echo "  Applying it would DELETE each record at Cloudflare, and a tofu" >&2
-          echo "  apply has NO rollback. If one of these is mail, the failure is" >&2
-          echo "  silent until a message bounces." >&2
-          echo "    CF_ZONES_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
-          [ "''${CF_ZONES_ALLOW_DROPS:-}" = "1" ] || exit 1
-          echo "WARNING: CF_ZONES_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
-        fi
+        ${dropGuard {
+          inherit name;
+          env = "CF_ZONES";
+          what = "objects";
+          whyLines = [
+            "Applying it would DELETE each record at Cloudflare, and a tofu"
+            "apply has NO rollback. If one of these is mail, the failure is"
+            "silent until a message bounces."
+          ];
+        }}
 
         ${savedPlanRun pkgs action name}
       '';
@@ -922,8 +977,7 @@ let
   # judged the very config the plan was made from, and a plan from ANOTHER stack is
   # refused too (they share one passphrase, so tofu alone would accept it). What the
   # binding does not cover — state that moved since the plan — tofu's own stale-plan
-  # check refuses. (terranix-infra-reviewer, 2026-11-03, found both gaps in a first
-  # draft that checked only for deletes.)
+  # check refuses.
   #
   # Three helpers, shared by every stack so no wrapper drifts from the others:
   #   · savedPlanArgs runs BEFORE the wrapper's `cd` into its state dir and makes a
@@ -1071,6 +1125,8 @@ let
             automationServiceAccount = gcpAutomationServiceAccount;
             stateBucket = gcpStateBucket;
             stateBucketLocation = gcpStateBucketLocation;
+            rollupRepo = "${orgName}/${repoName}";
+            inherit rollupWriterAccountId;
           };
         }
       ];
@@ -1276,13 +1332,14 @@ let
   # source of truth, and no check pre-exists at the monitor, so there is nothing to
   # adopt (contrast cf-tunnel / cf-access-org, whose objects predate their stacks).
   #
-  # Its three guards are the ones this stack's own failure modes need, not copies:
+  # Built on mkAdoptedTofu below, whose guards are the ones this stack's own failure
+  # modes need:
   #   (1) DROP guard — a render that no longer declares a check state holds would
   #       DELETE it at the monitor, silencing that alarm with a clean-looking plan.
-  #   (2) EMPTY-STATE guard, apply only — an apply with no state would try to
-  #       CREATE checks that may already exist (state lost, or run from the wrong
-  #       backend prefix). The first-ever apply is the legitimate case, so it is a
-  #       conscious override rather than a refusal with no way through.
+  #   (2) EMPTY-STATE guard, apply only (`emptyStateOnPlan = false`) — with no import
+  #       blocks, an apply with no state would CREATE checks that may already exist
+  #       (state lost, or the wrong backend prefix). The first-ever apply is the
+  #       legitimate case, so it is a conscious override, and its plan stays readable.
   #   (3) no `-auto-approve` — an unattended apply here is exactly what the drop
   #       guard exists to make you read.
   mkHcChecksTofu =
@@ -1291,21 +1348,26 @@ let
       name,
       action,
     }:
-    let
-      pkgs = pkgsFor system;
-    in
-    pkgs.writeShellApplication {
-      inherit name;
-      # The Keychain item packages/terranix-drift.nix hands this stack (names only).
-      passthru.terranixDriftEnv.HEALTHCHECKSIO_API_KEY = hcApiKeyItem;
-      runtimeInputs = [
-        pkgs.opentofu
-        pkgs.coreutils
-        pkgs.gnugrep
-        pkgs.gnused
-        pkgs.jq
+    mkAdoptedTofu {
+      inherit system name action;
+      stack = "hc-checks";
+      typePrefix = "healthchecksio_";
+      envPrefix = "HC_CHECKS";
+      label = "healthchecks.io";
+      # The provider comes from the OpenTofu registry, not nixpkgs (infra/healthchecks/checks.nix).
+      plugins = null;
+      emptyStateOnPlan = false;
+      autoApproveWhy = "Read the plan: a dropped or replaced check silences its alarm.";
+      renderer = hcChecksConfig;
+      driftEnv.HEALTHCHECKSIO_API_KEY = hcApiKeyItem;
+      vars = "";
+      createLine = "Correct ONLY for the first-ever apply. Otherwise (state lost, wrong backend prefix) it would CREATE duplicates of live checks. Run the matching *-plan first and read it.";
+      dropLines = [
+        "Applying it would DELETE each check at healthchecks.io: the alarm"
+        "goes quiet, and a quiet dead man's switch looks exactly like a"
+        "healthy host. tofu apply has NO rollback."
       ];
-      text = ''
+      credentialCheck = ''
         if [ -z "''${HEALTHCHECKSIO_API_KEY:-}" ]; then
           echo "ERROR: HEALTHCHECKSIO_API_KEY is unset." >&2
           echo "  nix develop -c secret exec HEALTHCHECKSIO_API_KEY=${hcApiKeyItem} -- nix run .#${name}" >&2
@@ -1314,79 +1376,6 @@ let
           echo "  only ping. Store it once:  secret set ${hcApiKeyItem}" >&2
           exit 1
         fi
-
-        ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-hc-checks"
-        mkdir -p "$state_dir"
-        chmod 700 "$state_dir"
-        cd "$state_dir"
-        umask 077
-        chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
-        echo "tofu working directory: $state_dir" >&2
-
-        rm -f config.tf.json
-        cp ${hcChecksConfig { inherit system; }} config.tf.json
-        chmod 600 config.tf.json
-        ${tofuRemoteStatePrelude}
-        tofu init
-
-        rendered=$(jq '[.resource.healthchecksio_check // {} | keys[]] | length' config.tf.json)
-        echo "rendered checks: $rendered" >&2
-
-        # Absent state and unreadable state are different answers (see mkCfZonesTofu
-        # for the measurement): absent is an empty roster, unreadable must refuse.
-        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if grep -qF "No state file was found" .state-list.err; then
-            : > .state-addrs.raw
-          else
-            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
-            echo "  an apply would delete live checks. tofu said:" >&2
-            sed 's/^/    /' .state-list.err >&2
-            exit 1
-          fi
-        fi
-        grep -E '^healthchecksio_check\.' .state-addrs.raw | sort > .state-addrs || true
-        jq -r '
-          .resource // {} | to_entries[] | .key as $type
-          | .value | keys[] | $type + "." + .
-        ' config.tf.json | sort > .render-addrs
-
-        dropped=$(comm -23 .state-addrs .render-addrs)
-        if [ -n "$dropped" ]; then
-          echo "REFUSING: this render DROPS checks that state already holds:" >&2
-          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
-          echo "  Applying it would DELETE each check at healthchecks.io: the alarm" >&2
-          echo "  goes quiet, and a quiet dead man's switch looks exactly like a" >&2
-          echo "  healthy host. tofu apply has NO rollback." >&2
-          echo "    HC_CHECKS_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
-          [ "''${HC_CHECKS_ALLOW_DROPS:-}" = "1" ] || exit 1
-          echo "WARNING: HC_CHECKS_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
-        fi
-
-        ${pkgs.lib.optionalString (action == "apply") ''
-          render_count=$(wc -l < .render-addrs | tr -d ' ')
-          if [ ! -s .state-addrs ] && [ "''${render_count:-0}" -gt 0 ]; then
-            echo "REFUSING: state is EMPTY but this render declares ''${render_count} check(s)." >&2
-            echo "  Correct ONLY for the first-ever apply. Otherwise (state lost, wrong" >&2
-            echo "  backend prefix) it would CREATE duplicates of live checks. Run the" >&2
-            echo "  matching *-plan first and read it, then:" >&2
-            echo "    HC_CHECKS_ALLOW_CREATE=1 nix develop -c nix run .#${name}" >&2
-            [ "''${HC_CHECKS_ALLOW_CREATE:-}" = "1" ] || exit 1
-            echo "WARNING: HC_CHECKS_ALLOW_CREATE=1 set — proceeding against empty state." >&2
-          fi
-
-          for a in "$@"; do
-            case "$a" in
-              -auto-approve|--auto-approve)
-                echo "REFUSING: -auto-approve on the heartbeat checks." >&2
-                echo "  Read the plan: a dropped or replaced check silences its alarm." >&2
-                exit 1
-                ;;
-            esac
-          done
-        ''}
-
-        ${savedPlanRun pkgs action name}
       '';
     };
 
@@ -1427,22 +1416,24 @@ let
             rulesetTemplates = inputs.kattakath-dotgithub;
             orgOwner = orgName;
             inherit grafanaUrl;
-            # account_id is infra/gcp/foundation.nix's grafana_rollup_writer.
-            rollupWriterSa = "grafana-rollup-writer@${gcpProjectId}.iam.gserviceaccount.com";
+            rollupWriterSa = "${rollupWriterAccountId}@${gcpProjectId}.iam.gserviceaccount.com";
           };
         }
       ];
     };
 
-  # ---- Adopted, import-guarded stacks: grafana and github -------------------
-  # ONE builder for the stacks ADR-012 adopted with `import` blocks. The older
-  # wrappers above stay as they are (moved verbatim, header); these two were the same
-  # script twice with different nouns, so they share one body and differ only in data.
+  # ---- Adopted, import-guarded stacks: grafana, github and hc-checks --------
+  # ONE builder for the stacks ADR-012 adopted with `import` blocks, plus hc-checks,
+  # which needs the same three guards with no imports. The older wrappers above stay
+  # as they are (moved verbatim, header) apart from the shared guard snippets; these
+  # were the same script with different nouns, so they share one body and differ
+  # only in data.
   #
   # Guards, every one from these stacks' own failure modes:
   #   (1) EMPTY-STATE: with no state, every resource must have an import block, or it
   #       would be CREATED next to (or upserted over) its live object.
-  #       Override: <STACK>_ALLOW_CREATE=1.
+  #       Override: <STACK>_ALLOW_CREATE=1. `emptyStateOnPlan = false` limits it to
+  #       apply, for a stack whose first apply legitimately creates everything.
   #   (2) DROP guard (comm -23 state vs render): a render that stops declaring an object
   #       state holds would DELETE it. A clean-looking plan can hide that.
   #       Override: <STACK>_ALLOW_DROPS=1.
@@ -1459,10 +1450,15 @@ let
       system,
       name,
       action,
-      # The state dir suffix, the `<stack>_` resource-type prefix (enforced at run time:
-      # a render outside it is refused) and the env-override prefix.
+      # The state dir suffix (nix-config-<stack>).
       stack,
+      # The resource-type prefix the state filter keeps (enforced at run time: a render
+      # outside it is refused) and the <env>_ALLOW_* override prefix.
+      typePrefix ? "${stack}_",
+      envPrefix ? nixpkgs.lib.toUpper stack,
       label,
+      # nixpkgs provider plugins, or null for a provider `tofu init` fetches from the
+      # registry (pinned in infra/provider-pins.nix instead).
       plugins,
       renderer,
       driftEnv,
@@ -1470,13 +1466,36 @@ let
       vars,
       # Literal text (shell-escaped): no expansion, so no `$var` either.
       createLine,
+      # Literal text too (dropGuard refuses " $ ` or \ at eval).
       dropLines,
+      # What the -auto-approve refusal tells the operator to look for.
+      autoApproveWhy ? "Read the plan.",
+      # false: the empty-state guard refuses only an APPLY. Its test is "fewer import
+      # blocks than resources", so for a stack with no imports it means "state is empty
+      # and the render is not" — an import block added later narrows it.
+      emptyStateOnPlan ? true,
       applyGuard ? "",
     }:
     let
       pkgs = pkgsFor system;
-      tofu = pkgs.opentofu.withPlugins plugins;
-      env = pkgs.lib.toUpper stack;
+      inherit (pkgs) lib;
+      tofu = if plugins == null then pkgs.opentofu else pkgs.opentofu.withPlugins plugins;
+      env =
+        assert lib.assertMsg (
+          builtins.match "[A-Z][A-Z0-9_]*" envPrefix != null
+        ) "mkAdoptedTofu ${stack}: envPrefix '${envPrefix}' is not a shell variable name";
+        envPrefix;
+      emptyStateGuard = ''
+        imports=$(jq '.import // [] | length' config.tf.json)
+        render_count=$(wc -l < .render-addrs | tr -d ' ')
+        if [ ! -s .state-addrs ] && [ "$imports" != "$render_count" ]; then
+          echo "REFUSING: state is empty and only $imports of $render_count resources have an" >&2
+          echo ${lib.escapeShellArg "  import block. ${createLine}"} >&2
+          echo "    ${env}_ALLOW_CREATE=1 nix develop -c nix run .#${name}" >&2
+          [ "''${${env}_ALLOW_CREATE:-}" = "1" ] || exit 1
+          echo "WARNING: ${env}_ALLOW_CREATE=1 set — proceeding against empty state." >&2
+        fi
+      '';
     in
     pkgs.writeShellApplication {
       inherit name;
@@ -1500,72 +1519,47 @@ let
         chmod 700 "$state_dir"
         cd "$state_dir"
         umask 077
+        # mkCfTunnelTofu has the one line of why this survives remote state.
+        chmod 600 terraform.tfstate terraform.tfstate.backup 2>/dev/null || true
         echo "tofu working directory: $state_dir" >&2
 
         rm -f config.tf.json
         cp ${renderer { inherit system; }} config.tf.json
         chmod 600 config.tf.json
         ${tofuRemoteStatePrelude}
-        # -upgrade: Nix pins the provider (one version in the withPlugins mirror), so the lock
-        # file in this dir is not the pin, and a bare init would refuse after a nixpkgs bump.
-        tofu init -upgrade
+        # -upgrade only with Nix-pinned plugins: there the withPlugins mirror holds one
+        # version, so the lock file in this dir is not the pin, and a bare init would
+        # refuse after a nixpkgs bump. A registry provider keeps its lock file.
+        tofu init${lib.optionalString (plugins != null) " -upgrade"}
 
-        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if grep -qF "No state file was found" .state-list.err; then
-            : > .state-addrs.raw
-          else
-            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
-            echo "  an apply would delete live ${label} objects. tofu said:" >&2
-            sed 's/^/    /' .state-list.err >&2
-            exit 1
-          fi
-        fi
-        grep -E '^${stack}_' .state-addrs.raw | sort > .state-addrs || true
+        ${stateListGuard [ "an apply would delete live ${label} objects. tofu said:" ]}
+        grep -E '^${typePrefix}' .state-addrs.raw | sort > .state-addrs || true
         jq -r '.resource // {} | to_entries[] | .key as $t | .value | keys[] | $t + "." + .' \
           config.tf.json | sort > .render-addrs
-        # `stack` is ALSO the resource-type prefix the state filter above keeps. A render
-        # declaring any other type would be invisible to guards (1) and (2), so refuse it:
-        # such a stack needs its own prefix parameter, not this builder as-is.
-        if grep -qv '^${stack}_' .render-addrs; then
-          echo "REFUSING: the render declares resources outside '${stack}_':" >&2
-          grep -v '^${stack}_' .render-addrs | sed 's/^/    /' >&2
+        # The state filter above keeps only `typePrefix`. A render declaring any other
+        # type would be invisible to guards (1) and (2), so refuse it: such a stack
+        # needs its own prefix parameter, not this builder as-is.
+        if grep -qv '^${typePrefix}' .render-addrs; then
+          echo "REFUSING: the render declares resources outside '${typePrefix}':" >&2
+          grep -v '^${typePrefix}' .render-addrs | sed 's/^/    /' >&2
           echo "  The drop and empty-state guards filter state by that prefix, so they" >&2
           echo "  could not see these. Give mkAdoptedTofu a separate prefix first." >&2
           exit 1
         fi
         # (1) The import blocks are the empty-state guard: with no state, a resource
         # WITHOUT one would be created.
-        imports=$(jq '.import // [] | length' config.tf.json)
-        render_count=$(wc -l < .render-addrs | tr -d ' ')
-        if [ ! -s .state-addrs ] && [ "$imports" != "$render_count" ]; then
-          echo "REFUSING: state is empty and only $imports of $render_count resources have an" >&2
-          echo ${pkgs.lib.escapeShellArg "  import block. ${createLine}"} >&2
-          echo "    ${env}_ALLOW_CREATE=1 nix develop -c nix run .#${name}" >&2
-          [ "''${${env}_ALLOW_CREATE:-}" = "1" ] || exit 1
-        fi
-
+        ${lib.optionalString (emptyStateOnPlan || action == "apply") emptyStateGuard}
         # (2)
-        dropped=$(comm -23 .state-addrs .render-addrs)
-        if [ -n "$dropped" ]; then
-          echo "REFUSING: this render DROPS ${label} objects that state already holds:" >&2
-          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
-          ${pkgs.lib.concatMapStrings (l: "echo ${pkgs.lib.escapeShellArg "  ${l}"} >&2\n") dropLines}
-          echo "    ${env}_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
-          [ "''${${env}_ALLOW_DROPS:-}" = "1" ] || exit 1
-          echo "WARNING: ${env}_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
-        fi
+        ${dropGuard {
+          inherit name env;
+          what = "${label} objects";
+          whyLines = dropLines;
+        }}
 
-        ${pkgs.lib.optionalString (action == "apply") ''
+        ${lib.optionalString (action == "apply") ''
           ${applyGuard}
           # (3)
-          for a in "$@"; do
-            case "$a" in
-              -auto-approve|--auto-approve)
-                echo "REFUSING: -auto-approve on the ${label} stack. Read the plan." >&2
-                exit 1
-                ;;
-            esac
-          done
+          ${refuseAutoApprove [ "REFUSING: -auto-approve on the ${label} stack. ${autoApproveWhy}" ]}
         ''}
 
         ${savedPlanRun pkgs action name}
@@ -1807,90 +1801,9 @@ in
         # are read to build the list (`lazyAttrsOf`), so this does not recurse.
         terranix-drift = (pkgsFor system).callPackage ../../packages/terranix-drift.nix {
           plans = nixpkgs.lib.filterAttrs (n: _: nixpkgs.lib.hasSuffix "-plan" n) config.packages;
+          gcloudScope = import ../_lib/gcloud-scope.nix;
         };
       };
-
-      # ---- Every Access service token NAMES its own expiry ---------------------
-      # `duration` is Optional+Computed with a provider default of 8760h, so
-      # omitting it does not mean "no expiry" — it means a one-year expiry nobody
-      # wrote down, and a silent lapse takes whatever it gates dark at once.
-      #
-      # VACUOUS TODAY, and kept anyway: mcp-public was the only stack that
-      # rendered a service token, so since its deletion (2026-10-02) this passes
-      # on zero tokens. It is a lane-keeper for the next stack that adds one —
-      # the alternative is rediscovering the 8760h default the hard way.
-      #
-      # Declared HERE rather than in modules/parts/checks.nix because `flake.lib`
-      # exports only one of the six renderers; the other five are in scope only
-      # inside this file.
-      #
-      # WHAT THIS CANNOT DO, so the limit is a choice and not an oversight: eval
-      # is pure, so it cannot know today's date or read `expires_at`. It asserts
-      # only that the window is a DECLARED number and that the number is legal.
-      # Days-LEFT is a runtime concern, not a build-time one.
-      checks.access-service-token-duration =
-        let
-          pkgs = pkgsFor system;
-          inherit (nixpkgs) lib;
-          # `.config` is terranix's passthru — the rendered Terraform attrset at
-          # EVAL time, no build. Only strings escape, so this costs no
-          # aarch64-linux build. The two GCP stacks are absent on purpose: a
-          # Cloudflare resource cannot appear in them.
-          renders = [
-            {
-              stack = "cf-tunnel";
-              cfg = (cfTunnelConfig { inherit system hostedSites; }).config;
-            }
-            {
-              stack = "cf-zones";
-              cfg = (cfZonesConfig { inherit system; }).config;
-            }
-            {
-              stack = "cf-access-org";
-              cfg = (cfAccessOrgConfig { inherit system; }).config;
-            }
-          ];
-
-          # Deliberately STRICTER than Go's time.ParseDuration: no leading sign,
-          # no bare `0`, no leading-dot form. A token lifetime is never negative
-          # and never zero, so the narrowing is the point. The provider ships NO
-          # validator on this attribute, so a typo is otherwise a 400 at apply.
-          wellFormed =
-            d: d == "forever" || builtins.match "([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+" d != null;
-
-          tokens = lib.concatMap (
-            r:
-            lib.mapAttrsToList (name: v: {
-              inherit name;
-              inherit (r) stack;
-              duration = v.duration or null;
-            }) (r.cfg.resource.cloudflare_zero_trust_access_service_token or { })
-          ) renders;
-
-          problems =
-            map (t: "${t.stack}: ${t.name} declares no duration, so it inherits the provider default 8760h") (
-              lib.filter (t: t.duration == null) tokens
-            )
-            ++ map (t: "${t.stack}: ${t.name} duration ${t.duration} is neither a Go duration nor forever") (
-              lib.filter (t: t.duration != null && !(wellFormed t.duration)) tokens
-            );
-        in
-        pkgs.runCommand "access-service-token-duration" { } (
-          if problems == [ ] then
-            "echo 'access service tokens: ${toString (builtins.length tokens)} rendered, every one with an explicit duration' > $out"
-          else
-            ''
-              echo "access-service-token-duration: a service token leaves its expiry to the provider." >&2
-              ${lib.concatMapStringsSep "\n" (x: ''echo "  ${x}" >&2'') problems}
-              echo "" >&2
-              echo "  The default is 8760h and it is SILENT, so an undeclared window" >&2
-              echo "  lapses a year from now with no partial failure first." >&2
-              echo "  Declare duration in the infra/cloudflare/ module that stack's renderer" >&2
-              echo "  imports (modules/parts/terranix.nix). Changing it later is" >&2
-              echo "  an in-place update, not a replacement, so it cannot rotate the secret." >&2
-              exit 1
-            ''
-        );
 
       # `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` — render
       # infra/cloudflare/nixpi-tunnel.nix (terranix) then `tofu init` + apply
