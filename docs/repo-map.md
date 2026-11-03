@@ -42,7 +42,7 @@ ceiling of its own, so the budget table is not a thing you can forget.
 | [`map/modules-nixos.md`](map/modules-nixos.md) | `modules/nixos/` — `nixpi`, `nixvm` and `nixos` system scope — the NixOS modules **not** in it, and web serving on `nixpi`. |
 | [`map/engine.md`](map/engine.md) | `modules/parts/` (the flake engine) · `modules/features/` (the seven capsules — read the mechanical boundary and the only-entry/three-seams sections before touching any) · `modules/_lib/` (shared **data**, not modules). |
 | [`map/packages.md`](map/packages.md) | `packages/` — package definitions (some flake outputs, some built by `modules/home/`, e.g. `activate`) and the `nixpi-*` provisioning CLIs — plus the record of why there is no `userscripts/` tree to look for. |
-| [`map/infra.md`](map/infra.md) | `infra/` — the terranix stacks (zones + DNS, `access-org`, `gcp/foundation`, `gcp/budget`, `nixpi-tunnel`, `healthchecks`) and the `mcp-public` teardown — plus the Cachix binary cache. |
+| [`map/infra.md`](map/infra.md) | `infra/` — the terranix stacks (its opening table: state, credential and blast radius per stack) and the `mcp-public` teardown — plus the Cachix binary cache. |
 | [`map/claude-code.md`](map/claude-code.md) | Claude Code surface. **Read § MCP after the gateway first — it supersedes every older MCP sentence.** Then `claude/` (the GLOBAL context), `.claude/{commands,rules,hooks,skills}/`, global skills, the operator's marketplace, project memory. |
 | [`map/ci.md`](map/ci.md) | CI, release, publishing — the hosted legs and `warm-nixpi-cache.yml`, the workflow that keeps the Pi from ever building. |
 | [`map/docs-index.md`](map/docs-index.md) | **Every `docs/*.md`, annotated.** The place to look when you want a document and not an architecture. |

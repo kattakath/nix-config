@@ -4,29 +4,25 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 **A stack is a blast radius, not a category, and the split is deliberate.**
 
-| Stack | State | Breaking it takes down |
-|---|---|---|
-| `cf-tunnel` | GCS `cf-tunnel/` | the Pi |
-| `cf-zones` | GCS `cf-zones/` | **mail** |
-| `cf-access-org` | GCS `cf-access-org/` | **every Access app at once** |
-| `gcp-budget` | GCS `gcp-budget/` | the spend alert |
-| `gcp-foundation` | **local** (still encrypted) | the bucket the others live in |
-| `hc-checks` | GCS `hc-checks/` | the fleet's dead-man's-switch ALARMS (a host cannot go down because of it) |
-| `grafana` | GCS `grafana/` | the Grafana alerting, the two custom datasources, the history dashboard and the public-site probe (ADR-011). A dropped datasource takes its key with it; the key exists nowhere else |
-| `github` | GCS `github/` | the fleet repos' branch protection, merge queue and CI variables |
+| Stack | State | Credential | Breaking it takes down |
+|---|---|---|---|
+| `cf-tunnel` | GCS `cf-tunnel/` | `CLOUDFLARE_API_TOKEN` | **the Pi**: tunnel, ingress, CNAMEs, every zone's TLS floor, the `nixpi_ssh` Access app |
+| `cf-zones` | GCS `cf-zones/` | `CLOUDFLARE_API_TOKEN` | **mail**, silently until a message bounces |
+| `cf-access-org` | GCS `cf-access-org/` | `CLOUDFLARE_API_TOKEN` | **every Access app at once** (`auth_domain`) |
+| `gcp-budget` | GCS `gcp-budget/` | ADC | the spend ALERT (an alert, never a cap) |
+| `gcp-foundation` | **local** (still encrypted) | ADC | the bucket the others live in |
+| `hc-checks` | GCS `hc-checks/` | `HEALTHCHECKSIO_API_KEY` | the dead-man's-switch ALARMS; a quiet one reads as a healthy host |
+| `grafana` | GCS `grafana/` | `GRAFANA_AUTH` + `GRAFANA_SM_ACCESS_TOKEN` | Grafana alerting, datasources, dashboard, probe (ADR-011). A dropped datasource takes its key with it |
+| `github` | GCS `github/` | `GITHUB_TOKEN` | fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |
 
-> **A FORMER stack, `mcp-public`, was DESTROYED AND DELETED on 2026-10-02.** It owned the
-> published MCP gateway's Cloudflare side — tunnel, portal, per-server registrations, Access
-> apps, service token. Two destroy runs removed **65 objects**; the API then reported **0** MCP
-> server registrations (was 27), **0** portals (was 1), **0** `mcp-public` tunnel, **0**
-> mcp/upstream Access applications, and `https://mcp.kattakath.com/mcp` answered **403**; its DNS
-> record was deleted the same day (the `infra/cloudflare/kattakath-dns.nix` header). Its
-> state object, the `mcp-public-{plan,apply,destroy,sync,token}` apps, the
-> `packages.mcp-worker-probe` helper and `fleet.publicMcpServers`/`publicMcpPort` went with it.
-> **Do not re-add a stack to publish MCP** — [`claude-code.md`](claude-code.md) § MCP after the gateway
-> says what replaced it, and
-> § The `mcp-public` teardown below records the one object that refused to die and why that
-> refusal was correct.
+The stack set itself is `nix eval .#apps.<system> --apply builtins.attrNames` (every stack has
+a `*-plan`). **Credentials:** a token is an env var `secret exec` fills from the Keychain; a `*-plan` run
+without it prints the exact `nix develop -c secret exec …` line. ADC is
+`gcloud auth application-default login`, scoped by `nix develop`.
+
+> **A FORMER stack, `mcp-public`, was DESTROYED AND DELETED on 2026-10-02** (65 objects, its
+> apps and state with it). **Do not re-add a stack to publish MCP** — [`claude-code.md`](claude-code.md)
+> § MCP after the gateway says what replaced it; § The `mcp-public` teardown below has the record.
 
 `checks.access-service-token-duration` (in `modules/parts/terranix.nix`) fails any rendered
 Access service token that leaves its expiry to the provider.
@@ -334,8 +330,7 @@ only ever consumed by the `cachix` CLI at push time.
 
 ### `infra/grafana/stack.nix` — the Grafana Cloud stack (ADR-012 step 2)
 
-- **Adopted, not created.** Every object ADR-011 built by hand has an `import` block. The first
-  plan read **12 to import, 0 to add, 0 to change, 0 to destroy** (2026-11-03).
+- **Adopted, not created.** Every object ADR-011 built by hand has an `import` block.
 - **`resources.nix` is generated.** It came from `tofu plan -generate-config-out` plus a
   deterministic HCL-to-Nix conversion. A `builtins.toJSON` value is exactly what the provider stores.
 - **Provider from nixpkgs** (`opentofu.withPlugins`, `grafana_grafana`), the first stack to do so
@@ -345,11 +340,11 @@ only ever consumed by the `cachix` CLI at push time.
   repository variable, read at run time.
 - **Datasource secrets are never Terraform's:** `secure_json_data_encoded` is ignored, so the
   GitHub App key and the Sheets reader key stay only in Grafana and never enter state.
-- **Guards:** a drop guard (a render that loses an object state holds refuses) and no
-  `-auto-approve`. There is no empty-state guard, because the imports re-adopt.
+- **Guards** (the same set as the github stack's): an empty-state guard (with no state, every
+  resource must have an import block — `GRAFANA_ALLOW_CREATE`), a drop guard (a render that
+  loses an object state holds refuses — `GRAFANA_ALLOW_DROPS`) and no `-auto-approve`.
 
 ### `infra/github/stack.nix` — fleet rulesets and variables (ADR-012 step 3)
 
-First plan: **37 to import, 0 to change** (2026-11-03); it reads as drift until the import-only
-apply. What it declares, skips and why: its header.
+Adopted by `import` blocks, like grafana. What it declares, skips and why: its header.
 

@@ -84,7 +84,7 @@ Finder Get Info shows it. Spotlight indexes it. Survives copy/upload/move.
 ## Three surprises
 
 - **Re-indexing is automatic.** rclip updates its index every time you search. No cron, no daemon.
-- **Per-project scoping is right.** In social-media/assets you want those assets, not your 2013 trip.
+- **Per-project scoping is right.** In <project>/assets you want those assets, not your 2013 trip.
 - **Keywords are the weak half.** Apple's tagger gave `people, adult` on 3 of 4 test photos. The caption carries the value.
 
 ## Is a describe job actually running?
