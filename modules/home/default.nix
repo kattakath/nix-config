@@ -476,6 +476,8 @@ in
   # the programs.claude-code.settings.env block below that points Claude Code
   # at it.
   local.claudeOtel.enable = isMacosHost;
+  # ADR-011: metrics (never logs) also go to Grafana Cloud, identity stripped.
+  local.claudeOtel.grafana.enable = isMacosHost;
 
   # ungoogled-chromium's declarative surface — real Mac only, since only
   # hosts/macos.nix declares the cask. Writes
@@ -1615,6 +1617,13 @@ in
           OTEL_EXPORTER_OTLP_PROTOCOL = "grpc";
           OTEL_EXPORTER_OTLP_ENDPOINT = config.local.claudeOtel.otlpEndpoint;
           OTEL_LOG_TOOL_DETAILS = "1";
+        }
+        // lib.optionalAttrs config.local.claudeOtel.grafana.enable {
+          # Same local collector; it alone holds the Grafana credential.
+          OTEL_METRICS_EXPORTER = "otlp";
+          # session.id would make ~41k series (ADR-011 § 5); account ids are identity.
+          OTEL_METRICS_INCLUDE_SESSION_ID = "false";
+          OTEL_METRICS_INCLUDE_ACCOUNT_UUID = "false";
         };
       };
 
