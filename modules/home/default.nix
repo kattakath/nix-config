@@ -329,6 +329,7 @@ in
     # comes only from claude.ai connectors (docs/claude-desktop-mcp.md).
     ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
     ./terminal-app.nix # Terminal.app type + colours (all darwin)
+    ./fleet-gauges.nix # hourly credential-expiry / security-alert / backup gauges (macos only)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     # Makes ~/.claude/settings.json LAYERED — a real writable file the app and
     # the operator can edit, with Nix's own keys (the permissions.deny floor,
@@ -478,6 +479,14 @@ in
   local.claudeOtel.enable = isMacosHost;
   # ADR-011: metrics (never logs) also go to Grafana Cloud, identity stripped.
   local.claudeOtel.grafana.enable = isMacosHost;
+  local.fleetGauges = {
+    enable = isMacosHost;
+    cloudflareItems = [
+      "cf:cloudflare.com:api"
+      "cf:cloudflare.com:nixpi-tunnel"
+      "cf:cloudflare.com:dontsell-dns"
+    ];
+  };
 
   # ungoogled-chromium's declarative surface — real Mac only, since only
   # hosts/macos.nix declares the cask. Writes

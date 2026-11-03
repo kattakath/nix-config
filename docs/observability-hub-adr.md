@@ -78,8 +78,8 @@ visualise them, alert on them, and show improvement trends longer than a SaaS re
 | 2 | Audiobookshelf health | **Folded into 4.** `serviceHeartbeat.requireUnits` means "public site not serving", and Audiobookshelf is LAN-only, so it is in Alloy's unit allowlist and alerted by Grafana instead |
 | 3 | Claude Code metrics via the existing collector | **Done** — #1046; #1047 adds `deltatocumulative` (Claude Code exports DELTA sums, which the OTLP gateway rejects with HTTP 400) |
 | 4–5 | nixpi Alloy metrics + journald → Loki | **Done as one PR** — #1048 (Grafana group `nixpi`). Knock-on: the SD image passed GitHub's 2 GiB asset limit; #1049 re-encodes it at zstd -19 (−14.7%) |
-| 6 | GitHub datasource plugin | |
-| 7 | Synthetic probe, credential expiry, backup age, security-alert counts | |
+| 6 | GitHub datasource plugin | **Done** — Grafana datasource `github`, authenticated as the read-only GitHub App `kattakath-grafana-readonly` (org repos; the private key lives only in Grafana). The operator chose an App over an expiring PAT |
+| 7 | Synthetic probe, credential expiry, backup age, security-alert counts | **Done** — Synthetic Monitoring check `nixpi-public-site` (3 probes, 5 min; it covers TLS expiry). `packages/fleet-gauges.nix` (hourly launchd agent `nix-fleet-gauges`) pushes credential expiry, open GitHub security alerts and Time Machine state. The Access host is NOT probed: Cloudflare's edge answers 302 even with the tunnel down |
 | 8 | Mac host metrics in the existing collector | |
 | 9 | Finance at-source ratios push | |
 | 10 | Career funnel + evidence quality | |
