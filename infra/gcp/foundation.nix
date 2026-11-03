@@ -230,6 +230,8 @@ in
       "google.subject" = "assertion.sub";
       "attribute.repository" = "assertion.repository";
       "attribute.ref" = "assertion.ref";
+      # What the writer's binding keys on (below): the exact workflow FILE, not the repo.
+      "attribute.workflow_ref" = "assertion.job_workflow_ref";
     };
     # Five clauses, all required. repository + ref alone admitted claude.yml (issue_comment
     # runs on main with id-token: write), flakehub-publish and build-installers
@@ -243,6 +245,7 @@ in
       "assertion.job_workflow_ref == '${rollupRepo}/.github/workflows/grafana-rollup.yml@refs/heads/main'"
     ];
     oidc.issuer_uri = "https://token.actions.githubusercontent.com";
+    lifecycle.prevent_destroy = true;
   };
 
   resource.google_service_account.grafana_rollup_writer = {
@@ -258,7 +261,11 @@ in
   resource.google_service_account_iam_member.grafana_rollup_writer_wif = {
     service_account_id = "\${google_service_account.grafana_rollup_writer.name}";
     role = "roles/iam.workloadIdentityUser";
-    member = "principalSet://iam.googleapis.com/\${google_iam_workload_identity_pool.github.name}/attribute.repository/${rollupRepo}";
+    # Keyed on the WORKFLOW FILE, not the repository: the provider's condition already pins
+    # it, but a binding on attribute.repository would let every workflow in the repo
+    # impersonate the writer the day a looser provider joins this pool. Two locks, each
+    # sufficient on its own (terranix-infra-reviewer, 2026-11-03).
+    member = "principalSet://iam.googleapis.com/\${google_iam_workload_identity_pool.github.name}/attribute.workflow_ref/${rollupRepo}/.github/workflows/grafana-rollup.yml@refs/heads/main";
   };
 
   resource.google_service_account.grafana_sheets_reader = {
