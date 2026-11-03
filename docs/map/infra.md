@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
-**Seven stacks, and the split is deliberate: a stack is a blast radius, not a category.**
+**A stack is a blast radius, not a category, and the split is deliberate.**
 
 | Stack | State | Breaking it takes down |
 |---|---|---|
@@ -13,6 +13,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `gcp-foundation` | **local** (still encrypted) | the bucket the others live in |
 | `hc-checks` | GCS `hc-checks/` | the fleet's dead-man's-switch ALARMS (a host cannot go down because of it) |
 | `grafana` | GCS `grafana/` | the Grafana alerting, the two custom datasources, the history dashboard and the public-site probe (ADR-011). A dropped datasource takes its key with it; the key exists nowhere else |
+| `github` | GCS `github/` | the fleet repos' branch protection, merge queue and CI variables |
 
 > **A FORMER stack, `mcp-public`, was DESTROYED AND DELETED on 2026-10-02.** It owned the
 > published MCP gateway's Cloudflare side — tunnel, portal, per-server registrations, Access
@@ -344,4 +345,9 @@ only ever consumed by the `cachix` CLI at push time.
   GitHub App key and the Sheets reader key stay only in Grafana and never enter state.
 - **Guards:** a drop guard (a render that loses an object state holds refuses) and no
   `-auto-approve`. There is no empty-state guard, because the imports re-adopt.
+
+### `infra/github/stack.nix` — fleet rulesets and variables (ADR-012 step 3)
+
+First plan: **37 to import, 0 to change** (2026-11-03); it reads as drift until the import-only
+apply. What it declares, skips and why: its header.
 
