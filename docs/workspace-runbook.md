@@ -103,6 +103,17 @@ Check with the Drive permissions API. Exactly the owner plus these two must be l
 the reader's share blinds the Grafana history panels, and removing the writer's share stops
 the rollup. Neither failure deletes data.
 
+### Google Cloud session control and the drift check (ADR-012 step 1)
+
+Admin console › Security › Access and data control › Google Cloud session control requires
+reauthentication every 16 hours, with **Exempt Trusted apps** ticked. A lapse fails every
+GCS-backed plan with `invalid_rapt`, which the daily `nix-terranix-drift` agent would report
+each morning. So the ADC OAuth client, **Google Auth Library**, is set to **Trusted** for the
+whole domain under Security › API controls › App access control › Configured apps
+(2026-11-03). That makes the ADC login exempt; the gcloud CLI's own client stays subject to the
+policy. If the drift check reports `reauth` again, check that this entry is still Trusted and
+that the exemption box is still ticked.
+
 ---
 
 ## 3. Verify
