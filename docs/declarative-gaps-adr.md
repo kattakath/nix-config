@@ -1,7 +1,7 @@
 # ADR-012 — Closing the declarative gaps: what is left, the tool for each, and drift detection
 
 **Status:** **DECIDED 2026-11-03** (the order in § 5 is the operator's, chosen click-to-select).
-Steps 1, 2 and 3's GitHub half have **shipped** (§ 5); GitLab is held (§ 5 step 3). Steps 4
+Steps 1, 2 and 3's GitHub half have **shipped** (§ 5); GitLab stays manual (§ 5 step 3). Steps 4
 and 5 are open. Each step is its own PR.
 
 **Question.** ADR-005 put Cloudflare and GCP under terranix. What fleet state is *still* set by
@@ -98,8 +98,9 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
    **GitHub half SHIPPED** (#1059): `infra/github/stack.nix`, runbook in `docs/map/infra.md`.
    37 objects adopted by an import-only apply, and the re-plan reads No changes. Actions secrets
    and `github_repository` stay out (the stack header says why).
-   **GitLab HELD:** the GitLab projects belong to the separate persona. Declaring them in this
-   public, real-name repo would link the two identities, so they wait on their own decision.
+   **GitLab: DECIDED manual (2026-11-03).** The GitLab projects belong to the separate persona.
+   Declaring them anywhere would risk linking the two identities, and their settings change
+   rarely, so they stay out of IaC.
 4. **gmailctl** (row 3).
 5. **Determinism tooling:** generate the host and check tables from `nix eval` with a check that
    the committed text matches the render; `--json` output on `launchd-doctor` and `activate`;
@@ -114,6 +115,7 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
 | Google Workspace via the TrogonStack provider | one release, 0 stars, and it would sit on the identity root |
 | impermanence on nixpi | more writes to an SD card that has already proven fragile |
 | devenv, Renovate, sops-nix | each duplicates a tool this repo already owns (the flake-parts devShell, update-flake-lock, agenix per ADR-004) |
+| GitLab under terranix, here or in a persona-side repo | either one risks linking the persona to the real name; the settings change rarely |
 | disko + nixos-anywhere for the `nixos` VM | works today via `nixos-vm create`; revisit only if that breaks |
 
 ## 7. What would reopen a decision
