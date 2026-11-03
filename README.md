@@ -2,9 +2,15 @@
 
 > One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, two NixOS VMs, and a prebuilt devcontainer.
 
-[![nix-ci](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml)
-[![build-devcontainer](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml)
+<!-- CI. nix-ci runs only on PRs and in the merge queue (not on push to main), so its badge
+     follows merge_group runs; GitHub's own badge would freeze at the last push-to-main run. -->
+[![nix-ci merge queue](https://img.shields.io/github/actions/workflow/status/kattakath/nix-config/nix-ci.yml?event=merge_group&label=nix-ci%20merge%20queue)](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml?query=event%3Amerge_group)
 [![gitleaks](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml)
+[![warm-nixpi-cache](https://github.com/kattakath/nix-config/actions/workflows/warm-nixpi-cache.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/warm-nixpi-cache.yml)
+[![build-devcontainer](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml)
+<!-- Live status from healthchecks.io: the Pi's dead man's switch, and this repo's scheduled jobs. -->
+[![nixpi heartbeat](https://img.shields.io/endpoint?url=https%3A%2F%2Fhealthchecks.io%2Fbadge%2F528186e9-b02b-4c28-ae0e-64e2f1%2F-EhhE_KW%2Fnixpi.shields&label=nixpi%20heartbeat)](#monitoring)
+[![scheduled jobs](https://img.shields.io/endpoint?url=https%3A%2F%2Fhealthchecks.io%2Fbadge%2F528186e9-b02b-4c28-ae0e-64e2f1%2FNK2O36pY%2Fnix-config.shields&label=scheduled%20jobs)](#monitoring)
 [![FlakeHub](https://img.shields.io/endpoint?url=https://flakehub.com/f/kattakath/nix-config/badge)](https://flakehub.com/flake/kattakath/nix-config)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
@@ -177,11 +183,11 @@ hosts/          Per-host entry profiles: macos.nix, nixpi.nix, nixvm.nix, nixos.
 modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each, each owning its own module + packages + checks), and the reusable modules split by platform (darwin/ nixos/ home/), plus _lib/ (shared data)
 packages/       Nix-built artifacts with no capsule owner (devcontainer image, SD-card provisioning apps, single-purpose CLIs). A capsule's own packages live under modules/features/<name>/packages/
 templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake
-infra/          terranix (Nix → Terraform JSON): six stacks (Cloudflare edge, GCP foundation, healthchecks.io), applied only through the flake's own cf-*/gcp-*/hc-* apps
+infra/          terranix (Nix → Terraform JSON): Cloudflare edge, GCP, healthchecks.io, Grafana Cloud and GitHub rulesets/variables, applied only through the flake's own `*-plan` / `*-apply` apps and checked daily for drift (stack table: docs/map/infra.md)
 sites/          Static site trees Caddy serves on nixpi via config.fleet.hostedSites
 secrets/        agenix recipients + four ciphertexts (see § Secrets below) — no plaintext
 ast-grep/       Six structural-lint rules + a matching test fixture each, gated by `checks.<system>.ast-grep`. Its config must sit at the repo root as sgconfig.yml: ast-grep finds it by walking UP from the working directory
-scripts/        drv-snapshot.sh — the ADR-002 acceptance harness ("moved code, changed no build"). Deliberately not a flake package: that would add an output and perturb the baseline it measures
+scripts/        drv-snapshot.sh — the ADR-002 acceptance harness ("moved code, changed no build"; CI runs it on PRs labelled no-build-change), deliberately not a flake package. grafana-rollup.py — the daily KPI rollup the grafana-rollup workflow runs
 docs/           Runbooks and ADRs, every file indexed and annotated in docs/map/docs-index.md; docs/map/ holds the eleven-file fleet map behind the docs/repo-map.md index
 claude/         The GLOBAL (all-projects) agent context this repo INSTALLS on macos — not config for working here. CLAUDE.md goes to ~/.claude/CLAUDE.md via programs.claude-code.context; rules/ likewise
 CLAUDE.md       Agent context for working in THIS repo (project-scoped). Under a hard 40,000-byte gate, `checks.<system>.claude-md-budget` — which also carries a per-file ceiling for the index and every docs/map/ file
@@ -200,12 +206,28 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)): 
 
 - [`build-devcontainer`](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch (arm64 + amd64) devcontainer image to GHCR as a manifest list.
 - [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixpi` SD image to a rolling pre-release.
+- [`warm-nixpi-cache`](https://github.com/kattakath/nix-config/actions/workflows/warm-nixpi-cache.yml) builds the `nixpi` toplevel on a native arm runner and pushes it to Cachix on every change to its closure, so the Pi only ever downloads and never builds.
 - [`gitleaks`](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml) scans the full history for leaked secrets as `nix-ci`'s `gitleaks` job, which `gate` requires — so on every merge-queue entry and every fork PR (an in-repo PR is scanned when it enters the queue) — plus weekly and on dispatch. It no longer runs on push to `main` (since #1036).
 - [`flakehub-publish`](https://github.com/kattakath/nix-config/actions/workflows/flakehub-publish.yml) publishes each push to `main` as a rolling release to [FlakeHub](https://flakehub.com/flake/kattakath/nix-config) via [`flakehub-push`](https://github.com/DeterminateSystems/flakehub-push). Auth is OIDC (`id-token: write`) — no long-lived token. Per FlakeHub's [trusted-platform model](https://docs.determinate.systems/flakehub/publishing/), flakes publish only from CI, never ad-hoc from a laptop.
 
+## Monitoring
+
+Silence is the alarm. Every scheduled thing pings a [healthchecks.io](https://healthchecks.io) check,
+declared in Nix (`fleet.heartbeats`, applied by the `hc-checks` stack), and a missed or failed ping
+emails the operator. The two status badges at the top read those checks live:
+
+- **nixpi heartbeat** — the Pi's dead man's switch: it pings only while its public site is actually
+  serving (`modules/nixos/service-heartbeat.nix`, via runitor).
+- **scheduled jobs** — this repo's own schedules: the weekly gitleaks history scan and flake-lock
+  update, the daily Grafana KPI rollup, and the daily drift check that plans every terranix stack
+  and fails on any difference between code and live infrastructure (ADR-012).
+
+Metrics and logs go to Grafana Cloud (ADR-011, [`docs/observability-hub-adr.md`](docs/observability-hub-adr.md));
+the alert rules there are themselves declared in the `grafana` stack.
+
 ## Secrets
 
-No plaintext secrets live in this repo. **Four** committed secrets are encrypted with [agenix](https://github.com/ryantm/agenix) (recipients declared in `secrets/secrets.nix`), on **two different models**. `nixpi`'s Cloudflare Tunnel token (`secrets/cloudflared-token.age`) is encrypted to the **operator's key alone** — an **operator-only vault**: the operator decrypts it on the Mac and plants it on the SD card's FAT `FIRMWARE` partition, from where it is copied into a `/run` file at boot, and it is **never** decrypted on `nixpi` (a fresh SD flash rotates the host key, which would break host-key decryption and kill the only remote path in). The other **three** — the two self-hosted-runner GitHub **App** keys (`secrets/gh-app-dontsell-ai-key.age`, `secrets/gh-app-fleet-key.age`) and the GitLab runner token (`secrets/gitlab-runner-token.age`) — are encrypted to the operator **plus the `macos` host key**, so they *are* host-decrypted into `/run/agenix/` at activation — safe there because that host key is stable, and the App keys only ever mint short-lived (~1 h) tokens, so no long-lived PAT exists. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
+No plaintext secrets live in this repo. **Four** committed secrets are encrypted with [agenix](https://github.com/ryantm/agenix) (recipients declared in `secrets/secrets.nix`), on **two different models**. `nixpi`'s Cloudflare Tunnel token (`secrets/cloudflared-token.age`) is encrypted to the **operator's key alone** — an **operator-only vault**: the operator decrypts it on the Mac and plants it on the SD card's FAT `FIRMWARE` partition, from where it is copied into a `/run` file at boot, and it is **never** decrypted on `nixpi` (a fresh SD flash rotates the host key, which would break host-key decryption and kill the only remote path in). The other **three** — the two self-hosted-runner GitHub **App** keys (`secrets/gh-app-dontsell-ai-key.age`, `secrets/gh-app-fleet-key.age`) and the GitLab runner token (`secrets/gitlab-runner-token.age`) — are encrypted to the operator **plus the `macos` host key**, so they *are* host-decrypted into `/run/agenix/` at activation — safe there because that host key is stable, and the App keys only ever mint short-lived (~1 h) tokens, so no long-lived PAT sits behind the runners. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
 
 ## Contributing
 
