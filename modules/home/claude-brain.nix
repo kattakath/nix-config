@@ -33,8 +33,6 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       # assigns over them — no mkForce needed.
       outputStyle = lib.mkDefault "brain-signals:Brain Signals";
       alwaysThinkingEnabled = lib.mkDefault true;
-      # skillListingBudgetFraction = 0.02;  # uncomment if /context shows the
-      #   skill listing truncating descriptions (60+ skills share the 1% default)
     };
   };
 }

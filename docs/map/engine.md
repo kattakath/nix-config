@@ -352,6 +352,10 @@ The layer exists for its files' shape rather than their count:
   grok's sandbox deny list (`modules/home/default.nix`); desktop-commander's Seatbelt renderer
   retired with its fenced launcher on 2026-11-01. The root-owned managed copy in
   `modules/darwin/claude-managed-settings.nix` stays hand-written on purpose (its comment says why).
+- **`modules/_lib/keychain-items.nix`** — login-Keychain item NAMES (never values) that more than
+  one site hands to `secret exec`, one spelling each: the terranix stacks' credentials
+  (`modules/parts/terranix.nix`) and the fleet-gauges / OTLP readers. `grep -rl keychain-items.nix`
+  lists the importers; the file's header states the layer rule.
 - **`modules/_lib/tor-browser-alpha.nix`** — an overlay pointing `tor-browser` at the aarch64
   ALPHA build, because the pinned nixpkgs' stable one THROWS at eval on aarch64-linux. Imported
   by `hosts/nixos.nix` only (nixvm's desktop, its other consumer, was deleted 2026-10-17).
