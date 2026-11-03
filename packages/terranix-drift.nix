@@ -2,7 +2,8 @@
 #
 # It runs each stack's `*-plan` wrapper with `-detailed-exitcode -lock=false` and classes
 # the exit: 0 clean, 2 drift, anything else error. An auth failure is an ERROR, never
-# drift and never clean. It prints one line per stack (counts only), keeps each plan's
+# drift and never clean; a lapsed Google login is labelled `reauth` (same severity) and
+# the run ends with the re-login command. It prints one line per stack (counts only), keeps each plan's
 # full output 0600 under its own state dir, and writes `summary.json` there. The hourly
 # fleet-gauges push reads that file and sends it to Grafana (packages/fleet-gauges.py).
 #
@@ -71,6 +72,7 @@ let
       started=$(date +%s)
       results="[]"
       worst=0
+      reauth=0
       while read -r stack plan; do
         [ -n "$stack" ] || continue
         log="$dir/$stack.log"
@@ -84,11 +86,20 @@ let
           2) status=drift; code=1 ;;
           *) status=error; code=2 ;;
         esac
+        # A lapsed Google login (Workspace session control's periodic reauth) fails every
+        # GCS-backed stack the same way. Name it, so the alert reads as "log in again"
+        # rather than as five broken stacks. Same severity (code 2): it still pings /fail.
+        if [ "$status" = error ] && grep -qE 'invalid_rapt|reauth related error|Reauthentication failed' "$log"; then
+          status=reauth
+          reauth=1
+        fi
         [ "$code" -gt "$worst" ] && worst=$code
         # "Plan: 1 to add, 0 to change, 0 to destroy." — counts only, never the diff.
         counts=$(grep -Eo 'Plan: [0-9]+ to add, [0-9]+ to change, [0-9]+ to destroy' "$log" | tail -1 | grep -Eo '[0-9]+' | tr '\n' ' ' || true)
         read -r add change destroy <<< "''${counts:-0 0 0}"
-        if [ "$status" = error ]; then
+        if [ "$status" = reauth ]; then
+          echo "$stack: reauth (Google login expired)"
+        elif [ "$status" = error ]; then
           echo "$stack: error (exit $rc; see $log)"
         else
           echo "$stack: $status (add $add, change $change, destroy $destroy)"
@@ -103,6 +114,9 @@ let
         '{started: $t, finished: $f, stacks: $r}' > summary.json.tmp
       mv summary.json.tmp summary.json
       echo "terranix-drift: $(jq '[.stacks[] | select(.code == 0)] | length' summary.json)/$(jq '.stacks | length' summary.json) clean"
+      if [ "$reauth" = 1 ]; then
+        echo "ACTION: the Google login expired. Run: CLOUDSDK_CONFIG=~/.config/gcloud-nix-config gcloud auth application-default login"
+      fi
       # Non-zero for any drift or error: runitor turns it into /fail.
       exit "$worst"
     '';
