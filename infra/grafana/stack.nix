@@ -71,6 +71,9 @@ in
 
   # The history Sheet's id is per-person data (the no-data rule), so it is not in the repo:
   # the wrapper reads the repository variable ROLLUP_SHEET_ID, the one copy the rollup uses.
+  # Deliberately NOT `sensitive`, unlike the github stack's copy: it is a Drive id, not a
+  # secret, and adding the flag now shows as a one-line in-place change on every plan until an
+  # apply accepts it (operator decision, 2026-11-03).
   variable.rollup_sheet_id = {
     type = "string";
     description = "Drive id of the fleet-history Sheet (repo variable ROLLUP_SHEET_ID).";
