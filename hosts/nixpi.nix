@@ -70,6 +70,7 @@
     ../modules/nixos/uplink-watchdog.nix
     ../modules/nixos/lan-recovery.nix
     ../modules/nixos/service-heartbeat.nix
+    ../modules/nixos/alloy-shipper.nix
   ];
 
   # The router this host is dual-homed onto keeps its LAN alive while losing its
@@ -337,6 +338,39 @@
       source = "heartbeat-ping-key";
       target = "/run/heartbeat-ping-key";
     };
+    # Grafana Cloud write credential for Alloy (ADR-011): endpoint, instance id and a
+    # metrics:write+logs:write token, as an EnvironmentFile. Optional and uncached for
+    # the heartbeat key's reason — losing it only stops telemetry.
+    grafana-alloy = {
+      source = "grafana-alloy.env";
+      target = "/run/grafana-alloy.env";
+      before = [ "alloy.service" ];
+      wantedBy = [ "alloy.service" ];
+    };
+  };
+
+  # ADR-011 step 4-5: metrics + WARN+ journal to Grafana Cloud. The unit list is the
+  # services whose state is worth a panel or an alert — including audiobookshelf, which
+  # is NOT in serviceHeartbeat.requireUnits on purpose (it is LAN-only, so its death
+  # does not mean "not serving").
+  local.alloyShipper = {
+    enable = true;
+    environmentFile = config.local.firmwareProvisioning.files.grafana-alloy.target;
+    systemdUnits = [
+      "caddy.service"
+      "cloudflared-connector.service"
+      "audiobookshelf.service"
+      "alloy.service"
+      "avahi-daemon.service"
+      "sshd.service"
+      "supplicant-wlan0.service"
+      "dhcpcd.service"
+      "service-heartbeat.service"
+      "uplink-watchdog.service"
+      "nix-gc.service"
+    ];
+    # It logs network names and BSSIDs.
+    dropJournalUnits = [ "supplicant-wlan0.service" ];
   };
 
   # The dead man's switch. Pings only when a local self-test passes, so the ABSENCE

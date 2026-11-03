@@ -291,6 +291,16 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   outage (userspace dead, kernel up, ICMP answering): with userspace dead the timer cannot
   fire. Every failure of the pinger fails toward alerting. It complements Cloudflare's tunnel
   alert, covering what leaves the tunnel up.
+- **`modules/nixos/alloy-shipper.nix`** — `local.alloyShipper`, on `nixpi` only (ADR-011,
+  [`observability-hub-adr.md`](../observability-hub-adr.md)). Wraps nixpkgs' `services.alloy`.
+  - **What it ships:** node metrics (a collector allowlist plus a `systemdUnits` allowlist) and
+    the WARNING-and-worse journal, both over OTLP/HTTP to Grafana Cloud.
+  - **Redaction:** IPs and MACs are replaced, and `dropJournalUnits` lines never leave the host.
+  - **SD-card safety:** the WAL and journal positions live in `/run/alloy`
+    (`--storage.path`), never the SD-card default `/var/lib/alloy`.
+  - **Credential:** `environmentFile`, planted on the FIRMWARE partition as `grafana-alloy.env`.
+    The unit only starts when that file exists, so an unplanted card ships nothing rather
+    than crash-looping.
 
 ## NixOS modules that are not in `modules/nixos/`
 
