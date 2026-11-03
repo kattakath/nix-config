@@ -6,8 +6,10 @@
 #
 # ADOPTED, NOT CREATED: every object predates this stack, so each has an `import` block below.
 # The first plan reads "12 to import, 0 to add, 0 to change, 0 to destroy" (measured
-# 2026-11-03); an import block is a no-op once its object is in state, so they stay as the
-# record of what this stack adopted.
+# 2026-11-03). An import block is a no-op once its object is in state, and the blocks ARE the
+# empty-state guard: with state lost, each re-adopts its live object instead of creating (or,
+# for a rule group, silently upserting over) it. So every resource needs one; the wrapper
+# refuses an empty-state run where the counts differ.
 #
 # PROVIDER FROM NIXPKGS (ADR-012 § 3): the wrapper runs `opentofu.withPlugins` with
 # `grafana_grafana` (4.50.0 in the pinned nixpkgs), so there is no registry download and no
@@ -30,7 +32,17 @@
 }:
 let
   resources = import ./resources.nix { inherit operatorEmail gcpProjectId publicSiteUrl; };
-  ignoreSecret = ds: ds // { lifecycle.ignore_changes = [ "secure_json_data_encoded" ]; };
+  # prevent_destroy too: ignore_changes keeps the secret out of the diff, but would not stop a
+  # destroy or replace, and a replaced datasource loses a key that exists nowhere else.
+  ignoreSecret =
+    ds:
+    ds
+    // {
+      lifecycle = {
+        ignore_changes = [ "secure_json_data_encoded" ];
+        prevent_destroy = true;
+      };
+    };
 
   # address = live id. The four rule groups are `<folder uid>:<group name>`.
   adopted = {
@@ -65,7 +77,14 @@ in
 
   import = lib.mapAttrsToList (to: id: { inherit to id; }) adopted;
 
+  # `org_id` is deliberately absent from resources.nix: in provider 4.50.0 it is ForceNew and
+  # only suppresses a diff when unset, so a literal would turn a provider bump into a REPLACE
+  # (terranix-infra-reviewer, 2026-11-03). The root policy also gets prevent_destroy: a destroy
+  # or replace of it resets the whole routing tree.
   resource = resources // {
     grafana_data_source = lib.mapAttrs (_: ignoreSecret) resources.grafana_data_source;
+    grafana_notification_policy.root = resources.grafana_notification_policy.root // {
+      lifecycle.prevent_destroy = true;
+    };
   };
 }

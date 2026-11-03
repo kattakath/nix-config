@@ -1283,7 +1283,9 @@ let
         cp ${grafanaConfig { inherit system; }} config.tf.json
         chmod 600 config.tf.json
         ${tofuRemoteStatePrelude}
-        tofu init
+        # -upgrade: Nix pins the provider (one version in the withPlugins mirror), so the lock
+        # file in this dir is not the pin, and a bare init would refuse after a nixpkgs bump.
+        tofu init -upgrade
 
         if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
           if grep -qF "No state file was found" .state-list.err; then
@@ -1298,6 +1300,17 @@ let
         grep -E '^grafana_' .state-addrs.raw | sort > .state-addrs || true
         jq -r '.resource // {} | to_entries[] | .key as $t | .value | keys[] | $t + "." + .' \
           config.tf.json | sort > .render-addrs
+        # The import blocks are the empty-state guard (stack.nix header): with no state, a
+        # resource WITHOUT one would be created, or upserted over a same-named live object.
+        imports=$(jq '.import // [] | length' config.tf.json)
+        render_count=$(wc -l < .render-addrs | tr -d ' ')
+        if [ ! -s .state-addrs ] && [ "$imports" != "$render_count" ]; then
+          echo "REFUSING: state is empty and only $imports of $render_count resources have an" >&2
+          echo "  import block. The others would be CREATED, or upserted over live objects." >&2
+          echo "    GRAFANA_ALLOW_CREATE=1 nix develop -c nix run .#${name}" >&2
+          [ "''${GRAFANA_ALLOW_CREATE:-}" = "1" ] || exit 1
+        fi
+
         dropped=$(comm -23 .state-addrs .render-addrs)
         if [ -n "$dropped" ]; then
           echo "REFUSING: this render DROPS Grafana objects that state already holds:" >&2

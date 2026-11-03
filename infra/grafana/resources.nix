@@ -24,7 +24,6 @@
         }
       ];
       name = "operator-email";
-      org_id = "0";
     };
   };
   grafana_dashboard = {
@@ -425,7 +424,6 @@
       };
       folder = "agentic-jobseek";
       message = null;
-      org_id = "0";
       overwrite = null;
     };
   };
@@ -443,7 +441,6 @@
         tokenUri = "https://oauth2.googleapis.com/token";
       };
       name = "Fleet history (Sheet)";
-      org_id = "1";
       private_data_source_connect_network_id = null;
       secure_json_data_encoded = null;
       type = "grafana-googlesheets-datasource";
@@ -461,7 +458,6 @@
         selectedAuthType = "github-app";
       };
       name = "GitHub";
-      org_id = "1";
       private_data_source_connect_network_id = null;
       secure_json_data_encoded = null;
       type = "grafana-github-datasource";
@@ -470,13 +466,11 @@
   };
   grafana_folder = {
     agentic_jobseek = {
-      org_id = "0";
       prevent_destroy_if_not_empty = null;
       title = "Agentic Jobseek";
       uid = "agentic-jobseek";
     };
     fleet = {
-      org_id = "0";
       prevent_destroy_if_not_empty = null;
       title = "Fleet";
       uid = "fleet";
@@ -490,7 +484,6 @@
         "grafana_folder"
         "alertname"
       ];
-      org_id = "0";
     };
   };
   grafana_rule_group = {
@@ -499,7 +492,6 @@
       folder_uid = "fleet";
       interval_seconds = 60;
       name = "career";
-      org_id = "1";
       rule = [
         {
           annotations = {
@@ -577,7 +569,6 @@
       folder_uid = "fleet";
       interval_seconds = 60;
       name = "fleet-health";
-      org_id = "1";
       rule = [
         {
           annotations = {
@@ -934,7 +925,6 @@
       folder_uid = "fleet";
       interval_seconds = 60;
       name = "free-tier";
-      org_id = "1";
       rule = [
         {
           annotations = {
@@ -1081,7 +1071,6 @@
       folder_uid = "fleet";
       interval_seconds = 60;
       name = "nixpi";
-      org_id = "1";
       rule = [
         {
           annotations = {
