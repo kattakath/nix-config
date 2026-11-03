@@ -1459,7 +1459,8 @@ let
       system,
       name,
       action,
-      # The state dir suffix, the `<stack>_` resource prefix and the env-override prefix.
+      # The state dir suffix, the `<stack>_` resource-type prefix (enforced at run time:
+      # a render outside it is refused) and the env-override prefix.
       stack,
       label,
       plugins,
@@ -1467,6 +1468,7 @@ let
       driftEnv,
       credentialCheck,
       vars,
+      # Literal text (shell-escaped): no expansion, so no `$var` either.
       createLine,
       dropLines,
       applyGuard ? "",
@@ -1521,13 +1523,23 @@ let
         grep -E '^${stack}_' .state-addrs.raw | sort > .state-addrs || true
         jq -r '.resource // {} | to_entries[] | .key as $t | .value | keys[] | $t + "." + .' \
           config.tf.json | sort > .render-addrs
+        # `stack` is ALSO the resource-type prefix the state filter above keeps. A render
+        # declaring any other type would be invisible to guards (1) and (2), so refuse it:
+        # such a stack needs its own prefix parameter, not this builder as-is.
+        if grep -qv '^${stack}_' .render-addrs; then
+          echo "REFUSING: the render declares resources outside '${stack}_':" >&2
+          grep -v '^${stack}_' .render-addrs | sed 's/^/    /' >&2
+          echo "  The drop and empty-state guards filter state by that prefix, so they" >&2
+          echo "  could not see these. Give mkAdoptedTofu a separate prefix first." >&2
+          exit 1
+        fi
         # (1) The import blocks are the empty-state guard: with no state, a resource
         # WITHOUT one would be created.
         imports=$(jq '.import // [] | length' config.tf.json)
         render_count=$(wc -l < .render-addrs | tr -d ' ')
         if [ ! -s .state-addrs ] && [ "$imports" != "$render_count" ]; then
           echo "REFUSING: state is empty and only $imports of $render_count resources have an" >&2
-          echo "  import block. ${createLine}" >&2
+          echo ${pkgs.lib.escapeShellArg "  import block. ${createLine}"} >&2
           echo "    ${env}_ALLOW_CREATE=1 nix develop -c nix run .#${name}" >&2
           [ "''${${env}_ALLOW_CREATE:-}" = "1" ] || exit 1
         fi
@@ -1537,7 +1549,7 @@ let
         if [ -n "$dropped" ]; then
           echo "REFUSING: this render DROPS ${label} objects that state already holds:" >&2
           printf '%s\n' "$dropped" | sed 's/^/    /' >&2
-          ${pkgs.lib.concatMapStrings (l: "echo \"  ${l}\" >&2\n") dropLines}
+          ${pkgs.lib.concatMapStrings (l: "echo ${pkgs.lib.escapeShellArg "  ${l}"} >&2\n") dropLines}
           echo "    ${env}_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
           [ "''${${env}_ALLOW_DROPS:-}" = "1" ] || exit 1
           echo "WARNING: ${env}_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
@@ -1635,7 +1647,7 @@ let
       # prevent_destroy stops a ruleset delete inside tofu too; this refuses before tofu.
       dropLines = [
         "Applying it would DELETE each one (a ruleset is a repo's branch protection)."
-        "To stop managing one without deleting it, 'tofu state rm' it in $state_dir."
+        "To stop managing one without deleting it, 'tofu state rm' it in the working directory above."
       ];
       # PIN LAG: apply-ruleset.sh writes the templates at that repo's HEAD, this render
       # reads the locked rev. Applying a stale pin would roll all rulesets back with a
