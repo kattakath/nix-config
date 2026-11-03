@@ -24,6 +24,7 @@ copying each into a root-only `/run` file before its consumer starts:
 | `cloudflared-token` (`TUNNEL_TOKEN=…`) | `cloudflared-token` | `cloudflared-connector` |
 | `wpa_supplicant.conf` (`country=` + `network={}`) | `wpa_supplicant-firmware.conf` | `supplicant-wlan0` (upstream `networking.supplicant`) |
 | `heartbeat-ping-key` (the healthchecks.io project ping key, one line) — OPTIONAL | `heartbeat-ping-key` | `service-heartbeat` (`local.serviceHeartbeat`); absent ⇒ no heartbeat ⇒ the `nixpi-serving` check alerts until planted |
+| `grafana-alloy.env` (`GRAFANA_OTLP_ENDPOINT=`, `GRAFANA_OTLP_INSTANCE=`, `GRAFANA_OTLP_TOKEN=` lines) — OPTIONAL | `grafana-alloy.env` | `alloy` (`local.alloyShipper`); absent ⇒ Alloy does not start ⇒ nixpi ships no metrics or journal |
 
 **No tool plants the heartbeat key** — `nixpi-provision`/`nixpi-flash` have no flag for it.
 Plant it from the Keychain item `hc:healthchecks.io:ping-key` over stdin (never argv):
@@ -34,7 +35,19 @@ secret exec K=hc:healthchecks.io:ping-key -- sh -c 'printf %s "$K" | ssh ismail@
 ```
 
 The copy unit (`firmware-file-heartbeat-ping-key`) runs at boot, so on a live Pi restart it
-(or reboot) — otherwise the plant looks like it failed. Full text: `docs/nixpi-sd-flashing-runbook.md` § 4b.
+(or reboot) — otherwise the plant looks like it failed.
+
+**No tool plants the Grafana credential either.** Same shape, from the three `grafana:otlp:*`
+Keychain items; `printf` is a shell builtin, so the values never reach an argv. The token must
+carry `logs:write` as well as `metrics:write` (the journal half — `hosts/nixpi.nix`):
+
+```bash
+secret exec E=grafana:otlp:endpoint I=grafana:otlp:instance T=grafana:otlp:token -- sh -c 'printf "GRAFANA_OTLP_ENDPOINT=%s\nGRAFANA_OTLP_INSTANCE=%s\nGRAFANA_OTLP_TOKEN=%s\n" "$E" "$I" "$T" > /Volumes/FIRMWARE/grafana-alloy.env'   # mounted card
+secret exec E=grafana:otlp:endpoint I=grafana:otlp:instance T=grafana:otlp:token -- sh -c 'printf "GRAFANA_OTLP_ENDPOINT=%s\nGRAFANA_OTLP_INSTANCE=%s\nGRAFANA_OTLP_TOKEN=%s\n" "$E" "$I" "$T" | ssh ismail@nixpi.kattakath.com "sudo tee /boot/firmware/grafana-alloy.env >/dev/null && sudo systemctl restart firmware-file-grafana-alloy.service alloy.service"'   # live Pi
+```
+
+Its copy unit is `firmware-file-grafana-alloy`; restart it, then `alloy` (whose
+`ConditionPathExists` skipped it while the file was absent). Full text: `docs/nixpi-sd-flashing-runbook.md` § 4b.
 
 ## Why not agenix (read this first)
 

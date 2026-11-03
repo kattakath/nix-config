@@ -4,13 +4,14 @@
 taken in §3. §6 records what each phase actually delivered, §8 what executing them invalidated,
 and §8a/§8b the traps each one cost.
 
-> **STACK COUNT, 2026-10-02: FIVE** (six since #1030 added `hc-checks`, 2026-11-02 — the live count is [`map/infra.md`](map/infra.md); every count below is as of its date). `mcp-public` was **destroyed and deleted** when the MCP
+> **STACK COUNT: not kept here.** The live stack set is [`map/infra.md`](map/infra.md)'s opening
+> table; the stacks added after this ADR are [ADR-012](declarative-gaps-adr.md) § 5. Every count
+> below is as of its date. `mcp-public` was **destroyed and deleted** when the MCP
 > gateway and its portal were purged — 65 Cloudflare objects across two destroy runs, 0
 > registrations (was 27), 0 portals, 0 tunnel, `https://mcp.kattakath.com/mcp` → **403**. Its
 > module, its five `mcp-public-*` apps, its `packages.mcp-worker-probe` helper, its GCS state
-> object and its `fleet.publicMcpServers`/`publicMcpPort` inputs are gone. The remaining five are
-> `cf-tunnel`, `cf-zones`, `cf-access-org`, `gcp-budget` and `gcp-foundation` — **four** on the
-> shared GCS backend, `gcp-foundation` local by design. Teardown record:
+> object and its `fleet.publicMcpServers`/`publicMcpPort` inputs are gone; every remaining stack
+> but `gcp-foundation` (local by design) is on the shared GCS backend. Teardown record:
 > [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) §12; the decisions below are
 > unaffected — only the inventory moved. §8c carries this as its newest instance.
 
@@ -115,8 +116,8 @@ for no gain. **Rejected:** a private data repo — re-introduces exactly the pri
 
 **What shipped:** R2 was never enabled on the account, the operator opened GCP billing instead,
 and phase 1 migrated every remote-state stack to the versioned, encrypted GCS bucket
-`kattakath-tofu-state` (§6 phase 1, §8.1). Five of six stacks composed it then, **four of five
-today** (`mcp-public` deleted 2026-10-02); `gcp-foundation` keeps **local** state because it
+`kattakath-tofu-state` (§6 phase 1, §8.1). Five of six stacks composed it then (today's set:
+[`map/infra.md`](map/infra.md)); `gcp-foundation` keeps **local** state because it
 declares that bucket, and is encrypted by the same prelude (§4).
 
 **The rest of this section is kept as history, not as a plan** — the problem statement below is
@@ -167,9 +168,9 @@ runbook. See [ADR-012](declarative-gaps-adr.md) § 3 "Gmail and ADR-005 § 3.3".
 
 ## 4. Target shape
 
-Three Cloudflare stacks at decision time, four by 2026-09-22, **three today** (`mcp-public`
-deleted 2026-10-02) — plus the two GCP stacks §5 decided, so **five in all**. **Four** compose one
-shared backend; `gcp-foundation` keeps **local** state because it declares the bucket the others
+Three Cloudflare stacks at decision time, plus the two GCP stacks §5 decided (today's set:
+[`map/infra.md`](map/infra.md); later additions: [ADR-012](declarative-gaps-adr.md) § 5). Every
+stack but `gcp-foundation` composes one shared backend; `gcp-foundation` keeps **local** state because it declares the bucket the others
 live in (its local state is still encrypted — it sources the same prelude). One rule for what
 belongs where:
 
@@ -262,7 +263,7 @@ during non-interactive execution`. Active accounts are `ismail@kattakath.com` (p
 | Phase | Deliverable | Gate |
 |---|---|---|
 | **0** | ~~Cleanup~~ — **DONE.** Orphan policy deleted (3 remain, all referenced). `telegram` re-registered twice; it still reads `error` — see below | Import a clean account, not cruft |
-| **1** | ~~R2 bucket~~ — **DONE on GCS instead.** The operator opened a billing account, which made GCS available; it also has the native state locking §8.1 flagged as unverified for R2. Bucket `kattakath-tofu-state` (versioned, uniform access, public access prevented, 10 non-current versions), every remote-state stack migrated — **five** then, **four** since `mcp-public` was deleted 2026-10-02, `gcp-foundation` excepted by design (§4) — state **encrypted** with a Keychain passphrase via `TF_ENCRYPTION` | met: every remote-state stack re-plans clean from the backend |
+| **1** | ~~R2 bucket~~ — **DONE on GCS instead.** The operator opened a billing account, which made GCS available; it also has the native state locking §8.1 flagged as unverified for R2. Bucket `kattakath-tofu-state` (versioned, uniform access, public access prevented, 10 non-current versions), every remote-state stack migrated (five then), `gcp-foundation` excepted by design (§4) — state **encrypted** with a Keychain passphrase via `TF_ENCRYPTION` | met: every remote-state stack re-plans clean from the backend |
 | **2** | ~~`cf-zones` stack~~ — **DONE.** 22 records imported; `cf-zones-plan` reads *"No changes. Your infrastructure matches the configuration."* | met |
 | **3** | ~~GCP survey~~ — **DONE.** `infra/gcp/foundation.nix` (APIs, automation identity, state bucket) and `infra/gcp/budget.nix` (a 5 CAD spend ALERT). Everything created by hand during the session is imported, so both re-plan clean | met |
 | **4** | ~~`docs/workspace-runbook.md`~~ — **DONE.** It found `ws-domain-admin`, an account no file in this repo mentioned, carrying a long-lived key. The first write-up called that a live hole in the single lever; the Admin console then showed the delegation table **empty**, so it was latent, not live — §8b. The key was deleted anyway, and the account's own description now states what is true | met: reviewed against `identity-and-offboarding.md`, which is consistent with it |
