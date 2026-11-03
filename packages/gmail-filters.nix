@@ -63,10 +63,14 @@ let
       chmod 700 "$state"
       cfg=$(mktemp -d "''${TMPDIR:-/tmp}/gmail-filters.XXXXXX")
       trap 'rm -rf "$cfg"' EXIT
-      jq -n --arg id "$GMAIL_FILTERS_CLIENT_ID" --arg secret "$GMAIL_FILTERS_CLIENT_SECRET" '{
+      # $ENV, not --arg: an --arg value sits in jq's argv, readable by any local process
+      # for the life of the call (ps). jq reads both straight from the environment, so
+      # check they are set first (`:` is a builtin: no exec, no argv) — $ENV.X is null, not an error.
+      : "''${GMAIL_FILTERS_CLIENT_ID:?}" "''${GMAIL_FILTERS_CLIENT_SECRET:?}"
+      jq -n '{
         installed: {
-          client_id: $id,
-          client_secret: $secret,
+          client_id: $ENV.GMAIL_FILTERS_CLIENT_ID,
+          client_secret: $ENV.GMAIL_FILTERS_CLIENT_SECRET,
           auth_uri: "https://accounts.google.com/o/oauth2/auth",
           token_uri: "https://oauth2.googleapis.com/token",
           redirect_uris: ["http://localhost"]
@@ -123,7 +127,8 @@ in
 writeShellApplication {
   name = "gmail-filters";
   text = ''
-    # The client id and secret arrive only through `secret exec`'s environment, never argv.
+    # The client id and secret arrive only through `secret exec`'s environment, never argv —
+    # and gmail-filters-run hands them to jq as $ENV, so they stay off argv there too.
     exec secret exec \
       GMAIL_FILTERS_CLIENT_ID=GMAIL_OAUTH_CLIENT_ID \
       GMAIL_FILTERS_CLIENT_SECRET=GMAIL_OAUTH_CLIENT_SECRET \
