@@ -120,9 +120,10 @@ More, each self-documenting in its header:
 - `update-flake-lock.yml` — the scheduled counterpart to `/update-input`: a weekly
   `nix flake update` PR, opened with a GitHub App token so `nix-ci` actually runs on it, and
   self-arming for auto-merge.
-- **Heartbeats** — `update-flake-lock.yml` and `gitleaks.yml` end with a `Heartbeat ping` step
-  (healthchecks.io dead man's switch; slugs `nix-config-update-flake-lock` / `nix-config-gitleaks`,
-  registry `fleet.heartbeats`). It fires on the `schedule` event only (a manual run would mask a
+- **Heartbeats** — every scheduled workflow ends with a `Heartbeat ping` step (healthchecks.io
+  dead man's switch, registry `fleet.heartbeats`) unless it is in the `unwatched` allowlist;
+  which workflow pings which slug is the `pingers` map in `checks.<system>.heartbeat-workflow-parity`,
+  which fails on a `cron:` workflow in neither. It fires on the `schedule` event only (a manual run would mask a
   dead cron), pings `/fail` on failure, pings nothing when cancelled, and skips with a notice when
   the `HC_PING_KEY` repo secret is unset (forks). The key sits in the URL, so the step builds it
   from `env` and never echoes it.

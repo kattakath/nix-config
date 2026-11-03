@@ -173,9 +173,9 @@ mandatory `grace`; the render refuses both/neither, a bad slug, or more than the
   integration, found by a guarded data lookup that fails the plan if it is missing; set the
   option only to override with explicit UUIDs.
 - **Every check is wired (2026-11-02).** `nixpi-serving` ← nixpi's `service-heartbeat` (runitor);
-  `nix-config-update-flake-lock` and `nix-config-gitleaks` ← each workflow's "Heartbeat ping" step,
-  on **scheduled** runs only (#1032; slug + cron parity gated by
-  `checks.<system>.heartbeat-workflow-parity`); `evidence-discover` ← the agentic-jobseek cloud
+  each `nix-config-*` CI slug ← its workflow's "Heartbeat ping" step, on **scheduled** runs only
+  (#1032; the `pingers` map, slug + cron parity, and a `cron:` workflow with no pinger are all
+  gated by `checks.<system>.heartbeat-workflow-parity`); `evidence-discover` ← the agentic-jobseek cloud
   routine, a different repo; `nix-config-terranix-drift` ← the Mac's daily drift agent (below). A
   FUTURE entry still needs its pinger: a never-pinged check stays `new` and **never alerts**
   (`Check.get_status`).
