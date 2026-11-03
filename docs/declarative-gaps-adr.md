@@ -1,7 +1,8 @@
 # ADR-012 — Closing the declarative gaps: what is left, the tool for each, and drift detection
 
 **Status:** **DECIDED 2026-11-03** (the order in § 5 is the operator's, chosen click-to-select).
-§ 5 step 1 has **shipped**. The other steps have not. Each step is its own PR.
+§ 5 step 1 has **shipped**. Step 3's GitHub half is **in progress** (code merged, import-only
+apply pending). The other steps have not. Each step is its own PR.
 
 **Question.** ADR-005 put Cloudflare and GCP under terranix. What fleet state is *still* set by
 hand, which of it can be declared — ideally in Nix — and what keeps the declared parts from
@@ -92,6 +93,9 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
 2. **Grafana into terranix** (row 1), owned by the ADR-011 owner. Now is the cheapest time: the
    object count is still small.
 3. **GitHub rulesets and variables** (row 2), then **GitLab** (row 4).
+   **GitHub half IN PROGRESS:** `infra/github/stack.nix`, runbook in `docs/map/infra.md`.
+   The import measured cheap: 8 objects over 2 repos generated 217 lines that re-planned
+   clean with 0 hand-fixes, and the full stack's first plan read 37 to import, 0 to change.
 4. **gmailctl** (row 3).
 5. **Determinism tooling:** generate the host and check tables from `nix eval` with a check that
    the committed text matches the render; `--json` output on `launchd-doctor` and `activate`;

@@ -372,6 +372,16 @@
       url = "github:kattakath/skills";
       flake = false;
     };
+
+    # github:kattakath/.github — the shared gate, auto-merge workflows and ruleset templates
+    # every fleet repo uses. PINNED FOR ONE THING: infra/github/stack.nix reads
+    # rulesets/{main,merge-queue}.json from it, so the GitHub stack and that repo's
+    # apply-ruleset.sh share ONE ruleset definition (ADR-012 step 3). A template change
+    # there reaches github-plan after this pin moves (update-flake-lock.yml).
+    kattakath-dotgithub = {
+      url = "github:kattakath/.github";
+      flake = false;
+    };
   };
 
   # ---- Entry point: flake-parts + import-tree (ADR-002 wave 2) --------------

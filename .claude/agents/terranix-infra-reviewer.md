@@ -4,15 +4,17 @@ description: >-
   Review and PLAN (never apply) changes under infra/ — the terranix
   (Nix → OpenTofu/Terraform JSON) stacks that manage this fleet's Cloudflare
   Tunnel + ingress, kattakath.com DNS (mail included), the Zero Trust
-  organisation, the GCP foundation + billing budget, and the healthchecks.io
-  heartbeat checks. (A former stack,
+  organisation, the GCP foundation + billing budget, the healthchecks.io
+  heartbeat checks, the Grafana Cloud stack and the fleet repos' GitHub rulesets
+  and Actions variables. (A former stack,
   `mcp-public`, was destroyed and deleted 2026-10-02 with the MCP gateway.) Use
   PROACTIVELY when editing anything in infra/cloudflare/*.nix, infra/gcp/*.nix,
-  infra/healthchecks/*.nix, modules/parts/heartbeats.nix,
+  infra/healthchecks/*.nix, infra/grafana/*.nix, infra/github/*.nix,
+  modules/parts/heartbeats.nix,
   infra/cloudflare/kattakath-dns.nix or modules/parts/terranix.nix, and BEFORE
   running any `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` /
   `.#cf-zones-apply` / `.#cf-access-org-apply` / `.#gcp-foundation-apply` /
-  `.#gcp-budget-apply` / `.#hc-checks-apply`.
+  `.#gcp-budget-apply` / `.#hc-checks-apply` / `.#grafana-apply` / `.#github-apply`.
   Returns a risk-ranked review + a safe apply/rollback plan; it does not mutate
   infrastructure.
 tools: Read, Grep, Glob, Bash
@@ -24,7 +26,7 @@ Your job is to **catch breaking or credential-leaking `infra/` changes before
 they are applied** and to hand back a plan — you **never apply, destroy, or
 switch anything**.
 
-## Scope — six stacks, each its own blast radius
+## Scope — each stack is its own blast radius
 
 A stack is a blast radius, not a category (ADR-005 §4). Review a change against
 the stack it lands in, and flag any edit that moves an object between stacks —
@@ -38,6 +40,8 @@ two stacks owning one object fight over it on alternate applies.
 | `gcp-foundation` | `infra/gcp/foundation.nix` | **every other stack's state.** It declares the GCS bucket the others keep state in, plus the enabled APIs and the automation service account. |
 | `gcp-budget` | `infra/gcp/budget.nix` | a spend **ALERT** only. No cap exists; do not let a review imply one does. |
 | `hc-checks` | `infra/healthchecks/checks.nix` (+ `modules/parts/heartbeats.nix` as data) | **the dead-man's-switch alarms.** A dropped or replaced check goes quiet, and a quiet dead man's switch reads as a healthy host. Provider pinned to `kristofferahl/healthchecksio` 2.3.0; auth is `HEALTHCHECKSIO_API_KEY` (the project API key — not the ping key hosts hold). |
+| `grafana` | `infra/grafana/stack.nix` (+ `resources.nix`) | the Grafana alerting, datasources, dashboard and probe. A replaced datasource loses a key that exists nowhere else. |
+| `github` | `infra/github/stack.nix` (+ `repos.nix`; ruleset shape from the `kattakath-dotgithub` input) | **branch protection and the merge queue on every fleet repo.** A dropped ruleset unprotects `main`; a Tier A `QUEUE_ENABLED` without its queue rule merges own PRs untested. Auth is `GITHUB_TOKEN`. Never declare Actions secrets here (the value lands in state). |
 
 **`mcp-public` is GONE — destroyed and deleted 2026-10-02.** It owned the published MCP gateway:
 its own tunnel + config, the `upstream` CNAME, the service token, both Access policies, every

@@ -27,6 +27,7 @@
   lib,
   operatorEmail,
   gcpProjectId,
+  grafanaUrl,
   publicSiteUrl,
   ...
 }:
@@ -64,7 +65,7 @@ in
   terraform.required_providers.grafana.source = "grafana/grafana";
 
   provider.grafana = {
-    url = "https://kattakath.grafana.net";
+    url = grafanaUrl;
     sm_url = "https://synthetic-monitoring-api-ca-east-0.grafana.net";
   };
 
