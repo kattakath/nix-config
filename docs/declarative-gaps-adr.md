@@ -111,7 +111,7 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
    `plan -out` then `apply` of that saved plan; `scripts/drv-snapshot.sh --compare` in CI on
    refactor PRs.
    **IN PROGRESS, one PR per item:**
-   - Generated tables: **PR open** (#PR5A). The host and app tables live in
+   - Generated tables: **PR open** (#1065). The host and app tables live in
      `docs/map/entry-points.md` and are checked by `hosts-documented`. Checks are not rendered,
      because a check that reads its own checks set recurses.
    - `--json`: **PR open** (#1062).
