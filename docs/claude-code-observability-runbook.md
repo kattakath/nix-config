@@ -11,7 +11,9 @@ is a concrete candidate for the next `pretooluse-bash-guard.js`-style
 hardening pass. This runs a local
 [OpenTelemetry Collector](https://opentelemetry.io/docs/collector/) as a
 launchd agent to receive that telemetry and land it in a file for `/routing-review`
-to analyze — no external service, no dashboard, nothing leaves the machine.
+to analyze. The events never leave the machine. Since ADR-011 the same collector also
+exports Claude Code's **metrics** (cost, tokens, active time, commits/PRs) to Grafana Cloud,
+with every identity attribute stripped — [`observability-hub-adr.md`](observability-hub-adr.md).
 
 ## Pieces
 
@@ -61,7 +63,10 @@ nix run .#claude-otel-doctor
 
 ## What's captured, and why (the privacy scoping decision)
 
-Only `OTEL_LOGS_EXPORTER=otlp` is set — no metrics exporter, no traces
+`OTEL_LOGS_EXPORTER=otlp` feeds the local file. `OTEL_METRICS_EXPORTER=otlp` (with
+`local.claudeOtel.grafana.enable`) feeds the Grafana pipeline, with session and account
+ids off and the collector's `attributes/strip` deleting `user.email`, `user.id` and
+`organization.id`, which Claude Code always attaches. There is no traces
 exporter (traces need Anthropic's beta flag and add nothing this system
 needs). Within logs, `OTEL_LOG_TOOL_DETAILS=1` is **on**, deliberately: it's
 required to see real `tool_name`/`skill.name`/`mcp_tool_name` values instead
@@ -107,9 +112,11 @@ human-judgment decisions; there was zero real data when `3` was picked.
 
 ## Security notes
 
-- Everything is **localhost-only** — the collector binds `127.0.0.1:4317`
-  (grpc) / `127.0.0.1:4318` (http); no external network egress, no auth
-  token, no TLS needed because nothing crosses a network boundary.
+- The collector binds only `127.0.0.1:4317` (grpc) / `127.0.0.1:4318` (http).
+- **One egress:** the metrics pipeline, over TLS to the Grafana OTLP gateway. Its
+  endpoint, instance id and token are three Keychain items read by `secret exec` at
+  agent start (`nix-claude-otel-collector`), never written to the store. If any item
+  is missing, the agent runs the local-only config instead.
 - No prompt or response content is ever captured (see scoping section
   above) — only tool/skill/decision metadata.
 - `events.jsonl` lives under `$HOME`, never in the Nix store or git.
