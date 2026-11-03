@@ -485,10 +485,10 @@ in
   local.claudeOtel.grafana.enable = isMacosHost;
   local.fleetGauges = {
     enable = isMacosHost;
-    cloudflareItems = [
-      "cf:cloudflare.com:api"
-      "cf:cloudflare.com:nixpi-tunnel"
-      "cf:cloudflare.com:dontsell-dns"
+    cloudflareItems = with (import ../_lib/keychain-items.nix).cloudflare; [
+      api
+      nixpiTunnel
+      dontsellDns
     ];
   };
   # ADR-012 § 5 step 1. `package` comes from modules/parts/hosts.nix (engine-built).

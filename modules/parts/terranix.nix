@@ -1,4 +1,4 @@
-# ---- terranix (Nix -> OpenTofu JSON) and the six tofu app families ---------
+# ---- terranix (Nix -> OpenTofu JSON) and its tofu app families (`nix flake show`) -
 #
 # Renderers + `writeShellApplication` wrappers, moved verbatim from flake.nix's
 # `let` (ADR-002 wave 2). Every guard here — the site-free refusal, the
@@ -14,23 +14,25 @@
 let
   inherit (inputs) nixpkgs terranix;
 
+  # Keychain item NAMES, one spelling each (modules/_lib/keychain-items.nix).
+  items = import ../_lib/keychain-items.nix;
+
   # The login-Keychain item every Cloudflare stack's unset-token guard tells the operator to use.
-  cfTokenItem = "cf:cloudflare.com:api";
+  cfTokenItem = items.cloudflare.api;
 
-  # The healthchecks.io project API key's handle — `<service>:<host>:<scope>` like
-  # the Cloudflare ones. One project, one key, so `api` rather than a per-stack name.
-  hcApiKeyItem = "hc:healthchecks.io:api";
+  # The healthchecks.io project API key's handle. One project, one key, so `api` rather
+  # than a per-stack name.
+  hcApiKeyItem = items.healthchecksApi;
 
-  # The Grafana stack's two Keychain items (ADR-012 step 2): the `terranix` service account
-  # token (Admin) and the Synthetic Monitoring access token.
-  grafanaTokenItem = "grafana:terranix:token";
-  grafanaSmTokenItem = "grafana:sm:token";
+  # The Grafana stack's two Keychain items (ADR-012 step 2).
+  grafanaTokenItem = items.grafana.terranixToken;
+  grafanaSmTokenItem = items.grafana.smToken;
 
   # The GitHub stack's credential (ADR-012 step 3): the operator's classic PAT, which reads
   # rulesets and Actions variables across both owners (measured 2026-11-03). It is broader
   # than a plan needs; the least-privilege swap is a fine-grained token per owner with
   # Administration + Variables (read for plan, write for apply).
-  githubTokenItem = "gh:github.com:pat";
+  githubTokenItem = items.githubPat;
 
   # One copy: the grafana provider's URL is also nix-config's GRAFANA_URL Actions variable.
   grafanaUrl = "https://kattakath.grafana.net";
@@ -1390,8 +1392,8 @@ let
 
   # ---- Grafana Cloud stack (terranix -> OpenTofu) --------------------------
   # Renders infra/grafana/stack.nix: the alerting, datasources, dashboard and probe ADR-011
-  # built by hand, adopted by `import` blocks (ADR-012 step 2). The SEVENTH stack, and the
-  # first whose provider comes from nixpkgs (`opentofu.withPlugins`), per ADR-012 § 3.
+  # built by hand, adopted by `import` blocks (ADR-012 step 2). The first stack
+  # whose provider comes from nixpkgs (`opentofu.withPlugins`), per ADR-012 § 3.
   grafanaConfig =
     { system }:
     terranix.lib.terranixConfiguration {
@@ -1407,121 +1409,6 @@ let
           };
         }
       ];
-    };
-
-  # Auth is the provider's own env vars (GRAFANA_AUTH, GRAFANA_SM_ACCESS_TOKEN), filled by
-  # `secret exec` from two Keychain items, so no value reaches argv, the store or a file.
-  # The Sheet id comes from the ROLLUP_SHEET_ID repository variable (no data in the repo).
-  #
-  # Guards, from this stack's own failure modes:
-  #   (1) DROP guard: a render that stops declaring an object state holds would DELETE it
-  #       in Grafana (an alert rule group, the probe, a datasource whose key exists nowhere
-  #       else). A clean-looking plan can hide that, so it refuses.
-  #   (2) no `-auto-approve`: an unattended apply is exactly what the drop guard exists for.
-  # No empty-state guard: every object has an `import` block, so a run against lost state
-  # ADOPTS the live objects instead of creating duplicates.
-  mkGrafanaTofu =
-    {
-      system,
-      name,
-      action,
-    }:
-    let
-      pkgs = pkgsFor system;
-      tofu = pkgs.opentofu.withPlugins (p: [ p.grafana_grafana ]);
-    in
-    pkgs.writeShellApplication {
-      inherit name;
-      # The Keychain items packages/terranix-drift.nix hands this stack (names only).
-      passthru.terranixDriftEnv = {
-        GRAFANA_AUTH = grafanaTokenItem;
-        GRAFANA_SM_ACCESS_TOKEN = grafanaSmTokenItem;
-      };
-      runtimeInputs = [
-        tofu
-        pkgs.coreutils
-        pkgs.gnugrep
-        pkgs.gnused
-        pkgs.jq
-        pkgs.gh
-      ];
-      text = ''
-        if [ -z "''${GRAFANA_AUTH:-}" ] || [ -z "''${GRAFANA_SM_ACCESS_TOKEN:-}" ]; then
-          echo "ERROR: GRAFANA_AUTH and GRAFANA_SM_ACCESS_TOKEN must both be set." >&2
-          echo "  nix develop -c secret exec GRAFANA_AUTH=${grafanaTokenItem} GRAFANA_SM_ACCESS_TOKEN=${grafanaSmTokenItem} -- nix run .#${name}" >&2
-          echo "  The first is the stack service account 'terranix' (Admin); the second the" >&2
-          echo "  Synthetic Monitoring access token. Both are minted into the Keychain once." >&2
-          exit 1
-        fi
-        if [ -z "''${TF_VAR_rollup_sheet_id:-}" ]; then
-          TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R kattakath/nix-config)
-          export TF_VAR_rollup_sheet_id
-        fi
-
-        ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-grafana"
-        mkdir -p "$state_dir"
-        chmod 700 "$state_dir"
-        cd "$state_dir"
-        umask 077
-        echo "tofu working directory: $state_dir" >&2
-
-        rm -f config.tf.json
-        cp ${grafanaConfig { inherit system; }} config.tf.json
-        chmod 600 config.tf.json
-        ${tofuRemoteStatePrelude}
-        # -upgrade: Nix pins the provider (one version in the withPlugins mirror), so the lock
-        # file in this dir is not the pin, and a bare init would refuse after a nixpkgs bump.
-        tofu init -upgrade
-
-        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
-          if grep -qF "No state file was found" .state-list.err; then
-            : > .state-addrs.raw
-          else
-            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
-            echo "  an apply would delete live Grafana objects. tofu said:" >&2
-            sed 's/^/    /' .state-list.err >&2
-            exit 1
-          fi
-        fi
-        grep -E '^grafana_' .state-addrs.raw | sort > .state-addrs || true
-        jq -r '.resource // {} | to_entries[] | .key as $t | .value | keys[] | $t + "." + .' \
-          config.tf.json | sort > .render-addrs
-        # The import blocks are the empty-state guard (stack.nix header): with no state, a
-        # resource WITHOUT one would be created, or upserted over a same-named live object.
-        imports=$(jq '.import // [] | length' config.tf.json)
-        render_count=$(wc -l < .render-addrs | tr -d ' ')
-        if [ ! -s .state-addrs ] && [ "$imports" != "$render_count" ]; then
-          echo "REFUSING: state is empty and only $imports of $render_count resources have an" >&2
-          echo "  import block. The others would be CREATED, or upserted over live objects." >&2
-          echo "    GRAFANA_ALLOW_CREATE=1 nix develop -c nix run .#${name}" >&2
-          [ "''${GRAFANA_ALLOW_CREATE:-}" = "1" ] || exit 1
-        fi
-
-        dropped=$(comm -23 .state-addrs .render-addrs)
-        if [ -n "$dropped" ]; then
-          echo "REFUSING: this render DROPS Grafana objects that state already holds:" >&2
-          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
-          echo "  Applying it would DELETE each one in Grafana Cloud. A dropped datasource" >&2
-          echo "  takes its key with it (the key exists nowhere else). No rollback." >&2
-          echo "    GRAFANA_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
-          [ "''${GRAFANA_ALLOW_DROPS:-}" = "1" ] || exit 1
-          echo "WARNING: GRAFANA_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
-        fi
-
-        ${pkgs.lib.optionalString (action == "apply") ''
-          for a in "$@"; do
-            case "$a" in
-              -auto-approve|--auto-approve)
-                echo "REFUSING: -auto-approve on the Grafana stack. Read the plan." >&2
-                exit 1
-                ;;
-            esac
-          done
-        ''}
-
-        ${savedPlanRun pkgs action name}
-      '';
     };
 
   # ---- GitHub stack (terranix -> OpenTofu) ---------------------------------
@@ -1547,30 +1434,52 @@ let
       ];
     };
 
-  # Auth is the provider's own GITHUB_TOKEN, filled by `secret exec` from the Keychain; `gh`
-  # reads the same token for the four data-valued variables (infra/github/stack.nix header),
-  # so no value reaches argv, the store or a rendered file.
+  # ---- Adopted, import-guarded stacks: grafana and github -------------------
+  # ONE builder for the stacks ADR-012 adopted with `import` blocks. The older
+  # wrappers above stay as they are (moved verbatim, header); these two were the same
+  # script twice with different nouns, so they share one body and differ only in data.
   #
-  # Guards, the grafana stack's, for the same reasons:
-  #   (1) empty-state: with no state, every resource must have an import block, or it would
-  #       be CREATED next to its live object.
-  #   (2) DROP guard: a render that stops declaring a ruleset state holds would DELETE that
-  #       branch protection (prevent_destroy stops it inside tofu too).
-  #   (3) no `-auto-approve`.
-  mkGithubTofu =
+  # Guards, every one from these stacks' own failure modes:
+  #   (1) EMPTY-STATE: with no state, every resource must have an import block, or it
+  #       would be CREATED next to (or upserted over) its live object.
+  #       Override: <STACK>_ALLOW_CREATE=1.
+  #   (2) DROP guard (comm -23 state vs render): a render that stops declaring an object
+  #       state holds would DELETE it. A clean-looking plan can hide that.
+  #       Override: <STACK>_ALLOW_DROPS=1.
+  #   (3) no `-auto-approve` on apply: an unattended apply is what (2) exists for.
+  #   (4) `applyGuard`, a stack's own apply-only check (github: the dotgithub pin).
+  # Then savedPlanRun, which owns the saved-plan binding and confirmation.
+  #
+  # Auth is each provider's own env vars, filled by `secret exec` from the Keychain
+  # (`credentialCheck` refuses when they are unset), so no value reaches argv, the store
+  # or a rendered file. `vars` exports the data-valued TF_VARs, read from GitHub
+  # variables at run time (the no-data rule).
+  mkAdoptedTofu =
     {
       system,
       name,
       action,
+      # The state dir suffix, the `<stack>_` resource prefix and the env-override prefix.
+      stack,
+      label,
+      plugins,
+      renderer,
+      driftEnv,
+      credentialCheck,
+      vars,
+      createLine,
+      dropLines,
+      applyGuard ? "",
     }:
     let
       pkgs = pkgsFor system;
-      tofu = pkgs.opentofu.withPlugins (p: [ p.integrations_github ]);
+      tofu = pkgs.opentofu.withPlugins plugins;
+      env = pkgs.lib.toUpper stack;
     in
     pkgs.writeShellApplication {
       inherit name;
-      # The Keychain item packages/terranix-drift.nix hands this stack (a name only).
-      passthru.terranixDriftEnv.GITHUB_TOKEN = githubTokenItem;
+      # The Keychain items packages/terranix-drift.nix hands this stack (names only).
+      passthru.terranixDriftEnv = driftEnv;
       runtimeInputs = [
         tofu
         pkgs.coreutils
@@ -1580,23 +1489,11 @@ let
         pkgs.gh
       ];
       text = ''
-        if [ -z "''${GITHUB_TOKEN:-}" ]; then
-          echo "ERROR: GITHUB_TOKEN must be set." >&2
-          echo "  nix develop -c secret exec GITHUB_TOKEN=${githubTokenItem} -- nix run .#${name}" >&2
-          echo "  It must read rulesets (Administration) and Actions variables on both owners." >&2
-          exit 1
-        fi
-        export GH_TOKEN="$GITHUB_TOKEN"
-        # Data-valued variables: read from GitHub, never stored in the repo. A missing one
-        # fails here, which the drift check classes as an error, never as clean.
-        TF_VAR_ci_bot_client_id=$(gh variable get CI_BOT_CLIENT_ID --org ${orgName})
-        TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/nix-config)
-        TF_VAR_rollup_wif_provider=$(gh variable get ROLLUP_WIF_PROVIDER -R ${orgName}/nix-config)
-        TF_VAR_resume_json_gist=$(gh variable get RESUME_JSON_GIST -R ismailkattakath/website)
-        export TF_VAR_ci_bot_client_id TF_VAR_rollup_sheet_id TF_VAR_rollup_wif_provider TF_VAR_resume_json_gist
+        ${credentialCheck}
+        ${vars}
 
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-github"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-${stack}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -1604,10 +1501,11 @@ let
         echo "tofu working directory: $state_dir" >&2
 
         rm -f config.tf.json
-        cp ${githubConfig { inherit system; }} config.tf.json
+        cp ${renderer { inherit system; }} config.tf.json
         chmod 600 config.tf.json
         ${tofuRemoteStatePrelude}
-        # -upgrade: the withPlugins mirror is the pin, not this dir's lock file.
+        # -upgrade: Nix pins the provider (one version in the withPlugins mirror), so the lock
+        # file in this dir is not the pin, and a bare init would refuse after a nixpkgs bump.
         tofu init -upgrade
 
         if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
@@ -1615,49 +1513,43 @@ let
             : > .state-addrs.raw
           else
             echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
-            echo "  an apply would delete live GitHub objects. tofu said:" >&2
+            echo "  an apply would delete live ${label} objects. tofu said:" >&2
             sed 's/^/    /' .state-list.err >&2
             exit 1
           fi
         fi
-        grep -E '^github_' .state-addrs.raw | sort > .state-addrs || true
+        grep -E '^${stack}_' .state-addrs.raw | sort > .state-addrs || true
         jq -r '.resource // {} | to_entries[] | .key as $t | .value | keys[] | $t + "." + .' \
           config.tf.json | sort > .render-addrs
+        # (1) The import blocks are the empty-state guard: with no state, a resource
+        # WITHOUT one would be created.
         imports=$(jq '.import // [] | length' config.tf.json)
         render_count=$(wc -l < .render-addrs | tr -d ' ')
         if [ ! -s .state-addrs ] && [ "$imports" != "$render_count" ]; then
           echo "REFUSING: state is empty and only $imports of $render_count resources have an" >&2
-          echo "  import block. The others would be CREATED next to their live objects." >&2
-          echo "    GITHUB_ALLOW_CREATE=1 nix develop -c nix run .#${name}" >&2
-          [ "''${GITHUB_ALLOW_CREATE:-}" = "1" ] || exit 1
+          echo "  import block. ${createLine}" >&2
+          echo "    ${env}_ALLOW_CREATE=1 nix develop -c nix run .#${name}" >&2
+          [ "''${${env}_ALLOW_CREATE:-}" = "1" ] || exit 1
         fi
 
+        # (2)
         dropped=$(comm -23 .state-addrs .render-addrs)
         if [ -n "$dropped" ]; then
-          echo "REFUSING: this render DROPS GitHub objects that state already holds:" >&2
+          echo "REFUSING: this render DROPS ${label} objects that state already holds:" >&2
           printf '%s\n' "$dropped" | sed 's/^/    /' >&2
-          echo "  Applying it would DELETE each one (a ruleset is a repo's branch protection)." >&2
-          echo "  To stop managing one without deleting it, 'tofu state rm' it in $state_dir." >&2
-          echo "    GITHUB_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
-          [ "''${GITHUB_ALLOW_DROPS:-}" = "1" ] || exit 1
-          echo "WARNING: GITHUB_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
+          ${pkgs.lib.concatMapStrings (l: "echo \"  ${l}\" >&2\n") dropLines}
+          echo "    ${env}_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
+          [ "''${${env}_ALLOW_DROPS:-}" = "1" ] || exit 1
+          echo "WARNING: ${env}_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
         fi
 
         ${pkgs.lib.optionalString (action == "apply") ''
-          # PIN LAG: apply-ruleset.sh writes the templates at that repo's HEAD, this render
-          # reads the locked rev. Applying a stale pin would roll all rulesets back with a
-          # plain in-place update, which neither prevent_destroy nor the drop guard sees.
-          live_rev=$(gh api "repos/${orgName}/.github/commits/main" --jq .sha)
-          if [ "$live_rev" != "${inputs.kattakath-dotgithub.rev}" ] && [ "''${GITHUB_ALLOW_STALE_TEMPLATES:-}" != "1" ]; then
-            echo "REFUSING: the kattakath-dotgithub pin is not that repo's main ($live_rev)." >&2
-            echo "  Bump it first (nix flake update kattakath-dotgithub), or override:" >&2
-            echo "    GITHUB_ALLOW_STALE_TEMPLATES=1 nix develop -c nix run .#${name}" >&2
-            exit 1
-          fi
+          ${applyGuard}
+          # (3)
           for a in "$@"; do
             case "$a" in
               -auto-approve|--auto-approve)
-                echo "REFUSING: -auto-approve on the GitHub stack. Read the plan." >&2
+                echo "REFUSING: -auto-approve on the ${label} stack. Read the plan." >&2
                 exit 1
                 ;;
             esac
@@ -1665,6 +1557,97 @@ let
         ''}
 
         ${savedPlanRun pkgs action name}
+      '';
+    };
+
+  mkGrafanaTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    mkAdoptedTofu {
+      inherit system name action;
+      stack = "grafana";
+      label = "Grafana";
+      plugins = p: [ p.grafana_grafana ];
+      renderer = grafanaConfig;
+      driftEnv = {
+        GRAFANA_AUTH = grafanaTokenItem;
+        GRAFANA_SM_ACCESS_TOKEN = grafanaSmTokenItem;
+      };
+      credentialCheck = ''
+        if [ -z "''${GRAFANA_AUTH:-}" ] || [ -z "''${GRAFANA_SM_ACCESS_TOKEN:-}" ]; then
+          echo "ERROR: GRAFANA_AUTH and GRAFANA_SM_ACCESS_TOKEN must both be set." >&2
+          echo "  nix develop -c secret exec GRAFANA_AUTH=${grafanaTokenItem} GRAFANA_SM_ACCESS_TOKEN=${grafanaSmTokenItem} -- nix run .#${name}" >&2
+          echo "  The first is the stack service account 'terranix' (Admin); the second the" >&2
+          echo "  Synthetic Monitoring access token. Both are minted into the Keychain once." >&2
+          exit 1
+        fi
+      '';
+      # The Sheet id comes from the ROLLUP_SHEET_ID repository variable (no data in the repo).
+      vars = ''
+        if [ -z "''${TF_VAR_rollup_sheet_id:-}" ]; then
+          TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/nix-config)
+          export TF_VAR_rollup_sheet_id
+        fi
+      '';
+      createLine = "The others would be CREATED, or upserted over live objects.";
+      # An alert rule group, the probe, a datasource whose key exists nowhere else.
+      dropLines = [
+        "Applying it would DELETE each one in Grafana Cloud. A dropped datasource"
+        "takes its key with it (the key exists nowhere else). No rollback."
+      ];
+    };
+
+  mkGithubTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    mkAdoptedTofu {
+      inherit system name action;
+      stack = "github";
+      label = "GitHub";
+      plugins = p: [ p.integrations_github ];
+      renderer = githubConfig;
+      driftEnv.GITHUB_TOKEN = githubTokenItem;
+      credentialCheck = ''
+        if [ -z "''${GITHUB_TOKEN:-}" ]; then
+          echo "ERROR: GITHUB_TOKEN must be set." >&2
+          echo "  nix develop -c secret exec GITHUB_TOKEN=${githubTokenItem} -- nix run .#${name}" >&2
+          echo "  It must read rulesets (Administration) and Actions variables on both owners." >&2
+          exit 1
+        fi
+        export GH_TOKEN="$GITHUB_TOKEN"
+      '';
+      # `gh` reads the same token for the four data-valued variables (infra/github/stack.nix
+      # header). A missing one fails here, which the drift check classes as an error.
+      vars = ''
+        TF_VAR_ci_bot_client_id=$(gh variable get CI_BOT_CLIENT_ID --org ${orgName})
+        TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/nix-config)
+        TF_VAR_rollup_wif_provider=$(gh variable get ROLLUP_WIF_PROVIDER -R ${orgName}/nix-config)
+        TF_VAR_resume_json_gist=$(gh variable get RESUME_JSON_GIST -R ismailkattakath/website)
+        export TF_VAR_ci_bot_client_id TF_VAR_rollup_sheet_id TF_VAR_rollup_wif_provider TF_VAR_resume_json_gist
+      '';
+      createLine = "The others would be CREATED next to their live objects.";
+      # prevent_destroy stops a ruleset delete inside tofu too; this refuses before tofu.
+      dropLines = [
+        "Applying it would DELETE each one (a ruleset is a repo's branch protection)."
+        "To stop managing one without deleting it, 'tofu state rm' it in $state_dir."
+      ];
+      # PIN LAG: apply-ruleset.sh writes the templates at that repo's HEAD, this render
+      # reads the locked rev. Applying a stale pin would roll all rulesets back with a
+      # plain in-place update, which neither prevent_destroy nor the drop guard sees.
+      applyGuard = ''
+        live_rev=$(gh api "repos/${orgName}/.github/commits/main" --jq .sha)
+        if [ "$live_rev" != "${inputs.kattakath-dotgithub.rev}" ] && [ "''${GITHUB_ALLOW_STALE_TEMPLATES:-}" != "1" ]; then
+          echo "REFUSING: the kattakath-dotgithub pin is not that repo's main ($live_rev)." >&2
+          echo "  Bump it first (nix flake update kattakath-dotgithub), or override:" >&2
+          echo "    GITHUB_ALLOW_STALE_TEMPLATES=1 nix develop -c nix run .#${name}" >&2
+          exit 1
+        fi
       '';
     };
 
