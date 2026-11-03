@@ -117,7 +117,8 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
    - `--json`: **PR open** (#1062).
    - Saved plans: **PR open** (#1064). The plan is bound to its stack and render, and the wrapper
      asks for the confirmation, because tofu applies a plan file without asking.
-   - drv-snapshot in CI: **SHIPPED** (#1061). It is the `no-build-change` label, and it is advisory.
+   - drv-snapshot in CI: **merged, not yet working** (#1061). It runs on the `no-build-change` label
+     and is advisory. Its first run failed while capturing the base (`flake show` printed nothing); a fix is in progress.
 
 ## 6. Alternatives that lost
 
