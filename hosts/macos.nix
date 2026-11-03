@@ -477,6 +477,13 @@ in
 
     # ---- Formulae (brews) ----------------------------------------------------
     # Entries with special options use the attrset form.
+    #
+    # OPEN DEBT, not a decision: no recorded rationale keeps these CLIs on brew rather than
+    # in the Nix profile, and moving one changes what is on PATH.
+    # Three are DOUBLE installs: `cloudflared`, `ffmpeg` and `yt-dlp` are also Nix store
+    # references (the SSH ProxyCommand in modules/home/default.nix; yt-dlp-web-ui.nix).
+    # Those Nix copies are referenced by store path only, so the brew is the one on PATH.
+    # Dropping a brew is an operator decision about PATH, made one tool at a time.
     brews = [
       "age"
       "aws-vault"

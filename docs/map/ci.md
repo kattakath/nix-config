@@ -99,8 +99,8 @@ bare-metal ephemeral runners on the **`dontsell-ai`** org
 (`local.tart.gitlabRunner`). None of them serve *this* repo's CI. The facts are about different repos.
 
 Also in `.github/workflows/`: `auto-merge.yml`, `status-labels.yml` (the shared derived
-`auto-merge`/`merge-queue` labels), `build-devcontainer.yml`,
-`build-installers.yml`, `claude*.yml` (`claude-config-lint.yml` is a job `gate` needs — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, `grafana-rollup.yml` (ADR-011 step 11's daily KPI row, keyless via WIF —
+`auto-merge`/`merge-queue` labels), `build-devcontainer.yml` (its job body is the reusable
+`build-devcontainer-impl.yml`), `build-installers.yml` (likewise `build-installers-impl.yml`), `claude*.yml` (`claude-config-lint.yml` is a job `gate` needs — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, `grafana-rollup.yml` (ADR-011 step 11's daily KPI row, keyless via WIF —
 [`observability-hub-adr.md`](../observability-hub-adr.md)), and `flakehub-publish.yml` — the last
 publishes each push to `main` as a rolling release to FlakeHub via
 `DeterminateSystems/flakehub-push`, authenticated by OIDC/`id-token: write` with **no** stored

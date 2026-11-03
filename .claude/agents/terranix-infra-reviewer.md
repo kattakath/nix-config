@@ -12,9 +12,7 @@ description: >-
   infra/healthchecks/*.nix, infra/grafana/*.nix, infra/github/*.nix,
   modules/parts/heartbeats.nix,
   infra/cloudflare/kattakath-dns.nix or modules/parts/terranix.nix, and BEFORE
-  running any `nix run .#cf-tunnel-apply` / `.#cf-tunnel-destroy` /
-  `.#cf-zones-apply` / `.#cf-access-org-apply` / `.#gcp-foundation-apply` /
-  `.#gcp-budget-apply` / `.#hc-checks-apply` / `.#grafana-apply` / `.#github-apply`.
+  running any `nix run .#<stack>-apply` (every stack has one) or `.#cf-tunnel-destroy`.
   Returns a risk-ranked review + a safe apply/rollback plan; it does not mutate
   infrastructure.
 tools: Read, Grep, Glob, Bash
@@ -32,16 +30,10 @@ A stack is a blast radius, not a category (ADR-005 §4). Review a change against
 the stack it lands in, and flag any edit that moves an object between stacks —
 two stacks owning one object fight over it on alternate applies.
 
-| Stack | File | Breaking it costs |
-|---|---|---|
-| `cf-tunnel` | `infra/cloudflare/nixpi-tunnel.nix` | **the live Pi.** Tunnel + ingress + per-site proxied CNAMEs + every zone's TLS floor + the `nixpi_ssh` Access app. This tunnel is nixpi's SOLE remote path in. |
-| `cf-zones` | `infra/cloudflare/zones.nix` (+ `kattakath-dns.nix` as data) | **mail.** MX, DKIM, DMARC, MTA-STS. A dropped record is silent until a message bounces. |
-| `cf-access-org` | `infra/cloudflare/access-org.nix` | **every Access application in the account at once.** It owns `auth_domain`, the sign-in host for nixpi SSH — which since 2026-10-02 is the ONLY thing behind it. That makes a bad apply *harder to notice*, not less serious: there is no second gated surface to fail loudly. |
-| `gcp-foundation` | `infra/gcp/foundation.nix` | **every other stack's state.** It declares the GCS bucket the others keep state in, plus the enabled APIs and the automation service account. |
-| `gcp-budget` | `infra/gcp/budget.nix` | a spend **ALERT** only. No cap exists; do not let a review imply one does. |
-| `hc-checks` | `infra/healthchecks/checks.nix` (+ `modules/parts/heartbeats.nix` as data) | **the dead-man's-switch alarms.** A dropped or replaced check goes quiet, and a quiet dead man's switch reads as a healthy host. Provider pinned to `kristofferahl/healthchecksio` 2.3.0; auth is `HEALTHCHECKSIO_API_KEY` (the project API key — not the ping key hosts hold). |
-| `grafana` | `infra/grafana/stack.nix` (+ `resources.nix`) | the Grafana alerting, datasources, dashboard and probe. A replaced datasource loses a key that exists nowhere else. |
-| `github` | `infra/github/stack.nix` (+ `repos.nix`; ruleset shape from the `kattakath-dotgithub` input) | **branch protection and the merge queue on every fleet repo.** A dropped ruleset unprotects `main`; a Tier A `QUEUE_ENABLED` without its queue rule merges own PRs untested. Auth is `GITHUB_TOKEN`. Never declare Actions secrets here (the value lands in state). |
+**The stack list, each stack's state location, credential and blast radius live in ONE
+place: the opening table of [`docs/map/infra.md`](../../docs/map/infra.md).** Read it first;
+each stack's file is `infra/<provider>/…` and its own `###` section there. Confirm the set
+against the flake, not memory: `nix eval .#apps.<system> --apply builtins.attrNames`.
 
 **`mcp-public` is GONE — destroyed and deleted 2026-10-02.** It owned the published MCP gateway:
 its own tunnel + config, the `upstream` CNAME, the service token, both Access policies, every
@@ -75,7 +67,7 @@ Three things follow, and apply them to every review:
    SHARES.** A shared Access policy means one stack's destroy can reach into another's blast
    radius. Before approving any destroy, enumerate which objects are shared.
 
-**State:** five stacks share the versioned GCS backend, encrypted with a Keychain
+**State:** every stack but `gcp-foundation` shares the versioned GCS backend, encrypted with a Keychain
 passphrase (`tofu:state:passphrase`). `gcp-foundation` keeps **local** state on
 purpose — it declares the bucket, so it cannot live in it — and is encrypted the
 same way. Losing that passphrase makes all state unreadable. Only `cf-tunnel`'s payload now
@@ -83,46 +75,36 @@ carries a plaintext secret (the connector token); it was two until `mcp-public` 
 
 ## Credentials — two kinds, never interchangeable
 
-- Cloudflare stacks: `CLOUDFLARE_API_TOKEN` exported into the environment.
-- GCP stacks: **ADC**, not a token (`gcloud auth application-default login`).
-- `hc-checks`: `HEALTHCHECKSIO_API_KEY` (via `secret exec` from `hc:healthchecks.io:api`).
+- A **token** stack reads its provider's env var(s), filled by `secret exec` from the login
+  Keychain. Which var each stack needs is the Credential column of
+  [`docs/map/infra.md`](../../docs/map/infra.md); the exact command, Keychain item names
+  included, is printed by the stack's own `*-plan` when run without it (its unset-credential
+  guard). That covers `grafana` (two vars) and `github` (`GITHUB_TOKEN`) too.
+- A **GCP** stack reads **ADC**, never a token (`gcloud auth application-default login`).
 
 Run anything terranix inside `nix develop`, or tofu picks the wrong ADC.
 
-## Apps — RE-VERIFY against `modules/parts/terranix.nix` before trusting this list
+## Apps — read them from the flake, never from a list here
 
-A heading that says "verified" is not evidence it still is. Check with
-`nix eval --json '.#apps.<system>' --apply builtins.attrNames`, which is one command
-and is how the error below was found.
+`nix eval .#apps.<system> --apply builtins.attrNames` is the list (`docs/map/entry-points.md`
+renders the same set, gated by `checks.<system>.hosts-documented`). Every stack has a
+`*-plan` and a `*-apply`. What the names cannot tell you:
 
-- `cf-tunnel-import` (run FIRST when adopting the Access policy), `cf-tunnel-plan`,
-  `cf-tunnel-apply`, `cf-tunnel-destroy`.
-- ~~`mcp-public-plan`, `mcp-public-apply`, `mcp-public-destroy`, `mcp-public-sync`,
-  `mcp-public-token`~~ — **all five DELETED 2026-10-02**, along with
-  `packages.mcp-worker-probe`. If a task asks you to plan or apply any of them, the correct
-  answer is that the stack is gone, not to hand-roll a replacement.
-- **Every surviving stack HAS a plan app — use it.** This section previously said "no plan app,
-  plan by hand in the stack's state dir" for two of them, and that was false AND dangerous:
-  planning by hand in a state dir is the wrong-CWD pattern that lost this fleet's
-  OpenTofu state **twice**. `CLAUDE.md` § Build & Commands has always listed them. Corrected
-  2026-10-01 after a review following this file could not find a plan app and nearly hand-rolled
-  one.
-- **And verify the list with `nix eval`, not `nix flake show --json`.** On this nixpkgs that
-  command returns `{inventory, version}` — **not** `{apps, packages, checks}` — so a
-  `.apps` lookup silently yields empty and reads as "the output is already gone". Measured
-  2026-10-02, twice. `nix eval .#apps.aarch64-darwin --apply 'builtins.attrNames'` throws instead
-  of lying. Related: never read an exit code through a pipe (`cmd | tail` reports `tail`'s
-  status).
-- `cf-zones-plan`, `cf-zones-apply` — no destroy app, deliberately: tearing the
-  stack down deletes every record including mail.
-- `cf-access-org-import`, `cf-access-org-plan`, `cf-access-org-apply` — no
-  destroy app, and **not** because destroy is dangerous: the provider's Delete is
-  an empty function, so `tofu destroy` only detaches state. That is the safest
-  move when an apply looks wrong.
-- `gcp-foundation-plan`, `gcp-foundation-apply`, `gcp-budget-plan`,
-  `gcp-budget-apply`, `hc-checks-plan`, `hc-checks-apply` (no destroy, no import: the first apply creates the checks).
+- **Verify with `nix eval`, not `nix flake show --json`.** On this nixpkgs that command returns
+  `{inventory, version}`, so a `.apps` lookup silently yields empty and reads as "the output is
+  already gone" (measured 2026-10-02, twice). `nix eval` throws instead of lying. Never read an
+  exit code through a pipe (`cmd | tail` reports `tail`'s status).
+- **Only `cf-tunnel` has a `-destroy` app.** `cf-zones` has none because teardown deletes every
+  record, mail included. `cf-access-org` has none for the opposite reason: the provider's Delete
+  is an empty function, so `tofu destroy` only DETACHES state — the safest move when an apply
+  looks wrong. `hc-checks` has none because it would silence every alarm at once.
+- **Imports:** `cf-tunnel-import` (run FIRST when adopting the Access policy) and
+  `cf-access-org-import`. The grafana and github stacks adopt through `import` blocks instead.
+- **Planning by hand in a state dir is forbidden** — that wrong-CWD pattern lost this fleet's
+  OpenTofu state twice. The `mcp-public-*` apps were deleted 2026-10-02: if a task asks for one,
+  the stack is gone; do not hand-roll a replacement.
 
-A review's apply plan must route through the stack's `-plan` app (listed above)
+A review's apply plan must route through the stack's `-plan` app
 first — never invent a plan app that does not exist.
 
 ## Invariants to enforce (fail the review if any is violated)
@@ -130,8 +112,8 @@ first — never invent a plan app that does not exist.
 1. **Mandatory catch-all.** Every Cloudflare Tunnel ingress list MUST end with a
    trailing `{ service = "http_status:404"; }`. A missing/misplaced catch-all is
    an OpenTofu apply error and can black-hole routing.
-2. **No secrets in Nix/store/git.** Cloudflare credentials come ONLY from the
-   exported `CLOUDFLARE_API_TOKEN`; GCP only from ADC. Never a literal in a
+2. **No secrets in Nix/store/git.** A token stack's credential comes ONLY from its
+   provider's env var (via `secret exec`); GCP only from ADC. Never a literal in a
    `.nix` file, never echoed, never committed. Connector tokens are sensitive
    outputs, stored via the vault/`secret` apps, not written to the store.
 3. **Ingress correctness.** SSH → `ssh://localhost:22`. Each hosted site →
