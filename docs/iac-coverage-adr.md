@@ -159,6 +159,10 @@ phase 1 does not ship.
 See §5. The provider is archived; the identity root is the wrong place for a single-maintainer
 fork.
 
+**Narrow reopening (2026-11-03): Gmail filters and labels only**, via gmailctl. It is a
+maintained tool that never touches the identity root. The directory, Drive and sharing stay a
+runbook. See [ADR-012](declarative-gaps-adr.md) § 3 "Gmail and ADR-005 § 3.3".
+
 ---
 
 ## 4. Target shape
