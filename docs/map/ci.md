@@ -112,7 +112,7 @@ laptop. Merge mechanics: [`auto-merge-and-merge-queue.md`](../auto-merge-and-mer
 [`landing-changes.md`](../../.claude/rules/landing-changes.md) § 2. § 1 of the same file says
 how to wait on a PR's CI: in the BACKGROUND, never by polling inside a turn.
 
-Three more, each self-documenting in its header:
+More, each self-documenting in its header:
 
 - `warm-nixpi-cache.yml` — **keeps the Pi from ever building**: builds nixpi's toplevel on a
   real `ubuntu-24.04-arm` runner and pushes the closure to Cachix on every nixpi-closure change,
@@ -126,6 +126,10 @@ Three more, each self-documenting in its header:
   dead cron), pings `/fail` on failure, pings nothing when cancelled, and skips with a notice when
   the `HC_PING_KEY` repo secret is unset (forks). The key sits in the URL, so the step builds it
   from `env` and never echoes it.
+- `no-build-change.yml` — ADVISORY, opt-in: label a PR `no-build-change` and it runs
+  `scripts/drv-snapshot.sh` on the PR's base and on the PR (same runner, same harness copy),
+  failing on any derivation difference. Not in `gate`. For a refactor that should move code
+  without changing a build; why a label and not every PR: its header.
 - `arm-dependabot.yml` — a scheduled job that arms auto-merge on open `dependabot[bot]` PRs,
   which had no unattended landing path. Scheduled rather than event-driven because a
   Dependabot-triggered run gets no Actions secrets, so it cannot mint the App token; its header

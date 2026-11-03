@@ -142,7 +142,8 @@ evaluates on one system can still break the other.
 - **`scripts/drv-snapshot.sh` is the second test** — the acceptance harness ADR-002 built. It
   captures `nix flake show --json`, EVERY host toplevel (enumerated, not listed), and every package/check drvPath.
   `--out DIR` captures, `--compare DIR` diffs. Use it whenever a change is meant to MOVE code
-  without changing what the fleet BUILDS; baselines live in gitignored `.baseline/`. It is
+  without changing what the fleet BUILDS; baselines live in gitignored `.baseline/`. On a PR, the
+  `no-build-change` label runs it in CI ([`ci.md`](docs/map/ci.md)). It is
   deliberately **not** a flake package — that would add a `nix flake show` row and perturb the
   baseline it measures.
 
