@@ -230,7 +230,7 @@ in
             # devShell-only on purpose. This repo dropped its `.envrc` in 2fa73b9
             # and docs/map/entry-points.md says so, so the scoping rides `nix develop`
             # rather than re-introducing direnv auto-load.
-            export CLOUDSDK_CONFIG="''${XDG_CONFIG_HOME:-$HOME/.config}/gcloud-nix-config"
+            #
             # CLOUDSDK_CONFIG scopes gcloud. It does NOT scope Terraform.
             #
             # Measured 2026-09-22, and it cost an afternoon: the google provider's
@@ -243,7 +243,8 @@ in
             # because the grant was on the right account and the call was not.
             #
             # GOOGLE_APPLICATION_CREDENTIALS is the knob that library DOES read.
-            export GOOGLE_APPLICATION_CREDENTIALS="$CLOUDSDK_CONFIG/application_default_credentials.json"
+            # Both exports, one copy (the launchd drift check sets the same two):
+            ${import ../_lib/gcloud-scope.nix}
             if [ ! -f "$CLOUDSDK_CONFIG/application_default_credentials.json" ]; then
               echo "gcloud: scoped to $CLOUDSDK_CONFIG (not yet authenticated)."
               echo "  One-time. BOTH are needed — the CLI and Terraform read DIFFERENT files:"

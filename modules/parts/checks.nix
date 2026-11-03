@@ -7,11 +7,8 @@
 # .github/workflows/nix-ci.yml.
 #
 # `checks.formatting` and `checks.pre-commit` are NOT here: they come from the
-# treefmt-nix / git-hooks.nix flakeModules in modules/parts/devshell.nix,
-# `checks.deploy-schema` from modules/parts/deploy.nix, and
-# `checks.access-service-token-duration` from modules/parts/terranix.nix — that
-# last one cannot live here, because `flake.lib` exports only `cfTunnelConfig`
-# and the check reads the other renderers in scope there. flake-parts declares `checks` as
+# treefmt-nix / git-hooks.nix flakeModules in modules/parts/devshell.nix, and
+# `checks.deploy-schema` from modules/parts/deploy.nix. flake-parts declares `checks` as
 # `lazyAttrsOf types.package` (pinned modules/checks.nix:14), so every file that
 # declares checks merges into one per-system attrset — and every entry must be a derivation,
 # which is why none of these are a bare `runCommand` argument set.
