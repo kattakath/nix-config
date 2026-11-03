@@ -186,40 +186,52 @@ const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE abo
 // infra app is added, renamed or removed, not from memory — the apps it names
 // must still exist, or the rule reads as policy covering something it does not.
 //
-// Only `cf-tunnel` survives with both halves: of the six remaining stacks only
-// it exposes a `-destroy` app (cf-zones, cf-access-org, gcp-foundation, hc-checks and
-// gcp-budget are plan/apply only — modules/parts/terranix.nix says why for
-// each), so the DESTROY regex below has exactly one app to catch.
+// Only `cf-tunnel` survives with both halves: of the terranix stacks only it
+// exposes a `-destroy` app (the rest are plan/apply only —
+// modules/parts/terranix.nix says why for each), so the DESTROY regex below has
+// exactly one app to catch.
 //
-// THE APPLY REGEX COVERS ALL SIX (hc-checks joined 2026-11-02; was FIVE as of 2026-10-02) — it previously named only
-// cf-tunnel, which was never a decision. It was the residue of a two-literal
-// `(?:cf-tunnel|mcp-public)` alternation: when mcp-public was deleted the second
-// literal went and nothing replaced it, leaving four apply apps that mutate live
-// infra matching NO rule. CLAUDE.md states the policy this enforces — "ALWAYS
-// *-plan first — every stack has one" — so covering one stack was incomplete
-// enforcement of an existing rule, not a narrower policy.
+// THE APPLY REGEX IS DERIVED, NOT LISTED: it matches ANY flake app whose name
+// ends in `-apply`. It used to be a hand-kept alternation, and it drifted twice —
+// it named only cf-tunnel (the residue of a deleted `mcp-public` literal), then
+// missed grafana-apply and github-apply when ADR-012 added those stacks. Every
+// `*-apply` app in this flake is a terranix wrapper (read the set with
+// `nix flake show`), so the suffix IS the family. CLAUDE.md states the policy
+// this enforces — "ALWAYS *-plan first — every stack has one".
 //
-// Every one of the six wrappers has a REFUSING guard, so the nudge's claim holds
-// for all of them; what differs is the worst case, which is why the nudge names it
-// per app (verified in modules/parts/terranix.nix, not assumed):
-//   cf-tunnel-apply      site-free render blanks nixpi's ingress
-//   cf-zones-apply       a render under the record floor DELETES mail records
-//   cf-access-org-apply  un-imported state, or reverting a dashboard auth_domain
-//   gcp-foundation-apply a render declaring NO state bucket
-//   gcp-budget-apply     DELETES the spend alarm, leaving billing unwatched
-//   hc-checks-apply      a render dropping a check DELETES its dead-man alarm
+// Over-match is bounded: the name must END at `-apply` (`.#x-apply-foo` does not
+// match), the segment must RUN `nix run`, and a match only nudges (approve).
+// A future non-terranix `*-apply` app would get the generic nudge, no worst case.
 //
-// Named TERRANIX_MUTATING_APP, not CF_*: two of the six are GCP, and a `CF_`
-// prefix on a rule that catches `gcp-budget-apply` is the same misdescription
-// this header warns about one paragraph up.
+// Every wrapper has a REFUSING guard, so the nudge's claim holds for all of them;
+// what differs is the worst case, which is why the nudge names it per stack —
+// TERRANIX_APPLY_WORST_CASE below, verified in modules/parts/terranix.nix, not
+// assumed. `checks.<system>.terranix-guard-knows-every-apply` fails the build when
+// an `*-apply` package has no entry there, so a new stack cannot ship silently.
+//
+// Named TERRANIX_MUTATING_APP, not CF_*: several stacks are not Cloudflare, and
+// a `CF_` prefix on a rule that catches `gcp-budget-apply` is the same
+// misdescription this header warns about one paragraph up.
 //
 // The shape handles the two evasions a bare `\.#` misses: a quoted flake ref, and
 // the `github:kattakath/nix-config#…` form that runs the same app without a
 // checkout. Anchored at `^`: main() tests it against each UNWRAPPED segment
 // (terranixRun), so only a segment that RUNS `nix run` can match — a mention
-// inside an echo, a grep pattern or a commit message cannot.
+// inside an echo, a grep pattern or a commit message cannot. Capture 1 is the
+// stack name, the key into TERRANIX_APPLY_WORST_CASE.
 const TERRANIX_MUTATING_APP =
-  /^(?:\S*\/)?nix\s+run\s+(?:-\S+\s+)*["']?(?:\.|github:kattakath\/nix-config)#(?:cf-tunnel-(?:apply|destroy)|cf-zones-apply|cf-access-org-apply|gcp-(?:foundation|budget)-apply|hc-checks-apply)\b/;
+  /^(?:\S*\/)?nix\s+run\s+(?:-\S+\s+)*["']?(?:\.|github:kattakath\/nix-config)#([a-z][a-z0-9-]*)-apply(?=$|[\s"';)|&])/;
+
+const TERRANIX_APPLY_WORST_CASE = {
+  "cf-tunnel": "a site-free render blanks nixpi's ingress",
+  "cf-zones": "a render under the record floor DELETES mail records",
+  "cf-access-org": "un-imported state, or reverting a dashboard auth_domain",
+  "gcp-foundation": "a render declaring NO state bucket",
+  "gcp-budget": "DELETES the spend alarm, leaving billing unwatched",
+  "hc-checks": "a render dropping a check DELETES its dead-man alarm, and silence reads as healthy",
+  grafana: "a render dropping an object DELETES it in Grafana Cloud (alert rules, the contact point, a datasource whose key exists nowhere else)",
+  github: "a dropped ruleset DELETES a fleet repo's branch protection, and a stale template pin rolls every ruleset back",
+};
 
 // The DESTROY half of that family, split out 2026-09-22 so `apply` can relax
 // while teardown stays hard-blocked. See the POLICY CHANGE note in the header.
@@ -1003,19 +1015,12 @@ function main() {
     if (RULE1_TERRANIX_APPLY_BLOCKING) {
       emitAsk("Runs a terranix apply app, which mutates live infra via the API. Ran the stack's *-plan first? Allow anyway?");
     }
-    const worstCase = {
-      "cf-tunnel": "a site-free render blanks nixpi's ingress",
-      "cf-zones": "a render under the record floor DELETES mail records",
-      "cf-access-org": "un-imported state, or reverting a dashboard auth_domain",
-      "gcp-foundation": "a render declaring NO state bucket",
-      "gcp-budget": "DELETES the spend alarm, leaving billing unwatched",
-      "hc-checks": "a render dropping a check DELETES its dead-man alarm, and silence reads as healthy",
-    };
-    const stack = Object.keys(worstCase).find((k) => applyRun.includes(`#${k}-`));
+    const stack = TERRANIX_MUTATING_APP.exec(applyRun)[1];
+    const worst = TERRANIX_APPLY_WORST_CASE[stack];
     nudges.push(
-      `Applies live infra via terranix${stack ? ` (${stack})` : ""}. Run its *-plan first: ` +
+      `Applies live infra via terranix (${stack}). Run its *-plan first: ` +
         "`tofu apply` has NO rollback. The wrapper's own REFUSING guard runs before tofu, " +
-        `but it is a floor, not a review${stack ? ` — worst case here, ${worstCase[stack]}` : ""}.`,
+        `but it is a floor, not a review${worst ? ` — worst case here, ${worst}` : ""}.`,
     );
   }
   // (Rule 1b RETIRED 2026-09-15 — it blocked `deploy` and public-`#macos`
