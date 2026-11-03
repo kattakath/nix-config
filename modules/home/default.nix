@@ -2098,7 +2098,7 @@ in
       #
       # No PATH collision: `command -v red green blue` is empty on this fleet.
       shellAliases = {
-        red = "echo 'background: ${config.local.terminalTheme.background}' | theme.sh";
+        red = "echo 'background: ${config.lib.terminalTheme.background}' | theme.sh";
         green = "echo 'background: #002303' | theme.sh";
         blue = "echo 'background: #09193C' | theme.sh";
       };
