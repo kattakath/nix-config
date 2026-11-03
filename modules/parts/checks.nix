@@ -1190,7 +1190,23 @@ in
               pingers = {
                 nix-config-update-flake-lock = "update-flake-lock.yml";
                 nix-config-gitleaks = "gitleaks.yml";
+                nix-config-grafana-rollup = "grafana-rollup.yml";
               };
+              # Scheduled workflows that deliberately ping NO heartbeat, each with its reason.
+              # Every other workflow with a `cron:` must be a pinger above, so a new scheduled
+              # job cannot go silent unwatched.
+              unwatched = {
+                # A sweeper, not a job with an outcome: a missed run delays an arming that the
+                # next run (or a manual click) does, and the PRs it arms are visible anyway.
+                "arm-dependabot.yml" = "best-effort sweeper; a missed run only delays the next arming";
+              };
+              cronFiles = builtins.filter (n: lib.hasInfix "cron:" (builtins.readFile (dir + "/${n}"))) (
+                lib.attrNames (
+                  lib.filterAttrs (n: t: t == "regular" && lib.hasSuffix ".yml" n) (builtins.readDir dir)
+                )
+              );
+              pingerFiles = lib.attrValues pingers;
+              unwatchedCron = builtins.filter (n: !(lib.elem n pingerFiles) && !(unwatched ? ${n})) cronFiles;
               # slug -> the Home Manager module whose launchd agent pings it. A fact
               # about this repo's files, like `pingers`. Its entry is a `period`, so
               # there is no cron to compare: the legs are "registered" + "names the slug".
@@ -1255,6 +1271,10 @@ in
                   {
                     name = "every nix-config-* heartbeat has a pinger in pingers or agentPingers (unmapped: ${toString unmapped})";
                     ok = unmapped == [ ];
+                  }
+                  {
+                    name = "every workflow with a cron: is a pinger or listed in unwatched (neither: ${toString unwatchedCron})";
+                    ok = unwatchedCron == [ ];
                   }
                 ];
               advice = [

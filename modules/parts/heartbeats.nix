@@ -204,6 +204,23 @@ in
         ];
         desc = "Weekly full-history secret scan. Silence = the schedule did not fire or the job died.";
       };
+
+      # WIRED: .github/workflows/grafana-rollup.yml's "Heartbeat ping" step (scheduled
+      # runs only); same parity check. grace 12 h, not the weekly checks' 1 day: GitHub
+      # has started schedules up to 6 h late (update-flake-lock's entry above), so 12 h
+      # absorbs that, while a DROPPED daily run still pages the same day it is missed
+      # (a missed day is backfilled with the workflow's `date` input).
+      nix-config-grafana-rollup = {
+        schedule = "17 6 * * *";
+        timezone = "UTC";
+        grace = 43200;
+        tags = [
+          "nix-config"
+          "ci"
+          "daily"
+        ];
+        desc = "Daily Grafana KPI rollup into the history Sheet. Silence = the schedule did not fire or the job died.";
+      };
     };
   };
 }
