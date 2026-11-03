@@ -13,6 +13,7 @@ let
   cfg = config.local.fleetGauges;
   pkg = pkgs.callPackage ../../packages/fleet-gauges.nix {
     homeProfileDir = config.home.profileDirectory;
+    items = import ../_lib/keychain-items.nix;
     inherit (cfg) cloudflareItems;
   };
 in

@@ -18,6 +18,10 @@
 }:
 let
   cfg = config.local.claudeOtel;
+  # Item NAMES, not values: endpoint, instance id and token are all read from the
+  # login Keychain at agent start (`secret exec`), so no per-person value sits in
+  # the store or the repo. Missing items fall back to the local-only config.
+  otlpItems = (import ../_lib/keychain-items.nix).grafana.otlp;
 in
 {
   options.local.claudeOtel = {
@@ -41,28 +45,7 @@ in
       '';
     };
 
-    grafana = {
-      enable = lib.mkEnableOption "a metrics pipeline exporting Claude Code's native metrics to Grafana Cloud over OTLP/HTTP";
-
-      # Item NAMES, not values: endpoint, instance id and token are all read from the
-      # login Keychain at agent start (`secret exec`), so no per-person value sits in
-      # the store or the repo. Missing items fall back to the local-only config.
-      endpointItem = lib.mkOption {
-        type = lib.types.str;
-        default = "grafana:otlp:endpoint";
-        description = "Keychain item holding the OTLP gateway base URL (…/otlp).";
-      };
-      instanceItem = lib.mkOption {
-        type = lib.types.str;
-        default = "grafana:otlp:instance";
-        description = "Keychain item holding the stack instance id (the basic-auth user).";
-      };
-      tokenItem = lib.mkOption {
-        type = lib.types.str;
-        default = "grafana:otlp:token";
-        description = "Keychain item holding the write token (the basic-auth password).";
-      };
-    };
+    grafana.enable = lib.mkEnableOption "a metrics pipeline exporting Claude Code's native metrics to Grafana Cloud over OTLP/HTTP";
   };
 
   config = lib.mkIf cfg.enable (
@@ -214,7 +197,6 @@ in
           };
         }
       );
-      g = cfg.grafana;
       otelcol = lib.getExe' pkgs.opentelemetry-collector-contrib "otelcol-contrib";
       # launchd-naming: modules/home/launchd-launcher.nix wraps this agent as arg0
       # nix-claude-otel-collector, so the inner script must NOT take that name too
@@ -222,14 +204,14 @@ in
       # `secret` comes from the Home Manager profile, the runtime path every shell uses.
       collector = pkgs.writeShellScriptBin "claude-otel-collector-run" ''
         secret=${config.home.profileDirectory}/bin/secret
-        ${lib.optionalString g.enable ''
-          if "$secret" fp ${lib.escapeShellArg g.endpointItem} >/dev/null 2>&1 \
-            && "$secret" fp ${lib.escapeShellArg g.instanceItem} >/dev/null 2>&1 \
-            && "$secret" fp ${lib.escapeShellArg g.tokenItem} >/dev/null 2>&1; then
+        ${lib.optionalString cfg.grafana.enable ''
+          if "$secret" fp ${lib.escapeShellArg otlpItems.endpoint} >/dev/null 2>&1 \
+            && "$secret" fp ${lib.escapeShellArg otlpItems.instance} >/dev/null 2>&1 \
+            && "$secret" fp ${lib.escapeShellArg otlpItems.token} >/dev/null 2>&1; then
             exec "$secret" exec \
-              GRAFANA_OTLP_ENDPOINT=${lib.escapeShellArg g.endpointItem} \
-              GRAFANA_OTLP_INSTANCE=${lib.escapeShellArg g.instanceItem} \
-              GRAFANA_OTLP_TOKEN=${lib.escapeShellArg g.tokenItem} \
+              GRAFANA_OTLP_ENDPOINT=${lib.escapeShellArg otlpItems.endpoint} \
+              GRAFANA_OTLP_INSTANCE=${lib.escapeShellArg otlpItems.instance} \
+              GRAFANA_OTLP_TOKEN=${lib.escapeShellArg otlpItems.token} \
               -- ${otelcol} --config ${grafanaConfig}
           fi
           echo "claude-otel-collector-run: a Grafana Keychain item is missing; running local-only" >&2

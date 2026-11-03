@@ -11,8 +11,11 @@
 {
   writers,
   writeShellApplication,
-  python3,
-  homeProfileDir,
+  # The Home Manager profile whose `bin/secret` to call. null = `secret` from PATH (the
+  # `nix run .#fleet-gauges` case), as in packages/terranix-drift.nix.
+  homeProfileDir ? null,
+  # Keychain item NAMES (modules/_lib/keychain-items.nix), handed in by the calling module.
+  items,
   cloudflareItems ? [ ],
 }:
 let
@@ -27,19 +30,22 @@ let
       builtins.length cloudflareItems
     )
   );
+  secretBin = if homeProfileDir == null then "secret" else "${homeProfileDir}/bin/secret";
 in
 writeShellApplication {
   name = "fleet-gauges";
-  runtimeInputs = [ python3 ];
   text = ''
-    export CF_TOKEN_NAMES="${builtins.concatStringsSep " " cloudflareItems}"
+    export CF_TOKEN_NAMES="${builtins.concatStringsSep " " cloudflareItems}" GH_TOKEN_NAME=${items.githubPat}
+    # The daily drift check's summary: packages/terranix-drift.nix writes it into its
+    # fixed working dir, this exact path. Named here, once, so the script does not guess.
+    export TERRANIX_DRIFT_SUMMARY="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-terranix-drift/summary.json"
     # shellcheck disable=SC2086 # cfEnv is a fixed list of ENV=item words
-    exec ${homeProfileDir}/bin/secret exec \
-      GRAFANA_OTLP_ENDPOINT=grafana:otlp:endpoint \
-      GRAFANA_OTLP_INSTANCE=grafana:otlp:instance \
-      GRAFANA_OTLP_TOKEN=grafana:otlp:token \
-      GCOM_TOKEN=grafana:cloud:gcx-token \
-      GH_TOKEN=gh:github.com:pat \
+    exec ${secretBin} exec \
+      GRAFANA_OTLP_ENDPOINT=${items.grafana.otlp.endpoint} \
+      GRAFANA_OTLP_INSTANCE=${items.grafana.otlp.instance} \
+      GRAFANA_OTLP_TOKEN=${items.grafana.otlp.token} \
+      GCOM_TOKEN=${items.grafana.cloudToken} \
+      GH_TOKEN=${items.githubPat} \
       ${cfEnv} \
       -- ${script}/bin/fleet-gauges-run
   '';

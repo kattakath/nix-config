@@ -2,12 +2,12 @@
 # over OTLP/HTTP (ADR-011, docs/observability-hub-adr.md § 3).
 #
 # upstream-first: nixpkgs' `services.alloy` (nixos/modules/services/monitoring/alloy.nix)
-# owns the unit, the DynamicUser and the systemd-journal group. This module only writes
-# the config and adds the three things that module does not cover:
+# owns the unit, the DynamicUser, the systemd-journal group and the credential's
+# EnvironmentFile (its `environmentFile` option: endpoint, instance id, token, so no
+# per-person value or secret sits in the store or the repo). This module only writes the
+# config and adds the two things that module does not cover:
 #   * the WAL and journal positions go to /run (`--storage.path`), never the default
 #     WorkingDirectory %S/alloy — on an SD-card host every byte written there is wear;
-#   * the credential arrives as an EnvironmentFile (endpoint, instance id, token), so no
-#     per-person value or secret sits in the store or the repo;
 #   * the unit only starts when that file exists (ConditionPathExists): a host flashed
 #     without it simply ships nothing, instead of crash-looping into the journal.
 { config, lib, ... }:
@@ -56,6 +56,7 @@ in
   config = lib.mkIf cfg.enable {
     services.alloy = {
       enable = true;
+      inherit (cfg) environmentFile;
       extraFlags = [
         "--storage.path=/run/alloy"
         "--server.http.listen-addr=127.0.0.1:12345"
@@ -65,10 +66,7 @@ in
 
     systemd.services.alloy = {
       unitConfig.ConditionPathExists = cfg.environmentFile;
-      serviceConfig = {
-        RuntimeDirectory = "alloy";
-        EnvironmentFile = [ cfg.environmentFile ];
-      };
+      serviceConfig.RuntimeDirectory = "alloy";
     };
 
     environment.etc."alloy/config.alloy".text = ''

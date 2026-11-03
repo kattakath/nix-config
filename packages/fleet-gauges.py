@@ -104,7 +104,7 @@ def github():
         exp = hdrs.get("github-authentication-token-expiration")
         if exp:
             ts = datetime.datetime.strptime(exp.replace(" UTC", " +0000"), "%Y-%m-%d %H:%M:%S %z").timestamp()
-            gauge("fleet_credential_expiry_timestamp_seconds", ts, credential="gh:github.com:pat", provider="github")
+            gauge("fleet_credential_expiry_timestamp_seconds", ts, credential=os.environ.get("GH_TOKEN_NAME", "github"), provider="github")
     except Exception as e:  # noqa: BLE001
         fail("github:pat", e)
 
@@ -157,21 +157,19 @@ def time_machine():
         fail("time-machine", e)
 
 
-DRIFT_STATUS = {"clean": 0, "drift": 1, "error": 2, "reauth": 2}
-
-
 def terranix_drift():
-    # The daily drift check's summary (packages/terranix-drift.nix). Re-sent every hour,
-    # so a stale run shows as an old last-run timestamp instead of a gap.
-    state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
-    path = os.path.join(state, "nix-config-terranix-drift", "summary.json")
-    if not os.path.exists(path):
+    # The daily drift check's summary (packages/terranix-drift.nix), at the path the Nix
+    # wrapper names. Re-sent every hour, so a stale run shows as an old last-run
+    # timestamp instead of a gap. Each stack's `code` is the drift check's own
+    # 0/1/2 = clean/drift/error class, so it is sent as-is rather than re-derived.
+    path = os.environ.get("TERRANIX_DRIFT_SUMMARY", "")
+    if not path or not os.path.exists(path):
         return
     try:
         with open(path) as f:
             summary = json.load(f)
         for s in summary["stacks"]:
-            gauge("terranix_drift_status", DRIFT_STATUS.get(s["status"], 2), stack=s["stack"])
+            gauge("terranix_drift_status", s["code"], stack=s["stack"])
         gauge("terranix_drift_last_run_timestamp_seconds", summary["finished"])
     except Exception as e:  # noqa: BLE001
         fail("terranix-drift", e)
