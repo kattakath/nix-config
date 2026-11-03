@@ -1,0 +1,50 @@
+# ADR-011 step 11: copy yesterday's KPI aggregates from Grafana into the history Sheet.
+#
+# Grafana keeps 14-31 days; the Sheet is the long-term STORE (never a chart), and Grafana
+# reads it back with its Sheets datasource. Auth, both short-lived or read-only:
+#   Google: Workload Identity Federation (infra/gcp/foundation.nix). Only this repo's
+#           main branch is accepted; no key exists for the writer.
+#   Grafana: a Viewer service-account token (secret GRAFANA_ROLLUP_TOKEN).
+# Per-person values (the Sheet id, the WIF provider and writer names) are repository
+# VARIABLES, not file content (the no-data rule).
+name: grafana-rollup
+
+on:
+  schedule:
+    - cron: "17 6 * * *" # 06:17 UTC: yesterday is complete, and off the top of the hour
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Day to roll up, YYYY-MM-DD (default: yesterday, UTC)"
+        required: false
+
+permissions:
+  contents: read
+  id-token: write # the OIDC token WIF exchanges
+
+concurrency:
+  group: grafana-rollup
+  cancel-in-progress: false
+
+jobs:
+  rollup:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: gcp
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3
+        with:
+          workload_identity_provider: ${{ vars.ROLLUP_WIF_PROVIDER }}
+          service_account: ${{ vars.ROLLUP_WRITER_SA }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/spreadsheets
+      - name: Roll up one day
+        env:
+          GRAFANA_URL: ${{ vars.GRAFANA_URL }}
+          GRAFANA_TOKEN: ${{ secrets.GRAFANA_ROLLUP_TOKEN }}
+          SHEET_ID: ${{ vars.ROLLUP_SHEET_ID }}
+          GOOGLE_ACCESS_TOKEN: ${{ steps.gcp.outputs.access_token }}
+          ROLLUP_DATE: ${{ inputs.date }}
+        run: python3 scripts/grafana-rollup.py
