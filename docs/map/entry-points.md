@@ -54,6 +54,64 @@ the same global identity; per-host divergence (leanness, package sets) is
 achieved via an option flag gating `lib.mkIf` ([CLAUDE.md](../../CLAUDE.md) § Configuration),
 never via a separate identity.
 
+### Flake outputs — hosts and apps (GENERATED)
+
+Rendered from `nix eval` of the flake, never hand-edited: `nix run .#docs-generate` rewrites it, and
+`checks.<system>.hosts-documented` fails when it differs. What each host is *for* stays in
+CLAUDE.md § Overview and [`hosts.md`](hosts.md).
+
+<!-- BEGIN GENERATED: flake-outputs, regenerate with: nix run .#docs-generate -->
+
+| Host | Output | System | Profile |
+|---|---|---|---|
+| `macos` | `darwinConfigurations` | `aarch64-darwin` | `hosts/macos.nix` |
+| `nixos` | `nixosConfigurations` | `aarch64-linux` | `hosts/nixos.nix` |
+| `nixpi` | `nixosConfigurations` | `aarch64-linux` | `hosts/nixpi.nix` |
+| `nixvm` | `nixosConfigurations` | `aarch64-linux` | `hosts/nixvm.nix` |
+
+| App | `aarch64-darwin` | `aarch64-linux` |
+|---|---|---|
+| `android-phone` | yes |  |
+| `cf-access-org-apply` | yes | yes |
+| `cf-access-org-import` | yes | yes |
+| `cf-access-org-plan` | yes | yes |
+| `cf-tunnel-apply` | yes | yes |
+| `cf-tunnel-destroy` | yes | yes |
+| `cf-tunnel-import` | yes | yes |
+| `cf-tunnel-plan` | yes | yes |
+| `cf-zones-apply` | yes | yes |
+| `cf-zones-plan` | yes | yes |
+| `claude-otel-doctor` | yes |  |
+| `design-tokens` | yes |  |
+| `docs-generate` | yes | yes |
+| `email-signature` | yes |  |
+| `gcp-budget-apply` | yes | yes |
+| `gcp-budget-plan` | yes | yes |
+| `gcp-foundation-apply` | yes | yes |
+| `gcp-foundation-plan` | yes | yes |
+| `github-apply` | yes | yes |
+| `github-plan` | yes | yes |
+| `grafana-apply` | yes | yes |
+| `grafana-plan` | yes | yes |
+| `hc-checks-apply` | yes | yes |
+| `hc-checks-plan` | yes | yes |
+| `jobspy` | yes |  |
+| `jsonresume` | yes |  |
+| `launchd-doctor` | yes |  |
+| `macos` | yes |  |
+| `nixos-vm` | yes |  |
+| `nixpi-flash` | yes |  |
+| `nixpi-provision` | yes |  |
+| `nixpi-vault-token` | yes |  |
+| `nixpi-wifi-creds` | yes |  |
+| `nixvm` | yes |  |
+| `remove-secret` | yes |  |
+| `rogers-gw` | yes |  |
+| `secret` | yes |  |
+| `set-secret` | yes |  |
+
+<!-- END GENERATED: flake-outputs -->
+
 ### `flake.lock`
 
 Pinned input revisions; commit every change, never hand-edit.
