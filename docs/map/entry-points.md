@@ -313,9 +313,14 @@ image is `modules/parts/devcontainer.nix` (`withSystem "x86_64-linux"`, see
 
 ### `scripts/drv-snapshot.sh`
 
-The ONE file under `scripts/`: ADR-002's acceptance harness ("moved code, changed no build"),
+ADR-002's acceptance harness ("moved code, changed no build"),
 linted by `checks.<system>.drv-snapshot-lint`. What it captures, and why it is deliberately
 not a flake package: [CLAUDE.md](../../CLAUDE.md) § Testing.
+
+### `scripts/grafana-rollup.py`
+
+The daily KPI rollup `grafana-rollup.yml` runs: PromQL from Grafana into the history Sheet.
+ADR-011 step 11: [`observability-hub-adr.md`](../observability-hub-adr.md).
 
 ### `secrets/secrets.nix`
 

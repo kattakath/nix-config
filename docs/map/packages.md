@@ -214,6 +214,9 @@ Smaller, single-purpose CLIs:
 - **`claude-otel-doctor.nix`** — health check for the `local.claudeOtel` collector (launchd
   agent, OTLP port, events-file freshness). See
   [`claude-code-observability-runbook.md`](../claude-code-observability-runbook.md).
+- **`fleet-gauges.nix`** (+ `fleet-gauges.py`) — the hourly fleet-health push to Grafana Cloud
+  (credential expiry, open security alerts, Time Machine), run by `local.fleetGauges`.
+  ADR-011 step 7: [`observability-hub-adr.md`](../observability-hub-adr.md).
 - **`claude-state-gc.nix`** — reports, and with `--prune` removes, the Claude Code runtime state
   no rebuild touches (orphaned plugin cache versions, interrupted-update clones). DRY RUN by
   default, never prunes transcripts; a CLI rather than a check or activation step because all

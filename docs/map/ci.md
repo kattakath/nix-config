@@ -100,7 +100,8 @@ bare-metal ephemeral runners on the **`dontsell-ai`** org
 
 Also in `.github/workflows/`: `auto-merge.yml`, `status-labels.yml` (the shared derived
 `auto-merge`/`merge-queue` labels), `build-devcontainer.yml`,
-`build-installers.yml`, `claude*.yml` (`claude-config-lint.yml` is a job `gate` needs — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, and `flakehub-publish.yml` — the last
+`build-installers.yml`, `claude*.yml` (`claude-config-lint.yml` is a job `gate` needs — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, `grafana-rollup.yml` (ADR-011 step 11's daily KPI row, keyless via WIF —
+[`observability-hub-adr.md`](../observability-hub-adr.md)), and `flakehub-publish.yml` — the last
 publishes each push to `main` as a rolling release to FlakeHub via
 `DeterminateSystems/flakehub-push`, authenticated by OIDC/`id-token: write` with **no** stored
 token; per FlakeHub's trusted-platform model, flakes publish only from CI, never ad-hoc from a
