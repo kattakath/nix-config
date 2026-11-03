@@ -120,7 +120,7 @@ let
       mv summary.json.tmp summary.json
       echo "terranix-drift: $(jq '[.stacks[] | select(.code == 0)] | length' summary.json)/$(jq '.stacks | length' summary.json) clean"
       if [ "$reauth" = 1 ]; then
-        echo "ACTION: the Google login expired. Run: CLOUDSDK_CONFIG=$CLOUDSDK_CONFIG gcloud auth application-default login"
+        echo "ACTION: the Google login expired. Run: CLOUDSDK_CONFIG=~''${CLOUDSDK_CONFIG#"$HOME"} gcloud auth application-default login"
       fi
       # Non-zero for any drift or error: runitor turns it into /fail.
       exit "$worst"

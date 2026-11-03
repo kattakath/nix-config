@@ -33,7 +33,8 @@
   stateBucketLocation,
   # ADR-011 step 11: `<org>/<repo>`, whose ONE workflow file on main may act as the rollup
   # writer (see attribute_condition). Any other workflow, fork, or PR branch gets a token
-  # GitHub signed, and WIF refuses it on Google's side. From config.fleet's orgName/repoName.
+  # GitHub signed, and WIF refuses it on Google's side. From config.fleet's orgName/repoName,
+  # so renaming either moves this trust condition at the next apply, as it should.
   rollupRepo,
   # The writer's account id; modules/parts/terranix.nix also builds its email from it.
   rollupWriterAccountId,

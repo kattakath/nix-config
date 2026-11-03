@@ -366,6 +366,9 @@ The layer exists for its files' shape rather than their count:
 - **`modules/_lib/brew-prefix.nix`** — `osConfig -> string`, the ONE Homebrew prefix
   (nix-darwin's `homebrew.prefix`, else `/opt/homebrew`) that every runtime brew path in
   `modules/home/` and the android/spotlight `packages/` is built from.
+- **`modules/_lib/gcloud-scope.nix`** — shell text: the two `export`s that scope gcloud AND
+  Terraform's ADC to this repo's own config dir. Read by the devShell (`modules/parts/devshell.nix`,
+  which keeps the measured why) and handed to `packages/terranix-drift.nix` by `terranix.nix`.
 
 **Why `modules/_lib/` and not `modules/nixos/` — and not a top-level `lib/` either.** It sat in
 `modules/shared/` until 2026-10-02 — wrong twice over, since it is neither home-manager nor a

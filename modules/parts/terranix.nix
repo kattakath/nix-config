@@ -81,6 +81,16 @@ let
   # stack needs the guard. Each returns text with no trailing newline, so a call on a
   # line of its own renders exactly the block it replaced.
   #
+  # Every word parameter lands inside double quotes in a REFUSAL path, so `literal`
+  # refuses at eval any text holding " $ ` or \ — a backtick there would run as a
+  # command in the very guard meant to stop the run.
+  literal =
+    l:
+    assert nixpkgs.lib.assertMsg (
+      builtins.match ".*[\"$`\\\\].*" l == null
+    ) "terranix guard text must be literal (no \" $ ` or \\): ${l}";
+    l;
+
   # stateListGuard: absent state and UNREADABLE state are different answers. `tofu
   # state list` exits 1 for both, so it discriminates on "No state file was found"
   # (mkCfTunnelTofu has the measurement). Absent is an empty roster; unreadable refuses.
@@ -94,7 +104,7 @@ let
         "  else"
         "    echo \"REFUSING: 'tofu state list' failed, so this run cannot tell whether\" >&2"
       ]
-      ++ map (l: "    echo \"  ${l}\" >&2") whyLines
+      ++ map (l: "    echo \"  ${literal l}\" >&2") whyLines
       ++ [
         "    sed 's/^/    /' .state-list.err >&2"
         "    exit 1"
@@ -117,10 +127,10 @@ let
       [
         "dropped=$(comm -23 .state-addrs .render-addrs)"
         "if [ -n \"$dropped\" ]; then"
-        "  echo \"REFUSING: this render DROPS ${what} that state already holds:\" >&2"
+        "  echo \"REFUSING: this render DROPS ${literal what} that state already holds:\" >&2"
         "  printf '%s\\n' \"$dropped\" | sed 's/^/    /' >&2"
       ]
-      ++ map (l: "  echo \"  ${l}\" >&2") whyLines
+      ++ map (l: "  echo \"  ${literal l}\" >&2") whyLines
       ++ [
         "  echo \"    ${env}_ALLOW_DROPS=1 nix develop -c nix run .#${name}\" >&2"
         "  [ \"\${${env}_ALLOW_DROPS:-}\" = \"1\" ] || exit 1"
@@ -138,7 +148,7 @@ let
         "  case \"$a\" in"
         "    -auto-approve|--auto-approve)"
       ]
-      ++ map (l: "      echo \"${l}\" >&2") lines
+      ++ map (l: "      echo \"${literal l}\" >&2") lines
       ++ [
         "      exit 1"
         "      ;;"
@@ -1347,6 +1357,7 @@ let
       # The provider comes from the OpenTofu registry, not nixpkgs (infra/healthchecks/checks.nix).
       plugins = null;
       emptyStateOnPlan = false;
+      autoApproveWhy = "Read the plan: a dropped or replaced check silences its alarm.";
       renderer = hcChecksConfig;
       driftEnv.HEALTHCHECKSIO_API_KEY = hcApiKeyItem;
       vars = "";
@@ -1455,8 +1466,13 @@ let
       vars,
       # Literal text (shell-escaped): no expansion, so no `$var` either.
       createLine,
-      # Literal text too, inside double quotes: refused at eval if it holds " $ ` or \.
+      # Literal text too (dropGuard refuses " $ ` or \ at eval).
       dropLines,
+      # What the -auto-approve refusal tells the operator to look for.
+      autoApproveWhy ? "Read the plan.",
+      # false: the empty-state guard refuses only an APPLY. Its test is "fewer import
+      # blocks than resources", so for a stack with no imports it means "state is empty
+      # and the render is not" — an import block added later narrows it.
       emptyStateOnPlan ? true,
       applyGuard ? "",
     }:
@@ -1481,9 +1497,6 @@ let
         fi
       '';
     in
-    assert lib.assertMsg (lib.all (l: builtins.match ".*[\"$`\\\\].*" l == null)
-      dropLines
-    ) "mkAdoptedTofu ${stack}: a dropLines entry holds a character double quotes would expand";
     pkgs.writeShellApplication {
       inherit name;
       # The Keychain items packages/terranix-drift.nix hands this stack (names only).
@@ -1546,7 +1559,7 @@ let
         ${lib.optionalString (action == "apply") ''
           ${applyGuard}
           # (3)
-          ${refuseAutoApprove [ "REFUSING: -auto-approve on the ${label} stack. Read the plan." ]}
+          ${refuseAutoApprove [ "REFUSING: -auto-approve on the ${label} stack. ${autoApproveWhy}" ]}
         ''}
 
         ${savedPlanRun pkgs action name}
