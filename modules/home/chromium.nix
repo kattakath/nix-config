@@ -334,8 +334,9 @@ in
         #     popup toggle (verified against the installed 1.2.1 `popup.js`).
         #     Installing grants nothing; a bridge with zero connected tabs is dark.
         #   - The MCP server half is declared by the `page-lab` plugin's `.mcp.json`
-        #     (github:kattakath/skills), `npx -y kapture-mcp@latest bridge` — never
-        #     here. The `@latest` stays loose; no pin in this repo can stop it.
+        #     (github:kattakath/skills), `npx -y kapture-mcp@<version> bridge` — never
+        #     here. That repo pins the version (skills #107, 2026-10-30), so a bump is
+        #     a change there, not here.
         (crxExtension {
           name = "kapture-mcp";
           id = "ejfnegenodbdcodemkibocefmajjjjbn";

@@ -1102,7 +1102,25 @@ in
                 nix-config-update-flake-lock = "update-flake-lock.yml";
                 nix-config-gitleaks = "gitleaks.yml";
               };
+              # slug -> the Home Manager module whose launchd agent pings it. A fact
+              # about this repo's files, like `pingers`. Its entry is a `period`, so
+              # there is no cron to compare: the legs are "registered" + "names the slug".
+              agentPingers = {
+                nix-config-terranix-drift = ../../modules/home/terranix-drift.nix;
+              };
               hb = config.fleet.heartbeats;
+              agentLegs = lib.concatLists (
+                lib.mapAttrsToList (slug: file: [
+                  {
+                    name = "${slug} is in fleet.heartbeats with a period";
+                    ok = (hb.${slug} or null) != null && hb.${slug}.period != null;
+                  }
+                  {
+                    name = "${baseNameOf file} pings the slug ${slug}";
+                    ok = lib.hasInfix "\"${slug}\"" (builtins.readFile file);
+                  }
+                ]) agentPingers
+              );
               legs = lib.concatLists (
                 lib.mapAttrsToList (
                   slug: file:
@@ -1131,21 +1149,25 @@ in
                 ) pingers
               );
               # A new `nix-config-*` entry is a workflow pinger by naming convention, so
-              # it must be added to `pingers` above or this check cannot see it.
-              unmapped = builtins.filter (n: lib.hasPrefix "nix-config-" n && !(pingers ? ${n})) (
-                lib.attrNames hb
-              );
+              # it must be added to `pingers` (or `agentPingers`) above or this check
+              # cannot see it.
+              unmapped = builtins.filter (
+                n: lib.hasPrefix "nix-config-" n && !(pingers ? ${n}) && !(agentPingers ? ${n})
+              ) (lib.attrNames hb);
             in
             mkHostContract {
               inherit pkgs;
               name = "heartbeat-workflow-parity";
               subject = "the workflow heartbeat pingers match fleet.heartbeats (slug + cron)";
-              expect = legs ++ [
-                {
-                  name = "every nix-config-* heartbeat has a workflow in the pingers map (unmapped: ${toString unmapped})";
-                  ok = unmapped == [ ];
-                }
-              ];
+              expect =
+                legs
+                ++ agentLegs
+                ++ [
+                  {
+                    name = "every nix-config-* heartbeat has a pinger in pingers or agentPingers (unmapped: ${toString unmapped})";
+                    ok = unmapped == [ ];
+                  }
+                ];
               advice = [
                 "modules/parts/heartbeats.nix is the registry; the workflow's `cron:` and its"
                 "Heartbeat ping step's slug must restate it exactly, or the check alerts on a"

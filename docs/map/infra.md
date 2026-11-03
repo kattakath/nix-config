@@ -174,10 +174,28 @@ mandatory `grace`; the render refuses both/neither, a bad slug, or more than the
   `nix-config-update-flake-lock` and `nix-config-gitleaks` ← each workflow's "Heartbeat ping" step,
   on **scheduled** runs only (#1032; slug + cron parity gated by
   `checks.<system>.heartbeat-workflow-parity`); `evidence-discover` ← the agentic-jobseek cloud
-  routine, a different repo. A FUTURE entry still needs its pinger: a never-pinged check stays
-  `new` and **never alerts** (`Check.get_status`).
+  routine, a different repo; `nix-config-terranix-drift` ← the Mac's daily drift agent (below). A
+  FUTURE entry still needs its pinger: a never-pinged check stays `new` and **never alerts**
+  (`Check.get_status`).
 - State object `hc-checks/` in the shared encrypted bucket; the working dir is
   `$XDG_STATE_HOME/nix-config-hc-checks`.
+
+### Drift detection — `terranix-drift` (ADR-012 § 5 step 1)
+
+A daily user agent on `macos` (`nix-terranix-drift`, 06:00 local, on wake if asleep) runs
+**every** `*-plan` app with `-detailed-exitcode -lock=false`. The stack list is derived from the
+flake's `*-plan` packages, so a new stack is covered with no edit. Its Keychain credential comes
+from the wrapper's `passthru.terranixDriftEnv`.
+
+- **Exit classes:** 0 clean, 2 drift, anything else **error** (an auth failure is an error).
+- **Alert:** healthchecks.io `nix-config-terranix-drift` through runitor: success only when all
+  are clean, `/fail` otherwise, and silence after a day's grace.
+- **History:** `fleet-gauges` re-sends `summary.json` hourly as `terranix_drift_status{stack}`
+  (0/1/2) plus `terranix_drift_last_run_timestamp_seconds`.
+- **Runbook:** on a `/fail`, read `~/Library/Logs/terranix-drift.log` (counts only). Then read
+  the stack's full plan in `$XDG_STATE_HOME/nix-config-terranix-drift/<stack>.log` (0600).
+  Re-run by hand with `nix run .#terranix-drift -- --no-ping`. Drift is fixed with that stack's
+  own `*-plan` and then an `*-apply`, which the operator runs. The check never applies.
 
 ### `infra/cloudflare/nixpi-tunnel.nix`
 

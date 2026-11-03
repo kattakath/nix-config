@@ -216,7 +216,11 @@ Smaller, single-purpose CLIs:
   [`claude-code-observability-runbook.md`](../claude-code-observability-runbook.md).
 - **`fleet-gauges.nix`** (+ `fleet-gauges.py`) — the hourly fleet-health push to Grafana Cloud
   (credential expiry, open security alerts, Time Machine), run by `local.fleetGauges`.
-  ADR-011 step 7: [`observability-hub-adr.md`](../observability-hub-adr.md).
+  ADR-011 step 7: [`observability-hub-adr.md`](../observability-hub-adr.md). It also re-sends the
+  drift check's summary as `terranix_drift_*` gauges.
+- **`terranix-drift.nix`** — the daily drift check over every `*-plan` app (ADR-012 § 5 step 1),
+  built in `modules/parts/terranix.nix` and run by `local.terranixDrift`. Runbook:
+  [`infra.md`](infra.md) § Drift detection.
 - **`claude-state-gc.nix`** — reports, and with `--prune` removes, the Claude Code runtime state
   no rebuild touches (orphaned plugin cache versions, interrupted-update clones). DRY RUN by
   default, never prunes transcripts; a CLI rather than a check or activation step because all

@@ -13,6 +13,9 @@
   //
   // Published under the short, unnamespaced ghcr.io/kattakath/devcontainer
   // name (this is the repo's sole/default devcontainer).
+  // `:latest` on purpose (ADR-012 § 5): this repo IS the publisher, and :latest is
+  // the image built from main's own inputs. A `:<sha12>` pin would need a bot
+  // committing back after every publish and would go stale without one.
   "name": "nix-config (prebuilt Nix devcontainer image)",
   "image": "ghcr.io/kattakath/devcontainer:latest",
     
