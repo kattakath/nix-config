@@ -96,6 +96,9 @@ ckn "auth_domain"                   "$NR .#cf-access-org-apply"
 ckn "NO state bucket"               "$NR .#gcp-foundation-apply"
 ckn "spend alarm"                   "$NR .#gcp-budget-apply"
 ckn "dead-man alarm"                "$NR .#hc-checks-apply"
+ckn "contact point"                 "$NR .#grafana-apply"
+ckn "branch protection"             "$NR .#github-apply"
+ckn "branch protection"             "secret exec GITHUB_TOKEN=gh:github.com:pat -- $NR .#github-apply -- /abs/x.tfplan"
 
 echo "== the nudge survives the same evasions the decision does =="
 ckn "DELETES mail records" "$NR \".#cf-zones-apply\""
@@ -113,6 +116,11 @@ ckq "$NR .#cf-access-org-plan"
 ckq "$NR .#gcp-foundation-plan"
 ckq "$NR .#gcp-budget-plan"
 ckq "$NR .#hc-checks-plan"
+ckq "$NR .#grafana-plan"
+ckq "$NR .#github-plan"
+# The regex is derived from the `-apply` SUFFIX, so the name must END there.
+ckq "$NR .#github-apply-preview"
+ckq "$NR .#gmail-filters -- apply"
 # The imports write STATE, never infrastructure — and blocking or nagging them
 # would have obstructed the mandatory cf-tunnel-import of 2026-10-02.
 ckq "$NR .#cf-tunnel-import"

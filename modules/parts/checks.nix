@@ -381,6 +381,33 @@ in
                 ''
             );
 
+          # The bash guard's TERRANIX_MUTATING_APP is DERIVED from the `-apply` suffix, so a
+          # new stack is nudged the day it lands — but the per-stack worst case is a
+          # hand-kept JS map, and it missed grafana and github once. Every `*-apply`
+          # package must have a key there, or the nudge ships without its worst case.
+          terranix-guard-knows-every-apply =
+            let
+              guard = builtins.readFile ../../.claude/hooks/pretooluse-bash-guard.js;
+              stacks = map (lib.removeSuffix "-apply") (
+                lib.filter (lib.hasSuffix "-apply") (lib.attrNames self'.packages)
+              );
+              # A key sits in the map as `"cf-zones":` or, when a bare identifier, `grafana:`.
+              known = s: lib.hasInfix "\n  \"${s}\": " guard || lib.hasInfix "\n  ${s}: " guard;
+              missing = lib.filter (s: !(known s)) stacks;
+            in
+            pkgs.runCommand "terranix-guard-knows-every-apply" { } (
+              if missing == [ ] then
+                ''
+                  echo "TERRANIX_APPLY_WORST_CASE names every *-apply stack" > "$out"
+                ''
+              else
+                ''
+                  echo "terranix-guard-knows-every-apply: no worst case for: ${lib.concatStringsSep " " missing}" >&2
+                  echo "Add each to TERRANIX_APPLY_WORST_CASE in .claude/hooks/pretooluse-bash-guard.js." >&2
+                  exit 1
+                ''
+            );
+
           # ---- The composition API, exercised AS A STRANGER WOULD -------------
           #
           # `lib.mkDarwin` / `lib.mkNixos` are published outputs (flakehub-publish

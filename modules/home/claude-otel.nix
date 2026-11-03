@@ -216,9 +216,11 @@ in
       );
       g = cfg.grafana;
       otelcol = lib.getExe' pkgs.opentelemetry-collector-contrib "otelcol-contrib";
-      # launchd-naming: arg0 is nix-claude-otel-collector, never a bare sh.
+      # launchd-naming: modules/home/launchd-launcher.nix wraps this agent as arg0
+      # nix-claude-otel-collector, so the inner script must NOT take that name too
+      # (launchd-naming.md item 1: one name, two store paths).
       # `secret` comes from the Home Manager profile, the runtime path every shell uses.
-      collector = pkgs.writeShellScriptBin "nix-claude-otel-collector" ''
+      collector = pkgs.writeShellScriptBin "claude-otel-collector-run" ''
         secret=${config.home.profileDirectory}/bin/secret
         ${lib.optionalString g.enable ''
           if "$secret" fp ${lib.escapeShellArg g.endpointItem} >/dev/null 2>&1 \
@@ -230,7 +232,7 @@ in
               GRAFANA_OTLP_TOKEN=${lib.escapeShellArg g.tokenItem} \
               -- ${otelcol} --config ${grafanaConfig}
           fi
-          echo "nix-claude-otel-collector: a Grafana Keychain item is missing; running local-only" >&2
+          echo "claude-otel-collector-run: a Grafana Keychain item is missing; running local-only" >&2
         ''}
         exec ${otelcol} --config ${localConfig}
       '';
