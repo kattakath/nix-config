@@ -11,6 +11,10 @@ source that errors is skipped and counted in fleet_gauges_source_errors, never f
       Open Dependabot / code-scanning / secret-scanning alerts, summed per owner.
   mac_backup_destinations, mac_backup_last_success_timestamp_seconds
       Time Machine. With no destination only the first is emitted (0).
+  terranix_drift_status{stack}, terranix_drift_last_run_timestamp_seconds
+      0/1/2 = clean/drift/error per terranix stack, read from the daily drift check's
+      summary.json (packages/terranix-drift.nix). Read here rather than pushed by the
+      drift check itself: one OTLP push path and one credential set, not two.
 
 Environment (supplied by `secret exec`, never argv): GRAFANA_OTLP_ENDPOINT,
 GRAFANA_OTLP_INSTANCE, GRAFANA_OTLP_TOKEN, GCOM_TOKEN, GH_TOKEN, and CF_TOKEN_<n>
@@ -153,6 +157,26 @@ def time_machine():
         fail("time-machine", e)
 
 
+DRIFT_STATUS = {"clean": 0, "drift": 1, "error": 2}
+
+
+def terranix_drift():
+    # The daily drift check's summary (packages/terranix-drift.nix). Re-sent every hour,
+    # so a stale run shows as an old last-run timestamp instead of a gap.
+    state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    path = os.path.join(state, "nix-config-terranix-drift", "summary.json")
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path) as f:
+            summary = json.load(f)
+        for s in summary["stacks"]:
+            gauge("terranix_drift_status", DRIFT_STATUS.get(s["status"], 2), stack=s["stack"])
+        gauge("terranix_drift_last_run_timestamp_seconds", summary["finished"])
+    except Exception as e:  # noqa: BLE001
+        fail("terranix-drift", e)
+
+
 def push():
     now = str(time.time_ns())
     metrics = {}
@@ -180,6 +204,7 @@ def main():
     cloudflare_tokens()
     github()
     time_machine()
+    terranix_drift()
     for source, n in errors.items():
         gauge("fleet_gauges_source_errors", n, source=source.split(":")[0])
     gauge("fleet_gauges_last_run_timestamp_seconds", time.time())

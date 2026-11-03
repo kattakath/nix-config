@@ -80,6 +80,15 @@ in
             ];
           }
         )
+        # The daily terranix drift agent's package (modules/home/terranix-drift.nix).
+        # Engine-built for the same reason: only the engine sees every `*-plan` app.
+        (
+          { pkgs, loginName, ... }:
+          {
+            home-manager.users.${loginName}.local.terranixDrift.package =
+              flakePackages.${pkgs.stdenv.hostPlatform.system}.terranix-drift;
+          }
+        )
       ];
     };
   };

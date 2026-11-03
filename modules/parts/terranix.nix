@@ -137,6 +137,8 @@ let
     in
     pkgs.writeShellApplication {
       inherit name;
+      # The Keychain item packages/terranix-drift.nix hands this stack (names only).
+      passthru.terranixDriftEnv.CLOUDFLARE_API_TOKEN = cfTokenItem;
       # coreutils/gnugrep/gnused are for the DROPPED-RECORD guard below. Pinning
       # them is the point: the guard is the thing standing between a bad render
       # and four deleted zones, so it must not resolve `comm` off the caller's
@@ -484,6 +486,8 @@ let
     in
     pkgs.writeShellApplication {
       inherit name;
+      # The Keychain item packages/terranix-drift.nix hands this stack (names only).
+      passthru.terranixDriftEnv.CLOUDFLARE_API_TOKEN = cfTokenItem;
       runtimeInputs = [
         pkgs.opentofu
         pkgs.coreutils
@@ -720,6 +724,8 @@ let
     in
     pkgs.writeShellApplication {
       inherit name;
+      # The Keychain item packages/terranix-drift.nix hands this stack (names only).
+      passthru.terranixDriftEnv.CLOUDFLARE_API_TOKEN = cfTokenItem;
       runtimeInputs = [
         pkgs.opentofu
         pkgs.coreutils
@@ -913,6 +919,8 @@ let
     in
     pkgs.writeShellApplication {
       inherit name;
+      # No Keychain credential: ADC, which packages/terranix-drift.nix scopes for every stack.
+      passthru.terranixDriftEnv = { };
       runtimeInputs = [
         pkgs.opentofu
         pkgs.coreutils
@@ -999,6 +1007,8 @@ let
     in
     pkgs.writeShellApplication {
       inherit name;
+      # No Keychain credential: ADC, which packages/terranix-drift.nix scopes for every stack.
+      passthru.terranixDriftEnv = { };
       runtimeInputs = [
         pkgs.opentofu
         pkgs.coreutils
@@ -1116,6 +1126,8 @@ let
     in
     pkgs.writeShellApplication {
       inherit name;
+      # The Keychain item packages/terranix-drift.nix hands this stack (names only).
+      passthru.terranixDriftEnv.HEALTHCHECKSIO_API_KEY = hcApiKeyItem;
       runtimeInputs = [
         pkgs.opentofu
         pkgs.coreutils
@@ -1463,6 +1475,14 @@ in
           inherit system;
           name = "cf-tunnel-destroy";
           action = "destroy";
+        };
+
+        # ADR-012 § 5 step 1: the daily drift check. Its stack list is EVERY package
+        # named `*-plan`, read off the merged perSystem set, so a stack added in any
+        # module (the grafana one included) is covered with no edit here. Names only
+        # are read to build the list (`lazyAttrsOf`), so this does not recurse.
+        terranix-drift = (pkgsFor system).callPackage ../../packages/terranix-drift.nix {
+          plans = nixpkgs.lib.filterAttrs (n: _: nixpkgs.lib.hasSuffix "-plan" n) config.packages;
         };
       };
 

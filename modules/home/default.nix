@@ -330,6 +330,7 @@ in
     ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
     ./terminal-app.nix # Terminal.app type + colours (all darwin)
     ./fleet-gauges.nix # hourly credential-expiry / security-alert / backup gauges (macos only)
+    ./terranix-drift.nix # daily drift check over every terranix stack (macos only)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     # Makes ~/.claude/settings.json LAYERED — a real writable file the app and
     # the operator can edit, with Nix's own keys (the permissions.deny floor,
@@ -487,6 +488,8 @@ in
       "cf:cloudflare.com:dontsell-dns"
     ];
   };
+  # ADR-012 § 5 step 1. `package` comes from modules/parts/hosts.nix (engine-built).
+  local.terranixDrift.enable = isMacosHost;
 
   # ungoogled-chromium's declarative surface — real Mac only, since only
   # hosts/macos.nix declares the cask. Writes

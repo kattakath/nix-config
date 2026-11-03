@@ -375,7 +375,10 @@ To delete it anyway (DESTRUCTIVE): --force-clean-nix-volume"
 
   # 1. Determinate Nix — curl CLI installer, deliberately NOT the .pkg.
   if [ ! -e /nix/var/nix/profiles/default/bin/nix ]; then
-    say "Installing Determinate Nix (curl CLI installer)"
+    # Unpinned on purpose (ADR-012 § 5): it runs once, on a fresh Mac, where an old
+    # pinned installer is the bigger risk on a new macOS; determinate-nixd owns upgrades
+    # after that. Not silent: the line below names the release the URL resolves to.
+    say "Installing Determinate Nix (curl CLI installer, $(curl -fsS -o /dev/null -w '%{redirect_url}' https://install.determinate.systems/nix 2>/dev/null | sed -n 's#.*/tag/\([^?]*\).*#\1#p'))"
     curl -fsSL https://install.determinate.systems/nix | sh -s -- install --no-confirm
   fi
   # shellcheck disable=SC1091

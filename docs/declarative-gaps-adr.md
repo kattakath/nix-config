@@ -1,7 +1,7 @@
 # ADR-012 — Closing the declarative gaps: what is left, the tool for each, and drift detection
 
 **Status:** **DECIDED 2026-11-03** (the order in § 5 is the operator's, chosen click-to-select).
-Nothing in § 5 has shipped yet. Each step is its own PR.
+§ 5 step 1 has **shipped**. The other steps have not. Each step is its own PR.
 
 **Question.** ADR-005 put Cloudflare and GCP under terranix. What fleet state is *still* set by
 hand, which of it can be declared — ideally in Nix — and what keeps the declared parts from
@@ -36,7 +36,7 @@ each carry an upstream-first rationale.
 | 2 | GitHub: rulesets, merge queue, Actions variables, repo settings, across the fleet repos | `integrations/github` | v6.13.0, 2026-07-08 ([registry](https://registry.terraform.io/providers/integrations/github)); current in nixpkgs | terranix |
 | 3 | Gmail filters and labels | [gmailctl](https://github.com/mbrt/gmailctl) (Jsonnet; `diff`, `test`, `apply`) | v0.13.0, 2026-09-28; in nixpkgs | package + wrapper |
 | 4 | GitLab project settings | `gitlabhq/gitlab` | v19.5.0, 2026-10-16 ([mirror](https://github.com/gitlabhq/terraform-provider-gitlab)); nixpkgs 19.4.1 | terranix |
-| 5 | One Homebrew cask installed outside `hosts/macos.nix` | `homebrew.casks` | — | nix-darwin |
+| 5 | One Homebrew cask installed outside `hosts/macos.nix` — **closed**, see § 5 step 1 | `homebrew.casks` | — | nix-darwin |
 
 Rules that apply to every row:
 
@@ -77,6 +77,18 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
    encrypted with one Keychain passphrase; a CI drift job would need a copy of it in GitHub. In the
    same PR: pin the three unpinned inputs (`kapture-mcp@latest`, the devcontainer `:latest` tag,
    the bootstrap installer URL) and declare the stray cask.
+   **SHIPPED.** The agent is `nix-terranix-drift` (runbook: `docs/map/infra.md` § Drift
+   detection). Alerting is the `nix-config-terranix-drift` heartbeat, not a Grafana rule.
+   Grafana keeps the history through `fleet-gauges`, and its alert rules arrive with step 2.
+   How the three inputs were settled, after measuring each one:
+   - `kapture-mcp`: kattakath/skills #107 already pinned it (2.6.1). Only a stale comment was left here.
+   - Devcontainer `:latest`: left as is. This repo is the publisher, and a `:<sha12>` pin would
+     need a write-back updater (reason recorded in `devcontainer.json`).
+   - Installer URL: left as is. A versioned `/nix/tag/vX` URL exists, but a pin goes stale on a
+     fresh Mac and `determinate-nixd upgrade` owns versions after that. `bootstrap.sh` now prints
+     the release it resolves to.
+   - The cask: nothing left to declare. `escrcpy` was declared by #941, and every installed cask
+     is in `homebrew.casks`.
 2. **Grafana into terranix** (row 1), owned by the ADR-011 owner. Now is the cheapest time: the
    object count is still small.
 3. **GitHub rulesets and variables** (row 2), then **GitLab** (row 4).

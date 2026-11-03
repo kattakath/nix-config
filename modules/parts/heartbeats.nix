@@ -7,7 +7,8 @@
 #                                         pings exists here (mkNixos threads this
 #                                         attrset in as the `heartbeats` specialArg)
 #   checks.<system>.heartbeat-workflow-parity   asserts the two workflow pingers
-#                                         below carry the same slug + cron as here
+#                                         below carry the same slug + cron as here,
+#                                         and that the Mac agent pinger names its slug
 #
 # EVERY ENTRY IS WIRED (2026-11-02): nixpi-serving by the host's service-heartbeat;
 # the two nix-config-* checks by a ping step in their workflow (scheduled runs
@@ -169,6 +170,24 @@ in
           "weekly"
         ];
         desc = "Weekly flake.lock update workflow. Silence = the schedule did not fire or the job died.";
+      };
+
+      # WIRED: the operator Mac's daily `nix-terranix-drift` agent
+      # (modules/home/terranix-drift.nix, under runitor). Success = every terranix stack
+      # planned clean; /fail = a stack drifted or could not plan (an auth failure too).
+      # A `period`, not a cron: the agent fires at 06:00 LOCAL, and launchd runs a
+      # calendar job missed during sleep on wake, so the ping time follows the Mac,
+      # not a zone this repo would have to name. grace 1 day: a Mac asleep or away for
+      # a day is not drift; two silent days is worth an email.
+      nix-config-terranix-drift = {
+        period = 86400;
+        grace = 86400;
+        tags = [
+          "nix-config"
+          "macos"
+          "daily"
+        ];
+        desc = "Daily terranix drift check from the operator Mac. Silence = the agent did not run; /fail = a stack drifted or could not plan.";
       };
 
       # WIRED: the workflow's "Heartbeat ping" step (scheduled runs only). Cron must
