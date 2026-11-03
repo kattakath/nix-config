@@ -2,7 +2,7 @@
 
 **Status:** **DECIDED 2026-11-03** (the order in § 5 is the operator's, chosen click-to-select).
 Steps 1, 2, 3's GitHub half and 4 have **shipped** (§ 5); GitLab stays manual (§ 5 step 3).
-Step 5 is in progress. Each step is its own PR.
+Step 5 has shipped too. Each step is its own PR.
 
 **Question.** ADR-005 put Cloudflare and GCP under terranix. What fleet state is *still* set by
 hand, which of it can be declared — ideally in Nix — and what keeps the declared parts from
@@ -110,15 +110,17 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
    the committed text matches the render; `--json` output on `launchd-doctor` and `activate`;
    `plan -out` then `apply` of that saved plan; `scripts/drv-snapshot.sh --compare` in CI on
    refactor PRs.
-   **IN PROGRESS, one PR per item:**
-   - Generated tables: **PR open** (#1065). The host and app tables live in
+   **SHIPPED, one PR per item:**
+   - Generated tables: **SHIPPED** (#1065). The host and app tables live in
      `docs/map/entry-points.md` and are checked by `hosts-documented`. Checks are not rendered,
      because a check that reads its own checks set recurses.
    - `--json`: **SHIPPED** (#1062).
    - Saved plans: **SHIPPED** (#1064). The plan is bound to its stack and render, and the wrapper
      asks for the confirmation, because tofu applies a plan file without asking.
-   - drv-snapshot in CI: **merged, not yet working** (#1061). It runs on the `no-build-change` label
-     and is advisory. Its first run failed while capturing the base (`flake show` printed nothing); the fix is #1066.
+   - drv-snapshot in CI: **SHIPPED** (#1061, with fixes in #1066 and #1067). It runs on the
+     `no-build-change` label and is advisory. #1066 fixed the base capture: a shallow clone has
+     no `revCount`. #1067 compares `actionlint` by name only, because it reads `.github/`. #1067's
+     own run, 41683056398, compared every output and found them all IDENTICAL: ACCEPTED.
 
 ## 6. Alternatives that lost
 
