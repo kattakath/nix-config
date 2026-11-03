@@ -21,6 +21,11 @@ let
   # the Cloudflare ones. One project, one key, so `api` rather than a per-stack name.
   hcApiKeyItem = "hc:healthchecks.io:api";
 
+  # The Grafana stack's two Keychain items (ADR-012 step 2): the `terranix` service account
+  # token (Admin) and the Synthetic Monitoring access token.
+  grafanaTokenItem = "grafana:terranix:token";
+  grafanaSmTokenItem = "grafana:sm:token";
+
   inherit (config.fleet)
     domainName
     cloudflareAccountId
@@ -830,7 +835,7 @@ let
   };
 
   # ---- Remote state: the GCS backend's encryption, shared ------------------
-  # ADR-005 phase 1. The invariant is ENCRYPTION, not remoteness: all SIX stacks
+  # ADR-005 phase 1. The invariant is ENCRYPTION, not remoteness: every stack
   # source this, including gcp-foundation, which keeps state LOCAL on purpose (it
   # declares the bucket every other stack lives in) and still encrypts it. So the
   # encryption can never be configured on one stack and forgotten on another.
@@ -1202,6 +1207,123 @@ let
       '';
     };
 
+  # ---- Grafana Cloud stack (terranix -> OpenTofu) --------------------------
+  # Renders infra/grafana/stack.nix: the alerting, datasources, dashboard and probe ADR-011
+  # built by hand, adopted by `import` blocks (ADR-012 step 2). The SEVENTH stack, and the
+  # first whose provider comes from nixpkgs (`opentofu.withPlugins`), per ADR-012 § 3.
+  grafanaConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/grafana/stack.nix
+        (tofuGcsBackend "grafana")
+        {
+          _module.args = {
+            operatorEmail = googleAccount;
+            inherit gcpProjectId;
+            publicSiteUrl = "https://${(builtins.head hostedSites).domain}/";
+          };
+        }
+      ];
+    };
+
+  # Auth is the provider's own env vars (GRAFANA_AUTH, GRAFANA_SM_ACCESS_TOKEN), filled by
+  # `secret exec` from two Keychain items, so no value reaches argv, the store or a file.
+  # The Sheet id comes from the ROLLUP_SHEET_ID repository variable (no data in the repo).
+  #
+  # Guards, from this stack's own failure modes:
+  #   (1) DROP guard: a render that stops declaring an object state holds would DELETE it
+  #       in Grafana (an alert rule group, the probe, a datasource whose key exists nowhere
+  #       else). A clean-looking plan can hide that, so it refuses.
+  #   (2) no `-auto-approve`: an unattended apply is exactly what the drop guard exists for.
+  # No empty-state guard: every object has an `import` block, so a run against lost state
+  # ADOPTS the live objects instead of creating duplicates.
+  mkGrafanaTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    let
+      pkgs = pkgsFor system;
+      tofu = pkgs.opentofu.withPlugins (p: [ p.grafana_grafana ]);
+    in
+    pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = [
+        tofu
+        pkgs.coreutils
+        pkgs.gnugrep
+        pkgs.gnused
+        pkgs.jq
+        pkgs.gh
+      ];
+      text = ''
+        if [ -z "''${GRAFANA_AUTH:-}" ] || [ -z "''${GRAFANA_SM_ACCESS_TOKEN:-}" ]; then
+          echo "ERROR: GRAFANA_AUTH and GRAFANA_SM_ACCESS_TOKEN must both be set." >&2
+          echo "  nix develop -c secret exec GRAFANA_AUTH=${grafanaTokenItem} GRAFANA_SM_ACCESS_TOKEN=${grafanaSmTokenItem} -- nix run .#${name}" >&2
+          echo "  The first is the stack service account 'terranix' (Admin); the second the" >&2
+          echo "  Synthetic Monitoring access token. Both are minted into the Keychain once." >&2
+          exit 1
+        fi
+        if [ -z "''${TF_VAR_rollup_sheet_id:-}" ]; then
+          TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R kattakath/nix-config)
+          export TF_VAR_rollup_sheet_id
+        fi
+
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-grafana"
+        mkdir -p "$state_dir"
+        chmod 700 "$state_dir"
+        cd "$state_dir"
+        umask 077
+        echo "tofu working directory: $state_dir" >&2
+
+        rm -f config.tf.json
+        cp ${grafanaConfig { inherit system; }} config.tf.json
+        chmod 600 config.tf.json
+        ${tofuRemoteStatePrelude}
+        tofu init
+
+        if ! tofu state list > .state-addrs.raw 2> .state-list.err; then
+          if grep -qF "No state file was found" .state-list.err; then
+            : > .state-addrs.raw
+          else
+            echo "REFUSING: 'tofu state list' failed, so this run cannot tell whether" >&2
+            echo "  an apply would delete live Grafana objects. tofu said:" >&2
+            sed 's/^/    /' .state-list.err >&2
+            exit 1
+          fi
+        fi
+        grep -E '^grafana_' .state-addrs.raw | sort > .state-addrs || true
+        jq -r '.resource // {} | to_entries[] | .key as $t | .value | keys[] | $t + "." + .' \
+          config.tf.json | sort > .render-addrs
+        dropped=$(comm -23 .state-addrs .render-addrs)
+        if [ -n "$dropped" ]; then
+          echo "REFUSING: this render DROPS Grafana objects that state already holds:" >&2
+          printf '%s\n' "$dropped" | sed 's/^/    /' >&2
+          echo "  Applying it would DELETE each one in Grafana Cloud. A dropped datasource" >&2
+          echo "  takes its key with it (the key exists nowhere else). No rollback." >&2
+          echo "    GRAFANA_ALLOW_DROPS=1 nix develop -c nix run .#${name}" >&2
+          [ "''${GRAFANA_ALLOW_DROPS:-}" = "1" ] || exit 1
+          echo "WARNING: GRAFANA_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
+        fi
+
+        ${pkgs.lib.optionalString (action == "apply") ''
+          for a in "$@"; do
+            case "$a" in
+              -auto-approve|--auto-approve)
+                echo "REFUSING: -auto-approve on the Grafana stack. Read the plan." >&2
+                exit 1
+                ;;
+            esac
+          done
+        ''}
+
+        tofu ${action} "$@"
+      '';
+    };
+
 in
 {
   # The renderers, exported for private/external callers (see the header).
@@ -1306,6 +1428,16 @@ in
         hc-checks-apply = mkHcChecksTofu {
           inherit system;
           name = "hc-checks-apply";
+          action = "apply";
+        };
+        grafana-plan = mkGrafanaTofu {
+          inherit system;
+          name = "grafana-plan";
+          action = "plan";
+        };
+        grafana-apply = mkGrafanaTofu {
+          inherit system;
+          name = "grafana-apply";
           action = "apply";
         };
         # destroy intentionally keeps hostedSites at its [ ] default: rendering
@@ -1456,6 +1588,16 @@ in
           type = "app";
           program = "${config.packages.hc-checks-apply}/bin/hc-checks-apply";
           meta.description = "tofu apply the healthchecks.io checks — refuses a render that drops a check, an apply against empty state, and -auto-approve (needs HEALTHCHECKSIO_API_KEY)";
+        };
+        grafana-plan = {
+          type = "app";
+          program = "${config.packages.grafana-plan}/bin/grafana-plan";
+          meta.description = "Render infra/grafana/stack.nix (terranix) and tofu PLAN the Grafana Cloud stack (alerting, datasources, dashboard, probe) — read-only, run it before grafana-apply (needs GRAFANA_AUTH + GRAFANA_SM_ACCESS_TOKEN)";
+        };
+        grafana-apply = {
+          type = "app";
+          program = "${config.packages.grafana-apply}/bin/grafana-apply";
+          meta.description = "tofu apply the Grafana Cloud stack — refuses a render that drops an object state holds, and -auto-approve (needs GRAFANA_AUTH + GRAFANA_SM_ACCESS_TOKEN)";
         };
         cf-zones-plan = {
           type = "app";

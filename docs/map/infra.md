@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `infra/` — terranix (Nix → OpenTofu/Terraform JSON)
 
-**Six stacks, and the split is deliberate: a stack is a blast radius, not a category.**
+**Seven stacks, and the split is deliberate: a stack is a blast radius, not a category.**
 
 | Stack | State | Breaking it takes down |
 |---|---|---|
@@ -12,6 +12,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `gcp-budget` | GCS `gcp-budget/` | the spend alert |
 | `gcp-foundation` | **local** (still encrypted) | the bucket the others live in |
 | `hc-checks` | GCS `hc-checks/` | the fleet's dead-man's-switch ALARMS (a host cannot go down because of it) |
+| `grafana` | GCS `grafana/` | the Grafana alerting, the two custom datasources, the history dashboard and the public-site probe (ADR-011). A dropped datasource takes its key with it; the key exists nowhere else |
 
 > **A FORMER stack, `mcp-public`, was DESTROYED AND DELETED on 2026-10-02.** It owned the
 > published MCP gateway's Cloudflare side — tunnel, portal, per-server registrations, Access
@@ -309,4 +310,20 @@ loader-exported like every personal token) for ad-hoc local `cachix push kattaka
 never in Nix or git, and consumers still substitute tokenless (read stays public). Note the
 token does NOT influence builds or substitution — Nix sandboxes scrub the environment, so it is
 only ever consumed by the `cachix` CLI at push time.
+
+### `infra/grafana/stack.nix` — the Grafana Cloud stack (ADR-012 step 2)
+
+- **Adopted, not created.** Every object ADR-011 built by hand has an `import` block. The first
+  plan read **12 to import, 0 to add, 0 to change, 0 to destroy** (2026-11-03).
+- **`resources.nix` is generated.** It came from `tofu plan -generate-config-out` plus a
+  deterministic HCL-to-Nix conversion. A `builtins.toJSON` value is exactly what the provider stores.
+- **Provider from nixpkgs** (`opentofu.withPlugins`, `grafana_grafana`), the first stack to do so
+  (ADR-012 § 3). It is not in `provider-pins.nix`.
+- **Credentials:** `GRAFANA_AUTH` (service account `terranix`, Admin) and
+  `GRAFANA_SM_ACCESS_TOKEN`, through `secret exec`. The Sheet id is the `ROLLUP_SHEET_ID`
+  repository variable, read at run time.
+- **Datasource secrets are never Terraform's:** `secure_json_data_encoded` is ignored, so the
+  GitHub App key and the Sheets reader key stay only in Grafana and never enter state.
+- **Guards:** a drop guard (a render that loses an object state holds refuses) and no
+  `-auto-approve`. There is no empty-state guard, because the imports re-adopt.
 
