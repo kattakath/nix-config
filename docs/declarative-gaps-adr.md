@@ -117,8 +117,10 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
    - `--json`: **SHIPPED** (#1062).
    - Saved plans: **SHIPPED** (#1064). The plan is bound to its stack and render, and the wrapper
      asks for the confirmation, because tofu applies a plan file without asking.
-   - drv-snapshot in CI: **merged, not yet working** (#1061). It runs on the `no-build-change` label
-     and is advisory. Its first run failed while capturing the base (`flake show` printed nothing); the fix is #1066.
+   - drv-snapshot in CI: **merged, being fixed** (#1061). It runs on the `no-build-change` label
+     and is advisory. #1066 fixed the base capture: a shallow clone has no `revCount`. Its run then
+     reached `--compare` and failed only on `actionlint`, which reads `.github/`. That was a real
+     input change, not a baseline error. This PR compares `actionlint` by name only.
 
 ## 6. Alternatives that lost
 
