@@ -157,7 +157,7 @@ def time_machine():
         fail("time-machine", e)
 
 
-DRIFT_STATUS = {"clean": 0, "drift": 1, "error": 2}
+DRIFT_STATUS = {"clean": 0, "drift": 1, "error": 2, "reauth": 2}
 
 
 def terranix_drift():
