@@ -171,6 +171,7 @@ jobs:
       # counterfactual: ordering those names LEXICALLY picks the wrong one, which is the
       # #248 lockout — never reintroduce a lexical pick.
       - name: Stage the image under its nix-config revision
+        id: stage
         if: ${{ inputs.publish }}
         run: |
           set -euo pipefail
@@ -192,35 +193,28 @@ jobs:
           # separately-mounted /nix, or protected_hardlinks refusing a root-owned store
           # file). The asset is ~1.7 GB and this runner's root volume has ~14 GB free, so
           # a copy is affordable but not free — see this file's header note on ENOSPC.
-          ln "$src" "upload/$name" 2>/dev/null || cp "$src" "upload/$name"
-          test -s "upload/$name"
-          echo "Staged $base as $name"
-
-      # softprops/action-gh-release UPLOADS by filename but does not remove older
-      # assets when the nixos-sd-image-*.img.zst basename changes (nixpkgs rev in
-      # the name). installer-latest is a single rolling slot — leave only the new
-      # image so `nixpi-flash --release` cannot pick a stale pubkey-bearing image
-      # via glob order. Non-sd-image assets (if any) are left alone.
-      - name: Retire stale nixpi SD image assets
-        if: ${{ inputs.publish }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          # No release yet (first publish) ⇒ nothing to retire.
-          if ! gh release view installer-latest --json assets >/dev/null 2>&1; then
-            echo "No installer-latest release yet; skip retire."
-            exit 0
+          # GitHub refuses a release asset of 2 GiB or more ("size must be less than
+          # 2147483648"). nixpkgs' sd-image compresses at zstd's default level, and
+          # #1048 (Alloy, 2026-11-03) took that to 2,238,449,370 bytes. So re-encode
+          # at -19 with a 128 MiB window: --long=27 is the largest window `zstd -d`
+          # accepts WITHOUT a --memory flag, so nixpi-flash's plain `zstd -d` and the
+          # inspect step above still decompress it unchanged.
+          if [ "$ext" = .img.zst ]; then
+            zstd -d -q -c "$src" | zstd -19 --long=27 -T0 -q -o "upload/$name"
+          else
+            ln "$src" "upload/$name" 2>/dev/null || cp "$src" "upload/$name"
           fi
-          gh release view installer-latest --json assets --jq '
-            .assets[]
-            | select(.name | test("^nixos-sd-image-.*\\.img(\\.zst)?$"))
-            | .apiUrl
-          ' | while IFS= read -r url; do
-            [ -n "$url" ] || continue
-            echo "Deleting stale asset: $url"
-            gh api -X DELETE "$url"
-          done
+          test -s "upload/$name"
+          before=$(stat -c %s "$src")
+          after=$(stat -c %s "upload/$name")
+          echo "Staged $base as $name: $before -> $after bytes"
+          # Fail BEFORE the publish job touches the release, so an oversize image can
+          # never cost the slot its current asset.
+          if [ "$after" -ge 2147483648 ]; then
+            echo "::error::$name is $after bytes; GitHub's release-asset limit is 2147483648. Slim the nixpi closure."
+            exit 1
+          fi
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
       # ---- provenance: sign WHAT WE BUILT, before it is published ------------------
       # The flash path was `gh release download` -> `zstd -d` -> `dd` with NO integrity
@@ -259,3 +253,35 @@ jobs:
           prerelease: true
           make_latest: false
           files: upload/*.img*
+      # RUNS AFTER THE PUBLISH. Until 2026-11-03 it ran first, so a failed upload (the
+      # 2 GiB limit, run 41552934975) left installer-latest with NO image at all.
+      # softprops/action-gh-release UPLOADS by filename but does not remove older
+      # assets when the nixos-sd-image-*.img.zst basename changes (nixpkgs rev in
+      # the name). installer-latest is a single rolling slot — leave only the new
+      # image so `nixpi-flash --release` cannot pick a stale pubkey-bearing image
+      # via glob order. Non-sd-image assets (if any) are left alone.
+      - name: Retire stale nixpi SD image assets
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEEP: ${{ steps.stage.outputs.name }}
+        run: |
+          set -euo pipefail
+          # An empty KEEP would retire the asset just uploaded too.
+          [ -n "$KEEP" ] || { echo "::error::stage step exported no asset name"; exit 1; }
+          # No release yet (first publish) ⇒ nothing to retire.
+          if ! gh release view installer-latest --json assets >/dev/null 2>&1; then
+            echo "No installer-latest release yet; skip retire."
+            exit 0
+          fi
+          gh release view installer-latest --json assets --jq '
+            .assets[]
+            | select(.name | test("^nixos-sd-image-.*\\.img(\\.zst)?$"))
+            | select(.name != env.KEEP)
+            | .apiUrl
+          ' | while IFS= read -r url; do
+            [ -n "$url" ] || continue
+            echo "Deleting stale asset: $url"
+            gh api -X DELETE "$url"
+          done
+
