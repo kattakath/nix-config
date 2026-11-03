@@ -113,7 +113,33 @@ in
       # from the environment `secret exec` builds — never written to the store.
       grafanaConfig = pkgs.writeText "claude-otel-grafana-config.yaml" (
         builtins.toJSON {
-          inherit receivers;
+          # ADR-011 step 8: the Mac's own host metrics ride the same collector and
+          # credential. Allowlisted to the volumes and interfaces that matter, which
+          # keeps it near the census's ~350 series; utun/awdl/llw/bridge and the
+          # devfs/autofs mounts are dropped.
+          receivers = receivers // {
+            hostmetrics = {
+              collection_interval = "60s";
+              scrapers = {
+                cpu = { };
+                memory = { };
+                load = { };
+                paging = { };
+                filesystem.include_mount_points = {
+                  match_type = "strict";
+                  mount_points = [
+                    "/"
+                    "/System/Volumes/Data"
+                    "/nix"
+                  ];
+                };
+                network.include = {
+                  match_type = "regexp";
+                  interfaces = [ "en[0-9]+" ];
+                };
+              };
+            };
+          };
           extensions."basicauth/grafana".client_auth = {
             username = "\${env:GRAFANA_OTLP_INSTANCE}";
             password = "\${env:GRAFANA_OTLP_TOKEN}";
@@ -137,6 +163,13 @@ in
             "resource/strip".attributes = map del [
               "user.email"
               "host.name"
+            ];
+            "resource/host".attributes = [
+              {
+                key = "service.name";
+                value = "macos-host";
+                action = "upsert";
+              }
             ];
             # Claude Code exports DELTA sums; the Grafana OTLP gateway rejects them
             # (HTTP 400 "invalid temporality and type combination", measured
@@ -163,6 +196,16 @@ in
                   "attributes/strip"
                   "resource/strip"
                   "deltatocumulative"
+                  "batch"
+                ];
+                exporters = [ "otlphttp/grafana" ];
+              };
+              # Host metrics are already cumulative/gauge and carry no identity, so they
+              # skip the strip and the delta conversion.
+              "metrics/host" = {
+                receivers = [ "hostmetrics" ];
+                processors = [
+                  "resource/host"
                   "batch"
                 ];
                 exporters = [ "otlphttp/grafana" ];
