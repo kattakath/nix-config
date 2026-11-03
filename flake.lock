@@ -450,6 +450,22 @@
         "type": "github"
       }
     },
+    "kattakath-dotgithub": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793652076,
+        "narHash": "sha256-Wg2vl4106vxxrsIXbxrd+h0GGKMKYCFCKZzhTe5fG8w=",
+        "owner": "kattakath",
+        "repo": ".github",
+        "rev": "c693b31c1b075c80bddba0ae8847a33272ec01c0",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kattakath",
+        "repo": ".github",
+        "type": "github"
+      }
+    },
     "kattakath-skills": {
       "flake": false,
       "locked": {
@@ -664,6 +680,7 @@
         "grok-build-plugin-cc": "grok-build-plugin-cc",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
+        "kattakath-dotgithub": "kattakath-dotgithub",
         "kattakath-skills": "kattakath-skills",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
