@@ -1263,6 +1263,11 @@ let
     in
     pkgs.writeShellApplication {
       inherit name;
+      # The Keychain items packages/terranix-drift.nix hands this stack (names only).
+      passthru.terranixDriftEnv = {
+        GRAFANA_AUTH = grafanaTokenItem;
+        GRAFANA_SM_ACCESS_TOKEN = grafanaSmTokenItem;
+      };
       runtimeInputs = [
         tofu
         pkgs.coreutils

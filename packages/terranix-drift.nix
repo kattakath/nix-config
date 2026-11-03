@@ -37,7 +37,13 @@
   slug ? "nix-config-terranix-drift",
 }:
 let
-  names = lib.attrNames plans;
+  # Every plan must STATE its credential, even as `{ }` (ADR-012 coverage): a new stack
+  # whose wrapper forgets fails here at eval, not as a daily /fail nobody can explain.
+  uncovered = lib.attrNames (lib.filterAttrs (_: p: !(p ? terranixDriftEnv)) plans);
+  names =
+    assert lib.assertMsg (uncovered == [ ])
+      "terranix-drift: set passthru.terranixDriftEnv (Keychain item NAMES, or { }) on: ${toString uncovered}";
+    lib.attrNames plans;
   secretEnv = lib.foldl' (acc: n: acc // (plans.${n}.terranixDriftEnv or { })) { } names;
   secretArgs = lib.concatStringsSep " " (lib.mapAttrsToList (k: v: "${k}=${v}") secretEnv);
   secretBin = if homeProfileDir == null then "secret" else "${homeProfileDir}/bin/secret";
