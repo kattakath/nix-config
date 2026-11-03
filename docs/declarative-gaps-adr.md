@@ -1,8 +1,8 @@
 # ADR-012 — Closing the declarative gaps: what is left, the tool for each, and drift detection
 
 **Status:** **DECIDED 2026-11-03** (the order in § 5 is the operator's, chosen click-to-select).
-§ 5 step 1 has **shipped**. Step 3's GitHub half is **in progress** (code merged, import-only
-apply pending). The other steps have not. Each step is its own PR.
+Steps 1, 2 and 3's GitHub half have **shipped** (§ 5); GitLab is held (§ 5 step 3). Steps 4
+and 5 are open. Each step is its own PR.
 
 **Question.** ADR-005 put Cloudflare and GCP under terranix. What fleet state is *still* set by
 hand, which of it can be declared — ideally in Nix — and what keeps the declared parts from
@@ -92,10 +92,14 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
      is in `homebrew.casks`.
 2. **Grafana into terranix** (row 1), owned by the ADR-011 owner. Now is the cheapest time: the
    object count is still small.
+   **SHIPPED** (#1056): 12 objects adopted by an import-only apply, and the re-plan reads No
+   changes. The export needed 13 hand-fixes (empty durations and a contact-point field it omits).
 3. **GitHub rulesets and variables** (row 2), then **GitLab** (row 4).
-   **GitHub half IN PROGRESS:** `infra/github/stack.nix`, runbook in `docs/map/infra.md`.
-   The import measured cheap: 8 objects over 2 repos generated 217 lines that re-planned
-   clean with 0 hand-fixes, and the full stack's first plan read 37 to import, 0 to change.
+   **GitHub half SHIPPED** (#1059): `infra/github/stack.nix`, runbook in `docs/map/infra.md`.
+   37 objects adopted by an import-only apply, and the re-plan reads No changes. Actions secrets
+   and `github_repository` stay out (the stack header says why).
+   **GitLab HELD:** the GitLab projects belong to the separate persona. Declaring them in this
+   public, real-name repo would link the two identities, so they wait on their own decision.
 4. **gmailctl** (row 3).
 5. **Determinism tooling:** generate the host and check tables from `nix eval` with a check that
    the committed text matches the render; `--json` output on `launchd-doctor` and `activate`;
@@ -117,5 +121,5 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
 - The official Neon provider publishes registry versions → declare the agentic-jobseek project.
 - Anthropic ships IaC or a management API for routines → declare them.
 - The Mac moves under MDM → TCC grants become declarable.
-- **Weakest assumption:** that importing the live GitHub and Grafana objects is cheap. One
-  `tofu plan -generate-config-out` against one repo measures it before step 2 or 3 starts.
+- **Weakest assumption, now measured:** that importing the live GitHub and Grafana objects is
+  cheap. It was: GitHub needed 0 hand-fixes over 2 sample repos, and Grafana needed 13.
