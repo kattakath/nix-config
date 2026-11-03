@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
+`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -424,6 +424,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
 - **`fleet-gauges.nix`** — `local.fleetGauges`: the hourly `nix-fleet-gauges` user agent
   that runs `packages/fleet-gauges.nix` (ADR-011 step 7). A user agent because it reads the
   login Keychain.
+- **`terranix-drift.nix`** — `local.terranixDrift`: the daily `nix-terranix-drift` user agent
+  (ADR-012 § 5 step 1). Its `package` is set from the engine (`modules/parts/hosts.nix`).
+  Runbook: [`infra.md`](infra.md) § Drift detection.
 - **`claude-bedrock-gate.nix`** — **Bedrock routing's governance**: a `nix-bedrock-gate` shell
   hook that makes Claude Code's Bedrock routing conditional on an AWS identity actually
   resolving, instead of on `CLAUDE_CODE_USE_BEDROCK` merely existing.
