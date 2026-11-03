@@ -42,13 +42,18 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 45
     steps:
-      # fetch-depth 2: the default checkout is the PR's MERGE commit, whose
-      # first parent is exactly the base it merges into. Comparing against
-      # HEAD^1 (not event.pull_request.base.sha, which can lag a moved base)
-      # isolates precisely this PR's change.
+      # The default checkout is the PR's MERGE commit, whose first parent is
+      # exactly the base it merges into. Comparing against HEAD^1 (not
+      # event.pull_request.base.sha, which can lag a moved base) isolates
+      # precisely this PR's change.
+      #
+      # fetch-depth 0, NOT 2: a CLEAN tree in a shallow clone fails every flake
+      # eval with "is a shallow Git repository, so 'revCount' is not available"
+      # (the base worktree is clean whenever the PR leaves the harness alone).
+      # Measured: run 41670048778 died that way at depth 2.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
         with:

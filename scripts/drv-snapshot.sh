@@ -91,7 +91,9 @@ capture() {
   mkdir -p "$dir"
 
   echo "  flake show ..." >&2
-  (cd "$REPO" && nix flake show --json 2>/dev/null) \
+  # stderr NOT discarded: a failing eval here otherwise surfaces only as python's
+  # JSONDecodeError at char 0 (run 41670048778: a shallow clone's missing revCount).
+  (cd "$REPO" && nix flake show --json) \
     | python3 -c 'import json,sys;json.dump(json.load(sys.stdin),sys.stdout,indent=1,sort_keys=True)' \
     > "$dir/flake-show.json"
 
