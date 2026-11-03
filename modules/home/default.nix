@@ -248,6 +248,9 @@ let
     inherit tokensUrl;
   };
 
+  # `gmail-filters` — gmailctl over a Drive-held filter file (packages/gmail-filters.nix).
+  gmail-filters = pkgs.callPackage ../../packages/gmail-filters.nix { };
+
   # `jobspy --search "…" --location "…"` — scrape jobs from multiple boards into
   # CSV/JSON via the off-the-shelf python-jobspy library (run in an ephemeral uv env).
   # See packages/jobspy.nix.
@@ -1282,6 +1285,11 @@ in
       jsonresume # `jsonresume download|print|validate|markdown|text` — fetch a JSON Resume (default URL from jsonResumeUrl, or --url) + render PDF via resumed (fallback resume-cli); md/text via resume-cli (packages/jsonresume.nix)
       email-signature # `email-signature` (flags: `email-signature --help`) — render a self-contained HTML email signature (JSON Resume + gist logo, base64-embedded) to ~/.local/share/email-signature/signature.html; also regenerated on activation (packages/email-signature/)
       design-tokens # `design-tokens [--tokens-url URL] [--out DIR]` — transform the gist DTCG tokens.json into SCSS/CSS/JS via Style Dictionary, to ~/.local/share/design-tokens/ (packages/design-tokens/)
+    ]
+    # OPERATOR-ONLY: the filter file is the operator's data (a Drive folder) and the OAuth
+    # client is his Keychain item, so a template consumer gets nothing from this.
+    ++ lib.optionals isMacosHost [
+      gmail-filters # `gmail-filters <login|download|diff|test|apply>` — Gmail filters + labels as gmailctl Jsonnet in Drive, client from the Keychain, token 0600 under XDG state (packages/gmail-filters.nix, ADR-012 § 5 step 4)
     ]
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       # PREREQUISITE for the MCP ownership split (#657): the `nixos` server moves

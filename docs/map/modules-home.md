@@ -427,6 +427,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
 - **`terranix-drift.nix`** — `local.terranixDrift`: the daily `nix-terranix-drift` user agent
   (ADR-012 § 5 step 1). Its `package` is set from the engine (`modules/parts/hosts.nix`).
   Runbook: [`infra.md`](infra.md) § Drift detection.
+  `default.nix` also installs `gmail-filters` (`packages/gmail-filters.nix`) in its `isMacosHost`
+  list, because only the operator has the Drive filter file and the Keychain client.
 - **`claude-bedrock-gate.nix`** — **Bedrock routing's governance**: a `nix-bedrock-gate` shell
   hook that makes Claude Code's Bedrock routing conditional on an AWS identity actually
   resolving, instead of on `CLAUDE_CODE_USE_BEDROCK` merely existing.

@@ -183,6 +183,10 @@ Smaller, single-purpose CLIs:
 - **`jsonresume.nix`** — dual-engine `jsonresume <download|print|validate|markdown|text>`
   wrapper (`resumed` for PDF/validate, `resume-cli` where `resumed` falls short); see the
   `jsonresume-tailor` skill.
+- **`gmail-filters.nix`** — `gmail-filters <login|download|diff|test|apply>`: Gmail filters and
+  labels as gmailctl Jsonnet (ADR-012 § 5 step 4). The filter file is data, so it lives in Drive;
+  the OAuth client comes from the Keychain and the token stays local. Runbook:
+  [`workspace-runbook.md`](../workspace-runbook.md) § 7.
 - **`mermaid-ascii.nix`** — packages `AlexanderGrooff/mermaid-ascii`, not in nixpkgs, for the
   diagrams-as-ASCII convention.
 - **`git-tidy.nix`** — `git-tidy [gh-poi flags]`: refuses a dirty tree, switches to the

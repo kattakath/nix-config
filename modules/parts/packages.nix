@@ -224,6 +224,11 @@ in
             inherit logoUrl tokensUrl;
           };
 
+          # `gmail-filters` (macOS only: credentials come from the login Keychain) — Gmail
+          # filters and labels as gmailctl Jsonnet kept in Drive (ADR-012 § 5 step 4). A
+          # package so `nix flake check` shellchecks it. See packages/gmail-filters.nix.
+          gmail-filters = pkgs.callPackage ../../packages/gmail-filters.nix { };
+
           # `design-tokens` (macOS only) — transform the same gist tokens.json (baked
           # tokensUrl) into SCSS/CSS/JS via Style Dictionary (v4, via npx), so any consumer
           # builds from one source of truth. Exposed as a package so `nix flake check` BUILDS
@@ -409,6 +414,14 @@ in
           type = "app";
           program = "${config.packages.email-signature}/bin/email-signature";
           meta.description = "Render a paste-ready HTML email signature from your JSON Resume (--url, else baked default) + the gist logo (baked logoUrl) into ~/.local/share/email-signature/signature.html";
+        };
+
+        # `nix run .#gmail-filters -- <login|download|diff|test|apply>` (also on PATH via
+        # home.packages on the operator Mac).
+        gmail-filters = {
+          type = "app";
+          program = "${config.packages.gmail-filters}/bin/gmail-filters";
+          meta.description = "Gmail filters and labels as gmailctl Jsonnet: the filter file lives in a Drive folder, the OAuth client in the Keychain (verbs: login, download, diff, test, apply)";
         };
 
         # `nix run .#design-tokens -- [--tokens-url URL] [--out DIR]` — transform the gist
