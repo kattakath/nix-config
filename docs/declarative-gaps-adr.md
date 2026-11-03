@@ -1,8 +1,8 @@
 # ADR-012 — Closing the declarative gaps: what is left, the tool for each, and drift detection
 
 **Status:** **DECIDED 2026-11-03** (the order in § 5 is the operator's, chosen click-to-select).
-Steps 1, 2 and 3's GitHub half have **shipped** (§ 5); GitLab stays manual (§ 5 step 3). Steps 4
-and 5 are open. Each step is its own PR.
+Steps 1, 2, 3's GitHub half and 4 have **shipped** (§ 5); GitLab stays manual (§ 5 step 3).
+Step 5 is open. Each step is its own PR.
 
 **Question.** ADR-005 put Cloudflare and GCP under terranix. What fleet state is *still* set by
 hand, which of it can be declared — ideally in Nix — and what keeps the declared parts from
@@ -102,6 +102,10 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
    Declaring them anywhere would risk linking the two identities, and their settings change
    rarely, so they stay out of IaC.
 4. **gmailctl** (row 3).
+   **SHIPPED:** `packages/gmail-filters.nix`, runbook in `docs/workspace-runbook.md` § 7. The
+   live filters were imported to Drive and the first `diff` read clean. The first `apply` waits
+   for the operator. Drift coverage is left out: `gmailctl diff` exits 0 even when it prints
+   changes (checked with a positive control), so it does not fit the tofu exit-code classes.
 5. **Determinism tooling:** generate the host and check tables from `nix eval` with a check that
    the committed text matches the render; `--json` output on `launchd-doctor` and `activate`;
    `plan -out` then `apply` of that saved plan; `scripts/drv-snapshot.sh --compare` in CI on

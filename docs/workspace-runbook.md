@@ -191,3 +191,35 @@ appearance of it.
 ADR-005 §7's trigger: **Google ships a first-party Workspace provider, or the community fork
 gains a second maintainer.** At that point §2 and §4 are the migration checklist, and this page
 becomes the record of what was true before.
+
+---
+
+## 7. Gmail filters — the one declared piece (ADR-012 § 5 step 4)
+
+Gmail filters and labels are declared with gmailctl, which is the narrow reopening of ADR-005
+§3.3 that ADR-012 § 3 records. gmailctl touches filters and labels only, never the directory,
+Drive or sharing, so everything above stays a runbook.
+
+| Piece | Where it lives | Why |
+|---|---|---|
+| Filter file `config.jsonnet` | a Drive folder the operator symlinks to `$XDG_CONFIG_HOME/nix-config/gmail` (override: `GMAIL_FILTERS_DIR`) | it is data (senders, addresses), so it never enters the repo |
+| OAuth client | Keychain items `GMAIL_OAUTH_CLIENT_ID` / `_SECRET`, through `secret exec` | the same Internal client google-workspace-mcp uses; one source of truth |
+| OAuth token | `$XDG_STATE_HOME/gmail-filters/token.json`, mode 0600 | gmailctl writes it as a file; local and not synced |
+
+gmailctl expects `credentials.json` in its config dir. The wrapper writes it into a private temp
+dir for each run and deletes it on exit.
+
+```bash
+gmail-filters login      # browser consent (scopes gmail.labels + gmail.settings.basic)
+gmail-filters diff       # read-only: what apply would change. Empty output = in sync
+gmail-filters test       # the file's own tests, offline
+gmail-filters apply      # prints the diff, asks, then writes. Run diff first
+gmail-filters download   # re-import the live filters; refuses to overwrite without --force
+```
+
+- **Edit the Drive file, then `diff`, then `apply`.** Imported 2026-11-03, and the first diff
+  read clean.
+- **Not in the daily drift check.** `gmailctl diff` exits 0 whether or not it prints changes,
+  and that check classes tofu's `-detailed-exitcode`. Adding Gmail means a `--exit-code`-style
+  shim. For now, run `diff` by hand.
+- **New Mac:** recreate the symlink to the Drive folder, then `gmail-filters login`.
