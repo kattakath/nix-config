@@ -103,30 +103,13 @@ let
   # NixOS builder's specialArgs (modules/nixos/nix-cache.nix) and into the
   # macOS host's Determinate customSettings — one literal, no duplication.
   cachixUrl = "https://${orgName}.cachix.org";
-  # ---- nixpi Wi-Fi fallback ladder, ORDERED, most-preferred FIRST ---------------
-  # `nixpi-wifi-creds` turns this into one `network={}` block per entry with a
-  # DESCENDING `priority=`, so the first is the house AP and the rest are fallbacks.
-  #
-  # WHY THE LIST HAS TO BE DECLARED. The generator could ALWAYS emit multiple ranked
-  # blocks (packages/nixpi-provision.nix ranks them) -- what was missing is a roster.
-  # Its default was "whatever Wi-Fi THIS MAC is joined to right now", so the ladder
-  # existed only as whatever arguments a human typed. On 2026-10-01 a reflash erased
-  # it: the two-network config had only ever been HAND-EDITED onto the card over SSH,
-  # which is also how its priorities ended up INVERTED and stranded the host.
-  #
-  # SSIDs ONLY, never the PSKs. An SSID is broadcast in the clear and names nothing
-  # secret; the pre-shared keys stay in the macOS Keychain and are read at generation
-  # time. That split is the reason this can be committed at all.
-  #
-  # The second entry is a phone hotspot started BY HAND, so it is absent from the scan
-  # most of the time -- which costs nothing: wpa_supplicant iterates priority groups
-  # against the SCAN RESULTS, so an absent network is skipped rather than preferred.
-  # Decoded from the hex the Pi's own card carried rather than retyped:
-  # <wifi-failover-ssid-hex>.
-  nixpiWifiNetworks = [
-    "<wifi-primary-ssid>" # the household Rogers CGM4981 AP -- normal operation
-    "<wifi-failover-ssid>" # emergency phone hotspot, hand-started
-  ];
+  # ---- nixpi Wi-Fi roster: NOT here (2026-11-02) ----------------------------
+  # The ordered SSID list `nixpi-wifi-creds` ranks into `priority=` blocks is the
+  # operator's DATA (would it read the same for a different person? no), so it lives
+  # in a hand-placed, Drive-backed roster file read at PROVISION time — never in this
+  # public flake. Path, shape and the fail-closed rule: packages/nixpi-provision.nix
+  # § THE ROSTER. nixpi itself never needed it: uplink-watchdog only restarts the
+  # supplicant and restores the planted card, whose `priority=` lines ARE the roster.
 
   cachixKey = "${orgName}.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=";
 
@@ -359,7 +342,6 @@ in
         cloudflareAccountId
         cloudflareZoneId
         hostedSites
-        nixpiWifiNetworks
         accessOrg
         gcpBillingAccountId
         gcpBudgetAmount
