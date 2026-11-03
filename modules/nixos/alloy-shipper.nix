@@ -164,6 +164,21 @@ in
 
       otelcol.receiver.loki "default" {
         output {
+          logs = [otelcol.processor.transform.journal.input]
+        }
+      }
+
+      // Without a resource service.name, Grafana Cloud files every line under
+      // service_name="unknown_service" (measured 2026-11-03). One name per host keeps
+      // the stream count at one; the unit stays per-line structured metadata, queried
+      // as {service_name="<host>-journal"} | unit="caddy.service".
+      otelcol.processor.transform "journal" {
+        error_mode = "ignore"
+        log_statements {
+          context    = "resource"
+          statements = [`set(attributes["service.name"], "${config.networking.hostName}-journal")`]
+        }
+        output {
           logs = [otelcol.processor.batch.default.input]
         }
       }
