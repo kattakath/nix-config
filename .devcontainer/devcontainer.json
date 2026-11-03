@@ -34,6 +34,8 @@
   // daemon would never start.
   "overrideCommand": false,
 
+  // Literal on purpose: packages/devcontainer-image.nix (workdir) and build-devcontainer-impl.yml
+  // bake the same path, and the localWorkspaceFolderBasename variable is a worktree's name in a worktree.
   "workspaceFolder": "/workspaces/nix-config",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind",
 
