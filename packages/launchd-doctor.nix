@@ -48,6 +48,13 @@
 # make the doctor agree with the config by construction, which is the one thing a
 # drift check must not do.
 #
+# `--json`: the same findings, machine-readable, one array per section, plus the
+# exit code — `{"sections":{"loaded":[…],…},"rc":N}` on stdout, exit code unchanged.
+# The human report is the default and is not touched: in JSON mode it is still
+# produced, line for line, and sent to /dev/null, while each finding ALSO records
+# an object through `note`. One code path, two renderings — a separate JSON pass
+# would be a second copy of every test, and the two would drift.
+#
 # READ-ONLY. It prints remedies; it never runs them. Bootstrapping a daemon needs
 # root and is the operator's call.
 #
@@ -61,16 +68,46 @@
   findutils,
   gnugrep,
   gnused,
+  jq,
 }:
 writeShellApplication {
   name = "launchd-doctor";
+  # SC2016: every `$name` inside a single-quoted jq program is jq's variable, not the shell's.
+  excludeShellChecks = [ "SC2016" ];
   runtimeInputs = [
     coreutils
     findutils
     gnugrep
     gnused
+    jq
   ];
   text = ''
+    json=""
+    for arg in "$@"; do
+      case "$arg" in
+        --json) json=1 ;;
+        *)
+          echo "usage: launchd-doctor [--json]" >&2
+          exit 2
+          ;;
+      esac
+    done
+
+    # Findings per section, each a newline-separated list of compact JSON objects.
+    # Recorded in both modes (cheap); only --json prints them.
+    declare -A found=(
+      [loaded]="" [orphaned]="" [logSize]="" [disabled]="" [strayLogs]="" [powerAssertions]=""
+    )
+    note() {
+      local section=$1
+      shift
+      found[$section]+="$(jq -nc "$@")"$'\n'
+    }
+    if [ -n "$json" ]; then
+      # Keep stdout for the JSON document; the human report goes nowhere.
+      exec 3>&1 1>/dev/null
+    fi
+
     rc=0
     uid=$(id -u)
     # Size at which an unrotated agent log is worth reporting (KiB).
@@ -126,6 +163,9 @@ writeShellApplication {
       target="$(domain_of "$p")/$label"
       if ! out=$(/bin/launchctl print "$target" 2>/dev/null); then
         echo "  NOT LOADED  $label"
+        note loaded --arg label "$label" --arg plist "$p" --arg domain "$(domain_of "$p")" \
+          --argjson declared "$(echo "$gen_declared" | grep -qxF "$(basename "$p")" && echo true || echo false)" \
+          '{kind: "not-loaded", label: $label, plist: $plist, domain: $domain, declaredByGeneration: $declared}'
         echo "              plist is on disk but the job is absent from $(domain_of "$p")."
         if echo "$gen_declared" | grep -qxF "$(basename "$p")"; then
           echo "              remedy: sudo launchctl bootstrap $(domain_of "$p") $p"
@@ -159,6 +199,8 @@ writeShellApplication {
               ;;
           esac
           echo "  EXIT $code     $label"
+          note loaded --arg label "$label" --arg code "$code" --arg runs "$runs" --arg state "$state" \
+            '{kind: "nonzero-exit", label: $label, lastExitCode: $code, runs: $runs, state: $state}'
           rc=1
           ;;
       esac
@@ -182,11 +224,14 @@ writeShellApplication {
     echo "--- orphaned plists (installed, in no current generation) ---"
     if [ -z "$gen_declared" ]; then
       echo "  SKIPPED — found no generation manifest to compare against."
+      note orphaned '{kind: "skipped", reason: "no generation manifest to compare against"}'
     else
       for p in "''${plists[@]}"; do
         base=$(basename "$p")
         if ! echo "$gen_declared" | grep -qxF "$base"; then
           echo "  ORPHANED  ''${base%.plist}"
+          note orphaned --arg label "''${base%.plist}" --arg plist "$p" --arg domain "$(domain_of "$p")" \
+            '{kind: "orphaned", label: $label, plist: $plist, domain: $domain}'
           echo "            installed at $p, but no current generation declares it."
           echo "            remedy: launchctl bootout $(domain_of "$p")/''${base%.plist} ; rm $p"
           rc=1
@@ -209,6 +254,8 @@ writeShellApplication {
         kb=$(( $(/usr/bin/stat -f%z "$f") / 1024 ))
         if [ "$kb" -ge "$warn_kb" ]; then
           echo "  $(printf '%8d' "$kb") KiB  $f"
+          note logSize --arg path "$f" --argjson kib "$kb" --argjson warn "$warn_kb" \
+            '{kind: "log-over-threshold", path: $path, kib: $kib, warnKib: $warn}'
           rc=1
         fi
       done < <(logs_of "$p")
@@ -225,6 +272,7 @@ writeShellApplication {
     for dom in "gui/$uid" system; do
       while IFS= read -r label; do
         echo "  $dom  $label"
+        note disabled --arg domain "$dom" --arg label "$label" '{kind: "disabled", domain: $domain, label: $label}'
         echo "      remedy: /bin/launchctl enable $dom/$label"
         rc=1
       done < <(/bin/launchctl print-disabled "$dom" 2>/dev/null |
@@ -259,6 +307,7 @@ writeShellApplication {
       [ -n "$owned" ] && continue
       kb=$(( $(/usr/bin/stat -f%z "$f") / 1024 ))
       echo "  $(printf '%8d' "$kb") KiB  $f"
+      note strayLogs --arg path "$f" --argjson kib "$kb" '{kind: "candidate", path: $path, kib: $kib}'
     done < <(find "$HOME/Library/Logs" -maxdepth 1 -name '*.log' |
       grep -E '/[a-z0-9]+(-[a-z0-9]+)*\.log$' | sort)
     echo "  a candidate, NOT a verdict: this compares against installed launchd"
@@ -287,6 +336,7 @@ writeShellApplication {
     echo "--- unbounded power assertions (caffeinate with no release condition) ---"
     while IFS= read -r line; do
       echo "  UNBOUNDED  $line"
+      note powerAssertions --arg line "$line" '{kind: "unbounded", assertion: $line}'
       echo "             a caffeinate holding a wake assertion with no utility,"
       echo "             no -t timeout and no -w pid: it ends only when killed."
       echo "             remedy: kill that pid, then give the caller a -w/-t/utility."
@@ -296,6 +346,14 @@ writeShellApplication {
       grep -oE 'pid [0-9]+\(caffeinate\): .*' || true)
     echo "  (silent = every caffeinate assertion is bound to a process or a timer)"
     echo
+
+    if [ -n "$json" ]; then
+      for k in "''${!found[@]}"; do
+        printf '%s' "''${found[$k]}" | jq -sc --arg k "$k" '{($k): .}'
+      done | jq -s --argjson rc "$rc" --argjson scope "''${#plists[@]}" \
+        '{scope: $scope, sections: add, rc: $rc}' >&3
+      exit "$rc"
+    fi
 
     if [ "$rc" -ne 0 ]; then
       echo "launchd-doctor: findings above"

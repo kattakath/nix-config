@@ -46,16 +46,29 @@
 # `scutil --get LocalHostName` (:165-171); no HostName path, env var or option.
 # On the tool axis `nh darwin switch -H <host>` does own this, and is rejected
 # for the same measured ticker reason as above.
+#
+# `activate --json` is a STATUS mode: it prints the facts above as one JSON
+# object and exits 0 before sudo or darwin-rebuild is ever reached, so it never
+# switches. The two "matches" fields answer different questions:
+#   profileMatchesRunning — the P7 comparison below: does /run/current-system
+#     resolve to the system profile (false = a past activation aborted mid-way).
+#   runningMatchesFlake — does /run/current-system equal the toplevel that
+#     `<dir>#darwinConfigurations.<attr>` EVALUATES to right now (the tree as it
+#     sits, dirty or not). Evaluated, never built: equal out paths mean equal
+#     derivations, so no build is needed to answer it. null when evaluation fails
+#     or there is no flake link to evaluate.
 {
   writeShellApplication,
   coreutils,
   git,
+  jq,
 }:
 writeShellApplication {
   name = "activate";
   runtimeInputs = [
     coreutils
     git
+    jq
   ];
   text = ''
     # `--dry-run` is a BUILD flag, not a rehearsal. darwin-rebuild files it under
@@ -66,6 +79,19 @@ writeShellApplication {
     # the check below reports, arrived at from the other direction. Measured
     # here 2026-09-15: two `--dry-run` invocations advanced the profile two
     # generations without ever repointing /run/current-system.
+    # Strip --json before anything else sees "$@"; it is ours, not darwin-rebuild's.
+    json=""
+    args=()
+    for arg in "$@"; do
+      if [ "$arg" = --json ]; then json=1; else args+=("$arg"); fi
+    done
+    set -- "''${args[@]}"
+    if [ -n "$json" ]; then
+      # Stdout carries the JSON document only; the human lines are dropped and
+      # the warnings stay on stderr.
+      exec 3>&1 1>/dev/null
+    fi
+
     explicitFlake=""
     for arg in "$@"; do
       case "$arg" in
@@ -82,7 +108,7 @@ writeShellApplication {
     done
 
     rebuild=/run/current-system/sw/bin/darwin-rebuild
-    if [ ! -x "$rebuild" ]; then
+    if [ ! -x "$rebuild" ] && [ -z "$json" ]; then
       echo "activate: $rebuild is missing — this Mac has never been activated." >&2
       echo "activate: bootstrap it first with 'nix run .#macos' (see docs/new-mac-runbook.md)." >&2
       exit 1
@@ -134,6 +160,7 @@ writeShellApplication {
     fi
 
     flakeArgs=()
+    dir="" attr="" localName="" branch="" rev="" dirty=""
     if [ -e /etc/nix-darwin/flake.nix ]; then
       dir=$(dirname "$(readlink -f /etc/nix-darwin/flake.nix)")
       # The ATTRIBUTE comes from HostName, not LocalHostName — measured, not
@@ -175,6 +202,35 @@ writeShellApplication {
         [ -z "$(git -C "$dir" status --porcelain 2>/dev/null)" ] || dirty=" (DIRTY)"
         echo "activate: branch $branch @ $rev$dirty"
       fi
+    fi
+
+    if [ -n "$json" ]; then
+      fullRev=""
+      evaluated=""
+      if [ -n "$dir" ] && [ -n "$attr" ] && command -v nix >/dev/null 2>&1; then
+        evaluated=$(nix eval --raw "$dir#darwinConfigurations.$attr.config.system.build.toplevel.outPath" 2>/dev/null) || evaluated=""
+      fi
+      [ -z "$rev" ] || fullRev=$(git -C "$dir" rev-parse HEAD 2>/dev/null || true)
+      jq -n \
+        --arg dir "$dir" --arg attr "$attr" --arg localHostName "$localName" \
+        --arg branch "$branch" --arg rev "$fullRev" --arg dirty "$dirty" \
+        --arg profile "$profile" --arg running "$running" --arg evaluated "$evaluated" \
+        --argjson explicitFlake "$([ -n "$explicitFlake" ] && echo true || echo false)" \
+        --argjson danglingLink "$([ -L /etc/nix-darwin/flake.nix ] && [ ! -e /etc/nix-darwin/flake.nix ] && echo true || echo false)" \
+        --argjson rebuildPresent "$([ -x "$rebuild" ] && echo true || echo false)" \
+        'def n: if . == "" then null else . end;
+         {
+           dir: ($dir | n), attr: ($attr | n), localHostName: ($localHostName | n),
+           branch: ($branch | n), rev: ($rev | n),
+           dirty: (if $rev == "" then null else ($dirty != "") end),
+           explicitFlake: $explicitFlake, flakeLinkDangling: $danglingLink,
+           darwinRebuildPresent: $rebuildPresent,
+           profile: ($profile | n), running: ($running | n),
+           profileMatchesRunning: (if $profile == "" or $running == "" then null else ($profile == $running) end),
+           evaluatedToplevel: ($evaluated | n),
+           runningMatchesFlake: (if $evaluated == "" or $running == "" then null else ($evaluated == $running) end)
+         }' >&3
+      exit 0
     fi
 
     if [ "$(id -u)" -eq 0 ]; then

@@ -63,6 +63,9 @@ Core package set:
   `#attr` from you: the tree is `/etc/nix-darwin/flake.nix`, which `modules/parts/hosts.nix`
   plants, and `activate` passes `--flake <tree>#<scutil --get HostName>` itself. An explicit
   `--flake`/`--no-flake` is passed through untouched.
+  `activate --json` is a status mode that never switches: it prints the flake dir, attr, branch, rev and
+  dirty state, and whether `/run/current-system` matches the profile and the toplevel the tree
+  EVALUATES to. What each "matches" means: the header of `packages/activate.nix`.
 
   **HostName, NOT `LocalHostName` — darwin-rebuild's own default, which macOS rewrites.** On a
   `.local` (mDNS) name clash mDNSResponder renames `LocalHostName` to `macos-2`, and a bare
