@@ -315,7 +315,7 @@ image is `modules/parts/devcontainer.nix` (`withSystem "x86_64-linux"`, see
 
 ADR-002's acceptance harness ("moved code, changed no build"),
 linted by `checks.<system>.drv-snapshot-lint`. What it captures, and why it is deliberately
-not a flake package: [CLAUDE.md](../../CLAUDE.md) § Testing.
+not a flake package: [CLAUDE.md](../../CLAUDE.md) § Testing. In CI: the `no-build-change` label ([ci.md](ci.md)).
 
 ### `scripts/grafana-rollup.py`
 

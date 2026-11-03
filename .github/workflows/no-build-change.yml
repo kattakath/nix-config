@@ -1,0 +1,80 @@
+name: no-build-change
+
+# OPT-IN proof that a PR changes NOTHING the fleet builds (ADR-012 § 5 step 5).
+#
+# Label a PR `no-build-change` and this runs scripts/drv-snapshot.sh — the
+# acceptance harness ADR-002 built — on the PR's base and on the PR, then
+# fails on ANY derivation difference: every host toplevel, every package and
+# every check (minus the harness's own documented whole-tree exclusions; read
+# its header for why each is there). A refactor that "only moves code" gets a
+# green run here instead of a reviewer reading the diff and hoping.
+#
+# Why a LABEL, not every PR: most PRs DO change a build on purpose, so an
+# always-on compare would be red by design and then ignored. Why a label and
+# not a commit/PR-body marker: a label is visible in the PR list, toggles
+# without a push, and fires `labeled` itself, so adding it runs the proof.
+#
+# ADVISORY by design: not in nix-ci.yml's `gate`, not required by the ruleset.
+# A red run means "this PR builds something different" — either drop the
+# label or find the unintended change. It never blocks the merge queue.
+#
+# Runs on ubuntu-24.04-arm, the same runner as nix-ci's gated linux leg. The
+# harness evaluates darwin AND linux drvPaths; a linux evaluator yields the
+# same drvPaths for darwin outputs (pure eval, no IFD — the proof is in
+# nix-ci-impl.yml's "Evaluate host config(s)" step). Both sides run on the
+# SAME runner, so whatever the evaluator could perturb, it perturbs equally.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+
+concurrency:
+  group: no-build-change-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: drv-snapshot --compare
+    if: contains(github.event.pull_request.labels.*.name, 'no-build-change')
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      # fetch-depth 2: the default checkout is the PR's MERGE commit, whose
+      # first parent is exactly the base it merges into. Comparing against
+      # HEAD^1 (not event.pull_request.base.sha, which can lag a moved base)
+      # isolates precisely this PR's change.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - uses: DeterminateSystems/determinate-nix-action@f296148a827001a9a82d3685b53210c06e5d3b67 # v3.24.0
+        with:
+          extra-conf: |
+            extra-substituters = https://kattakath.cachix.org
+            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
+
+      # ONE instrument for both sides: the PR's own copy of the harness is
+      # dropped into the base tree, so a PR that changes the harness's capture
+      # format cannot read as a build change. (Consequence, accepted: the
+      # `drv-snapshot-lint` rows compare equal by construction here.)
+      # The base tree lives OUTSIDE the workspace, so the head tree stays clean
+      # for its own flake evaluation.
+      - name: Capture the base
+        run: |
+          set -euo pipefail
+          base="$RUNNER_TEMP/base"
+          git worktree add --detach "$base" HEAD^1
+          cp scripts/drv-snapshot.sh "$base/scripts/drv-snapshot.sh"
+          git -C "$base" add -A
+          echo "base: $(git -C "$base" rev-parse HEAD)"
+          "$base/scripts/drv-snapshot.sh" --out "$RUNNER_TEMP/baseline"
+
+      - name: Compare the PR against it
+        run: |
+          set -euo pipefail
+          git add -A
+          echo "head: $(git rev-parse HEAD)"
+          scripts/drv-snapshot.sh --compare "$RUNNER_TEMP/baseline"
