@@ -138,6 +138,10 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   computed at source. The persona domain gets a **separate stack**. Long history is a daily GitHub
   Actions + WIF rollup into a Drive Sheet, not Grafana retention. § 3 is the decision table with the
   alternative that lost, and § 6 is the one-PR-per-step build order.)
+  [`ADR-012`](../declarative-gaps-adr.md) (**DECIDED 2026-11-03**: what fleet state is still set by
+  hand after ADR-005, the tool for each — Grafana, GitHub and GitLab under terranix, Gmail filters via
+  gmailctl with the filter file in Drive — what cannot be declared (TCC, Keychain values, claude.ai
+  routines), and a daily Mac-side drift check that keeps the state passphrase out of CI. § 5 is the order.)
 - [`docs/workspace-runbook.md`](../workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](../identity-and-offboarding.md) — the single lever:
