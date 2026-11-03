@@ -243,6 +243,14 @@ in
           # env. Exposed as a package so `nix flake check` BUILDS it (writeShellApplication
           # shellcheck); on PATH via home.packages + `nix run .#jobspy`. See packages/jobspy.nix.
           jobspy = pkgs.callPackage ../../packages/jobspy.nix { };
+
+          # `fleet-gauges` (macOS only: credentials come from the login Keychain) — the
+          # hourly Grafana gauges push. The live copy is the launchd agent's
+          # (modules/home/fleet-gauges.nix); this one exists so `nix flake check` BUILDS the
+          # Python (writePython3Bin's flake8) and shellchecks the wrapper.
+          fleet-gauges = pkgs.callPackage ../../packages/fleet-gauges.nix {
+            items = import ../_lib/keychain-items.nix;
+          };
         }
       );
 

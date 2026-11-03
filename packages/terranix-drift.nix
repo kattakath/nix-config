@@ -20,7 +20,9 @@
 # upstream-first: plan exit codes are tofu's own `-detailed-exitcode`. The pinger is
 # runitor, the healthchecks.io-recommended runner nixpi's service-heartbeat already uses.
 # No community tool owns "plan N encrypted-state stacks from a laptop on a timer"
-# (searched nixpkgs: terraform drift, driftctl, tfdrift). driftctl is archived (2023).
+# (searched nixpkgs: terraform drift, driftctl, tfdrift). driftctl is in maintenance mode
+# (last release v0.40.0, 2023-12) and still rejected: it has no Cloudflare, Grafana or
+# healthchecks provider, and cannot read OpenTofu-encrypted state.
 # The CI shapes (Atlantis drift, Spacelift) would need the state passphrase in CI,
 # which ADR-012 § 6 rejects.
 {
@@ -141,5 +143,4 @@ writeShellApplication {
     exec ${secretBin} exec ${secretArgs} PING_KEY=hc:healthchecks.io:ping-key -- \
       runitor -slug ${lib.escapeShellArg slug} -on-nonzero-exit fail -- ${lib.getExe run}
   '';
-  passthru = { inherit names secretEnv; };
 }
