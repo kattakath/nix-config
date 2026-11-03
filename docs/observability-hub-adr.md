@@ -1,6 +1,6 @@
 # ADR-011 — Grafana Cloud as the fleet's observability hub
 
-**Status:** **DECIDED 2026-11-02 — not yet implemented.** The decisions in § 3 are the operator's,
+**Status:** **DECIDED 2026-11-02; steps 1–5 LIVE 2026-11-03** (§ 6). The decisions in § 3 are the operator's,
 taken click-to-select after a read-only census. Each build step (§ 6) lands as its own PR and is
 proven by a real datapoint arriving and a dashboard panel returning data.
 
@@ -70,20 +70,21 @@ visualise them, alert on them, and show improvement trends longer than a SaaS re
   amounts, client IPs, SSIDs, heartbeat URLs (they embed the ping key), secret names or values.
 - **Neon by connection:** a DB scrape wakes compute and burns the free CU cap; use the API.
 
-## 6. Build order (one PR each)
+## 6. Build order (one PR each), and what actually shipped
 
-1. Alerting baseline — email contact point, 70% usage alert. 0 series.
-2. `audiobookshelf.service` into nixpi's heartbeat `requireUnits`.
-3. Claude Code metrics → Grafana via the existing collector.
-4. nixpi Alloy metrics (node allowlist, thermal/throttle, SD wear, systemd allowlist).
-5. nixpi journald → Loki, with the avahi-rename and remount-ro alerts.
-6. GitHub datasource plugin.
-7. Synthetic probe, credential expiry, backup age, security-alert counts.
-8. Mac host metrics in the existing collector.
-9. Finance at-source ratios push.
-10. Career funnel + evidence quality.
-11. Daily rollup (WIF account, Sheet, Sheets datasource).
-12. Separate persona stack — its own design, its own identity.
+| Step | What | Status |
+|---|---|---|
+| 1 | Alerting baseline — email contact point, 70% usage alerts, root policy → email | **Done** (Grafana: folder `fleet`, group `free-tier`) |
+| 2 | Audiobookshelf health | **Folded into 4.** `serviceHeartbeat.requireUnits` means "public site not serving", and Audiobookshelf is LAN-only, so it is in Alloy's unit allowlist and alerted by Grafana instead |
+| 3 | Claude Code metrics via the existing collector | **Done** — #1046; #1047 adds `deltatocumulative` (Claude Code exports DELTA sums, which the OTLP gateway rejects with HTTP 400) |
+| 4–5 | nixpi Alloy metrics + journald → Loki | **Done as one PR** — #1048 (Grafana group `nixpi`). Knock-on: the SD image passed GitHub's 2 GiB asset limit; #1049 re-encodes it at zstd -19 (−14.7%) |
+| 6 | GitHub datasource plugin | |
+| 7 | Synthetic probe, credential expiry, backup age, security-alert counts | |
+| 8 | Mac host metrics in the existing collector | |
+| 9 | Finance at-source ratios push | |
+| 10 | Career funnel + evidence quality | |
+| 11 | Daily rollup (WIF account, Sheet, Sheets datasource) | |
+| 12 | Separate persona stack — its own design, its own identity | **Deferred by operator 2026-11-03.** Until it exists, nothing persona-tier goes into the `kattakath` stack |
 
 ## 7. Weakest assumptions
 

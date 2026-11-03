@@ -296,6 +296,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   - **What it ships:** node metrics (a collector allowlist plus a `systemdUnits` allowlist) and
     the WARNING-and-worse journal, both over OTLP/HTTP to Grafana Cloud.
   - **Redaction:** IPs and MACs are replaced, and `dropJournalUnits` lines never leave the host.
+  - **Querying:** every line is `service_name="<host>-journal"`; the unit and level are per-line
+    structured metadata, so filter with `| unit="caddy.service"`.
   - **SD-card safety:** the WAL and journal positions live in `/run/alloy`
     (`--storage.path`), never the SD-card default `/var/lib/alloy`.
   - **Credential:** `environmentFile`, planted on the FIRMWARE partition as `grafana-alloy.env`.
