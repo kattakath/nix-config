@@ -83,7 +83,7 @@ visualise them, alert on them, and show improvement trends longer than a SaaS re
 | 8 | Mac host metrics in the existing collector | **Done** — a `metrics/host` pipeline (otelcol `hostmetrics`: cpu, memory, load, paging, 3 volumes, `en*` interfaces), `service_name="macos-host"`, ~170 series measured |
 | 9 | Finance at-source ratios push | |
 | 10 | Career funnel + evidence quality | |
-| 11 | Daily rollup (WIF account, Sheet, Sheets datasource) | |
+| 11 | Daily rollup (WIF account, Sheet, Sheets datasource) | **Built** — `infra/gcp/foundation.nix` (WIF pool admitting ONLY `grafana-rollup.yml`@main by numeric repo/owner id; keyless writer; read-only reader), `.github/workflows/grafana-rollup.yml` + `scripts/grafana-rollup.py`, Grafana datasource `fleet-history`. The Sheet is a STORE only. The reader holds the stack's one Google key: Grafana Cloud's WIF mode runs as the signed-in user and breaks alerting and public dashboards |
 | 12 | Separate persona stack — its own design, its own identity | **Deferred by operator 2026-11-03.** Until it exists, nothing persona-tier goes into the `kattakath` stack |
 
 ## 7. Weakest assumptions

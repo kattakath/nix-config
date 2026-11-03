@@ -47,7 +47,17 @@ let
     "secretmanager.googleapis.com" =
       "the keychain-secrets durable copy (ADR-004, docs/secrets-recovery-and-identity-adr.md §9.3)";
     "storage.googleapis.com" = "the OpenTofu state bucket below";
+    "iam.googleapis.com" = "service accounts and the Workload Identity pool (ADR-011 step 11)";
+    "sts.googleapis.com" =
+      "Workload Identity Federation token exchange for the Grafana rollup (ADR-011 step 11)";
+    "sheets.googleapis.com" =
+      "the rollup writes, and Grafana reads, the history Sheet (ADR-011 step 11)";
   };
+
+  # ADR-011 step 11: the ONE workflow file, on this repo's main branch, allowed to act as
+  # the rollup writer (see attribute_condition). Any other workflow, fork, or PR branch
+  # gets a token GitHub signed, and WIF refuses it on Google's side.
+  rollupRepo = "kattakath/nix-config";
 in
 {
   # Version pinned exactly in ../provider-pins.nix (one place for every stack).
@@ -190,6 +200,80 @@ in
     ];
   };
 
+  # ---- Grafana long-term history (ADR-011 step 11) -------------------------
+  # Grafana keeps 14-31 days, so a daily GitHub Actions job copies one row of KPI
+  # aggregates into a Drive Sheet (a STORE only), and Grafana's Sheets datasource reads
+  # it back. Two identities, so the one with a key can only READ:
+  #
+  #   writer: NO key. GitHub Actions proves itself via OIDC -> this pool -> a 1 h token.
+  #   reader: ONE key, created out-of-band straight into Grafana (a key declared here
+  #           would put the private material in state). Never granted a project role.
+  #
+  # Neither holds a project role: each reaches the Sheet only because the Sheet is
+  # shared with its email (docs/workspace-runbook.md: Workspace has no live provider).
+  resource.google_iam_workload_identity_pool.github = {
+    project = projectId;
+    workload_identity_pool_id = "github";
+    display_name = "GitHub Actions";
+    description = "OIDC from GitHub Actions; only ${rollupRepo}@main is accepted (ADR-011 step 11).";
+    # A destroy soft-deletes it for 30 days (the id stays locked) and, for the reader,
+    # silently kills the key Grafana holds.
+    lifecycle.prevent_destroy = true;
+  };
+
+  resource.google_iam_workload_identity_pool_provider.github_actions = {
+    project = projectId;
+    workload_identity_pool_id = "\${google_iam_workload_identity_pool.github.workload_identity_pool_id}";
+    workload_identity_pool_provider_id = "github-actions";
+    display_name = "GitHub Actions OIDC";
+    attribute_mapping = {
+      "google.subject" = "assertion.sub";
+      "attribute.repository" = "assertion.repository";
+      "attribute.ref" = "assertion.ref";
+    };
+    # Five clauses, all required. repository + ref alone admitted claude.yml (issue_comment
+    # runs on main with id-token: write), flakehub-publish and build-installers
+    # (terranix-infra-reviewer, 2026-11-03). Pinning the WORKFLOW FILE admits only the
+    # rollup; the numeric ids survive a repo or org rename, which the name does not.
+    attribute_condition = lib.concatStringsSep " && " [
+      "assertion.repository_id == '1276523163'"
+      "assertion.repository_owner_id == '305065254'"
+      "assertion.repository == '${rollupRepo}'"
+      "assertion.ref == 'refs/heads/main'"
+      "assertion.job_workflow_ref == '${rollupRepo}/.github/workflows/grafana-rollup.yml@refs/heads/main'"
+    ];
+    oidc.issuer_uri = "https://token.actions.githubusercontent.com";
+  };
+
+  resource.google_service_account.grafana_rollup_writer = {
+    project = projectId;
+    account_id = "grafana-rollup-writer";
+    display_name = "Grafana rollup writer (GitHub Actions)";
+    description = "No keys. Impersonated only via the github WIF pool from ${rollupRepo}@main. Edits the history Sheet it is shared on (ADR-011 step 11).";
+    # A destroy soft-deletes it for 30 days (the id stays locked) and, for the reader,
+    # silently kills the key Grafana holds.
+    lifecycle.prevent_destroy = true;
+  };
+
+  resource.google_service_account_iam_member.grafana_rollup_writer_wif = {
+    service_account_id = "\${google_service_account.grafana_rollup_writer.name}";
+    role = "roles/iam.workloadIdentityUser";
+    member = "principalSet://iam.googleapis.com/\${google_iam_workload_identity_pool.github.name}/attribute.repository/${rollupRepo}";
+  };
+
+  resource.google_service_account.grafana_sheets_reader = {
+    project = projectId;
+    account_id = "grafana-sheets-reader";
+    display_name = "Grafana Sheets reader";
+    description = "ONE key, held only by the Grafana Sheets datasource (not in state). Viewer on the history Sheet only (ADR-011 step 11).";
+    # A destroy soft-deletes it for 30 days (the id stays locked) and, for the reader,
+    # silently kills the key Grafana holds.
+    lifecycle.prevent_destroy = true;
+  };
+
+  output.wif_provider.value = "\${google_iam_workload_identity_pool_provider.github_actions.name}";
+  output.grafana_rollup_writer.value = "\${google_service_account.grafana_rollup_writer.email}";
+  output.grafana_sheets_reader.value = "\${google_service_account.grafana_sheets_reader.email}";
   output.state_bucket.value = "\${google_storage_bucket.tofu_state.name}";
   output.automation_sa.value = automationServiceAccount;
 }

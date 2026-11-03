@@ -88,6 +88,21 @@ master key cut for a contractor — the new locks do not know about it. *(Where 
 the key was cut but no door had been fitted to it. Destroying it while that was still true cost
 nothing.)*
 
+### Drive shares that infra depends on (ADR-011 step 11)
+
+The fleet-history Sheet (Drive, `05 Projects`; its id is the `ROLLUP_SHEET_ID` repository
+variable, never written here) is shared with exactly two service accounts from
+`infra/gcp/foundation.nix`. They are Drive permissions, so no provider manages them:
+
+| Account | Role | Why |
+|---|---|---|
+| `grafana-rollup-writer@…` | Editor | the daily `grafana-rollup.yml` job writes one row |
+| `grafana-sheets-reader@…` | Viewer | Grafana's Sheets datasource (`fleet-history`) reads it back |
+
+Check with the Drive permissions API. Exactly the owner plus these two must be listed. Removing
+the reader's share blinds the Grafana history panels, and removing the writer's share stops
+the rollup. Neither failure deletes data.
+
 ---
 
 ## 3. Verify
