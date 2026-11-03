@@ -197,6 +197,7 @@ let
         # where the app is invoked from. NOTE: the state PAYLOAD carries the tunnel
         # connector token (a `data` source result) — encrypted at rest since
         # ADR-005, but the dir is still 0700 and must never be committed or synced.
+        ${savedPlanArgs pkgs action}
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
@@ -343,7 +344,7 @@ let
         # -target, -refresh=false) without a second app. It cannot weaken the
         # guards above: those run before tofu ${action} is invoked at all, and
         # refusing exits the script rather than falling through to this line.
-        tofu ${action} "$@"
+        ${savedPlanRun pkgs action name}
       ''
       + nixpkgs.lib.optionalString (action == "apply") printToken;
     };
@@ -513,6 +514,7 @@ let
           exit 1
         fi
 
+        ${savedPlanArgs pkgs action}
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-access-org"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
@@ -660,7 +662,7 @@ let
           done
         ''}
 
-        tofu ${action} "$@"
+        ${savedPlanRun pkgs action name}
       '';
     };
 
@@ -754,6 +756,7 @@ let
         # Its OWN state directory. 0700 + umask 077 like the others; this state
         # holds no token, but it holds the zone, and the two prior state losses
         # were both about a stray working directory rather than about secrets.
+        ${savedPlanArgs pkgs action}
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-zones"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
@@ -831,7 +834,7 @@ let
           echo "WARNING: CF_ZONES_ALLOW_DROPS=1 set — proceeding with the deletions." >&2
         fi
 
-        tofu ${action} "$@"
+        ${savedPlanRun pkgs action name}
       '';
     };
 
@@ -891,9 +894,162 @@ let
         method = method.aes_gcm.fleet
         enforced = true
       }
+      plan {
+        method = method.aes_gcm.fleet
+        enforced = true
+      }
     "
     unset pass
   '';
+
+  # ---- Saved plans: `<stack>-plan -out=<file>`, then `<stack>-apply <file>` -
+  # ADR-012 § 5 step 5. A reviewed plan is applied EXACTLY, instead of a fresh plan
+  # that may differ from the one that was read.
+  #
+  # THE WRAPPER OWNS THE CONFIRMATION, because tofu does not. Pinned `tofu apply -help`:
+  # given a plan file, tofu "will take the actions described in that plan without any
+  # confirmation prompt". Before this, `<stack>-apply /abs/x.tfplan` already reached
+  # tofu through the forwarded "$@" and applied with no prompt at all — on the stacks
+  # that refuse -auto-approve too. So this closes a hole as much as it adds a feature.
+  #
+  # THE PLAN IS BOUND TO THE RENDER. A saved plan carries its own config snapshot, and
+  # every guard in these wrappers reads the CURRENT render (drops, site-free, the
+  # Access org's auth_domain and null-clobber fields, the dotgithub pin). So `-plan
+  # -out` writes `<file>.render` = "<stack> <sha256 of config.tf.json>", and `-apply
+  # <file>` refuses unless both match this run. Then the guards that just passed
+  # judged the very config the plan was made from, and a plan from ANOTHER stack is
+  # refused too (they share one passphrase, so tofu alone would accept it). What the
+  # binding does not cover — state that moved since the plan — tofu's own stale-plan
+  # check refuses. (terranix-infra-reviewer, 2026-11-03, found both gaps in a first
+  # draft that checked only for deletes.)
+  #
+  # Three helpers, shared by every stack so no wrapper drifts from the others:
+  #   · savedPlanArgs runs BEFORE the wrapper's `cd` into its state dir and makes a
+  #     relative `-out=<file>` / `-out <file>` (plan) or trailing `<file>` (apply)
+  #     absolute. Otherwise the file lands in, or is looked up in, the state dir.
+  #   · savedPlanRun replaces the bare `tofu <action> "$@"`, after every existing guard.
+  #     On a saved-plan apply it checks the binding, shows the plan, refuses any
+  #     delete/replace/forget in it, and asks for a typed `yes` on the terminal. Only
+  #     the exact `-auto-approve` spelling skips that question, and the strict stacks
+  #     have refused it before this point.
+  #   · tofuRemoteStatePrelude's `plan` block encrypts the file. A plan embeds a state
+  #     snapshot — cf-tunnel's holds the connector token — so it is as sensitive as
+  #     state, and the wrappers' `umask 077` makes it 0600 as well.
+  # The plan file is detected as the LAST argument when it names an existing file and
+  # is not a flag, which is where tofu's own usage (`apply [options] [PLAN]`) puts it.
+  savedPlanArgs =
+    pkgs: action:
+    if action == "plan" then
+      ''
+        sp_out=""
+        sp_args=()
+        sp_next_out=""
+        for a in "$@"; do
+          if [ -n "$sp_next_out" ]; then
+            a=$(${pkgs.coreutils}/bin/realpath -m -- "$a")
+            sp_out="$a"
+            sp_next_out=""
+          else
+            case "$a" in
+              -out=* | --out=*)
+                sp_out=$(${pkgs.coreutils}/bin/realpath -m -- "''${a#*out=}")
+                a="-out=$sp_out"
+                ;;
+              -out | --out) sp_next_out=1 ;;
+            esac
+          fi
+          sp_args+=("$a")
+        done
+        set -- "''${sp_args[@]}"
+      ''
+    else if action == "apply" then
+      ''
+        saved_plan=""
+        if [ "$#" -gt 0 ]; then
+          sp_last="''${!#}"
+          case "$sp_last" in
+            -*) ;;
+            *)
+              if [ -f "$sp_last" ]; then
+                saved_plan=$(${pkgs.coreutils}/bin/realpath -- "$sp_last")
+                set -- "''${@:1:$#-1}" "$saved_plan"
+              fi
+              ;;
+          esac
+        fi
+      ''
+    else
+      "";
+
+  savedPlanRun =
+    pkgs: action: name:
+    let
+      stack = pkgs.lib.removeSuffix "-${action}" name;
+      renderId = "${stack} $(${pkgs.coreutils}/bin/sha256sum < config.tf.json | ${pkgs.coreutils}/bin/cut -d' ' -f1)";
+    in
+    if action == "plan" then
+      ''
+        if [ -n "$sp_out" ]; then
+          sp_rc=0
+          tofu plan "$@" || sp_rc=$?
+          # -detailed-exitcode: 2 is "changes present", still a written plan.
+          if [ "$sp_rc" -eq 0 ] || [ "$sp_rc" -eq 2 ]; then
+            echo "${renderId}" > "$sp_out.render"
+            echo "saved plan: $sp_out — apply it with: nix run .#${stack}-apply -- $sp_out" >&2
+          fi
+          exit "$sp_rc"
+        fi
+        tofu plan "$@"
+      ''
+    else if action == "apply" then
+      ''
+        if [ -n "$saved_plan" ]; then
+          sp_want="${renderId}"
+          sp_have=$(cat "$saved_plan.render" 2>/dev/null || true)
+          if [ "$sp_have" != "$sp_want" ]; then
+            echo "REFUSING: $saved_plan is not bound to this stack's current render." >&2
+            echo "  made by : ''${sp_have:-<no $saved_plan.render — not made by .#${stack}-plan -out>}" >&2
+            echo "  this run: $sp_want" >&2
+            echo "  Every guard above judged THIS render. Re-plan: nix run .#${stack}-plan -- -out=<file>" >&2
+            exit 1
+          fi
+          echo "SAVED PLAN: $saved_plan — applying exactly this, not a fresh plan." >&2
+          tofu show -no-color "$saved_plan"
+          sp_deletes=$(tofu show -json "$saved_plan" |
+            ${pkgs.jq}/bin/jq -r '.resource_changes[]? | select(.change.actions | (index("delete") or index("forget"))) | "\(.change.actions | join("/"))  \(.address)"')
+          if [ -n "$sp_deletes" ]; then
+            echo "REFUSING: this saved plan DELETES, REPLACES or FORGETS:" >&2
+            printf '%s\n' "$sp_deletes" | sed 's/^/    /' >&2
+            echo "  Override only if you mean every one of them:" >&2
+            echo "    TOFU_SAVED_PLAN_ALLOW_DELETES=1 nix develop -c nix run .#${name} -- $saved_plan" >&2
+            [ "''${TOFU_SAVED_PLAN_ALLOW_DELETES:-}" = "1" ] || exit 1
+            echo "WARNING: TOFU_SAVED_PLAN_ALLOW_DELETES=1 set — proceeding with them." >&2
+          fi
+          sp_auto=""
+          for a in "$@"; do
+            case "$a" in -auto-approve | --auto-approve) sp_auto=1 ;; esac
+          done
+          if [ -z "$sp_auto" ]; then
+            if ! { exec 3<>/dev/tty; } 2>/dev/null; then
+              echo "REFUSING: a saved plan applies with NO prompt from tofu, and there is no" >&2
+              echo "  terminal to ask on. Run it interactively." >&2
+              exit 1
+            fi
+            printf 'Apply EXACTLY this saved plan? Only "yes" is accepted: ' >&3
+            read -r sp_answer <&3 || sp_answer=""
+            exec 3<&-
+            if [ "$sp_answer" != "yes" ]; then
+              echo "Apply cancelled." >&2
+              exit 1
+            fi
+          fi
+        fi
+        tofu apply "$@"
+      ''
+    else
+      ''
+        tofu ${action} "$@"
+      '';
 
   # ---- GCP foundation (terranix -> OpenTofu) -------------------------------
   # Renders infra/gcp/foundation.nix: enabled APIs, the automation service
@@ -948,6 +1104,7 @@ let
         # LOCAL STATE, deliberately — this stack declares the bucket every other
         # stack's state lives in, so it cannot live there itself. See the header
         # of infra/gcp/foundation.nix.
+        ${savedPlanArgs pkgs action}
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-gcp-foundation"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
@@ -972,7 +1129,7 @@ let
           exit 1
         fi
 
-        tofu ${action} "$@"
+        ${savedPlanRun pkgs action name}
       '';
     };
 
@@ -1051,6 +1208,7 @@ let
         # credential, which needs no quota project at all. So the quota project
         # was never the fix; it was the thing breaking impersonation.
 
+        ${savedPlanArgs pkgs action}
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-gcp-budget"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
@@ -1080,7 +1238,7 @@ let
           exit 1
         fi
 
-        tofu ${action} "$@"
+        ${savedPlanRun pkgs action name}
       '';
     };
 
@@ -1155,6 +1313,7 @@ let
           exit 1
         fi
 
+        ${savedPlanArgs pkgs action}
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-hc-checks"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
@@ -1225,7 +1384,7 @@ let
           done
         ''}
 
-        tofu ${action} "$@"
+        ${savedPlanRun pkgs action name}
       '';
     };
 
@@ -1299,6 +1458,7 @@ let
           export TF_VAR_rollup_sheet_id
         fi
 
+        ${savedPlanArgs pkgs action}
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-grafana"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
@@ -1360,7 +1520,7 @@ let
           done
         ''}
 
-        tofu ${action} "$@"
+        ${savedPlanRun pkgs action name}
       '';
     };
 
@@ -1435,6 +1595,7 @@ let
         TF_VAR_resume_json_gist=$(gh variable get RESUME_JSON_GIST -R ismailkattakath/website)
         export TF_VAR_ci_bot_client_id TF_VAR_rollup_sheet_id TF_VAR_rollup_wif_provider TF_VAR_resume_json_gist
 
+        ${savedPlanArgs pkgs action}
         state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-github"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
@@ -1503,7 +1664,7 @@ let
           done
         ''}
 
-        tofu ${action} "$@"
+        ${savedPlanRun pkgs action name}
       '';
     };
 
