@@ -182,6 +182,12 @@ mandatory `grace`; the render refuses both/neither, a bad slug, or more than the
 - State object `hc-checks/` in the shared encrypted bucket; the working dir is
   `$XDG_STATE_HOME/nix-config-hc-checks`.
 
+### Saved plans (ADR-012 § 5 step 5)
+
+`<stack>-plan -- -out=<file>`, then `<stack>-apply -- <file>`. The plan is **bound** to its
+stack and render, the **wrapper** asks for `yes` (tofu would not), and the file is encrypted:
+`savedPlanRun` in `modules/parts/terranix.nix`.
+
 ### Drift detection — `terranix-drift` (ADR-012 § 5 step 1)
 
 A daily user agent on `macos` (`nix-terranix-drift`, 06:00 local, on wake if asleep) runs
@@ -303,10 +309,6 @@ this fleet's wiring:
   be invisible to every client — and testing at the origin could not detect it, because the
   origin answered `200` throughout. The verification rule that came out of this is general:
   **verify at the surface clients actually use, not at the one that is easiest to curl.**
-- The **drop guards** (`MCP_PUBLIC_ALLOW_EMPTY=1`, `MCP_PUBLIC_ALLOW_DROPS=1`) did their job to
-  the end — the final teardown needed them explicitly, which is exactly the "do you really mean
-  to destroy this" checkpoint they were built to be. `cf-tunnel`'s equivalent
-  (`CF_TUNNEL_ALLOW_SITE_FREE=1`) is unchanged and still guards the Pi.
 
 Design-doc history, now wholly retrospective:
 [`mcp-public-exposure-design.md`](../mcp-public-exposure-design.md),
