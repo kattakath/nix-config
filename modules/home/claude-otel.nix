@@ -138,6 +138,13 @@ in
               "user.email"
               "host.name"
             ];
+            # Claude Code exports DELTA sums; the Grafana OTLP gateway rejects them
+            # (HTTP 400 "invalid temporality and type combination", measured
+            # 2026-11-02). Converting here, AFTER the strip, also merges concurrent
+            # sessions into one stream, which is right now that session.id is gone.
+            # Cumulative export from each process would interleave several running
+            # totals on one label set instead.
+            deltatocumulative = { };
           };
           exporters = {
             file = fileExporter;
@@ -155,6 +162,7 @@ in
                 processors = [
                   "attributes/strip"
                   "resource/strip"
+                  "deltatocumulative"
                   "batch"
                 ];
                 exporters = [ "otlphttp/grafana" ];
