@@ -54,7 +54,7 @@ Fully declarative **aarch64-only** fleet, single source of truth, platform diver
 | `nixos` | aarch64-linux | Long-lived GNOME desktop under **UTM** (QEMU+virgl). `nixos-vm create` boots a small SEED image, then the first `nixos-vm switch` (`nixos-rebuild --target-host nixos.local --sudo`) installs the desktop. |
 | devcontainer | +`x86_64-linux` | The one exception to aarch64-only, so it runs on x86_64 Codespaces. |
 
-Full map: [`docs/repo-map.md`](docs/repo-map.md) → [`docs/map/`](docs/map/).
+Full map: [`docs/repo-map.md`](docs/repo-map.md) → [`docs/map/`](docs/map/). Generated host + app inventory: [`entry-points.md`](docs/map/entry-points.md).
 
 ## Build & Commands
 

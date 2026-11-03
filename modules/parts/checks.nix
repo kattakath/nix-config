@@ -52,6 +52,68 @@ let
   ]
   ++ map (n: ../../docs/map + "/${n}") mapIndexNames;
 
+  # ---- GENERATED documentation (ADR-012 § 5 step 5) --------------------------
+  #
+  # Hand-kept inventories rot; 75 of 146 line citations once had. So the two lists a
+  # reader most needs exactly right — which hosts exist on which system, and which
+  # `nix run .#<app>` exists on which system — are RENDERED from the flake into a marked
+  # block in docs/map/entry-points.md. `hosts-documented` fails when the committed block
+  # differs from this render, and `nix run .#docs-generate` rewrites the block.
+  #
+  # Facts only, no prose column: a role or description column would be prose again, and
+  # CLAUDE.md § Overview keeps that. Not `nixosOptionsDoc`: ADR-002 §9.5 measured it and
+  # held it back ("At `warningsAreErrors = false` it is a gate that cannot fail", and
+  # `home-manager.users` renders as one opaque row), and a host or app list needs none of
+  # it. The checks inventory is NOT rendered: a check reading `attrNames` of the checks
+  # set it belongs to recurses.
+  generatedDoc = "docs/map/entry-points.md";
+  generatedBegin = "<!-- BEGIN GENERATED: flake-outputs, regenerate with: nix run .#docs-generate -->";
+  generatedEnd = "<!-- END GENERATED: flake-outputs -->";
+  generatedBlock =
+    let
+      code = s: "`${s}`";
+      hostRow =
+        output: name: c:
+        let
+          profile = "hosts/${name}.nix";
+        in
+        "| ${code name} | ${code output} | ${code c.pkgs.stdenv.hostPlatform.system} | ${
+          if builtins.pathExists (../../hosts + "/${name}.nix") then code profile else "—"
+        } |";
+      hostRows =
+        lib.mapAttrsToList (hostRow "darwinConfigurations") config.flake.darwinConfigurations
+        ++ lib.mapAttrsToList (hostRow "nixosConfigurations") config.flake.nixosConfigurations;
+      appSystems = lib.attrNames config.flake.apps;
+      appNames = lib.naturalSort (
+        lib.unique (lib.concatMap (s: lib.attrNames config.flake.apps.${s}) appSystems)
+      );
+      appRow =
+        n:
+        "| ${code n} | "
+        + lib.concatMapStringsSep " | " (s: if config.flake.apps.${s} ? ${n} then "yes" else "") appSystems
+        + " |";
+    in
+    lib.concatStringsSep "\n" (
+      [
+        generatedBegin
+        ""
+        "| Host | Output | System | Profile |"
+        "|---|---|---|---|"
+      ]
+      ++ hostRows
+      ++ [
+        ""
+        ("| App | " + lib.concatMapStringsSep " | " code appSystems + " |")
+        ("|---|" + lib.concatMapStrings (_: "---|") appSystems)
+      ]
+      ++ map appRow appNames
+      ++ [
+        ""
+        generatedEnd
+      ]
+    )
+    + "\n";
+
   # The ONE shared shape in this file. It was born for `determinate-daemon-{macos,nixpi}`,
   # which is literally the same check run against two hosts whose contracts are
   # opposites (see both halves below). The bar for reaching for it: the check
@@ -1310,12 +1372,32 @@ in
             pkgs.runCommand "hosts-documented"
               {
                 indexes = docIndexPaths;
+                # The second half (ADR-012 § 5 step 5): the GENERATED host + app block
+                # must equal the render. A diff in the builder, never lib.hasInfix — the
+                # SIGSEGV note above. Extending this check rather than adding a sibling
+                # keeps it inside drv-snapshot's EXCLUDE_RE, which already lists it.
+                generatedDocPath = ../.. + "/${generatedDoc}";
+                generatedRender = pkgs.writeText "flake-outputs.md" generatedBlock;
               }
               ''
                 ${lib.optionalString (hostFiles == [ ] || docIndexPaths == [ ]) ''
                   echo "hosts-documented: VACUOUS — ${toString (lib.length hostFiles)} host files, ${toString (lib.length docIndexPaths)} indexes. An empty side is never a pass." >&2
                   exit 1
                 ''}
+                awk -v b=${lib.escapeShellArg generatedBegin} -v e=${lib.escapeShellArg generatedEnd} '
+                  $0 == b { f = 1 } f { print } $0 == e { f = 0 }
+                ' "$generatedDocPath" > committed.md
+                if ! diff -u committed.md "$generatedRender" > generated.diff; then
+                  echo "hosts-documented: the GENERATED block in ${generatedDoc} differs from the flake." >&2
+                  if [ ! -s committed.md ]; then
+                    echo "  Its BEGIN/END GENERATED markers are missing." >&2
+                  fi
+                  cat generated.diff >&2
+                  echo "" >&2
+                  echo "A host or app was added, removed or moved to another system. Regenerate it:" >&2
+                  echo "  nix run .#docs-generate" >&2
+                  exit 1
+                fi
                 undocumented=()
                 for f in ${lib.escapeShellArgs hostFiles}; do
                   hit=
@@ -1329,7 +1411,7 @@ in
                 done
 
                 if [ ''${#undocumented[@]} -eq 0 ]; then
-                  echo "hosts/: all ${toString (lib.length hostFiles)} host profiles are named in one of the ${toString (lib.length docIndexPaths)} documentation indexes" > "$out"
+                  echo "hosts/: all ${toString (lib.length hostFiles)} host profiles are named in one of the ${toString (lib.length docIndexPaths)} documentation indexes; the generated block in ${generatedDoc} matches the flake" > "$out"
                   exit 0
                 fi
 
@@ -3228,5 +3310,41 @@ in
               ];
             };
         };
+
+      # The writer for the generated block `hosts-documented` checks (see `generatedBlock`).
+      # It splices the SAME render the check compares against, so the two cannot disagree.
+      apps.docs-generate = {
+        type = "app";
+        program = lib.getExe (
+          pkgs.writeShellApplication {
+            name = "docs-generate";
+            runtimeInputs = [
+              pkgs.git
+              pkgs.gawk
+              pkgs.coreutils
+            ];
+            text = ''
+              root=$(git rev-parse --show-toplevel)
+              doc="$root/${generatedDoc}"
+              render=${pkgs.writeText "flake-outputs.md" generatedBlock}
+              if ! grep -qxF -- ${lib.escapeShellArg generatedBegin} "$doc" ||
+                ! grep -qxF -- ${lib.escapeShellArg generatedEnd} "$doc"; then
+                echo "docs-generate: $doc has no BEGIN/END GENERATED: flake-outputs markers." >&2
+                exit 1
+              fi
+              tmp=$(mktemp "$doc.XXXXXX")
+              awk -v b=${lib.escapeShellArg generatedBegin} -v e=${lib.escapeShellArg generatedEnd} -v r="$render" '
+                $0 == b { while ((getline l < r) > 0) print l; skip = 1; next }
+                $0 == e { skip = 0; next }
+                !skip { print }
+              ' "$doc" > "$tmp"
+              mv "$tmp" "$doc"
+              echo "docs-generate: rewrote the flake-outputs block in ${generatedDoc}" >&2
+              echo "  (the render comes from the flake as evaluated: git add a new .nix first)" >&2
+            '';
+          }
+        );
+        meta.description = "Rewrite the generated host + app tables in ${generatedDoc} from the flake (checked by checks.<system>.hosts-documented)";
+      };
     };
 }
