@@ -91,6 +91,7 @@ CLAUDE.md § Overview and [`hosts.md`](hosts.md).
 | `gcp-foundation-plan` | yes | yes |
 | `github-apply` | yes | yes |
 | `github-plan` | yes | yes |
+| `gmail-filters` | yes |  |
 | `grafana-apply` | yes | yes |
 | `grafana-plan` | yes | yes |
 | `hc-checks-apply` | yes | yes |

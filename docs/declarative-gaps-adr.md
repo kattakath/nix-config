@@ -114,11 +114,11 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
    - Generated tables: **PR open** (#1065). The host and app tables live in
      `docs/map/entry-points.md` and are checked by `hosts-documented`. Checks are not rendered,
      because a check that reads its own checks set recurses.
-   - `--json`: **PR open** (#1062).
-   - Saved plans: **PR open** (#1064). The plan is bound to its stack and render, and the wrapper
+   - `--json`: **SHIPPED** (#1062).
+   - Saved plans: **SHIPPED** (#1064). The plan is bound to its stack and render, and the wrapper
      asks for the confirmation, because tofu applies a plan file without asking.
    - drv-snapshot in CI: **merged, not yet working** (#1061). It runs on the `no-build-change` label
-     and is advisory. Its first run failed while capturing the base (`flake show` printed nothing); a fix is in progress.
+     and is advisory. Its first run failed while capturing the base (`flake show` printed nothing); the fix is #1066.
 
 ## 6. Alternatives that lost
 
