@@ -48,17 +48,23 @@ decrypts it on-device.
 
 ## The tools (all macOS flake apps)
 
-- `nix run .#nixpi-flash -- --disk /dev/diskN [--release | --image FILE.img.zst] [--ssid NAME | --wifi-conf FILE]`
+- `nix run .#nixpi-flash -- --disk /dev/diskN [--release | --image FILE.img.zst] [--ssid NAME | --current | --wifi-conf FILE]`
   — fresh reflash: acquire the image → verified `dd` (byte-count checked) → auto-plant
   token + Wi-Fi. Image source, in precedence: `--image` (local file); `--release`
   (download the latest CI-built image off the `installer-latest` GitHub release — needs
   `gh` auth, but **no Nix build and no aarch64-linux builder**, so this is the Mac path);
   default = `nix build` the sdImage (Cachix-warms the kernel, but the final assembly still
-  needs an aarch64-linux builder). Wi-Fi defaults to the declared `nixpiWifiNetworks` ladder
-  (`modules/parts/identity.nix`); `--ssid`/`--wifi-conf` REPLACE it — see gotchas.
+  needs an aarch64-linux builder). Wi-Fi defaults to the operator's **Wi-Fi roster** (below),
+  generated BEFORE the `dd`, so a missing roster stops the flash with the card untouched;
+  `--ssid`/`--current`/`--wifi-conf` REPLACE it — see gotchas.
 - `nix run .#nixpi-provision [--all|--token|--wifi]` — plant onto an already-mounted card.
-- `nix run .#nixpi-wifi-creds [--ssid S [--psk P]]... [--country CC]` — emit a
-  `wpa_supplicant.conf` from the declared ladder (or, with none declared, this Mac's current Wi-Fi).
+- `nix run .#nixpi-wifi-creds [--ssid S [--psk P]]... [--current] [--country CC]` — emit a
+  `wpa_supplicant.conf` from the **Wi-Fi roster**: `$NIXPI_WIFI_ROSTER`, default
+  `~/.config/nix-config/nixpi-wifi-roster.json`, a hand-placed file symlinked into Drive's
+  `Machine Config/nixpi/` (the SSIDs are the operator's data, so the public repo holds none).
+  Shape, most-preferred FIRST: `{"networks":[{"ssid":"…","role":"primary"},{"ssid":"…","role":"failover"}]}`.
+  **No roster → it refuses** (exit 1, path named) rather than fall back to one network;
+  `--current` is the explicit "this Mac's Wi-Fi" one-AP card.
   **`--ssid` is repeatable**: each one opens a `network={}` block, the `--psk` after it
   belongs to it, and the blocks are ranked by a descending `priority=` — first is the
   AP nixpi prefers, the rest are fallbacks it drops to when that one is gone. A
@@ -99,9 +105,12 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
 - **Never cap with `sdImage.expandOnBoot = false`** — the same `mkIf` gates
   `nix-store --load-db`, leaving the store unregistered. Cap with a fence partition (§4c).
 - **Wi-Fi needs `country=`** — the Pi 4 radio is rfkill-blocked without a regulatory domain.
-- **`--ssid` REPLACES the ladder** — a single pinned SSID plants a one-AP card, the single point
+- **`--ssid` REPLACES the roster** — a single pinned SSID plants a one-AP card, the single point
   of failure `nixpi-wifi-creds`'s WHY FALLBACKS comment describes. Leave the Wi-Fi args off; to change networks, edit
-  `nixpiWifiNetworks` in `modules/parts/identity.nix`.
+  the roster file in Drive (`nixpi-wifi-creds` § THE ROSTER), then `nixpi-provision -- --wifi`.
+- **Changing the roster changes nothing on the live Pi by itself** — nixpi reads only the
+  planted `wpa_supplicant.conf` (its `priority=` lines are the ladder `uplink-watchdog`
+  re-scans). Re-plant the conf for a new network to take effect.
 - **The token is plaintext on the FAT partition at rest** — accepted tradeoff for
   unattended first-boot; mitigate with physical security + rotate on card loss. The
   `/run` copy is root-only (0600).

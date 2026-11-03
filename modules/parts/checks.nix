@@ -84,7 +84,7 @@ let
 in
 {
   perSystem =
-    { pkgs, ... }:
+    { pkgs, self', ... }:
     {
       checks =
         lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
@@ -899,6 +899,66 @@ in
               python3 -I ${reader} ${entry.crxPath} ${../../modules/home/chromium-extensions/malayalam-font-setter} \
                 ${lib.escapeShellArg entry.id} ${lib.escapeShellArg entry.version} > "$out"
             '';
+
+          # ---- The nixpi Wi-Fi roster is DATA, read at provision time --------------
+          #
+          # The SSIDs `nixpi-wifi-creds` ranks into `priority=` blocks were a list in
+          # identity.nix until 2026-11-02; the global no-data rule moved them to a
+          # hand-placed, Drive-backed file (packages/nixpi-provision.nix § THE ROSTER).
+          # A check cannot grep for values it must not contain, so this pins the
+          # MECHANISM, both halves:
+          #   * STRUCTURE — no `config.fleet` binding and no argument of the provisioning
+          #     package is named for Wi-Fi/SSIDs, so the slot that held them is gone.
+          #   * BEHAVIOUR — the BUILT tool reads the roster from its env/XDG path, in
+          #     array order, lets --ssid replace it, and FAILS CLOSED (absent, unparsable,
+          #     empty, blank SSID) without printing a conf. Every case stops before the
+          #     Keychain lookup succeeds (a fixture SSID has no item), so the sandbox
+          #     needs no Keychain and no networksetup.
+          nixpi-wifi-roster =
+            let
+              wifiNamed = names: lib.filter (n: builtins.match ".*(wifi|ssid).*" (lib.toLower n) != null) names;
+              slots =
+                wifiNamed (lib.attrNames config.fleet)
+                ++ wifiNamed (lib.attrNames (builtins.functionArgs (import ../../packages/nixpi-provision.nix)));
+              bin = "${self'.packages.nixpi-wifi-creds}/bin/nixpi-wifi-creds";
+            in
+            pkgs.runCommand "nixpi-wifi-roster" { } (
+              if slots != [ ] then
+                ''
+                  echo "nixpi-wifi-roster: a Wi-Fi roster slot is back in the repo: ${toString slots}" >&2
+                  echo "  The SSIDs are the operator's data — packages/nixpi-provision.nix § THE ROSTER." >&2
+                  exit 1
+                ''
+              else
+                ''
+                  fail() { echo "nixpi-wifi-roster: $*" >&2; exit 1; }
+                  # case NAME EXPECTED-STDERR CMD... — must exit non-zero, print NOTHING on
+                  # stdout (no half conf), and say EXPECTED on stderr.
+                  case_() {
+                    name=$1 want=$2; shift 2
+                    if "$@" > out.txt 2> err.txt; then fail "$name: exited 0"; fi
+                    [ ! -s out.txt ] || fail "$name: printed a conf on stdout"
+                    grep -qF -- "$want" err.txt || { cat err.txt >&2; fail "$name: stderr lacks: $want"; }
+                    echo "ok  $name" >> "$out"
+                  }
+                  export HOME="$PWD/home" XDG_CONFIG_HOME="$PWD/xdg"
+                  mkdir -p "$HOME" xdg/nix-config
+                  dflt="$PWD/xdg/nix-config/nixpi-wifi-roster.json"
+
+                  case_ "absent, default XDG path" "no Wi-Fi roster at $dflt" env -u NIXPI_WIFI_ROSTER ${bin}
+                  case_ "absent, NIXPI_WIFI_ROSTER" "no Wi-Fi roster at $PWD/nope.json" env NIXPI_WIFI_ROSTER="$PWD/nope.json" ${bin}
+                  printf '{' > bad.json
+                  case_ "unparsable" "is not a valid roster" env NIXPI_WIFI_ROSTER="$PWD/bad.json" ${bin}
+                  printf '{"networks":[]}' > empty.json
+                  case_ "empty networks" "is not a valid roster" env NIXPI_WIFI_ROSTER="$PWD/empty.json" ${bin}
+                  printf '{"networks":[{"ssid":"fixture-primary"},{"ssid":""}]}' > blank.json
+                  case_ "blank ssid" "is not a valid roster" env NIXPI_WIFI_ROSTER="$PWD/blank.json" ${bin}
+
+                  printf '%s' '{"networks":[{"ssid":"fixture-primary","role":"primary"},{"ssid":"fixture-failover","role":"failover"}]}' > "$dflt"
+                  case_ "valid roster read in order" "no saved password for 'fixture-primary'" env -u NIXPI_WIFI_ROSTER ${bin}
+                  case_ "--ssid replaces the roster" "no saved password for 'fixture-oneoff'" env -u NIXPI_WIFI_ROSTER ${bin} --ssid fixture-oneoff
+                ''
+            );
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
           # ---- Determinate owns this daemon TOO — and `nix.*` stays LIVE ------
