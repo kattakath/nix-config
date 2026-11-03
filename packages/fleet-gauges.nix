@@ -1,5 +1,5 @@
 # `fleet-gauges` — hourly fleet-health gauges (credential expiry, open security alerts,
-# Time Machine) pushed to Grafana Cloud as OTLP JSON. ADR-011 step 7.
+# Time Machine, the terranix drift summary) pushed to Grafana Cloud as OTLP JSON. ADR-011 step 7.
 #
 # The shape copies agentic-jobseek's scripts/evidence-metrics.py: a deterministic script,
 # best-effort per source, credentials only from the environment. The wrapper builds that

@@ -11,8 +11,8 @@
 #                                         and that the Mac agent pinger names its slug
 #
 # EVERY ENTRY IS WIRED (2026-11-02): nixpi-serving by the host's service-heartbeat;
-# the two nix-config-* checks by a ping step in their workflow (scheduled runs
-# only, #1032); evidence-discover by the agentic-jobseek cloud routine — a
+# the workflow nix-config-* checks by a ping step in their workflow (scheduled runs
+# only, #1032); nix-config-terranix-drift by the Mac's drift agent; evidence-discover by the agentic-jobseek cloud routine — a
 # DIFFERENT repo, so nothing here can check that pinger.
 #
 # PURE DATA, NO SECRETS. A slug names a check; it does not authorise a ping. The

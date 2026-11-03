@@ -1,6 +1,6 @@
 """fleet-gauges: hourly fleet-health gauges pushed to Grafana Cloud as OTLP JSON.
 
-ADR-011 step 7 (docs/observability-hub-adr.md). Three families, each best-effort: a
+ADR-011 step 7 (docs/observability-hub-adr.md). Each family is best-effort: a
 source that errors is skipped and counted in fleet_gauges_source_errors, never fatal.
 
   fleet_credential_expiry_timestamp_seconds{credential,provider}
