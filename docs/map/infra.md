@@ -24,9 +24,6 @@ without it prints the exact `nix develop -c secret exec …` line. ADC is
 > apps and state with it). **Do not re-add a stack to publish MCP** — [`claude-code.md`](claude-code.md)
 > § MCP after the gateway says what replaced it; § The `mcp-public` teardown below has the record.
 
-`checks.access-service-token-duration` (in `modules/parts/terranix.nix`) fails any rendered
-Access service token that leaves its expiry to the provider.
-
 Every provider VERSION is pinned exactly in one file, `infra/provider-pins.nix`; each stack keeps
 its own `source` address (changing a source is a `tofu state replace-provider`, not a bump). Its
 header records why those are registry downloads and not nixpkgs `opentofu.withPlugins`.
