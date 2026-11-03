@@ -1,6 +1,6 @@
 # ADR-011 — Grafana Cloud as the fleet's observability hub
 
-**Status:** **DECIDED 2026-11-02; steps 1–5 LIVE 2026-11-03** (§ 6). The decisions in § 3 are the operator's,
+**Status:** **DECIDED 2026-11-02.** Per-step status lives in § 6 only. The decisions in § 3 are the operator's,
 taken click-to-select after a read-only census. Each build step (§ 6) lands as its own PR and is
 proven by a real datapoint arriving and a dashboard panel returning data.
 
