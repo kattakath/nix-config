@@ -25,6 +25,21 @@ import urllib.request
 PROM = "grafanacloud-prom"
 USAGE = "grafanacloud-usage"
 
+def day_total(counter):
+    """One day's growth of a sparse cumulative counter, the first sample included.
+
+    increase() needs two samples and always drops a stream's FIRST one. Claude Code's
+    streams gain a sample only when a session exports (deltatocumulative in
+    modules/home/claude-otel.nix), so a light day read EMPTY (2026-11-03: one sample, no
+    value). A stream that STARTED today is counted by its last value, since all of it is
+    today's; one that also existed yesterday by increase(), which also absorbs collector
+    restarts (counter resets).
+    """
+    new = f"sum(last_over_time({counter}[1d]) unless last_over_time({counter}[1d] offset 1d)) or vector(0)"
+    old = f"sum(increase({counter}[1d]) and last_over_time({counter}[1d] offset 1d)) or vector(0)"
+    return f"({new}) + ({old})"
+
+
 # name -> (datasource uid, PromQL evaluated at the day's end). Ratios, counts, hours and
 # the AI spend in USD; the finance figures are ratios by construction (beancount-kit metrics).
 KPIS = {
@@ -42,8 +57,8 @@ KPIS = {
     "jobseek_days_since_last_application": (PROM, "max(last_over_time(jobseek_days_since_last_application[7d]))"),
     "jobseek_next_action_overdue": (PROM, "max(last_over_time(jobseek_next_action_overdue[7d]))"),
     "evidence_ndcg_at_10_hybrid": (PROM, 'max(last_over_time(evidence_retrieval_ndcg_at_10{system="hybrid"}[30d]))'),
-    "claude_cost_usd_day": (PROM, "sum(increase(claude_code_cost_usage_USD_total[1d]))"),
-    "claude_active_hours_day": (PROM, "sum(increase(claude_code_active_time_seconds_total[1d])) / 3600"),
+    "claude_cost_usd_day": (PROM, day_total("claude_code_cost_usage_USD_total")),
+    "claude_active_hours_day": (PROM, f'({day_total("claude_code_active_time_seconds_total")}) / 3600'),
     "nixpi_reporting_ratio_day": (PROM, 'count_over_time(node_uname_info{instance="nixpi"}[1d]) / 1440'),
     "nixpi_soc_max_c_day": (PROM, 'max(max_over_time(node_thermal_zone_temp{instance="nixpi"}[1d]))'),
     "public_site_success_ratio_day": (PROM, 'avg(avg_over_time(probe_success{job="nixpi-public-site"}[1d]))'),
