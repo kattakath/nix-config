@@ -91,7 +91,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 | Command | What it does |
 |---|---|
 | `/eval` | stage + `nix flake check` |
-| `/hygiene` | LEAN/DRY audit→fix→gate via skill `nix-hygiene` |
+| `/hygiene` | LEAN/DRY pass via skill `nix-hygiene`: `audit` of `origin/main` by default (SARIF out), `fix` only when asked |
 | `/update-input` | bump one input (or all, with no argument) + stage the lock + gate both systems |
 | `/pretooluse-review` | triage `Bash`/`Write\|Edit` gate REJECTIONS from the harness's own OTel `tool_decision` stream (`decision`/`source`/`hook_name`), since prompt-type hooks keep no log of their own |
 | `/remember-nix` | capture into the harness's native per-project memory store (outside the repo) |
@@ -273,6 +273,8 @@ nothing is declared in Nix; the method lives in the `page-lab` plugin — see
 [`packages.md`](packages.md) § Userscripts),
 `fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add
 a line there when a new flake is extracted from this repo, nothing else needs to change).
+`doctors/` is not a skill: `rules.json` there is the ONE rule catalogue both doctors cite
+(`NH-*`, `FD-*`), checked with their output by `doctor-report` (ADR-013 § 13).
 There is **no `npx skills` CLI lockfile** any more: `skills-lock.json` was deleted 2026-10-02,
 having sat at `{"version":1,"skills":{}}` with zero consumers in Nix, CI or hooks. The CLI it
 belonged to is rejected outright (the `agent-skills-vercel` input's comment in `flake.nix`, and

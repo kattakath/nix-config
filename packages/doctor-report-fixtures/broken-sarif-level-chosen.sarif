@@ -1,0 +1,76 @@
+{
+  "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "nix-hygiene",
+          "rules": [
+            {
+              "id": "NH-A-one",
+              "shortDescription": {
+                "text": "test rule one"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              }
+            },
+            {
+              "id": "NH-B-two",
+              "shortDescription": {
+                "text": "test rule two"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              }
+            }
+          ]
+        }
+      },
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "https://github.com/kattakath/nix-config",
+          "revisionId": "0123456789abcdef0123456789abcdef01234567",
+          "branch": "main"
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "NH-A-one",
+          "kind": "fail",
+          "level": "note",
+          "message": {
+            "text": "docs/example.md claims 3 widgets; ls counts 4"
+          },
+          "partialFingerprints": {
+            "findingId/v1": "NH-A-one/00112233aabbccdd"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "docs/example.md"
+                }
+              }
+            }
+          ],
+          "properties": {
+            "inputsExamined": 12
+          }
+        },
+        {
+          "ruleId": "NH-B-two",
+          "kind": "pass",
+          "level": "none",
+          "message": {
+            "text": "3 files, no finding"
+          },
+          "properties": {
+            "inputsExamined": 3
+          }
+        }
+      ]
+    }
+  ]
+}
