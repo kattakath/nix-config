@@ -7,7 +7,11 @@
 #
 # The contract check runs on every system: jq and check-jsonschema build on both, and the
 # SARIF schema is a fixed-output fetch, so nothing here needs the network at check time.
-_: {
+{ config, ... }:
+let
+  inherit (config.fleet) orgName repoName;
+in
+{
   perSystem =
     {
       config,
@@ -43,6 +47,7 @@ _: {
     {
       packages.doctor-report = pkgs.callPackage ../../packages/doctor-report.nix {
         catalogue = ../../.claude/skills/doctors/rules.json;
+        repoUrl = "https://github.com/${orgName}/${repoName}";
         pingKeyItem = (import ../_lib/keychain-items.nix).healthchecksPingKey;
       };
 

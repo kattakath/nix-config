@@ -101,7 +101,7 @@ in
           # keeps it near the census's ~350 series; utun/awdl/llw/bridge and the
           # devfs/autofs mounts are dropped.
           receivers = receivers // {
-            hostmetrics = {
+            host_metrics = {
               collection_interval = "60s";
               scrapers = {
                 cpu = { };
@@ -164,9 +164,11 @@ in
             # counters would restart from 0 every 5 min; a day spans normal gaps.
             deltatocumulative.max_stale = "24h";
           };
+          # Canonical component names (`otelcol-contrib components`): 0.155.0 logs the
+          # old `otlphttp`/`hostmetrics` spellings as deprecated aliases at startup.
           exporters = {
             file = fileExporter;
-            "otlphttp/grafana" = {
+            "otlp_http/grafana" = {
               endpoint = "\${env:GRAFANA_OTLP_ENDPOINT}";
               auth.authenticator = "basicauth/grafana";
             };
@@ -183,17 +185,17 @@ in
                   "deltatocumulative"
                   "batch"
                 ];
-                exporters = [ "otlphttp/grafana" ];
+                exporters = [ "otlp_http/grafana" ];
               };
               # Host metrics are already cumulative/gauge and carry no identity, so they
               # skip the strip and the delta conversion.
               "metrics/host" = {
-                receivers = [ "hostmetrics" ];
+                receivers = [ "host_metrics" ];
                 processors = [
                   "resource/host"
                   "batch"
                 ];
-                exporters = [ "otlphttp/grafana" ];
+                exporters = [ "otlp_http/grafana" ];
               };
             };
           };

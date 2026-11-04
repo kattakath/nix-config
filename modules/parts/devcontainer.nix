@@ -25,6 +25,7 @@ let
 
   inherit (config.fleet)
     orgName
+    repoName
     cachixUrl
     cachixKey
     devcontainerSystems
@@ -60,7 +61,12 @@ in
               # Identity single-sources (not in pkgs, so callPackage can't autofill):
               # the image's os-release HOME_URL + baked nix.conf Cachix lines reuse
               # these instead of re-hardcoding the handle/cache.
-              inherit orgName cachixUrl cachixKey;
+              inherit
+                orgName
+                repoName
+                cachixUrl
+                cachixKey
+                ;
             };
       };
     };

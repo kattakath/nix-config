@@ -226,8 +226,19 @@ let
   checked =
     assert lib.assertMsg (repos ? ${orgOwner}) "infra/github/repos.nix has no '${orgOwner}' owner";
     assert lib.assertMsg (
+      userOwner != orgOwner && repos ? ${userOwner}
+    ) "infra/github/repos.nix has no '${userOwner}' owner";
+    assert lib.assertMsg (
       lib.length (lib.attrNames repos) == 2
     ) "infra/github/repos.nix must hold exactly the org and the personal owner";
+    # The variable entries match on these names with lib.optional(s), so a rename that
+    # missed repos.nix would silently drop the variables instead of failing.
+    assert lib.assertMsg (
+      repos.${orgOwner} ? ${fleetRepo}
+    ) "infra/github/repos.nix has no '${orgOwner}/${fleetRepo}' (fleetRepo)";
+    assert lib.assertMsg (
+      repos.${userOwner} ? ${resumeSiteRepo}
+    ) "infra/github/repos.nix has no '${userOwner}/${resumeSiteRepo}' (resumeSiteRepo)";
     assert lib.assertMsg (lib.allUnique (
       map (e: e.addr) (rulesetEntries ++ variableEntries)
     )) "infra/github: two repos slug to one resource address";
@@ -241,7 +252,7 @@ in
     { owner = orgOwner; }
     {
       alias = "user";
-      owner = lib.head (lib.remove orgOwner (lib.attrNames repos));
+      owner = userOwner;
     }
   ];
 

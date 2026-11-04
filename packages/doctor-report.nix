@@ -42,6 +42,9 @@
   coreutils,
   runitor,
   catalogue,
+  # The skeleton's default repositoryUri and the rules' informationUri base, from
+  # config.fleet (modules/parts/doctors.nix).
+  repoUrl,
   # The heartbeat `weekly` pings (modules/parts/heartbeats.nix). Named here, in quotes, so
   # checks.<system>.heartbeat-workflow-parity's agentPingers leg can see this file names it.
   slug ? "nix-config-doctors-weekly",
@@ -429,11 +432,11 @@ writeShellApplication {
         [[ $sha =~ ^[0-9a-f]{40}$ ]] || die "SUBJECT_SHA must be 40 hex characters"
         case $1 in
           hygiene)
-            jq --arg sha "$sha" --arg uri "''${3:-https://github.com/kattakath/nix-config}" --arg branch "''${4:-main}" '{
+            jq --arg sha "$sha" --arg uri "''${3:-${repoUrl}}" --arg branch "''${4:-main}" '{
               "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
               version: "2.1.0",
               runs: [{
-                tool: {driver: {name: "nix-hygiene", informationUri: "https://github.com/kattakath/nix-config/blob/main/.claude/skills/nix-hygiene/SKILL.md",
+                tool: {driver: {name: "nix-hygiene", informationUri: "${repoUrl}/blob/main/.claude/skills/nix-hygiene/SKILL.md",
                   rules: [.rules[] | select(.doctor == "hygiene") | {id, shortDescription: {text: .shortDescription},
                     fullDescription: {text: ("detect: " + .detect + " | vacuous when: " + .vacuousWhen)},
                     defaultConfiguration: {level}, properties: {section, evidence}}]}},
