@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "about": "A four-rule TEST catalogue for the doctor-report-contract check. Not the real one.",
+  "rules": [
+    {
+      "id": "NH-A-one",
+      "doctor": "hygiene",
+      "section": "test \u00a7 A",
+      "shortDescription": "test rule one",
+      "level": "warning",
+      "detect": "grep one",
+      "evidence": [
+        "the file"
+      ],
+      "vacuousWhen": "nothing scanned"
+    },
+    {
+      "id": "NH-B-two",
+      "doctor": "hygiene",
+      "section": "test \u00a7 B",
+      "shortDescription": "test rule two",
+      "level": "error",
+      "detect": "grep two",
+      "evidence": [
+        "the file"
+      ],
+      "vacuousWhen": "nothing scanned"
+    },
+    {
+      "id": "FD-A-one",
+      "doctor": "fleet-doctor",
+      "section": "test \u00a7 A",
+      "shortDescription": "test check one",
+      "statusOnFinding": "warn",
+      "checkKey": "repos:one",
+      "detect": "git one",
+      "evidence": [
+        "the repo"
+      ],
+      "vacuousWhen": "zero repos"
+    },
+    {
+      "id": "FD-E3-two",
+      "doctor": "fleet-doctor",
+      "section": "test \u00a7 E3",
+      "shortDescription": "test check two",
+      "statusOnFinding": "fail",
+      "checkKey": "macos:two",
+      "detect": "launchd two",
+      "evidence": [
+        "the label"
+      ],
+      "vacuousWhen": "scope 0"
+    },
+    {
+      "id": "NH-A-one",
+      "doctor": "hygiene",
+      "section": "test \u00a7 A",
+      "shortDescription": "test rule one",
+      "level": "warning",
+      "detect": "grep one",
+      "evidence": [
+        "the file"
+      ],
+      "vacuousWhen": "nothing scanned"
+    }
+  ]
+}

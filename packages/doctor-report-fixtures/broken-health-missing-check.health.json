@@ -1,0 +1,20 @@
+{
+  "status": "warn",
+  "releaseId": "0123456789abcdef0123456789abcdef01234567",
+  "serviceId": "fleet-doctor",
+  "checks": {
+    "repos:one": [
+      {
+        "ruleId": "FD-A-one",
+        "componentId": "github.com/kattakath/example",
+        "componentType": "component",
+        "observedValue": 1,
+        "observedUnit": "findings",
+        "status": "warn",
+        "inputsExamined": 9,
+        "time": "2026-11-03T12:00:00Z",
+        "output": "FD-A-one/0011223344556677"
+      }
+    ]
+  }
+}

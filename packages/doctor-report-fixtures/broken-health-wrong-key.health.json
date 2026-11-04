@@ -1,0 +1,24 @@
+{
+  "status": "pass",
+  "releaseId": "0123456789abcdef0123456789abcdef01234567",
+  "serviceId": "fleet-doctor",
+  "checks": {
+    "repos:one": [
+      {
+        "ruleId": "FD-A-one",
+        "observedValue": 0,
+        "status": "pass",
+        "inputsExamined": 9
+      }
+    ],
+    "macos:two": [
+      {
+        "ruleId": "FD-A-one",
+        "componentId": "macos",
+        "observedValue": 0,
+        "status": "pass",
+        "inputsExamined": 40
+      }
+    ]
+  }
+}

@@ -1,7 +1,8 @@
 # ADR-013 — The doctors: what they cover, what gauges take over, and how a run reports
 
 **Status:** **DECIDED 2026-11-03** (every decision here is the operator's, chosen click-to-select).
-Docs only; each move in § 5 is its own later PR.
+Each move in § 5 is its own later PR. **§ 7 SHIPPED 2026-11-03** (rule catalogue, output
+formats, the `doctor-report` validator); § 13 records what the implementation had to decide.
 
 **Question.** This repo has two "doctors": `/hygiene` (skill `nix-hygiene`) and `/fleet-doctor`.
 Which past incidents would they have caught, which would only an automatic check catch, and which
@@ -137,7 +138,11 @@ in the terranix Grafana stack (ADR-012 § 5 step 2).
 modified 2026-11-01). The operator **removed those six tasks on purpose** around 2026-11-01; they
 were not lost. The Desktop lane stays usable for the weekly fleet-doctor audit.
 
-## 7. Deterministic runs with no arguments
+## 7. Deterministic runs with no arguments — SHIPPED
+
+**Shipped 2026-11-03**: both skills and commands default to `audit` and read a detached
+`origin/<default>` snapshot; every rule is in `.claude/skills/doctors/rules.json`; a run is
+checked by `doctor-report` and gated by `checks.<system>.doctor-report-contract` (§ 13).
 
 | Today | Decided |
 |---|---|
@@ -276,3 +281,31 @@ Would reopen:
 | Upload SARIF to code scanning now | GitHub dedupes only on a line hash, and many findings have no line |
 | Scheduled doctors that fix | an unattended fix with no reviewer; fixes stay operator-triggered |
 | Time Machine to a new disk | the operator accepts rebuild-from-flake; § 10 records the cost |
+
+## 13. Implementation decisions (2026-11-03)
+
+Where § 7–9 were silent, the implementation chose the simplest option. Each is recorded here.
+
+| Question | Decided | Why / evidence |
+|---|---|---|
+| Catalogue format and home | **JSON**, `.claude/skills/doctors/rules.json`; both skills link it | jq reads it at run time and Nix with `fromJSON` in the check; § 9's YAML needs a parser neither has. Field names are camelCase (`vacuousWhen`, `fixHint`, and `section` for § 9's `checklist`) |
+| Severity per doctor | hygiene: `level` (SARIF `note`/`warning`/`error`). fleet-doctor: `statusOnFinding` (`warn`/`fail`) + `checkKey` | each doctor's own standard vocabulary; a mapping table would be a second copy |
+| Counts | 28 `NH-*` (checklist A–F + anti-patterns 2–4), 38 `FD-*` (steps A–F, one rule per finding kind) | the § A `git status` item became a `fix` precondition, not a rule; `path:N` is a flake check already |
+| How "reads `origin/<default>`" | `git fetch`, record the SHA, `git worktree add --detach` a snapshot, audit there | the checkout can be on any branch, dirty, or a worktree |
+| Where the subject SHA goes | SARIF `runs[0].versionControlProvenance[0].revisionId`; health `releaseId` | both are the formats' own fields, not a custom key |
+| Where "inputs examined" goes | SARIF `result.properties.inputsExamined`; an extra `inputsExamined` key on each health check object (the draft allows extra keys), plus `ruleId` | `0` is vacuous: SARIF `kind: notApplicable`, health `warn` + `output: "vacuous"` |
+| An absent rule | **invalid**: every rule has ≥ 1 SARIF result, and every `checkKey` is present | an absent rule is unaudited — § 3's "silence that looks like health" again |
+| Scoped or unreachable | health `warn` + `output: "skipped: <why>"`; SARIF `notApplicable` | a scoped run exits 2, so it is never a baseline |
+| Non-`fail` SARIF level | `none` | the spec's `result.level` clause: with any `kind` other than `fail`, level "SHALL have the value `none`" |
+| Finding ID | `<ruleId>/<first 16 hex of sha256(ruleId, file or subject, construct)>`, from `doctor-report fingerprint`; in SARIF `partialFingerprints["findingId/v1"]`, in health `output` (space-separated) | § 8's hash, with the rule id kept readable |
+| `baselineState` | **not written**; `doctor-report diff OLD NEW` lists new / resolved / persisting | a fresh run cannot know its baseline |
+| Exit codes | `doctor-report verdict`: 0 clean, 2 any `fail`/`warn`/vacuous, 1 invalid | § 7, with SARIF `notApplicable` treated like health `warn` |
+| Output path | `${DOCTOR_REPORT_DIR:-${XDG_STATE_HOME:-~/.local/state}/nix-config-doctors}/<doctor>/<UTC>.{sarif,json}` + a `latest` symlink | § 6 names Drive but no path. `DOCTOR_REPORT_DIR` (an env var, or a symlink the operator makes) points it at Drive; copying to Drive is the scheduled-audit step's job. Precedent: `nix-config-terranix-drift` |
+| Validation | SARIF: the OASIS schema through nixpkgs `check-jsonschema`. health: a jq shape check. Both: the catalogue checks | the draft publishes no JSON Schema |
+| Thresholds no doc gave | stale PR = 7 days; disk = under 10% container free; drift summary = older than 26 h | judgment calls, fixed in the catalogue so they are at least stable |
+| The workflow | `nix-hygiene-pass` takes `{mode, root}`; its Fix phase runs only in `fix`; auditors return `ruleId` and per-rule `coverage` | it was the last path that fixed by default |
+
+**Weakest assumption.** The SARIF schema's `uri` format goes unchecked: nixpkgs'
+`check-jsonschema` 0.38.0 passed `"::not a uri::"` (measured), while it does enforce `date-time`
+(a fixture proves it). Shape, enums and required fields are all checked. What would settle it: a
+`check-jsonschema` build with a URI format checker, then a `broken-sarif-uri` fixture.

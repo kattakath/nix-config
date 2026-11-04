@@ -1,0 +1,295 @@
+# doctor-report — the mechanical half of ADR-013 § 7–9: check a doctor run, never make one.
+#
+# The doctors (/hygiene, /fleet-doctor) are agent sessions; their judgment goes into TRIAGE.
+# What the run EMITS is checked here, so a model's output is held to a contract rather than
+# trusted:
+#   rules                 the catalogue (.claude/skills/doctors/rules.json) is well formed
+#   validate FILE         SARIF 2.1.0 (hygiene) or health+json (fleet-doctor) conforms
+#   verdict FILE          exit 0 clean, 2 findings or vacuous (ADR-013 § 7)
+#   diff OLD NEW          new / resolved / persisting finding IDs, as JSON
+#   fingerprint RULE FILE CONSTRUCT   the stable findingId/v1 (never a line number)
+#   skeleton DOCTOR SHA   an empty, catalogue-derived envelope to fill
+#   publish DOCTOR FILE   validate, copy to the state dir, point `latest` at it
+#
+# Upstream-first: SARIF conformance is the OASIS schema run through nixpkgs' check-jsonschema,
+# not a hand-written shape. The health-check draft (-06) publishes no JSON Schema, so its
+# envelope is a jq check, which is the only custom validation here. Both formats then get the
+# catalogue checks no schema can express: every ruleId exists, every rule reports, and
+# `inputsExamined: 0` is vacuous — never pass.
+#
+# The catalogue is passed in by the engine (a path literal there); DOCTOR_RULES overrides it
+# so the check can run the fixtures against a small test catalogue.
+{
+  writeShellApplication,
+  fetchurl,
+  jq,
+  check-jsonschema,
+  coreutils,
+  catalogue,
+}:
+let
+  # SARIF 2.1.0 Plus Errata 01, the schema ADR-013 § 8 cites.
+  sarifSchema = fetchurl {
+    url = "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json";
+    hash = "sha256-w7S7LWCTiXSDNIklqqc68Ds+P0vUyjjO8m3LQhKiaC4=";
+  };
+in
+writeShellApplication {
+  name = "doctor-report";
+  runtimeInputs = [
+    jq
+    check-jsonschema
+    coreutils
+  ];
+  text = ''
+    rules="''${DOCTOR_RULES:-${catalogue}}"
+    sarif_schema=${sarifSchema}
+
+    die() { echo "doctor-report: $*" >&2; exit 1; }
+
+    usage() {
+      cat >&2 <<'EOF'
+    usage: doctor-report rules
+           doctor-report validate FILE
+           doctor-report verdict FILE          (0 clean, 2 findings/vacuous, 1 invalid)
+           doctor-report diff OLD NEW          ({new, resolved, persisting} finding IDs)
+           doctor-report fingerprint RULE_ID FILE_OR_SUBJECT CONSTRUCT
+           doctor-report skeleton hygiene|fleet-doctor SUBJECT_SHA [REPO_URI] [BRANCH]
+           doctor-report publish hygiene|fleet-doctor FILE
+    EOF
+      exit 1
+    }
+
+    # Print each problem on its own line; any line fails the caller.
+    report() {
+      local what=$1 problems=$2
+      if [ -n "$problems" ]; then
+        while IFS= read -r line; do printf '%s: %s\n' "$what" "$line"; done <<<"$problems" >&2
+        return 1
+      fi
+    }
+
+    check_rules() {
+      jq -e . "$rules" >/dev/null 2>&1 || die "catalogue $rules is not JSON"
+      local problems
+      problems=$(jq -r '
+        def blank: . == null or . == "" or (type == "array" and length == 0);
+        ["id","doctor","section","shortDescription","detect","evidence","vacuousWhen"] as $req
+        | if (.version | type) != "number" then "catalogue .version must be a number" else empty end,
+          if (.rules | type) != "array" or (.rules | length) == 0 then "catalogue .rules must be a non-empty array"
+          else
+            (.rules | group_by(.id)[] | select(length > 1) | "duplicate id \(.[0].id)"),
+            (.rules | map(select(.doctor == "fleet-doctor")) | group_by(.checkKey)[]
+              | select(length > 1) | "duplicate checkKey \(.[0].checkKey)"),
+            (.rules[] | . as $r | ($r.id // "?") as $id
+              | ($req[] | select($r[.] | blank) | "\($id): missing \(.)"),
+                (if ($r.evidence | type) == "array" and ($r.evidence | all(type == "string")) then empty
+                 else "\($id): evidence must be an array of strings" end),
+                (if $r.doctor == "hygiene" then
+                   (if ($id | test("^NH-[A-Z]-[a-z0-9-]+$")) then empty else "\($id): hygiene ids read NH-<section>-<slug>" end),
+                   (if ($r.level | IN("note","warning","error")) then empty else "\($id): level must be note|warning|error" end),
+                   (if ($r | has("checkKey") or has("statusOnFinding")) then "\($id): checkKey/statusOnFinding are fleet-doctor fields" else empty end)
+                 elif $r.doctor == "fleet-doctor" then
+                   (if ($id | test("^FD-[A-Z][0-9]?-[a-z0-9-]+$")) then empty else "\($id): fleet-doctor ids read FD-<step>-<slug>" end),
+                   (if ($r.statusOnFinding | IN("warn","fail")) then empty else "\($id): statusOnFinding must be warn|fail" end),
+                   (if (($r.checkKey // "") | test("^[a-z0-9-]+:[a-z0-9-]+$")) then empty else "\($id): checkKey must be component:measurement" end),
+                   (if $r | has("level") then "\($id): level is a hygiene field" else empty end)
+                 else "\($id): doctor must be hygiene or fleet-doctor" end))
+          end
+      ' "$rules") || die "jq failed on the catalogue"
+      report "$rules" "$problems"
+    }
+
+    kind_of() {
+      if jq -e '.version == "2.1.0" and (.runs | type == "array")' "$1" >/dev/null 2>&1; then echo sarif
+      elif jq -e '(.checks | type == "object") and has("status")' "$1" >/dev/null 2>&1; then echo health
+      else echo unknown; fi
+    }
+
+    check_sarif() {
+      local f=$1 problems
+      # Formats stay ON: `date-time` is enforced (broken-sarif-date proves it). `uri` is NOT —
+      # measured, a "::not a uri::" passes — so a URI's shape is unchecked, on every host alike.
+      check-jsonschema --no-cache --schemafile "$sarif_schema" "$f" >&2 \
+        || { echo "$f: does not conform to the SARIF 2.1.0 schema" >&2; return 1; }
+      problems=$(jq -r --slurpfile cat "$rules" '
+        ($cat[0].rules | map(select(.doctor == "hygiene"))) as $nh
+        | ($nh | map({key: .id, value: .}) | from_entries) as $by
+        | if (.runs | length) != 1 then "exactly one run expected" else
+          .runs[0] as $run
+          | (if $run.tool.driver.name == "nix-hygiene" then empty else "tool.driver.name must be nix-hygiene" end),
+            (if ([$run.tool.driver.rules[]?.id] | sort) == ($nh | map(.id) | sort) then empty
+             else "tool.driver.rules must be exactly the catalogue hygiene rules (doctor-report skeleton builds them)" end),
+            ($run.tool.driver.rules[]? | select($by[.id] != null and .defaultConfiguration.level != $by[.id].level)
+              | "\(.id): defaultConfiguration.level must be \($by[.id].level)"),
+            (if (($run.versionControlProvenance[0].revisionId // "") | test("^[0-9a-f]{40}$")) then empty
+             else "versionControlProvenance[0].revisionId must be the subject 40-hex SHA" end),
+            ($run.results[]? | . as $x | $by[$x.ruleId // ""] as $r
+              | if $r == null then "unknown ruleId \($x.ruleId)" else
+                  (if ($x.kind | IN("pass","fail","notApplicable")) then empty
+                   else "\($x.ruleId): kind must be pass, fail or notApplicable" end),
+                  ($x.properties.inputsExamined as $n
+                    | if ($n | type) != "number" or $n < 0 then "\($x.ruleId): properties.inputsExamined must be a count"
+                      elif $n == 0 and $x.kind != "notApplicable" then "\($x.ruleId): inputsExamined 0 is vacuous, so kind must be notApplicable, not \($x.kind)"
+                      elif $n > 0 and $x.kind == "notApplicable" then "\($x.ruleId): notApplicable means inputsExamined 0"
+                      else empty end),
+                  (if $x.kind == "fail" then
+                     (if $x.level == $r.level then empty else "\($x.ruleId): level must be the catalogue level \($r.level)" end),
+                     (if (($x.partialFingerprints["findingId/v1"] // "") | startswith($x.ruleId + "/")) then empty
+                      else "\($x.ruleId): a fail needs partialFingerprints.findingId/v1 = <ruleId>/<hash>" end)
+                   elif ($x.level // "none") != "none" then "\($x.ruleId): a \($x.kind) result has level none"
+                   else empty end)
+                end),
+            ([$run.results[]? | select(.kind == "fail") | .partialFingerprints["findingId/v1"]]
+              | group_by(.)[] | select(length > 1) | "duplicate findingId/v1 \(.[0])"),
+            ($nh[] | .id as $id | [$run.results[]? | select(.ruleId == $id) | .kind] as $k
+              | if ($k | length) == 0 then "\($id): no result; every rule reports pass, fail or notApplicable (absent = unaudited)"
+                elif ($k | unique | length) > 1 then "\($id): mixes kinds \($k | unique | join(","))"
+                else empty end)
+          end
+      ' "$f") || { echo "$f: jq failed" >&2; return 1; }
+      report "$f" "$problems"
+    }
+
+    check_health() {
+      local f=$1 problems
+      problems=$(jq -r --slurpfile cat "$rules" '
+        . as $root
+        | ($cat[0].rules | map(select(.doctor == "fleet-doctor"))) as $fd
+        | ($fd | map({key: .id, value: .}) | from_entries) as $by
+        | def rank: {"pass": 0, "warn": 1, "fail": 2}[.];
+          (if (.status | IN("pass","warn","fail")) then empty else "status must be pass, warn or fail (base words only)" end),
+          (if ((.releaseId // "") | test("^[0-9a-f]{40}$")) then empty else "releaseId must be the subject 40-hex SHA" end),
+          (.checks | to_entries[] | .key as $k | .value as $v
+            | if ($k | test("^[a-z0-9-]+:[a-z0-9-]+$")) | not then "\($k): key must be component:measurement"
+              elif ($v | type) != "array" or ($v | length) == 0 then "\($k): value must be a non-empty array (draft-06)"
+              else $v[] | . as $c | $by[$c.ruleId // ""] as $r
+                | if $r == null then "\($k): unknown ruleId \($c.ruleId)"
+                  elif $r.checkKey != $k then "\($k): \($c.ruleId) reports under \($r.checkKey)"
+                  elif ($c.status | IN("pass","warn","fail")) | not then "\($k): status must be pass, warn or fail"
+                  elif ($c.inputsExamined | type) != "number" or $c.inputsExamined < 0 then "\($k): inputsExamined must be a count"
+                  elif ($c.observedValue | type) != "number" or $c.observedValue < 0 then "\($k): observedValue must be a count"
+                  elif $c.inputsExamined == 0 then
+                    (if $c.status == "warn" and $c.observedValue == 0
+                        and (($c.output // "") == "vacuous" or (($c.output // "") | startswith("skipped:")))
+                     then empty
+                     else "\($k): inputsExamined 0 reads status warn, observedValue 0, output \"vacuous\" or \"skipped: <why>\"" end)
+                  elif $c.observedValue > 0 then
+                    ((($c.output // "") | split(" ") | map(select(length > 0))) as $ids
+                      | (if $c.status == $r.statusOnFinding then empty else "\($k): a finding reads status \($r.statusOnFinding), not \($c.status)" end),
+                        (if ($ids | length) == $c.observedValue then empty else "\($k): observedValue \($c.observedValue) but output lists \($ids | length) finding IDs" end),
+                        ($ids[] | select(startswith($r.id + "/") | not) | "\($k): finding ID \(.) must start with \($r.id)/"))
+                  elif $c.status != "pass" then "\($k): no finding over \($c.inputsExamined) inputs is pass, not \($c.status)"
+                  else empty end
+              end),
+          ($fd[] | select(.checkKey as $ck | $root.checks | has($ck) | not)
+            | "\(.checkKey): missing; every catalogue check reports (pass, a finding, vacuous or skipped)"),
+          ([.checks[] | arrays | .[] | objects | .status | rank] | max // 0) as $worst
+          | (if (.status | rank) == $worst then empty else "status \(.status) is not the worst check status" end),
+          ([.checks[] | arrays | .[] | objects | (.output // "") | strings | split(" ")[] | select(test("^FD-"))] | group_by(.)[]
+            | select(length > 1) | "duplicate finding ID \(.[0])")
+      ' "$f") || { echo "$f: jq failed" >&2; return 1; }
+      report "$f" "$problems"
+    }
+
+    validate() {
+      local f=$1
+      [ -r "$f" ] || die "$f: not readable"
+      jq -e . "$f" >/dev/null 2>&1 || { echo "$f: not JSON" >&2; return 1; }
+      case $(kind_of "$f") in
+        sarif) check_sarif "$f" ;;
+        health) check_health "$f" ;;
+        *) echo "$f: neither SARIF 2.1.0 nor health+json" >&2; return 1 ;;
+      esac
+    }
+
+    finding_ids() {
+      case $(kind_of "$1") in
+        sarif) jq -r '.runs[0].results[] | select(.kind == "fail") | .partialFingerprints["findingId/v1"]' "$1" ;;
+        health) jq -r '.checks[][] | select(.observedValue > 0) | .output | split(" ")[] | select(length > 0)' "$1" ;;
+      esac | sort -u
+    }
+
+    state_dir() {
+      printf '%s/%s\n' "''${DOCTOR_REPORT_DIR:-''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-doctors}" "$1"
+    }
+
+    cmd=''${1:-}
+    [ $# -gt 0 ] && shift
+    case $cmd in
+      rules)
+        check_rules
+        echo "catalogue ok: $(jq '[.rules[] | select(.doctor == "hygiene")] | length' "$rules") hygiene, $(jq '[.rules[] | select(.doctor == "fleet-doctor")] | length' "$rules") fleet-doctor rules" >&2
+        ;;
+      validate)
+        [ $# -eq 1 ] || usage
+        check_rules
+        validate "$1"
+        echo "$1: valid $(kind_of "$1")" >&2
+        ;;
+      verdict)
+        [ $# -eq 1 ] || usage
+        check_rules
+        validate "$1" || exit 1
+        case $(kind_of "$1") in
+          sarif) open=$(jq '[.runs[0].results[] | select(.kind != "pass")] | length' "$1") ;;
+          health) open=$(jq 'if .status == "pass" then 0 else 1 end' "$1") ;;
+        esac
+        if [ "$open" -eq 0 ]; then echo clean; exit 0; fi
+        echo findings; exit 2
+        ;;
+      diff)
+        [ $# -eq 2 ] || usage
+        check_rules
+        validate "$1" || exit 1
+        validate "$2" || exit 1
+        [ "$(kind_of "$1")" = "$(kind_of "$2")" ] || die "cannot diff a $(kind_of "$1") run against a $(kind_of "$2") run"
+        jq -n --argjson old "$(finding_ids "$1" | jq -R . | jq -s .)" --argjson new "$(finding_ids "$2" | jq -R . | jq -s .)" \
+          '{new: ($new - $old), resolved: ($old - $new), persisting: ($new - ($new - $old))}'
+        ;;
+      fingerprint)
+        [ $# -eq 3 ] || usage
+        printf '%s/%s\n' "$1" "$(printf '%s\n%s\n%s' "$1" "$2" "$3" | sha256sum | cut -c1-16)"
+        ;;
+      skeleton)
+        [ $# -ge 2 ] || usage
+        sha=$2
+        [[ $sha =~ ^[0-9a-f]{40}$ ]] || die "SUBJECT_SHA must be 40 hex characters"
+        case $1 in
+          hygiene)
+            jq --arg sha "$sha" --arg uri "''${3:-https://github.com/kattakath/nix-config}" --arg branch "''${4:-main}" '{
+              "$schema": "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
+              version: "2.1.0",
+              runs: [{
+                tool: {driver: {name: "nix-hygiene", informationUri: "https://github.com/kattakath/nix-config/blob/main/.claude/skills/nix-hygiene/SKILL.md",
+                  rules: [.rules[] | select(.doctor == "hygiene") | {id, shortDescription: {text: .shortDescription},
+                    fullDescription: {text: ("detect: " + .detect + " | vacuous when: " + .vacuousWhen)},
+                    defaultConfiguration: {level}, properties: {section, evidence}}]}},
+                versionControlProvenance: [{repositoryUri: $uri, revisionId: $sha, branch: $branch}],
+                results: []
+              }]
+            }' "$rules"
+            ;;
+          fleet-doctor)
+            jq -n --arg sha "$sha" '{status: "pass", releaseId: $sha, serviceId: "fleet-doctor", checks: {}}'
+            ;;
+          *) usage ;;
+        esac
+        ;;
+      publish)
+        [ $# -eq 2 ] || usage
+        case $1 in hygiene) ext=sarif ;; fleet-doctor) ext=json ;; *) usage ;; esac
+        check_rules
+        validate "$2" || exit 1
+        dir=$(state_dir "$1")
+        mkdir -p "$dir"
+        out="$dir/$(date -u +%Y%m%dT%H%M%SZ).$ext"
+        cp "$2" "$out"
+        ln -sfn "$(basename "$out")" "$dir/latest"
+        echo "$out"
+        ;;
+      *) usage ;;
+    esac
+  '';
+  meta.description = "Validate, diff and file a doctor run: SARIF 2.1.0 for /hygiene, health+json for /fleet-doctor (ADR-013)";
+}

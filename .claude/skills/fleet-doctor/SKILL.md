@@ -48,15 +48,51 @@ branch@rev before it builds. Step F below already runs it.
 
 ## Modes
 
-1. **`audit`** — read-only: report findings, fix nothing. Triggered by
-   "audit" / "report" / "status".
-2. **`fix`** — audit, then apply everything in the **auto-fix** table below
-   without asking per-repo (the command invocation itself is the explicit
-   ask — same convention as `/hygiene fix`). Still stops and asks before
-   anything in the **always confirm** table. **Default mode** when neither
-   is specified.
-3. **`scope <repo|host>`** — limit to one manifest entry (repo name) or one
-   host (`macos`). Everything else is skipped and reported as such.
+1. **`audit`** — **the default** (ADR-013 § 7). Read-only: every `FD-*` rule over the whole
+   manifest, fix nothing. Two runs at the same subject SHA check the same things.
+2. **`fix`** — only when asked. Audit, then apply everything in the **auto-fix** table below
+   without asking per-repo (the command invocation itself is the explicit ask — same
+   convention as `/hygiene fix`). Still stops and asks before anything in the **always
+   confirm** table.
+3. **`scope <repo|host>`** — explicit narrowing only: one manifest entry (repo name) or one
+   host (`macos`). Every check outside it reports `status: warn`, `output: "skipped: scope"`.
+
+## Subject, rules and output
+
+**Subject = nix-config's `origin/<default>`.** `git fetch origin` first and record its SHA. The
+manifest and every repo-DECLARED fact (E5's declared plugins, E8's unit list, F's expected
+system) are read at that SHA, from a detached snapshot, never from the checkout this session
+is on. The WORLD (branches on disk, launchd, hosts, CI) is what gets compared against it.
+
+```bash
+git fetch origin
+sha=$(git rev-parse "$(git symbolic-ref --short refs/remotes/origin/HEAD)")
+snap="${TMPDIR:-/tmp}/fleet-doctor-$sha"
+git worktree add --detach "$snap" "$sha"     # the steps below read "$snap/…"; remove it after
+```
+
+**Rules = the catalogue**, [`../doctors/rules.json`](../doctors/rules.json): every `FD-*` entry
+fixes the `statusOnFinding` (`warn`|`fail`), the `checkKey` it reports under, its `detect`
+method, the `evidence` and its `vacuousWhen`. Each step below names its rules.
+
+**Output = health+json** (the expired `draft-inadarei-api-health-check-06` vocabulary, ADR-013
+§ 8), checked by `doctor-report` (`nix run .#doctor-report --`):
+
+| Field | Rule |
+|---|---|
+| `status` | `pass`, `warn` or `fail` only — the worst check's |
+| `releaseId` | the subject SHA |
+| `checks["<component>:<measurement>"]` | an ARRAY of check objects, one key per `FD-*` rule; `componentId` names the instance (repo, label, slug) |
+| check object | `ruleId`, `status`, `observedValue` = finding count, `inputsExamined`, `output` = the finding IDs, space-separated |
+| finding ID | `doctor-report fingerprint <ruleId> <subject> <construct>` (e.g. `FD-B-red` + `kattakath/skills#12` + the check name) |
+| vacuous | `inputsExamined: 0` → `status: warn`, `observedValue: 0`, `output: "vacuous"` — never `pass` |
+
+`doctor-report skeleton fleet-doctor <sha>` starts the file; `validate` checks it (every rule's
+key present, statuses consistent); `verdict` exits **0** pass, **2** warn or fail, **1** invalid;
+`publish fleet-doctor <file>` files it under
+`${DOCTOR_REPORT_DIR:-${XDG_STATE_HOME:-~/.local/state}/nix-config-doctors}/fleet-doctor/` with a
+`latest` symlink; `diff <old> <new>` lists new / resolved / persisting finding IDs. Composed step
+D's own SARIF is filed separately under `hygiene/`.
 
 ## Fix policy — read this before running `fix`
 
@@ -80,7 +116,7 @@ brought into sync by hand in the session this skill was extracted from.
 
 ## Checklist (run in order)
 
-### A. Per-repo: branches, worktrees, sync
+### A. Per-repo: branches, worktrees, sync — `FD-A-*`
 
 Read the manifest, then for each repo run one consolidated pass rather than
 one tool call per repo:
@@ -98,14 +134,14 @@ while read -r repo; do
   git -C "$d" worktree list               # more than one entry is a finding
   def=$(git -C "$d" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's#.*/##')
   git -C "$d" rev-list --left-right --count "origin/${def:-main}...${def:-main}" 2>/dev/null
-done < .claude/skills/fleet-doctor/fleet-repos.txt
+done < "$snap/.claude/skills/fleet-doctor/fleet-repos.txt"
 ```
 
 Findings: any local branch that isn't the default and has no unique commits
 ahead of its remote counterpart → auto-fix (delete). Any branch/worktree
 with unique unmerged commits, or any dirty `git status`, → report only.
 
-### B. Per-repo: open PRs
+### B. Per-repo: open PRs — `FD-B-*`
 
 ```bash
 gh pr list --repo <owner>/<repo> --state open   # ${repo#github.com/} of a manifest line \
@@ -132,7 +168,7 @@ detail. That is a finding even though the PR looks healthy.
 Report CI status per PR; never merge here regardless of mode — see the confirm
 table above.
 
-### C. Per-repo: latest CI run
+### C. Per-repo: latest CI run — `FD-C-red-run`
 
 ```bash
 gh run list --repo <owner>/<repo> --limit 1 --json workflowName,conclusion,createdAt,headBranch
@@ -143,14 +179,15 @@ repo/workflow-specific (see this session's Cachix-name and
 `update-flake-lock` fixes as examples of "why generic auto-fix doesn't
 work here"). Suggest a fork to investigate if the user wants it fixed now.
 
-### D. Nix-config's own hygiene
+### D. Nix-config's own hygiene — `FD-D-hygiene`
 
 If nix-config itself is in scope, compose the **nix-hygiene** skill
 (`.claude/skills/nix-hygiene/SKILL.md`) rather than re-deriving its
 checklist here — run it in the same mode (`audit`/`fix`) fleet-doctor was
-given.
+given. Its SARIF verdict is this step's: exit 2 makes `FD-D-hygiene` a `warn` whose `output`
+lists the hygiene finding IDs.
 
-### E. Garbage collection
+### E. Garbage collection — `FD-E-disk-free`
 
 **macos collects itself now.** `determinateNix.determinateNixd.garbageCollector.strategy
 = "automatic"` (2026-09-15, `modules/parts/compose.nix`) hands background collection to
@@ -171,7 +208,7 @@ sudo nix-collect-garbage -d     # only on an explicit ask; the background collec
 # nixpi — report only, never collect without an explicit ask (live server)
 ```
 
-### E2. Determinate Nix version drift (macos)
+### E2. Determinate Nix version drift (macos) — `FD-E2-nix-version`
 
 The Mac's Nix is upgraded by `sudo determinate-nixd upgrade`, NOT by `activate` — the
 `determinate` flake input only pins the NixOS hosts' Nix. Nothing else reports the drift
@@ -183,7 +220,7 @@ determinate-nixd status 2>&1 | grep -m1 -i 'now available' || echo "determinate-
 sudo determinate-nixd upgrade     # fix mode only; restarts the daemon (seconds)
 ```
 
-### E3. launchd units: declared vs loaded, exits, log growth (macos)
+### E3. launchd units: declared vs loaded, exits, log growth (macos) — `FD-E3-*`
 
 `nix flake check` proves what the config **says**. Nothing proved what launchd actually
 **did** — which is how `activate-agenix` and both `github-runner-macos-*` daemons sat outside
@@ -226,7 +263,7 @@ daemon the operator deliberately booted out is exactly the wrong move, and
 `/etc/nix-darwin/launchd-hold/<label>` is the supported way to keep one down. That hold
 answers `NOT LOADED` only — an `ORPHANED` unit must never be bootstrapped at all.
 
-### E4. One owner per stdio MCP server (macos)
+### E4. One owner per stdio MCP server (macos) — `FD-E4-mcp-twin`
 
 Claude Code never dedups stdio servers, so a server two plugins both name spawns twice and
 the model picks either copy. The fleet removes known twins with NAME denies
@@ -245,7 +282,7 @@ name is gone: a renamed server key would slip past a name check but still shows 
 Non-zero means a deny no longer matches, so read `claude mcp list` and update the
 `serverName` entry.
 
-### E5. Enablement drift: clicked but undeclared plugins (macos)
+### E5. Enablement drift: clicked but undeclared plugins (macos) — `FD-E5-undeclared-plugin`
 
 A `/plugin` toggle writes only the live `~/.claude/settings.json`, so a plugin turned on by
 click is lost on a fresh Mac. Until 2026-11-01, 27 of 50 enabled plugins lived only there.
@@ -253,7 +290,7 @@ Report every live-`true` id that neither Nix (`local.claudePlugins.declared` + t
 three) nor the operator's overlay declares:
 
 ```bash
-nix eval --json .#darwinConfigurations.macos.config.home-manager.users.$USER.programs.claude-code.settings.enabledPlugins > /tmp/declared.json
+nix eval --json "$snap#darwinConfigurations.macos.config.home-manager.users.$USER.programs.claude-code.settings.enabledPlugins" > /tmp/declared.json
 jq -rn --slurpfile nix /tmp/declared.json \
   --slurpfile ov <(jq '.enabledPlugins // {}' ~/.config/nix-config/claude-settings.overlay.json 2>/dev/null || echo '{}') \
   --slurpfile live <(jq '.enabledPlugins' ~/.claude/settings.json) \
@@ -265,7 +302,7 @@ Each line is a finding. Declare it (catalogue entry + `declared` key in the same
 switch it off. A dependency that Claude Code auto-enabled
 (e.g. `google-workspace-mcp` under `workspace-gtd`) shows up here too: declare it as well.
 
-### E6. Terranix drift (macos)
+### E6. Terranix drift (macos) — `FD-E6-*`
 
 The daily `terranix-drift` agent (`modules/home/terranix-drift.nix`) plans every `*-plan`
 stack and writes a summary. Read it; never re-run the plans to "check":
@@ -285,7 +322,7 @@ jq -r '"finished \(.finished | todate)", (.stacks[] | "\(.stack)\t\(.status)\t+\
 A `finished` older than ~a day is itself a finding: the agent did not run. Its heartbeat
 (`nix-config-terranix-drift`, step E7) should agree.
 
-### E7. Heartbeats (healthchecks.io)
+### E7. Heartbeats (healthchecks.io) — `FD-E7-*`
 
 ```bash
 secret exec K=hc:healthchecks.io:api -- sh -c 'curl -fsS -H "X-Api-Key: $K" https://healthchecks.io/api/v3/checks/' \
@@ -302,14 +339,14 @@ secret exec K=hc:healthchecks.io:api -- sh -c 'curl -fsS -H "X-Api-Key: $K" http
   A weekly job wired yesterday is not.
 - `up`, `grace` and `paused` are not findings.
 
-### E8. nixpi units (read-only)
+### E8. nixpi units (read-only) — `FD-E8-*`
 
 One SSH call, short timeout, no prompts. An unreachable Pi is a finding — report it as
 skipped, never retry-loop (and see the nixpi liveness-probing memory before calling the
 tunnel down):
 
 ```bash
-units=$(nix eval --raw --file modules/_lib/nixpi-units.nix longRunning --apply 'builtins.concatStringsSep " "')
+units=$(nix eval --raw --file "$snap/modules/_lib/nixpi-units.nix" longRunning --apply 'builtins.concatStringsSep " "')
 ssh -o BatchMode=yes -o ConnectTimeout=10 ismail@nixpi.kattakath.com \
   "systemctl --failed --no-legend --plain; systemctl is-active $units"
 ```
@@ -318,7 +355,7 @@ Any `--failed` line, or a `longRunning` unit not `active`, is a finding. The `on
 the same file is inactive between runs by design — never flag it as down. Restarting a unit is
 under **always confirm**.
 
-### E9. nixpi cache warmth
+### E9. nixpi cache warmth — `FD-E9-*`
 
 The Pi must only substitute, so its closure must be warm on Cachix:
 
@@ -332,10 +369,11 @@ is **path-filtered**, so a `headSha` behind `origin/main` is normal after docs-o
 it is a finding only if a nixpi-closure path (its `paths:` list) changed after that sha.
 Never test warmth with a `--dry-run` of the nixpi toplevel: it negative-caches the 404s for 1h.
 
-### F. Host re-activation
+### F. Host re-activation — `FD-F-*`
 
-Only if repos touched in this run actually compose macos (i.e. their
-`flake.lock`/`flake.nix` changed) or the user asked for it directly:
+**Audit** reports `FD-F-*` only. **Fix** re-activates, and only if repos touched in this run
+actually compose macos (i.e. their `flake.lock`/`flake.nix` changed) or the user asked for it
+directly:
 
 ```bash
 # macos — from anywhere. `activate` (packages/activate.nix) self-elevates via
@@ -382,9 +420,14 @@ change, and a stale one proves nothing about the tree.
 
 ## Report format (always end with this)
 
+The health+json file is the report; this block points at it and reads from it.
+
 ```markdown
 ## Fleet-doctor report
-- **Mode:** audit | fix
+- **Mode:** audit | fix · **Subject:** nix-config origin/<default> @ <sha>
+- **Run:** <published .json path> · status pass | warn | fail · `doctor-report verdict` → 0 | 2 | 1
+- **Diff vs previous:** N new · N persisting · N resolved (`doctor-report diff`)
+- **Vacuous / skipped checks:** <checkKeys>, or none
 - **Scope:** full fleet (N/N repos) | scoped to …
 - **Branches/worktrees:** clean | findings: …
 - **Open PRs:** none | repo #n — title — CI status — action (report only)
@@ -403,8 +446,9 @@ change, and a stale one proves nothing about the tree.
 ## Compose with existing automation
 
 ```
-/fleet-doctor [audit|fix] [scope]   → this skill
-/hygiene [scope]                     → nix-config's own LEAN/DRY pass (composed by step D)
+/fleet-doctor [fix] [scope]         → this skill (audit by default)
+/hygiene [fix] [scope]               → nix-config's own LEAN/DRY pass (composed by step D)
+doctor-report validate|diff|publish  → the output contract both doctors share
 /eval                                → nix-config eval only, no cross-repo scope
 gh pr list / gh run list             → what this skill's B/C steps wrap
 ```
