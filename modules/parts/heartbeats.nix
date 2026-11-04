@@ -8,12 +8,14 @@
 #                                         attrset in as the `heartbeats` specialArg)
 #   checks.<system>.heartbeat-workflow-parity   asserts the two workflow pingers
 #                                         below carry the same slug + cron as here,
-#                                         and that the Mac agent pinger names its slug
+#                                         and that each Mac-side pinger names its slug
 #
 # EVERY ENTRY IS WIRED (2026-11-02): nixpi-serving by the host's service-heartbeat;
 # the workflow nix-config-* checks by a ping step in their workflow (scheduled runs
 # only, #1032); nix-config-terranix-drift by the Mac's drift agent; evidence-discover by the agentic-jobseek cloud routine — a
-# DIFFERENT repo, so nothing here can check that pinger.
+# DIFFERENT repo, so nothing here can check that pinger. The one exception, from
+# 2026-11-04: nix-config-doctors-weekly is pinged by `doctor-report weekly`, but only
+# once the operator creates its Desktop task; until the first run it reads `new`.
 #
 # PURE DATA, NO SECRETS. A slug names a check; it does not authorise a ping. The
 # ping KEY (the project secret in `https://hc-ping.com/<ping-key>/<slug>`) is
@@ -188,6 +190,25 @@ in
           "daily"
         ];
         desc = "Daily terranix drift check from the operator Mac. Silence = the agent did not run; /fail = a stack drifted or could not plan.";
+      };
+
+      # WIRED by a Claude Desktop local task the operator creates by hand (its prompt:
+      # docs/doctors-coverage-adr.md § 6). The task runs /fleet-doctor, then /hygiene, then
+      # `doctor-report weekly`, which pings through runitor: success when both runs are
+      # valid and fresh (findings included), /fail when one is missing, stale or invalid.
+      # The schedule lives in the app, not in Nix (ADR-010 § 4), so THIS entry is the
+      # declared half: a lost or disabled task goes silent and alerts.
+      # A `period`, not a cron, for terranix-drift's reason: the task fires at a LOCAL time
+      # and runs late after sleep. grace 1 day: one missed Monday alerts on Tuesday.
+      nix-config-doctors-weekly = {
+        period = 604800;
+        grace = 86400;
+        tags = [
+          "nix-config"
+          "macos"
+          "weekly"
+        ];
+        desc = "Weekly /fleet-doctor + /hygiene audit (Desktop task on the operator Mac). Silence = the task did not run; /fail = a doctor run was missing, stale or invalid.";
       };
 
       # WIRED: the workflow's "Heartbeat ping" step (scheduled runs only). Cron must
