@@ -224,6 +224,16 @@ because CLAUDE.md is near its 40k budget. A path missing from both is itself a f
       store path is invisible to both gates (ADR-002 §7.6) and IS a finding here.
       Never widen the seam to make red go green; add a typed engine seam
       (`fleet.*` in `modules/parts/`) instead.
+- [ ] `NH-E-deprecated-config` — **no deprecated spellings against the PINNED upstream.** A
+      config key or component name the pinned package or input marks deprecated still works,
+      which is why nothing else catches it: it fails only on the bump that removes the alias.
+      Read it from upstream's own output, not from memory: `grep -i deprecat` over each
+      declared service's log since the last activation (launchd `StandardErrorPath`;
+      `journalctl -u <unit> -b` on NixOS), and over `nix flake check --all-systems --no-build`
+      warnings. Confirm the replacement against the pinned package before renaming. Worked
+      example (2026-11-04): otelcol-contrib 0.155.0 logs `"otlphttp" alias is deprecated; use
+      "otlp_http"` (and `hostmetrics` → `host_metrics`); `otelcol-contrib components` lists
+      only the new names.
 
 ### F. Mechanical gate — `NH-F-gate` (run on the snapshot in `audit`, after fixes in `fix`)
 
