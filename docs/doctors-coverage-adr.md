@@ -174,7 +174,7 @@ every setting below lives in Desktop's own store. Settings:
 | Setting | Value |
 |---|---|
 | Frequency | weekly, **Monday afternoon**, local time |
-| Working folder | the nix-config **main checkout** (not a worktree; both doctors audit a detached `origin/main` snapshot anyway, § 13) |
+| Working folder | a **dedicated audit clone**, `~/.local/state/nix-config-doctors/nix-config`, never the main checkout. Its git-ignored `.claude/settings.local.json` denies Edit/Write on the repos, `~/.claude`, `~/.config` and `~/Library`, plus `git push`/`commit`, `gh pr create`/`merge`, `sudo`, `activate` and `*-apply`. That deny list, not the prompt, is what holds a Bypass-mode run to audit-only (both denies probed 2026-11-04). Prompt step 0 fast-forwards the clone. Both doctors still audit a detached `origin/main` snapshot (§ 13) |
 | Keep the Mac awake | *Keep computer awake* ON in Desktop settings; Desktop must be open (ADR-010 § 4). A missed window gets one catch-up run on wake, which the 24 h freshness limit tolerates |
 | Runs on | *Only on this computer*; worktree OFF; model Default |
 | Permission mode | **Bypass permissions** ("Always allowed: Skip all approvals"). Manual mode stalls an unattended run on its first prompt (ADR-010 § 4); the prompt itself forbids fix, merge and apply |
@@ -185,6 +185,7 @@ The prompt, exactly:
 
 ```text
 Weekly doctors audit. Audit mode only: never fix, never merge, never apply.
+0. Run: git fetch -q origin && git merge --ff-only origin/main (this is a dedicated read-only audit clone; it never carries local changes).
 1. Run /fleet-doctor (no arguments).
 2. Run /hygiene (no arguments).
 3. Run: nix run .#doctor-report -- weekly
