@@ -222,9 +222,9 @@ Smaller, single-purpose CLIs:
   agent, OTLP port, events-file freshness). See
   [`claude-code-observability-runbook.md`](../claude-code-observability-runbook.md).
 - **`fleet-gauges.nix`** (+ `fleet-gauges.py`) — the hourly fleet-health push to Grafana Cloud
-  (credential expiry, open security alerts, Time Machine), run by `local.fleetGauges`.
+  run by `local.fleetGauges`; its docstring is the one list of gauge families.
   ADR-011 step 7: [`observability-hub-adr.md`](../observability-hub-adr.md). It also re-sends the
-  drift check's summary as `terranix_drift_*` gauges.
+  drift check's summary as `terranix_drift_*` gauges and runs `launchd-doctor --json`.
 - **`terranix-drift.nix`** — the daily drift check over every `*-plan` app (ADR-012 § 5 step 1),
   built in `modules/parts/terranix.nix` and run by `local.terranixDrift`. Runbook:
   [`infra.md`](infra.md) § Drift detection.

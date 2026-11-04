@@ -11,24 +11,44 @@ source that errors is skipped and counted in fleet_gauges_source_errors, never f
       1/0 = the Cloudflare token verifies as active / does not.
   github_security_open_alerts{owner,kind}
       Open Dependabot / code-scanning / secret-scanning alerts, summed per owner.
+  github_workflow_last_conclusion_ok{repo,workflow}
+      1/0 = the latest COMPLETED main-branch run of each workflow, in the same repos,
+      succeeded (success/skipped/neutral) / did not. A workflow absent from a repo's
+      latest 100 completed runs is absent here, not 0.
+  nixpi_sd_release_age_seconds
+      Age of the newest nixos-sd-image-*.img(.zst) asset on the SD_RELEASE_REPO's
+      installer-latest release (its updated_at: the publish re-uploads the asset).
+  hc_check_up{slug}, hc_check_status{slug,status}, hc_check_last_ping_age_seconds{slug}
+      healthchecks.io Management API v3. up = 1 for up/grace, else 0; status is one
+      0/1 point per slug for each of new/up/grace/down/paused, so a recovery shows at
+      once; the ping age only when the check has pinged.
+  launchd_doctor_findings{section}, launchd_doctor_ok
+      `launchd-doctor --json` (packages/launchd-doctor.nix): findings per section, zeros
+      included, and 1/0 = its exit code was 0.
   mac_backup_destinations, mac_backup_last_success_timestamp_seconds
-      Time Machine. With no destination only the first is emitted (0).
+      Time Machine. With no destination only the first is emitted (0). Informational:
+      no rule alerts on it (the operator accepts no backup, 2026-11-04).
   terranix_drift_status{stack}, terranix_drift_last_run_timestamp_seconds
       0/1/2 = clean/drift/error per terranix stack, read from the daily drift check's
       summary.json (packages/terranix-drift.nix). Read here rather than pushed by the
       drift check itself: one OTLP push path and one credential set, not two.
+  fleet_gauges_source_errors{source}
+      Errors per source family, 0 included for every family in SOURCES, so a source
+      that recovers reads 0 instead of keeping its last bad value.
 
 Environment (supplied by `secret exec`, never argv): GRAFANA_OTLP_ENDPOINT,
-GRAFANA_OTLP_INSTANCE, GRAFANA_OTLP_TOKEN, GCOM_TOKEN, GH_TOKEN, and CF_TOKEN_<n>
-pairs named by CF_TOKEN_NAMES (space-separated Keychain item names, same order).
-Scope, from the Nix module (space-separated, unset = probe none): GCOM_REGIONS,
-GH_ORGS, GH_USERS. Prints counts only; never a token.
+GRAFANA_OTLP_INSTANCE, GRAFANA_OTLP_TOKEN, GCOM_TOKEN, GH_TOKEN, HC_API_KEY, and
+CF_TOKEN_<n> pairs named by CF_TOKEN_NAMES (space-separated Keychain item names, same
+order). Scope, from the Nix module (space-separated, unset = probe none): GCOM_REGIONS,
+GH_ORGS, GH_USERS, SD_RELEASE_REPO (owner/repo), LAUNCHD_DOCTOR (an executable path).
+Prints counts only; never a token.
 """
 
 import base64
 import datetime
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -38,7 +58,13 @@ import urllib.request
 GCOM_REGIONS = os.environ.get("GCOM_REGIONS", "").split()
 GH_ORGS = os.environ.get("GH_ORGS", "").split()
 GH_USERS = os.environ.get("GH_USERS", "").split()
+SD_RELEASE_REPO = os.environ.get("SD_RELEASE_REPO", "")
 ALERT_KINDS = ["dependabot", "code-scanning", "secret-scanning"]
+# Every source family fail() can name; each gets a fleet_gauges_source_errors point.
+SOURCES = ["grafana", "cloudflare", "github", "time-machine", "terranix-drift", "healthchecks", "launchd-doctor"]
+HC_STATUSES = ["new", "up", "grace", "down", "paused"]
+WORKFLOW_OK = {"success", "skipped", "neutral"}
+SD_IMAGE = re.compile(r"^nixos-sd-image-.*\.img(\.zst)?$")
 
 points = []
 errors = {}
@@ -54,8 +80,8 @@ def fail(source, exc):
     print(f"fleet-gauges: {source}: {type(exc).__name__} {code}".rstrip(), file=sys.stderr)
 
 
-def http(url, token=None, scheme="Bearer", headers=False):
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+def http(url, token=None, scheme="Bearer", headers=False, extra=None):
+    req = urllib.request.Request(url, headers={"Accept": "application/json", **(extra or {})})
     if token:
         req.add_header("Authorization", f"{scheme} {token}")
     with urllib.request.urlopen(req, timeout=20) as resp:
@@ -124,6 +150,7 @@ def github():
         except Exception as e:  # noqa: BLE001
             fail(f"github:{owner}:repos", e)
             continue
+        workflow_health(owner, repos, tok)
         for kind in ALERT_KINDS:
             try:
                 total = 0
@@ -137,6 +164,65 @@ def github():
                 gauge("github_security_open_alerts", total, owner=owner, kind=kind)
             except Exception as e:  # noqa: BLE001
                 fail(f"github:{owner}:{kind}", e)
+
+    if SD_RELEASE_REPO:
+        try:
+            rel = http(f"https://api.github.com/repos/{SD_RELEASE_REPO}/releases/tags/installer-latest", tok, "token")
+            stamps = [iso_to_epoch(a["updated_at"]) for a in rel.get("assets", []) if SD_IMAGE.match(a.get("name", ""))]
+            if stamps:
+                gauge("nixpi_sd_release_age_seconds", time.time() - max(stamps))
+        except Exception as e:  # noqa: BLE001
+            fail("github:sd-release", e)
+
+
+def workflow_health(owner, repos, tok):
+    # One call per repo: runs come newest first, so the first run seen per workflow name
+    # is its latest. `status=completed` keeps an in-progress run (conclusion null) out.
+    for name in repos:
+        try:
+            body = http(f"https://api.github.com/repos/{owner}/{name}/actions/runs"
+                        "?branch=main&status=completed&per_page=100", tok, "token")
+            latest = {}
+            for run in body.get("workflow_runs", []):
+                latest.setdefault(run.get("name") or "?", run.get("conclusion"))
+            for wf, conclusion in latest.items():
+                gauge("github_workflow_last_conclusion_ok", 1 if conclusion in WORKFLOW_OK else 0,
+                      repo=f"{owner}/{name}", workflow=wf)
+        except Exception as e:  # noqa: BLE001
+            fail(f"github:{owner}/{name}:workflows", e)
+
+
+def healthchecks():
+    key = os.environ.get("HC_API_KEY")
+    if not key:
+        return
+    try:
+        checks = http("https://healthchecks.io/api/v3/checks/", extra={"X-Api-Key": key})["checks"]
+        now = time.time()
+        for c in checks:
+            slug, status = c.get("slug") or c.get("name", "?"), c.get("status")
+            gauge("hc_check_up", 1 if status in ("up", "grace") else 0, slug=slug)
+            for s in HC_STATUSES:
+                gauge("hc_check_status", 1 if status == s else 0, slug=slug, status=s)
+            if c.get("last_ping"):
+                gauge("hc_check_last_ping_age_seconds", now - iso_to_epoch(c["last_ping"]), slug=slug)
+    except Exception as e:  # noqa: BLE001
+        fail("healthchecks", e)
+
+
+def launchd_doctor():
+    exe = os.environ.get("LAUNCHD_DOCTOR")
+    if not exe:
+        return
+    try:
+        # A non-zero exit means findings, not failure: the JSON is complete either way.
+        out = subprocess.run([exe, "--json"], capture_output=True, text=True, timeout=300)
+        report = json.loads(out.stdout)
+        for section, found in report["sections"].items():
+            gauge("launchd_doctor_findings", len(found), section=section)
+        gauge("launchd_doctor_ok", 1 if report["rc"] == 0 else 0)
+    except Exception as e:  # noqa: BLE001
+        fail("launchd-doctor", e)
 
 
 def pages(url, tok):
@@ -227,8 +313,11 @@ def main():
     github()
     time_machine()
     terranix_drift()
-    for family, n in errors_by_family(errors).items():
-        gauge("fleet_gauges_source_errors", n, source=family)
+    healthchecks()
+    launchd_doctor()
+    by_family = errors_by_family(errors)
+    for family in sorted(set(SOURCES) | set(by_family)):
+        gauge("fleet_gauges_source_errors", by_family.get(family, 0), source=family)
     gauge("fleet_gauges_last_run_timestamp_seconds", time.time())
     status = push()
     print(f"fleet-gauges: pushed {len(points)} points, {sum(errors.values())} source errors, HTTP {status}")

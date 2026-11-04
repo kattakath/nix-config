@@ -14,11 +14,13 @@ let
   pkg = pkgs.callPackage ../../packages/fleet-gauges.nix {
     homeProfileDir = config.home.profileDirectory;
     items = import ../_lib/keychain-items.nix;
+    launchdDoctor = pkgs.callPackage ../../packages/launchd-doctor.nix { };
     inherit (cfg)
       cloudflareItems
       githubOrgs
       githubUsers
       gcomRegions
+      sdReleaseRepo
       ;
   };
 in
@@ -44,6 +46,11 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       description = "Grafana Cloud (gcom) regions whose access-policy tokens' expiry is reported; gcom lists tokens per region.";
+    };
+    sdReleaseRepo = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "owner/repo whose `installer-latest` release carries the nixpi SD image; its age is reported. null = not probed.";
     };
   };
 
