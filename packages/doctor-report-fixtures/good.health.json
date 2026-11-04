@@ -25,6 +25,16 @@
         "inputsExamined": 0,
         "output": "vacuous"
       }
+    ],
+    "nix-config:hygiene": [
+      {
+        "ruleId": "FD-D-hygiene",
+        "componentId": "nix-config",
+        "observedValue": 2,
+        "status": "warn",
+        "inputsExamined": 2,
+        "output": "FD-D-hygiene/NH-A-one/00112233aabbccdd FD-D-hygiene/NH-B-two/vacuous"
+      }
     ]
   }
 }

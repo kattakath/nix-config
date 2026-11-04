@@ -15,6 +15,15 @@
         "time": "2026-11-03T12:00:00Z",
         "output": "FD-A-one/0011223344556677"
       }
+    ],
+    "nix-config:hygiene": [
+      {
+        "ruleId": "FD-D-hygiene",
+        "componentId": "nix-config",
+        "observedValue": 0,
+        "status": "pass",
+        "inputsExamined": 2
+      }
     ]
   }
 }

@@ -423,8 +423,8 @@
       "shortDescription": "The composed /hygiene audit of nix-config exited 2 (findings or vacuous rules)",
       "statusOnFinding": "warn",
       "checkKey": "nix-config:hygiene",
-      "detect": "the hygiene run's SARIF: doctor-report verdict <file>; one finding ID per failing or vacuous rule",
-      "evidence": ["the SARIF file path", "its new/persisting finding IDs"],
+      "detect": "doctor-report hygiene-for <subject sha> <hygiene.sarif>: the check object, IDs FD-D-hygiene/<findingId/v1> per failing result and FD-D-hygiene/<NH rule>/vacuous per notApplicable rule; exit 3 = the SARIF is for another SHA, so report its skipped object or re-run /hygiene at the subject",
+      "evidence": ["the SARIF file path and its revisionId", "its new/persisting finding IDs"],
       "vacuousWhen": "nix-config is out of scope"
     },
     {

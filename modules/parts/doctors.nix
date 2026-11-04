@@ -33,6 +33,7 @@ _: {
         "broken-health-count.health.json"
         "broken-health-not-array.health.json"
         "broken-health-wrong-key.health.json"
+        "broken-health-hygiene-hashed.health.json"
       ];
       brokenCatalogues = [
         "broken-rules-duplicate.json"
@@ -88,7 +89,7 @@ _: {
             expect 1 doctor-report validate sk.sarif
             expect 1 doctor-report validate sk.json
 
-            # 2. The fixtures, against their own four-rule catalogue.
+            # 2. The fixtures, against their own five-rule catalogue.
             export DOCTOR_RULES=${fixtures}/rules.json
             expect 0 doctor-report verdict ${fixtures}/clean.sarif
             expect 2 doctor-report verdict ${fixtures}/good.sarif
@@ -98,8 +99,34 @@ _: {
             jq -e '.new == ["NH-A-one/00112233aabbccdd"] and .resolved == [] and .persisting == []' d.json >/dev/null \
               || fail "diff clean→good did not report exactly one new finding: $(cat d.json)"
             doctor-report diff ${fixtures}/good.health.json ${fixtures}/clean.health.json >d.json
-            jq -e '.resolved == ["FD-A-one/0011223344556677"] and .new == []' d.json >/dev/null \
-              || fail "diff good→clean did not report exactly one resolved finding: $(cat d.json)"
+            jq -e '.resolved == ["FD-A-one/0011223344556677", "FD-D-hygiene/NH-A-one/00112233aabbccdd",
+                     "FD-D-hygiene/NH-B-two/vacuous"] and .new == []' d.json >/dev/null \
+              || fail "diff good→clean did not report the three resolved findings: $(cat d.json)"
+            # Across the two files: FD-D's IDs, prefix stripped, are the SARIF diff's own IDs.
+            doctor-report diff ${fixtures}/good.sarif ${fixtures}/clean.sarif >s.json
+            jq -e --slurpfile h d.json '.resolved - [$h[0].resolved[] | select(startswith("FD-D-hygiene/"))
+                     | ltrimstr("FD-D-hygiene/")] == []' s.json >/dev/null \
+              || fail "a hygiene finding resolved in SARIF is missing from FD-D-hygiene's diff: $(cat s.json)"
+            # FD-D-hygiene: `hygiene-for` derives it from the SARIF, wrapping each findingId/v1, so
+            # stripping "FD-D-hygiene/" gives the SARIF's own ID back (diff stays meaningful).
+            doctor-report hygiene-for 0123456789abcdef0123456789abcdef01234567 ${fixtures}/good.sarif >h.json
+            jq -e '.output == "FD-D-hygiene/NH-A-one/00112233aabbccdd FD-D-hygiene/NH-B-two/vacuous"
+                     and .status == "warn" and .observedValue == 2' h.json >/dev/null \
+              || fail "hygiene-for did not wrap good.sarif's IDs: $(cat h.json)"
+            expect 0 doctor-report validate ${fixtures}/good.health.json ${fixtures}/good.sarif
+            # A STALE subject: the hygiene run is for another SHA. hygiene-for exits 3 with the
+            # skipped object, never the findings; validate rejects a health run carrying them.
+            expect 3 doctor-report hygiene-for 89abcdef0123456789abcdef0123456789abcdef ${fixtures}/good.sarif
+            grep -q 'skipped: hygiene run is for 0123456789ab, subject is 89abcdef0123' log \
+              || { cat log >&2; fail "hygiene-for did not report the stale subject"; }
+            if grep -q 'FD-D-hygiene/' log; then cat log >&2; fail "hygiene-for passed along stale findings"; fi
+            expect 0 doctor-report validate ${fixtures}/stale-hygiene.health.json
+            expect 1 doctor-report validate ${fixtures}/stale-hygiene.health.json ${fixtures}/good.sarif
+            grep -q 'another subject' log || { cat log >&2; fail "validate did not reject the stale-subject FD-D"; }
+            # The skipped object it prints is itself a valid FD-D (vacuous, never pass).
+            set +e; doctor-report hygiene-for 89abcdef0123456789abcdef0123456789abcdef ${fixtures}/good.sarif >skip.json 2>/dev/null; set -e
+            jq --slurpfile c skip.json '.checks["nix-config:hygiene"] = $c' ${fixtures}/stale-hygiene.health.json >skipped.health.json
+            expect 0 doctor-report validate skipped.health.json ${fixtures}/good.sarif
             [ "$(doctor-report fingerprint NH-D-stale-count docs/x.md 'the count')" = \
               "$(doctor-report fingerprint NH-D-stale-count docs/x.md 'the count')" ] || fail "fingerprint is not stable"
 
@@ -140,7 +167,7 @@ _: {
               DOCTOR_RULES=${fixtures}/${f} expect 1 doctor-report rules
             '') brokenCatalogues}
 
-            echo "doctor-report-contract: real catalogue ok; 4 good fixtures ok; weekly ok; ${
+            echo "doctor-report-contract: real catalogue ok; 4 good fixtures ok; hygiene-for ok (stale subject refused); weekly ok; ${
               toString (lib.length brokenRuns + lib.length brokenCatalogues)
             } broken fixtures rejected" >&2
             touch $out
