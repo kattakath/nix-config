@@ -1316,11 +1316,17 @@ in
               );
               pingerFiles = lib.attrValues pingers;
               unwatchedCron = builtins.filter (n: !(lib.elem n pingerFiles) && !(unwatched ? ${n})) cronFiles;
-              # slug -> the Home Manager module whose launchd agent pings it. A fact
-              # about this repo's files, like `pingers`. Its entry is a `period`, so
-              # there is no cron to compare: the legs are "registered" + "names the slug".
+              # slug -> the in-repo file that pings it from the Mac. A fact about this
+              # repo's files, like `pingers`. Each entry is a `period`, so there is no
+              # cron to compare: the legs are "registered" + "names the slug".
               agentPingers = {
+                # the launchd agent nix-terranix-drift
                 nix-config-terranix-drift = ../../modules/home/terranix-drift.nix;
+                # `doctor-report weekly`, run by the operator's weekly Claude Desktop task
+                # (prompt: docs/doctors-coverage-adr.md § 6). The task itself is app state
+                # (ADR-010 § 4), so this leg proves the pinger names the slug, not that the
+                # task exists; the heartbeat's silence proves that.
+                nix-config-doctors-weekly = ../../packages/doctor-report.nix;
               };
               hb = config.fleet.heartbeats;
               agentLegs = lib.concatLists (

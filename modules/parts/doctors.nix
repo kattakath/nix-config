@@ -102,7 +102,36 @@ _: {
             [ "$(doctor-report fingerprint NH-D-stale-count docs/x.md 'the count')" = \
               "$(doctor-report fingerprint NH-D-stale-count docs/x.md 'the count')" ] || fail "fingerprint is not stable"
 
-            # 3. Every broken fixture is REJECTED (exit 1), each for its one broken clause.
+            # 3. `weekly --no-ping`, the scheduled audit's entry point, against a scratch state
+            #    dir. Run names are publish's own <UTC>.<ext>, minted relative to NOW, so the
+            #    freshness rule is tested for real. Findings exit 0; a broken run exits 1.
+            export DOCTOR_REPORT_DIR=$PWD/state
+            mkdir -p state/hygiene state/fleet-doctor
+            now=$(date -u +%Y%m%dT%H%M%SZ)
+            earlier=$(date -u -d '-1 hour' +%Y%m%dT%H%M%SZ)
+            cp ${fixtures}/clean.sarif state/hygiene/$earlier.sarif
+            cp ${fixtures}/good.sarif state/hygiene/$now.sarif
+            ln -s $now.sarif state/hygiene/latest
+            cp ${fixtures}/good.health.json state/fleet-doctor/$now.json
+            ln -s $now.json state/fleet-doctor/latest
+            expect 0 doctor-report weekly --no-ping
+            grep -q 'new: NH-A-one/00112233aabbccdd' log || { cat log >&2; fail "weekly did not list the new hygiene finding"; }
+            grep -q 'no previous run' log || { cat log >&2; fail "weekly did not report the missing fleet-doctor baseline"; }
+            # Missing, stale and invalid latest runs are each BROKEN.
+            rm state/fleet-doctor/latest
+            expect 1 doctor-report weekly --no-ping
+            stale=$(date -u -d '-3 days' +%Y%m%dT%H%M%SZ)
+            cp ${fixtures}/good.health.json state/fleet-doctor/$stale.json
+            ln -s $stale.json state/fleet-doctor/latest
+            expect 1 doctor-report weekly --no-ping
+            grep -q 'h old' log || { cat log >&2; fail "weekly did not call the stale run stale"; }
+            ln -sfn $now.json state/fleet-doctor/latest
+            rm -f state/fleet-doctor/$now.json  # the copied fixture is read-only, like its store source
+            cp ${fixtures}/broken-health-count.health.json state/fleet-doctor/$now.json
+            expect 1 doctor-report weekly --no-ping
+            unset DOCTOR_REPORT_DIR
+
+            # 4. Every broken fixture is REJECTED (exit 1), each for its one broken clause.
             ${lib.concatMapStrings (f: ''
               expect 1 doctor-report validate ${fixtures}/${f}
             '') brokenRuns}
@@ -110,7 +139,7 @@ _: {
               DOCTOR_RULES=${fixtures}/${f} expect 1 doctor-report rules
             '') brokenCatalogues}
 
-            echo "doctor-report-contract: real catalogue ok; 4 good fixtures ok; ${
+            echo "doctor-report-contract: real catalogue ok; 4 good fixtures ok; weekly ok; ${
               toString (lib.length brokenRuns + lib.length brokenCatalogues)
             } broken fixtures rejected" >&2
             touch $out

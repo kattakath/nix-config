@@ -3,6 +3,8 @@
 **Status:** **DECIDED 2026-11-03** (every decision here is the operator's, chosen click-to-select).
 Each move in § 5 is its own later PR. **§ 7 SHIPPED 2026-11-03** (rule catalogue, output
 formats, the `doctor-report` validator); § 13 records what the implementation had to decide.
+**§ 6 decided 2026-11-04:** one weekly Desktop task runs both audits on the Mac; the cloud lane
+failed its proof run (§ 6, measured).
 
 **Question.** This repo has two "doctors": `/hygiene` (skill `nix-hygiene`) and `/fleet-doctor`.
 Which past incidents would they have caught, which would only an automatic check catch, and which
@@ -122,16 +124,62 @@ in the terranix Grafana stack (ADR-012 § 5 step 2).
 
 ## 6. Scheduled audits — report-only
 
-| Doctor | Lane (ADR-010) | Cadence | Precondition |
+**Decided 2026-11-04: ONE weekly Claude Desktop local task on the Mac runs BOTH doctors in
+`audit` mode** — `/fleet-doctor`, then `/hygiene` — and then `doctor-report weekly`.
+
+| Doctor | Lane (ADR-010) | Cadence | Heartbeat |
 |---|---|---|---|
-| fleet-doctor `audit` | Claude Desktop local task | weekly, Monday afternoon, after the `update-flake-lock` PR | none; the empty task folder is explained below |
-| nix-hygiene `audit` | cloud routine | weekly or every two weeks | one proof run shows the cloud lane can run the gates |
+| fleet-doctor `audit`, then nix-hygiene `audit` | Claude Desktop local task (one task, both doctors) | weekly, Monday afternoon local time, after the Monday 04:23 UTC `update-flake-lock` run | `nix-config-doctors-weekly` |
+
+**The cloud lane was measured and is NOT viable for `/hygiene`.** One proof run (routine
+`trig_012a8PqqhWPVjJ6NpP9TTuEP`, 2026-11-04 03:06 UTC):
+
+| Measured | Result |
+|---|---|
+| Nix in the cloud session | **present**: Nix 2.34.6, x86_64, 4 cores |
+| Flake input fetches from github.com | **every one HTTP 403** ("GitHub access … not enabled for this session"; the proxy serves only attached repos) |
+| `cache.nixos.org` | reachable |
+| `nix flake check --no-build` | **failed** (the 403s) |
+| `nix run .#doctor-report` | **failed** (the 403s) |
+
+The gates need the flake's inputs, so a cloud `/hygiene` cannot run them. Hence the Mac.
 
 - **Every scheduled doctor gets a declared `fleet.heartbeats` entry.** Schedules are not
-  declarative (ADR-010 § 4), so a lost schedule must alert from the declared side.
-- **Where findings go:** the run's JSON to Drive (the no-data rule); counts to Grafana; a GitHub
-  issue only for a finding the operator accepts.
-- **Scheduled runs never fix and never merge.**
+  declarative (ADR-010 § 4), so a lost schedule must alert from the declared side. Here that is
+  `nix-config-doctors-weekly` (`modules/parts/heartbeats.nix`): a 7-day period plus 1 day of
+  grace, so one missed Monday alerts on Tuesday.
+- **The entry point is `doctor-report weekly`** (`packages/doctor-report.nix`). It validates both
+  `latest` runs, refuses a missing, stale (over 24 h, `DOCTOR_MAX_AGE`) or invalid one, diffs each
+  against that doctor's previous run, prints counts plus the new finding IDs, and pings through
+  runitor with the Keychain item `hc:healthchecks.io:ping-key`. **Findings are not failures:**
+  verdict 0 or 2 pings success; only a broken run pings `/fail`. `--no-ping` runs the same
+  report and pings nothing.
+- **Where findings go:** the run files to `DOCTOR_REPORT_DIR` (point it, or the state dir, at
+  Drive — § 13 Output path; the no-data rule); counts to Grafana; a GitHub issue only for a
+  finding the operator accepts.
+- **Scheduled runs never fix and never merge.** Both doctors default to `audit` (§ 7); the prompt
+  below never says `fix`.
+
+### The Desktop task — settings and prompt
+
+Created by hand in **Claude Desktop → Scheduled** (ADR-010 § 3, lane 1). Settings:
+
+| Setting | Value |
+|---|---|
+| Frequency | weekly, **Monday afternoon**, local time |
+| Working folder | the nix-config **main checkout** (not a worktree; both doctors audit a detached `origin/main` snapshot anyway, § 13) |
+| Keep the Mac awake | *Keep computer awake* ON in Desktop settings; Desktop must be open (ADR-010 § 4). A missed window gets one catch-up run on wake, which the 24 h freshness limit tolerates |
+| First run | **Run now** once and *always allow* each prompt, or later runs stall in Manual mode (ADR-010 § 4) |
+
+The prompt, exactly:
+
+```text
+Weekly doctors audit. Audit mode only: never fix, never merge, never apply.
+1. Run /fleet-doctor (no arguments).
+2. Run /hygiene (no arguments).
+3. Run: nix run .#doctor-report -- weekly
+Report only what step 3 prints as new findings or BROKEN, one line each. If nothing is new and nothing is broken, reply "no new findings".
+```
 
 **The empty task folder is explained.** ADR-010's census (2026-11-01) listed six tasks under
 `~/.claude/scheduled-tasks/`. On 2026-11-03 that directory is **empty** (zero entries, last
@@ -262,8 +310,8 @@ branches; a gauge would make it hourly.
 |---|---|---|
 | **Alerts actually reach the operator** | every move ends in an alert nobody has test-fired | test-fire each new rule once, end to end |
 | A never-pinged hc check stays silent | true by design until move 1 lands; incident 6 proved it | move 1, then a deliberately unpinged test check |
-| The cloud lane can run the gates | a fresh clone may lack Nix or the time budget | one proof run before scheduling hygiene |
-| The Desktop lane runs the weekly audit | Desktop must be open and the Mac awake (ADR-010 § 4) | the first scheduled run's heartbeat ping |
+| ~~The cloud lane can run the gates~~ | **settled 2026-11-04: it cannot.** Nix is there, but every github.com input fetch is a 403 (§ 6) | — |
+| The Desktop lane runs the weekly audit | Desktop must be open and the Mac awake (ADR-010 § 4) | the first scheduled run's `nix-config-doctors-weekly` ping |
 
 Would reopen:
 
@@ -304,6 +352,8 @@ Where § 7–9 were silent, the implementation chose the simplest option. Each i
 | Validation | SARIF: the OASIS schema through nixpkgs `check-jsonschema`. health: a jq shape check. Both: the catalogue checks | the draft publishes no JSON Schema |
 | Thresholds no doc gave | stale PR = 7 days; disk = under 10% container free; drift summary = older than 26 h | judgment calls, fixed in the catalogue so they are at least stable |
 | The workflow | `nix-hygiene-pass` takes `{mode, root}`; its Fix phase runs only in `fix`; auditors return `ruleId` and per-rule `coverage` | it was the last path that fixed by default |
+| The scheduled run's entry point (2026-11-04) | a `weekly` subcommand of `doctor-report`, not a new app | it reuses `validate`, `diff` and the state dir; a second package would be a second copy of them. The runitor + `secret exec` ping is `terranix-drift`'s, with the exit inverted: findings exit 0 |
+| "Previous run" and freshness | previous = the newest `<UTC>.<ext>` name sorting before `latest`'s; a `latest` older than 24 h is broken | the file name is `publish`'s own record of the run time; a symlink's mtime moves on every `ln -sfn` |
 
 **Weakest assumption.** The SARIF schema's `uri` format goes unchecked: nixpkgs'
 `check-jsonschema` 0.38.0 passed `"::not a uri::"` (measured), while it does enforce `date-time`
