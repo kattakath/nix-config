@@ -360,6 +360,9 @@ The layer exists for its files' shape rather than their count:
   Alloy applies to the journal before it leaves the host (`modules/nixos/alloy-shipper.nix`).
   `checks.<system>.log-redaction` runs sample lines through them, so a pattern that leaks or
   over-redacts fails the build.
+- **`modules/_lib/nixpi-units.nix`** — nixpi's systemd units worth a panel or an alert, ONE list
+  for two consumers: `hosts/nixpi.nix` ships all of them to Grafana, and the `grafana` stack's
+  "service not active" rule alerts on `longRunning` only (a timer oneshot is idle between runs).
 - **`modules/_lib/tor-browser-alpha.nix`** — an overlay pointing `tor-browser` at the aarch64
   ALPHA build, because the pinned nixpkgs' stable one THROWS at eval on aarch64-linux. Imported
   by `hosts/nixos.nix` only (nixvm's desktop, its other consumer, was deleted 2026-10-17).
