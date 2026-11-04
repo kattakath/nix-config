@@ -13,6 +13,11 @@
 { config, lib, ... }:
 let
   cfg = config.local.alloyShipper;
+  # The patterns are shared DATA, also fed sample lines by checks.<system>.log-redaction,
+  # so the test and the shipper cannot drift apart.
+  redactions = import ../_lib/log-redactions.nix;
+  # An Alloy string literal: backslashes and quotes escaped, nothing else.
+  alloyString = lib.replaceStrings [ "\\" "\"" ] [ "\\\\" "\\\"" ];
   # RE2, fully anchored by node_exporter: one alternation, never a substring match.
   # Backslashes doubled: the regex sits inside an Alloy string literal.
   unitRegex =
@@ -149,14 +154,12 @@ in
             action   = "drop"
           }
         '') cfg.dropJournalUnits}
-        stage.replace {
-          expression = "(\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b)"
-          replace    = "<ip>"
-        }
-        stage.replace {
-          expression = "(?i)(\\b(?:[0-9a-f]{1,4}:){2,7}[0-9a-f]{1,4}\\b)"
-          replace    = "<ip6-or-mac>"
-        }
+        ${lib.concatMapStrings (r: ''
+          stage.replace {
+            expression = "${alloyString r.expr}"
+            replace    = "${r.replace}"
+          }
+        '') redactions}
         forward_to = [otelcol.receiver.loki.default.receiver]
       }
 
