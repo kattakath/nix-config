@@ -58,7 +58,13 @@ let
     googleAccount
     orgName
     repoName
+    userName
+    grafanaRegion
     ;
+
+  # The repo (owned by userName) whose Actions read the RESUME_JSON_GIST variable: the
+  # github stack declares it, the github wrapper reads its live value back.
+  resumeSiteRepo = "website";
 
   # The Grafana rollup's writer service account, ONE spelling: infra/gcp/foundation.nix
   # creates it from this account id, and infra/github/stack.nix is handed its email.
@@ -1396,7 +1402,7 @@ let
         {
           _module.args = {
             operatorEmail = googleAccount;
-            inherit gcpProjectId grafanaUrl;
+            inherit gcpProjectId grafanaUrl grafanaRegion;
             publicSiteUrl = "https://${(builtins.head hostedSites).domain}/";
           };
         }
@@ -1418,7 +1424,9 @@ let
           _module.args = {
             rulesetTemplates = inputs.kattakath-dotgithub;
             orgOwner = orgName;
-            inherit grafanaUrl;
+            userOwner = userName;
+            fleetRepo = repoName;
+            inherit grafanaUrl resumeSiteRepo;
             rollupWriterSa = "${rollupWriterAccountId}@${gcpProjectId}.iam.gserviceaccount.com";
           };
         }
@@ -1597,7 +1605,7 @@ let
       # The Sheet id comes from the ROLLUP_SHEET_ID repository variable (no data in the repo).
       vars = ''
         if [ -z "''${TF_VAR_rollup_sheet_id:-}" ]; then
-          TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/nix-config)
+          TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/${repoName})
           export TF_VAR_rollup_sheet_id
         fi
       '';
@@ -1635,9 +1643,9 @@ let
       # header). A missing one fails here, which the drift check classes as an error.
       vars = ''
         TF_VAR_ci_bot_client_id=$(gh variable get CI_BOT_CLIENT_ID --org ${orgName})
-        TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/nix-config)
-        TF_VAR_rollup_wif_provider=$(gh variable get ROLLUP_WIF_PROVIDER -R ${orgName}/nix-config)
-        TF_VAR_resume_json_gist=$(gh variable get RESUME_JSON_GIST -R ismailkattakath/website)
+        TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/${repoName})
+        TF_VAR_rollup_wif_provider=$(gh variable get ROLLUP_WIF_PROVIDER -R ${orgName}/${repoName})
+        TF_VAR_resume_json_gist=$(gh variable get RESUME_JSON_GIST -R ${userName}/${resumeSiteRepo})
         export TF_VAR_ci_bot_client_id TF_VAR_rollup_sheet_id TF_VAR_rollup_wif_provider TF_VAR_resume_json_gist
       '';
       createLine = "The others would be CREATED next to their live objects.";
@@ -1805,6 +1813,8 @@ in
         terranix-drift = (pkgsFor system).callPackage ../../packages/terranix-drift.nix {
           plans = nixpkgs.lib.filterAttrs (n: _: nixpkgs.lib.hasSuffix "-plan" n) config.packages;
           gcloudScope = import ../_lib/gcloud-scope.nix;
+          pingKeyItem = items.healthchecksPingKey;
+          stateDirName = stacks.driftStateDirName;
         };
       };
 

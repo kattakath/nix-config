@@ -28,6 +28,8 @@
   operatorEmail,
   gcpProjectId,
   grafanaUrl,
+  # The stack's region (config.fleet.grafanaRegion), shared with fleet-gauges.
+  grafanaRegion,
   publicSiteUrl,
   ...
 }:
@@ -66,9 +68,7 @@ in
 
   provider.grafana = {
     url = grafanaUrl;
-    # The stack's region; fleet-gauges reads the same region from its module option
-    # (`local.fleetGauges.gcomRegions`, set in modules/home/default.nix).
-    sm_url = "https://synthetic-monitoring-api-ca-east-0.grafana.net";
+    sm_url = "https://synthetic-monitoring-api-${grafanaRegion}.grafana.net";
   };
 
   # The history Sheet's id is per-person data (the no-data rule), so it is not in the repo:

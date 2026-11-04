@@ -1,7 +1,7 @@
 # ADR-013 — The doctors: what they cover, what gauges take over, and how a run reports
 
 **Status:** **DECIDED 2026-11-03** (every decision here is the operator's, chosen click-to-select).
-Each move in § 5 is its own later PR. **§ 7 SHIPPED 2026-11-03** (rule catalogue, output
+**Moves 1–6 (§ 5) LANDED 2026-11-04** (#1080–#1083; per-move status in § 5's table). **§ 7 SHIPPED 2026-11-03** (rule catalogue, output
 formats, the `doctor-report` validator); § 13 records what the implementation had to decide.
 **§ 6 decided 2026-11-04:** one weekly Desktop task runs both audits on the Mac; the cloud lane
 failed its proof run (§ 6, measured).
@@ -102,14 +102,14 @@ Shares are of 28 and rounded, so they sum to 99%.
 Each move adds a JSON summary that `fleet-gauges` reads hourly, a Grafana series, and an alert rule
 in the terranix Grafana stack (ADR-012 § 5 step 2).
 
-| # | Move | Closes | Note |
-|---|---|---|---|
-| 1 | healthchecks.io check status as a gauge; alert on `new` and `down` | 6 | `new` = never pinged. A read-only hc API key, read from the Keychain at run time, never a Nix string |
-| 2 | Alert on fleet-gauges' own source errors | 15, and every silent source | a source that errors is today a missing series, not a red one |
-| 3 | `launchd-doctor --json` (#1062) as a gauge | 24 | |
-| 4 | Workflow conclusions + SD-release asset age | 10, 22 | `startup_failure` counts as red |
-| 5 | Loki redaction canary | 9, new shapes | plant a known-fake address and MAC, alert if it arrives unredacted |
-| 6 | Deploy guard | 3, 16 | see below |
+| # | Move | Closes | Note | Status |
+|---|---|---|---|---|
+| 1 | healthchecks.io check status as a gauge; alert on `new` and `down` | 6 | `new` = never pinged. A read-only hc API key, read from the Keychain at run time, never a Nix string | **landed** #1080; #1082 narrowed the alert to `down`, or `new` past its first due time (`hc_check_overdue`), so a just-created weekly check does not page |
+| 2 | Alert on fleet-gauges' own source errors | 15, and every silent source | a source that errors is today a missing series, not a red one | **landed** #1080 (rule `fleet-gauges-source-errors`, `infra/grafana/resources.nix`) |
+| 3 | `launchd-doctor --json` (#1062) as a gauge | 24 | | **landed** #1080 |
+| 4 | Workflow conclusions + SD-release asset age | 10, 22 | `startup_failure` counts as red | **landed** #1080 |
+| 5 | Loki redaction canary | 9, new shapes | plant a known-fake address and MAC, alert if it arrives unredacted | **landed** #1080 (rules); #1083 made it ACTIVE: nixpi logs the canary daily (`modules/_lib/redaction-canary.nix`) |
+| 6 | Deploy guard | 3, 16 | see below | **landed** #1081, the TTL half narrower than planned (below) |
 
 **Move 6, in two parts:**
 
@@ -121,6 +121,11 @@ in the terranix Grafana stack (ADR-012 § 5 step 2).
   `modules/parts/checks.nix` says why). It is inert until the daemon restarts. **Cost:** every
   path that is genuinely absent from the caches is re-queried on every build instead of once an
   hour. That is a few extra HTTPS round-trips, accepted to remove incident 16's whole class.
+
+**What #1081 shipped for the second part:** not a Mac-wide `determinateNix.customSettings` default,
+but `narinfo-cache-negative-ttl 0` on the sanctioned nixpi paths only (the devShell's `deploy`
+wrapper and `packages/nixpi-provision.nix`). The cost above therefore applies to those commands,
+not to every build on the Mac.
 
 ## 6. Scheduled audits — report-only
 
@@ -309,7 +314,7 @@ branches; a gauge would make it hourly.
 | Assumption | Why it is weak | What settles it |
 |---|---|---|
 | **Alerts actually reach the operator** | every move ends in an alert nobody has test-fired | test-fire each new rule once, end to end |
-| A never-pinged hc check stays silent | true by design until move 1 lands; incident 6 proved it | move 1, then a deliberately unpinged test check |
+| A never-pinged hc check stays silent | move 1 (#1080, #1082) now alerts once it is overdue; untested end to end | a deliberately unpinged test check |
 | ~~The cloud lane can run the gates~~ | **settled 2026-11-04: it cannot.** Nix is there, but every github.com input fetch is a 403 (§ 6) | — |
 | The Desktop lane runs the weekly audit | Desktop must be open and the Mac awake (ADR-010 § 4) | the first scheduled run's `nix-config-doctors-weekly` ping |
 

@@ -28,6 +28,8 @@
   sdReleaseRepo ? null,
   # The launchd-doctor package to run with --json; null = not probed (the flake-check build).
   launchdDoctor ? null,
+  # terranix-drift's state dir name (modules/_lib/terranix-stacks.nix), where summary.json is.
+  driftStateDirName,
 }:
 let
   script = writers.writePython3Bin "fleet-gauges-run" {
@@ -55,8 +57,8 @@ writeShellApplication {
       if launchdDoctor == null then null else "${launchdDoctor}/bin/launchd-doctor"
     )}
     # The daily drift check's summary: packages/terranix-drift.nix writes it into its
-    # fixed working dir, this exact path. Named here, once, so the script does not guess.
-    export TERRANIX_DRIFT_SUMMARY="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-terranix-drift/summary.json"
+    # fixed working dir, whose name both packages are handed. Exported so the script does not guess.
+    export TERRANIX_DRIFT_SUMMARY="''${XDG_STATE_HOME:-$HOME/.local/state}/${driftStateDirName}/summary.json"
     # shellcheck disable=SC2086 # cfEnv is a fixed list of ENV=item words
     exec ${secretBin} exec \
       GRAFANA_OTLP_ENDPOINT=${items.grafana.otlp.endpoint} \

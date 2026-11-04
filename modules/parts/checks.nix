@@ -1320,8 +1320,8 @@ in
               # repo's files, like `pingers`. Each entry is a `period`, so there is no
               # cron to compare: the legs are "registered" + "names the slug".
               agentPingers = {
-                # the launchd agent nix-terranix-drift
-                nix-config-terranix-drift = ../../modules/home/terranix-drift.nix;
+                # the launchd agent nix-terranix-drift; its package holds the slug default
+                nix-config-terranix-drift = ../../packages/terranix-drift.nix;
                 # `doctor-report weekly`, run by the operator's weekly Claude Desktop task
                 # (prompt: docs/doctors-coverage-adr.md § 6). The task itself is app state
                 # (ADR-010 § 4), so this leg proves the pinger names the slug, not that the

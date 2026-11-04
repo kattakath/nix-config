@@ -41,6 +41,8 @@
   # The heartbeat `weekly` pings (modules/parts/heartbeats.nix). Named here, in quotes, so
   # checks.<system>.heartbeat-workflow-parity's agentPingers leg can see this file names it.
   slug ? "nix-config-doctors-weekly",
+  # The Keychain item NAME runitor reads PING_KEY from (modules/_lib/keychain-items.nix).
+  pingKeyItem,
 }:
 let
   # SARIF 2.1.0 Plus Errata 01, the schema ADR-013 § 8 cites.
@@ -390,7 +392,7 @@ writeShellApplication {
             # Values only through `secret exec`'s environment, never argv; runitor reads
             # PING_KEY and sends the report (counts and finding IDs only) as the ping body.
             command -v secret >/dev/null || die "weekly: \`secret\` (the Home Manager profile) is not on PATH; nothing pinged"
-            exec secret exec PING_KEY=hc:healthchecks.io:ping-key -- \
+            exec secret exec PING_KEY=${pingKeyItem} -- \
               runitor -slug "${slug}" -on-nonzero-exit fail -- "$0" weekly --no-ping
             ;;
           *) usage ;;
