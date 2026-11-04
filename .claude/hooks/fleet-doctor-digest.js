@@ -46,7 +46,7 @@ try {
   } catch {
     // Never run before — nudge once so the tool gets discovered.
     process.stdout.write(
-      "fleet-doctor: never run — run /fleet-doctor to sweep branches/PRs/CI/pins/GC/hosts across the fleet.\n",
+      "fleet-doctor: never run — run /fleet-doctor to sweep branches/PRs/CI/GC/drift/heartbeats/hosts across the fleet.\n",
     );
     process.exit(0);
   }

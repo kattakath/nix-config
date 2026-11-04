@@ -2,9 +2,9 @@
 name: fleet-doctor
 description: >
   Fleet-wide consistency sweep across every repo in the fleet manifest:
-  stray branches/worktrees, unmerged PRs, red CI, stale
-  flake.lock pins, Nix store garbage, and unactivated host generations
-  (macos). Use when asked to "clean up the fleet", "sync everything",
+  stray branches/worktrees, unmerged PRs, red CI, Nix store garbage,
+  launchd drift, terranix drift, heartbeats, nixpi unit health, nixpi
+  cache warmth, and unactivated host generations (macos). Use when asked to "clean up the fleet", "sync everything",
   "is everything in sync", "garbage collect and activate", or after a
   multi-repo change (identity rename, secret rotation, cross-repo pin bump)
   that needs to land and propagate everywhere. Composes git-purity,
@@ -38,7 +38,7 @@ re-add it.
 this repo (`hosts/macos.nix`, `modules/parts/identity.nix`). The cross-repo pin-bump step
 existed only to serve it and collapsed with it; the letter it held is now **D. Nix-config's
 own hygiene**, and there is no step G. **Host re-activation did NOT collapse** — it is step
-F below. The checklist runs A, B, C, D, E, E2, E3, E4, E5, F.
+F below. The checklist runs A, B, C, D, E, E2–E9, F.
 
 `activate` did NOT go with it. The CLI that was retired was [redacted]'s
 freshness-gated one; this repo grew its own the same day (`packages/activate.nix`,
@@ -68,7 +68,8 @@ branch@rev before it builds. Step F below already runs it.
 | Deleting a **local-only branch already merged into the repo's default branch** | Force-push, `git reset --hard`, `git clean -f`, any destructive git op |
 | Re-running `nix fmt` / the repo's own format-fix on a repo already being touched | Reactivating a host when the guest/host is unreachable — report as skipped, don't retry-loop |
 | Re-activating macos (`activate`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
-| Nixpi: **disk-usage report only** — no GC/activation without an explicit ask (it's the live server; see `docs/nixpi-sd-flashing-runbook.md`) | Rotating secrets/tokens, editing `secrets/*.age`, anything with `secret set` |
+| Nixpi: **read-only reports only** (disk usage, E8's unit status) — no GC/activation/restart without an explicit ask (it's the live server; see `docs/nixpi-sd-flashing-runbook.md`) | Rotating secrets/tokens, editing `secrets/*.age`, anything with `secret set` |
+| E6–E9 (drift, heartbeats, nixpi units, cache warmth): **report only**, in every mode | Any `*-apply` (E6's remedy is a re-login or a reasoned plan, never an apply), `hc-checks-apply`, re-running a workflow |
 | — | `sudo nix-collect-garbage -d` on the host — determinate-nixd collects in the background on macos (on nixpi its collector is `disabled` and the weekly `nix.gc` timer collects — `modules/nixos/core.nix`), and `-d` drops **every** old generation, leaving no rollback target |
 
 These map onto the global Git Safety Protocol (never commit unless asked,
@@ -190,12 +191,24 @@ the system domain for ~21h on 2026-09-22, taking `/run/agenix` and five CI lanes
 across four activations that each reported success. Report only; every remedy needs root:
 
 ```bash
-nix run .#launchd-doctor        # exit 1 = findings; LAUNCHD_DOCTOR_WARN_KB tunes the log threshold
+nix run .#launchd-doctor -- --json    # {"scope":N,"sections":{…},"rc":N}; rc 1 = findings, exit code unchanged
+nix run .#launchd-doctor              # the same findings as text, for a human (LAUNCHD_DOCTOR_WARN_KB tunes the log threshold)
 ```
 
-It prints **six** `--- … ---` sections carrying **seven** kinds of finding (plus one expected `ok` row) — the section and
-finding counts are not the same number, and `--- loaded ---` alone reports two. Read the
-section column, not the row count:
+Parse the JSON (#1062): `rc`, then every array under `sections.*` — each element carries a
+`kind`. One code path renders both (`packages/launchd-doctor.nix` header), so the table below,
+keyed by the printed section, is also the key to the JSON. Read the section, not the row count:
+`loaded` alone carries two kinds. The expected `ok … agenix boot race` row is text-only — it
+is not a finding, so the JSON omits it.
+
+| JSON `sections.<key>` → `kind` | Printed section |
+|---|---|
+| `loaded` → `not-loaded`, `nonzero-exit` | `--- loaded ---` |
+| `orphaned` → `orphaned` (or `skipped`: no generation manifest to compare) | `--- orphaned plists ---` |
+| `logSize` → `log-over-threshold` | `--- log size ---` |
+| `disabled` → `disabled` | `--- launchd disabled-DB … ---` |
+| `strayLogs` → `candidate` | the `~/Library/Logs` orphans section |
+| `powerAssertions` → `unbounded` | `--- unbounded power assertions ---` |
 
 | Printed section | Finding | Urgency | Remedy |
 |---|---|---|---|
@@ -251,6 +264,73 @@ jq -rn --slurpfile nix /tmp/declared.json \
 Each line is a finding. Declare it (catalogue entry + `declared` key in the same commit), or
 switch it off. A dependency that Claude Code auto-enabled
 (e.g. `google-workspace-mcp` under `workspace-gtd`) shows up here too: declare it as well.
+
+### E6. Terranix drift (macos)
+
+The daily `terranix-drift` agent (`modules/home/terranix-drift.nix`) plans every `*-plan`
+stack and writes a summary. Read it; never re-run the plans to "check":
+
+```bash
+f="${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-terranix-drift/summary.json"
+jq -r '"finished \(.finished | todate)", (.stacks[] | "\(.stack)\t\(.status)\t+\(.add) ~\(.change) -\(.destroy)")' "$f"
+```
+
+| `status` | Finding? | Remedy (report only) |
+|---|---|---|
+| `clean` | no | — |
+| `drift` | yes | name the stack and counts; the fix is a **reasoned** `nix run .#<stack>-plan` read by a human (or the `terranix-infra-reviewer` agent). **Never apply.** |
+| `reauth` | yes | a lapsed Google login — the run's own log ends with the re-login command; relay it |
+| `error` | yes | read that stack's `<stack>.log` beside the summary (0600, counts only in the summary) |
+
+A `finished` older than ~a day is itself a finding: the agent did not run. Its heartbeat
+(`nix-config-terranix-drift`, step E7) should agree.
+
+### E7. Heartbeats (healthchecks.io)
+
+```bash
+secret exec K=hc:healthchecks.io:api -- sh -c 'curl -fsS -H "X-Api-Key: $K" https://healthchecks.io/api/v3/checks/' \
+  | jq -r '.checks[] | "\(.slug)\t\(.status)\t\(.last_ping // "never")\t\(.n_pings)"'
+```
+
+- **`down`** is a finding: name the slug and its last ping.
+- **`new`** (never pinged) is a finding **only if** its job has had a scheduled run since the
+  ping was wired. Trace it: the slug's schedule in `fleet.heartbeats`
+  (`modules/parts/heartbeats.nix`), its pinger workflow in the `pingers` map of the
+  `heartbeat-workflow-parity` check (`modules/parts/checks.nix`), then
+  `gh run list --repo kattakath/nix-config --workflow <file> --limit 1 --json conclusion,createdAt,event`.
+  A `schedule` run after the wiring commit with the check still `new` means the ping is broken.
+  A weekly job wired yesterday is not.
+- `up`, `grace` and `paused` are not findings.
+
+### E8. nixpi units (read-only)
+
+One SSH call, short timeout, no prompts. An unreachable Pi is a finding — report it as
+skipped, never retry-loop (and see the nixpi liveness-probing memory before calling the
+tunnel down):
+
+```bash
+units=$(nix eval --raw --file modules/_lib/nixpi-units.nix longRunning --apply 'builtins.concatStringsSep " "')
+ssh -o BatchMode=yes -o ConnectTimeout=10 ismail@nixpi.kattakath.com \
+  "systemctl --failed --no-legend --plain; systemctl is-active $units"
+```
+
+Any `--failed` line, or a `longRunning` unit not `active`, is a finding. The `oneshot` list in
+the same file is inactive between runs by design — never flag it as down. Restarting a unit is
+under **always confirm**.
+
+### E9. nixpi cache warmth
+
+The Pi must only substitute, so its closure must be warm on Cachix:
+
+```bash
+gh run list --repo kattakath/nix-config --workflow warm-nixpi-cache.yml --branch main --limit 1 \
+  --json conclusion,status,headSha,createdAt,url
+```
+
+A non-`success` conclusion is a finding (name the run URL). `in_progress` is not. The workflow
+is **path-filtered**, so a `headSha` behind `origin/main` is normal after docs-only commits —
+it is a finding only if a nixpi-closure path (its `paths:` list) changed after that sha.
+Never test warmth with a `--dry-run` of the nixpi toplevel: it negative-caches the 404s for 1h.
 
 ### F. Host re-activation
 
@@ -311,6 +391,11 @@ change, and a stale one proves nothing about the tree.
 - **CI:** all green | repo — workflow — conclusion — needs investigation
 - **GC:** host freed X | guest freed Y (or skipped, VM down) | nixpi: N free (report only)
 - **Determinate Nix (macos):** current | X.Y.Z advised, running A.B.C — upgraded | report only
+- **launchd (macos):** rc 0 | rc 1 — <section>: <kind> <label>, … (report only)
+- **Terranix drift:** all clean (finished <time>) | <stack> drift +a ~c -d / reauth / error — remedy (report only)
+- **Heartbeats:** all up | <slug> down since <last_ping> | <slug> new after a scheduled run
+- **nixpi units:** none failed, longRunning all active | <unit> failed/inactive | skipped (unreachable)
+- **nixpi cache:** warm-nixpi-cache green (<sha>) | red — <run URL> | stale — closure path changed since <sha>
 - **Hosts:** macos re-activated (branch@rev built) | skipped (why) | NOT activated — main checkout behind origin
 - **Verdict:** CLEAN | FIXED (list what) | NEEDS ATTENTION (why, and what needs a human decision)
 ```

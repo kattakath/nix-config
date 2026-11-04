@@ -29,9 +29,12 @@ Examples:
 [`nix-hygiene-pass`](../workflows/nix-hygiene-pass.js) workflow instead of steps 1–4 (args:
 `{scope, recent}`). It fans the checklist out to six auditors, has two skeptics refute each
 finding, and keeps ONE fixer so parallel edits never collide in `CLAUDE.md`. Then do step 5
-from its result — and treat any dimension it logs as UNAUDITED as not covered. Its fixer is
-barred from every **agent-facing** path (`CLAUDE.md`, `claude/`, `.claude/`, policy modules,
-`infra/`): those come back as `forHuman`, and YOU apply them here, under the operator's review.
+from its result — and treat any dimension it logs as UNAUDITED as not covered. Its fixer
+edits only its allowlisted roots (`docs/`, `modules/`, `packages/`, `hosts/`, `templates/`,
+`sites/`, a root `*.md`) and never an **agent-facing** path (`CLAUDE.md`, `AGENTS.md`,
+`claude/`, `.claude/`, `infra/`, any hooks/workflows/settings/mcp/guardrail segment — the
+workflow's `AGENT_FACING` predicate is the list): those come back as `forHuman`, and YOU apply
+them here, under the operator's review.
 
 1. **Read** `.claude/skills/nix-hygiene/SKILL.md` and follow it (checklist A→H).
 2. **Read** root `CLAUDE.md` conventions if changing module layout or secrets — plus
@@ -42,7 +45,8 @@ barred from every **agent-facing** path (`CLAUDE.md`, `claude/`, `.claude/`, pol
 4. **Mechanical gate** after any fix:
    - `git add -A`
    - `nix fmt` (then stage again)
-   - `nix flake check` — or scoped `nix eval` of affected host toplevels if full check is too heavy; state what you ran
+   - `nix flake check --all-systems --no-build` (both systems — a bare check on the Mac omits aarch64-linux), then
+     `nix flake check` (THE suite) — or scoped `nix eval` of affected host toplevels if the full check is too heavy; state what you ran
 5. End with the skill’s **Hygiene report** block (Mode, Scope, Findings, Gates, Verdict).
 
 ## Do not
