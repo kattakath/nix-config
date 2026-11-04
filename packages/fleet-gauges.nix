@@ -1,5 +1,7 @@
 # `fleet-gauges` — hourly fleet-health gauges (credential expiry, open security alerts,
-# Time Machine, the terranix drift summary) pushed to Grafana Cloud as OTLP JSON. ADR-011 step 7.
+# workflow health, healthchecks.io status, launchd-doctor, Time Machine, the terranix drift
+# summary) pushed to Grafana Cloud as OTLP JSON. ADR-011 step 7. The family list is
+# fleet-gauges.py's docstring.
 #
 # The shape copies agentic-jobseek's scripts/evidence-metrics.py: a deterministic script,
 # best-effort per source, credentials only from the environment. The wrapper builds that
@@ -22,6 +24,10 @@
   githubOrgs ? [ ],
   githubUsers ? [ ],
   gcomRegions ? [ ],
+  # owner/repo whose installer-latest SD image age is reported; null = not probed.
+  sdReleaseRepo ? null,
+  # The launchd-doctor package to run with --json; null = not probed (the flake-check build).
+  launchdDoctor ? null,
 }:
 let
   script = writers.writePython3Bin "fleet-gauges-run" {
@@ -37,12 +43,17 @@ let
   );
   secretBin = if homeProfileDir == null then "secret" else "${homeProfileDir}/bin/secret";
   words = builtins.concatStringsSep " ";
+  optEnv = name: v: if v == null then "" else "export ${name}=${v}";
 in
 writeShellApplication {
   name = "fleet-gauges";
   text = ''
     export CF_TOKEN_NAMES="${words cloudflareItems}" GH_TOKEN_NAME=${items.githubPat}
     export GH_ORGS="${words githubOrgs}" GH_USERS="${words githubUsers}" GCOM_REGIONS="${words gcomRegions}"
+    ${optEnv "SD_RELEASE_REPO" sdReleaseRepo}
+    ${optEnv "LAUNCHD_DOCTOR" (
+      if launchdDoctor == null then null else "${launchdDoctor}/bin/launchd-doctor"
+    )}
     # The daily drift check's summary: packages/terranix-drift.nix writes it into its
     # fixed working dir, this exact path. Named here, once, so the script does not guess.
     export TERRANIX_DRIFT_SUMMARY="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-terranix-drift/summary.json"
@@ -53,6 +64,7 @@ writeShellApplication {
       GRAFANA_OTLP_TOKEN=${items.grafana.otlp.token} \
       GCOM_TOKEN=${items.grafana.cloudToken} \
       GH_TOKEN=${items.githubPat} \
+      HC_API_KEY=${items.healthchecksApi} \
       ${cfEnv} \
       -- ${script}/bin/fleet-gauges-run
   '';

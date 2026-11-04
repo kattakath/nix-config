@@ -18,6 +18,103 @@ let
   nixpiUnitRegex = "(${
     builtins.concatStringsSep "|" (map (u: builtins.replaceStrings [ ".service" ] [ "" ] u) nixpiUnits)
   })\\\\.service";
+
+  # The canary matches with the SAME shapes Alloy's redact stage rewrites, so it can only
+  # fire when that stage was not applied. IPv4 is left out: the shapes ADR-011 § 5 names
+  # for this canary are MACs and IPv6. Each expr carries its own (?i), hoisted once here.
+  leakShapes = builtins.concatStringsSep "|" (
+    map (r: builtins.replaceStrings [ "(?i)" ] [ "" ] r.expr) (
+      builtins.filter (
+        r:
+        builtins.elem r.name [
+          "mac"
+          "ipv6-full"
+          "ipv6-compressed"
+        ]
+      ) (import ../../modules/_lib/log-redactions.nix)
+    )
+  );
+
+  # One Grafana-managed rule in the generated rules' exact shape (query A, threshold C),
+  # so a new rule is its distinct fields only. Explicit uids keep the plan free of churn.
+  mkRule =
+    {
+      uid,
+      name,
+      summary,
+      description,
+      expr,
+      op,
+      threshold,
+      for,
+      labels,
+      rangeSeconds ? 86400,
+      datasource ? "grafanacloud-prom",
+      repeat ? "1d",
+    }:
+    {
+      annotations = { inherit description summary; };
+      condition = "C";
+      data = [
+        {
+          datasource_uid = datasource;
+          model = builtins.toJSON {
+            inherit expr;
+            instant = true;
+            refId = "A";
+          };
+          ref_id = "A";
+          relative_time_range = [
+            {
+              from = rangeSeconds;
+              to = 0;
+            }
+          ];
+        }
+        {
+          datasource_uid = "__expr__";
+          model = builtins.toJSON {
+            conditions = [
+              {
+                evaluator = {
+                  params = [ threshold ];
+                  type = op;
+                };
+              }
+            ];
+            expression = "A";
+            refId = "C";
+            type = "threshold";
+          };
+          ref_id = "C";
+          relative_time_range = [
+            {
+              from = 0;
+              to = 0;
+            }
+          ];
+        }
+      ];
+      exec_err_state = "Alerting";
+      inherit
+        for
+        labels
+        name
+        uid
+        ;
+      is_paused = false;
+      missing_series_evals_to_resolve = 0;
+      no_data_state = "OK";
+      notification_settings = [
+        {
+          active_timings = [ ];
+          contact_point = "operator-email";
+          group_by = [ ];
+          mute_timings = [ ];
+          repeat_interval = repeat;
+        }
+      ];
+    };
 in
 {
   grafana_contact_point = {
@@ -788,76 +885,6 @@ in
         }
         {
           annotations = {
-            description = "Fires until a backup exists (operator chose this knowingly, ADR-011 step 7).";
-            summary = "The Mac has no Time Machine destination, or its last backup is older than 7 days";
-          };
-          condition = "C";
-          data = [
-            {
-              datasource_uid = "grafanacloud-prom";
-              model = builtins.toJSON {
-                expr = "(max(last_over_time(mac_backup_destinations[26h])) == bool 0) or ((time() - max(last_over_time(mac_backup_last_success_timestamp_seconds[26h]))) > bool 604800)";
-                instant = true;
-                refId = "A";
-              };
-              ref_id = "A";
-              relative_time_range = [
-                {
-                  from = 86400;
-                  to = 0;
-                }
-              ];
-            }
-            {
-              datasource_uid = "__expr__";
-              model = builtins.toJSON {
-                conditions = [
-                  {
-                    evaluator = {
-                      params = [
-                        0
-                      ];
-                      type = "gt";
-                    };
-                  }
-                ];
-                expression = "A";
-                refId = "C";
-                type = "threshold";
-              };
-              ref_id = "C";
-              relative_time_range = [
-                {
-                  from = 0;
-                  to = 0;
-                }
-              ];
-            }
-          ];
-          exec_err_state = "Alerting";
-          for = "1h0m0s";
-          is_paused = false;
-          labels = {
-            domain = "infra";
-            host = "macos";
-            severity = "warning";
-          };
-          missing_series_evals_to_resolve = 0;
-          name = "Mac backup missing or stale";
-          no_data_state = "OK";
-          notification_settings = [
-            {
-              active_timings = [ ];
-              contact_point = "operator-email";
-              group_by = [ ];
-              mute_timings = [ ];
-              repeat_interval = "1w";
-            }
-          ];
-          uid = "bg353s2538wzkb";
-        }
-        {
-          annotations = {
             description = "Check ~/Library/Logs/fleet-gauges.log and launchctl print gui/$UID/org.nix-community.home.fleet-gauges.";
             summary = "No fleet-gauges push for {{ $values.A }} h (it runs hourly while the Mac is awake)";
           };
@@ -926,6 +953,80 @@ in
           ];
           uid = "dg353sam3ckxse";
         }
+        (mkRule {
+          uid = "fleet-hc-status";
+          name = "healthchecks.io check new or down";
+          summary = "healthchecks.io check {{ $labels.slug }} is new or down";
+          description = "From hc_check_status (fleet-gauges, hourly). Paused checks and those in grace do not count. healthchecks.io emails on down itself; this catches a check that never pinged (new).";
+          expr = "max by (slug) (last_over_time(hc_check_status{status=~\"new|down\"}[26h]))";
+          op = "gt";
+          threshold = 0;
+          for = "26h0m0s";
+          labels = {
+            domain = "infra";
+            severity = "warning";
+          };
+        })
+        (mkRule {
+          uid = "fleet-gauges-source-errors";
+          name = "fleet-gauges source failing";
+          summary = "fleet-gauges source {{ $labels.source }} has errored for 26 h";
+          description = "One source failing every run; its gauges are missing. The reason is in ~/Library/Logs/fleet-gauges.log.";
+          expr = "max by (source) (last_over_time(fleet_gauges_source_errors[26h]))";
+          op = "gt";
+          threshold = 0;
+          for = "26h0m0s";
+          labels = {
+            domain = "infra";
+            host = "macos";
+            severity = "warning";
+          };
+        })
+        (mkRule {
+          uid = "fleet-launchd-doctor";
+          name = "launchd-doctor findings";
+          summary = "launchd-doctor: {{ $values.A }} finding(s) in {{ $labels.section }}";
+          description = "Run `nix run .#launchd-doctor` on the Mac for the remedies; it is read-only.";
+          expr = "max by (section) (last_over_time(launchd_doctor_findings[26h]))";
+          op = "gt";
+          threshold = 0;
+          for = "2h0m0s";
+          labels = {
+            domain = "infra";
+            host = "macos";
+            severity = "warning";
+          };
+        })
+        (mkRule {
+          uid = "fleet-workflow-failing";
+          name = "GitHub workflow failing on main";
+          summary = "{{ $labels.repo }}: workflow {{ $labels.workflow }} failed its latest main run";
+          description = "From github_workflow_last_conclusion_ok (fleet-gauges, latest completed main-branch run per workflow).";
+          expr = "min by (repo, workflow) (last_over_time(github_workflow_last_conclusion_ok[26h]))";
+          op = "lt";
+          threshold = 1;
+          for = "2h0m0s";
+          labels = {
+            domain = "ci";
+            severity = "warning";
+          };
+        })
+        (mkRule {
+          uid = "fleet-sd-image-stale";
+          name = "nixpi SD image release older than 30 days";
+          summary = "The installer-latest nixpi SD image is {{ $values.A }} days old";
+          description = "build-installers.yml republishes it when the nixpi closure changes; an old asset means a reflash would boot a stale generation.";
+          expr = "max(last_over_time(nixpi_sd_release_age_seconds[26h])) / 86400";
+          op = "gt";
+          threshold = 30;
+          for = "1h0m0s";
+          labels = {
+            domain = "infra";
+            host = "nixpi";
+            severity = "info";
+          };
+          repeat = "1w";
+        })
       ];
     };
     free_tier = {
@@ -1290,6 +1391,23 @@ in
           ];
           uid = "eg34wqldz9slcb";
         }
+        (mkRule {
+          uid = "nixpi-redaction-canary";
+          name = "nixpi: journal redaction gap";
+          summary = "{{ $values.A }} nixpi journal line(s) in the last hour still carry a MAC or IPv6 address";
+          description = "Same shapes as Alloy's redact stage (modules/_lib/log-redactions.nix), so this means the stage was not applied, not that a shape is missing. Find them: {service_name=\"nixpi-journal\"} |~ the rule's regex, in grafanacloud-logs.";
+          datasource = "grafanacloud-logs";
+          expr = "sum(count_over_time({service_name=\"nixpi-journal\"} |~ `(?i)(?:${leakShapes})` [1h]))";
+          rangeSeconds = 3600;
+          op = "gt";
+          threshold = 0;
+          for = "0s";
+          labels = {
+            domain = "infra";
+            host = "nixpi";
+            severity = "warning";
+          };
+        })
       ];
     };
   };
