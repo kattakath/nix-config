@@ -7,6 +7,8 @@ source that errors is skipped and counted in fleet_gauges_source_errors, never f
       Grafana Cloud access tokens (GCOM API), Cloudflare API tokens (/user/tokens/verify)
       and the GitHub PAT (the github-authentication-token-expiration header). A
       credential with no expiry emits nothing.
+  fleet_credential_active{credential,provider}
+      1/0 = the Cloudflare token verifies as active / does not.
   github_security_open_alerts{owner,kind}
       Open Dependabot / code-scanning / secret-scanning alerts, summed per owner.
   mac_backup_destinations, mac_backup_last_success_timestamp_seconds
@@ -19,7 +21,8 @@ source that errors is skipped and counted in fleet_gauges_source_errors, never f
 Environment (supplied by `secret exec`, never argv): GRAFANA_OTLP_ENDPOINT,
 GRAFANA_OTLP_INSTANCE, GRAFANA_OTLP_TOKEN, GCOM_TOKEN, GH_TOKEN, and CF_TOKEN_<n>
 pairs named by CF_TOKEN_NAMES (space-separated Keychain item names, same order).
-Prints counts only; never a token.
+Scope, from the Nix module (space-separated, unset = probe none): GCOM_REGIONS,
+GH_ORGS, GH_USERS. Prints counts only; never a token.
 """
 
 import base64
@@ -32,8 +35,9 @@ import time
 import urllib.error
 import urllib.request
 
-GCOM_REGIONS = ["prod-ca-east-0", "prod-us-west-0"]
-GH_OWNERS = ["kattakath", "ismailkattakath"]
+GCOM_REGIONS = os.environ.get("GCOM_REGIONS", "").split()
+GH_ORGS = os.environ.get("GH_ORGS", "").split()
+GH_USERS = os.environ.get("GH_USERS", "").split()
 ALERT_KINDS = ["dependabot", "code-scanning", "secret-scanning"]
 
 points = []
@@ -108,38 +112,45 @@ def github():
     except Exception as e:  # noqa: BLE001
         fail("github:pat", e)
 
-    for owner in GH_OWNERS:
+    # Orgs and users walk the same filtered repo list, so both owners count the same
+    # thing: public, non-fork, non-archived repos (the org-wide alerts endpoint would
+    # also count private, fork and archived ones).
+    owners = [(o, f"https://api.github.com/orgs/{o}/repos?type=all&per_page=100") for o in GH_ORGS] + \
+        [(u, f"https://api.github.com/users/{u}/repos?type=owner&per_page=100") for u in GH_USERS]
+    for owner, repos_url in owners:
+        try:
+            repos = [r["name"] for r in pages(repos_url, tok)
+                     if not (r.get("fork") or r.get("private") or r.get("archived"))]
+        except Exception as e:  # noqa: BLE001
+            fail(f"github:{owner}:repos", e)
+            continue
         for kind in ALERT_KINDS:
             try:
-                if owner == "kattakath":
-                    total = count_pages(f"https://api.github.com/orgs/{owner}/{kind}/alerts?state=open&per_page=100", tok)
-                else:
-                    total = 0
-                    repos = http(f"https://api.github.com/users/{owner}/repos?type=owner&per_page=100", tok)
-                    for r in repos:
-                        if r.get("fork") or r.get("private") or r.get("archived"):
-                            continue
-                        try:
-                            total += count_pages(
-                                f"https://api.github.com/repos/{owner}/{r['name']}/{kind}/alerts?state=open&per_page=100", tok)
-                        except urllib.error.HTTPError as e:
-                            if e.code not in (403, 404):  # feature off for that repo
-                                raise
+                total = 0
+                for name in repos:
+                    try:
+                        total += count_pages(
+                            f"https://api.github.com/repos/{owner}/{name}/{kind}/alerts?state=open&per_page=100", tok)
+                    except urllib.error.HTTPError as e:
+                        if e.code not in (403, 404):  # feature off for that repo
+                            raise
                 gauge("github_security_open_alerts", total, owner=owner, kind=kind)
             except Exception as e:  # noqa: BLE001
                 fail(f"github:{owner}:{kind}", e)
 
 
-def count_pages(url, tok):
+def pages(url, tok):
     # Follow Link rel="next": the Dependabot alerts endpoint is cursor-paged and answers
-    # HTTP 400 to `page=` (measured 2026-11-03); the other two accept either.
-    total = 0
+    # HTTP 400 to `page=` (measured 2026-11-03); the other endpoints accept either.
     while url:
         items, hdrs = http(url, tok, "token", headers=True)
-        total += len(items)
+        yield from items
         url = next((part.split(";")[0].strip(" <>") for part in (hdrs.get("Link") or "").split(",")
                     if 'rel="next"' in part), None)
-    return total
+
+
+def count_pages(url, tok):
+    return sum(1 for _ in pages(url, tok))
 
 
 def time_machine():
@@ -149,6 +160,9 @@ def time_machine():
         gauge("mac_backup_destinations", dests)
         if dests:
             latest = subprocess.run(["/usr/bin/tmutil", "latestbackup"], capture_output=True, text=True, timeout=30)
+            if latest.returncode != 0:
+                # A failed read is not "no backup yet": report it instead of silently omitting the gauge.
+                raise RuntimeError(f"tmutil latestbackup exited {latest.returncode}")
             stamp = os.path.basename(latest.stdout.strip())[:17]  # YYYY-MM-DD-HHMMSS
             if stamp:
                 ts = time.mktime(time.strptime(stamp, "%Y-%m-%d-%H%M%S"))
@@ -197,14 +211,24 @@ def push():
         return resp.status
 
 
+def errors_by_family(errs):
+    # One point per `source` label: several "github:<owner>:<kind>" errors share the
+    # label "github", and duplicate label sets in one push make Mimir reject all of it.
+    out = {}
+    for source, n in errs.items():
+        family = source.split(":")[0]
+        out[family] = out.get(family, 0) + n
+    return out
+
+
 def main():
     grafana_tokens()
     cloudflare_tokens()
     github()
     time_machine()
     terranix_drift()
-    for source, n in errors.items():
-        gauge("fleet_gauges_source_errors", n, source=source.split(":")[0])
+    for family, n in errors_by_family(errors).items():
+        gauge("fleet_gauges_source_errors", n, source=family)
     gauge("fleet_gauges_last_run_timestamp_seconds", time.time())
     status = push()
     print(f"fleet-gauges: pushed {len(points)} points, {sum(errors.values())} source errors, HTTP {status}")

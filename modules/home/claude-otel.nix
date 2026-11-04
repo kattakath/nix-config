@@ -160,7 +160,9 @@ in
             # sessions into one stream, which is right now that session.id is gone.
             # Cumulative export from each process would interleave several running
             # totals on one label set instead.
-            deltatocumulative = { };
+            # max_stale (default 5m) drops a stream idle that long, so an idle session's
+            # counters would restart from 0 every 5 min; a day spans normal gaps.
+            deltatocumulative.max_stale = "24h";
           };
           exporters = {
             file = fileExporter;

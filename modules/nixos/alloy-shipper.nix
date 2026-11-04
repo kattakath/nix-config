@@ -139,6 +139,7 @@ in
       }
 
       loki.source.journal "journal" {
+        // Positions live in /run, so a reboot re-ships up to this window: accepted, it is WARN+ only.
         max_age       = "12h"
         matches       = "PRIORITY=0 PRIORITY=1 PRIORITY=2 PRIORITY=3 PRIORITY=4"
         relabel_rules = loki.relabel.journal.rules

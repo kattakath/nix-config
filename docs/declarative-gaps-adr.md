@@ -33,7 +33,7 @@ each carry an upstream-first rationale.
 
 | # | State set by hand today | Tool | Tool health (checked 2026-11-03) | Lane |
 |---|---|---|---|---|
-| 1 | Grafana Cloud: alert rules, contact point, notification policy, custom datasources, the custom dashboard, synthetic probes | `grafana/grafana` | v4.53.0, 2026-10-28 ([repo](https://github.com/grafana/terraform-provider-grafana)); nixpkgs ships 4.50.0, so pin it in `infra/provider-pins.nix` | terranix |
+| 1 | Grafana Cloud: alert rules, contact point, notification policy, custom datasources, the custom dashboard, synthetic probes | `grafana/grafana` | v4.53.0, 2026-10-28 ([repo](https://github.com/grafana/terraform-provider-grafana)); nixpkgs ships 4.50.0, used via `opentofu.withPlugins` (the rule below) | terranix |
 | 2 | GitHub: rulesets, merge queue, Actions variables, repo settings, across the fleet repos | `integrations/github` | v6.13.0, 2026-07-08 ([registry](https://registry.terraform.io/providers/integrations/github)); current in nixpkgs | terranix |
 | 3 | Gmail filters and labels | [gmailctl](https://github.com/mbrt/gmailctl) (Jsonnet; `diff`, `test`, `apply`) | v0.13.0, 2026-09-28; in nixpkgs | package + wrapper |
 | 4 | GitLab project settings | `gitlabhq/gitlab` | v19.5.0, 2026-10-16 ([mirror](https://github.com/gitlabhq/terraform-provider-gitlab)); nixpkgs 19.4.1 | terranix |
@@ -74,13 +74,14 @@ reopening ADR-005 § 7 allows, not a reversal: the directory, Drive and sharing 
 
 1. **Drift detection, run on the Mac, not in CI.** A daily user launchd agent (the `fleet-gauges`
    pattern) runs each stack's plan with `-detailed-exitcode` (0 = clean, 2 = drift) and pushes one
-   gauge per stack to Grafana, where an alert fires on drift. Why the Mac: every stack's state is
+   gauge per stack to Grafana. Why the Mac: every stack's state is
    encrypted with one Keychain passphrase; a CI drift job would need a copy of it in GitHub. In the
    same PR: pin the three unpinned inputs (`kapture-mcp@latest`, the devcontainer `:latest` tag,
    the bootstrap installer URL) and declare the stray cask.
    **SHIPPED.** The agent is `nix-terranix-drift` (runbook: `docs/map/infra.md` § Drift
    detection). Alerting is the `nix-config-terranix-drift` heartbeat, not a Grafana rule.
-   Grafana keeps the history through `fleet-gauges`, and its alert rules arrive with step 2.
+   Grafana keeps the history through `fleet-gauges`; no Grafana drift rule is planned, the
+   heartbeat is the alert.
    How the three inputs were settled, after measuring each one:
    - `kapture-mcp`: kattakath/skills #107 already pinned it (2.6.1). Only a stale comment was left here.
    - Devcontainer `:latest`: left as is. This repo is the publisher, and a `:<sha12>` pin would

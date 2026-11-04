@@ -31,7 +31,7 @@
     # Monitoring access token.
     terranixToken = "grafana:terranix:token";
     smToken = "grafana:sm:token";
-    # The Grafana Cloud (gcom) token fleet-gauges reads usage with.
+    # The Grafana Cloud (gcom) token fleet-gauges lists access-token expiry with.
     cloudToken = "grafana:cloud:gcx-token";
   };
 }

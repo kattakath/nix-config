@@ -8,8 +8,8 @@ reads it back with its Sheets datasource; nothing charts inside the Sheet.
 Each KPI is one PromQL instant query evaluated at the END of the UTC day being rolled
 up, through Grafana's datasource proxy (a Viewer service-account token), so the job
 needs no Prometheus instance id. Columns are matched BY HEADER NAME: a new KPI becomes
-a new column, and a removed one leaves its old column alone. Re-running a day replaces
-that day's row instead of adding a second one.
+a new column, and a removed one leaves its old column alone. Re-running a day updates
+that day's row in place (only the KPIs that returned a value) instead of adding a second one.
 
 Environment: GRAFANA_URL, GRAFANA_TOKEN (Viewer), SHEET_ID, GOOGLE_ACCESS_TOKEN
 (from google-github-actions/auth, WIF), optional ROLLUP_DATE=YYYY-MM-DD (default:
@@ -41,7 +41,8 @@ def day_total(counter):
 
 
 # name -> (datasource uid, PromQL evaluated at the day's end). Ratios, counts, hours and
-# the AI spend in USD; the finance figures are ratios by construction (beancount-kit metrics).
+# the AI spend in USD; the finance figures are ratios or counts, never amounts, by
+# construction (beancount-kit metrics).
 KPIS = {
     "finance_savings_rate_last_month": (PROM, 'max(last_over_time(finance_savings_rate{window="last_month"}[35d]))'),
     "finance_budget_used_ratio": (PROM, "max(last_over_time(finance_budget_used_ratio[35d]))"),
@@ -59,7 +60,8 @@ KPIS = {
     "evidence_ndcg_at_10_hybrid": (PROM, 'max(last_over_time(evidence_retrieval_ndcg_at_10{system="hybrid"}[30d]))'),
     "claude_cost_usd_day": (PROM, day_total("claude_code_cost_usage_USD_total")),
     "claude_active_hours_day": (PROM, f'({day_total("claude_code_active_time_seconds_total")}) / 3600'),
-    "nixpi_reporting_ratio_day": (PROM, 'count_over_time(node_uname_info{instance="nixpi"}[1d]) / 1440'),
+    # sum(): node_uname_info splits into a new series when the kernel changes.
+    "nixpi_reporting_ratio_day": (PROM, 'sum(count_over_time(node_uname_info{instance="nixpi"}[1d])) / 1440'),
     "nixpi_soc_max_c_day": (PROM, 'max(max_over_time(node_thermal_zone_temp{instance="nixpi"}[1d]))'),
     "public_site_success_ratio_day": (PROM, 'avg(avg_over_time(probe_success{job="nixpi-public-site"}[1d]))'),
     "github_security_open_alerts": (PROM, "sum(last_over_time(github_security_open_alerts[2d]))"),
@@ -82,6 +84,25 @@ def query(ds, expr, at):
     return round(float(res[0]["value"][1]), 6) if res else None
 
 
+def cell_date(v):
+    # A date cell read UNFORMATTED is the RAW string written ("2026-11-02"), or a serial
+    # number if someone retyped it in the Sheet; only the string form can match.
+    return str(v).strip()[:10] if v not in (None, "") else ""
+
+
+def merge_row(existing, header, row):
+    """The row to write: the existing cells, with only this run's KPIs overwritten.
+
+    Columns missing from `row` (a retired KPI) keep their old value. A KPI that came
+    back None keeps an old value too, so a failed re-run never blanks a good cell.
+    """
+    line = list(existing) + [""] * (len(header) - len(existing))
+    for i, col in enumerate(header):
+        if col in row and row[col] is not None:
+            line[i] = row[col]
+    return line
+
+
 def main():
     day = dt.date.fromisoformat(os.environ["ROLLUP_DATE"]) if os.environ.get("ROLLUP_DATE") \
         else dt.datetime.now(dt.timezone.utc).date() - dt.timedelta(days=1)
@@ -99,14 +120,21 @@ def main():
 
     sheets = f"https://sheets.googleapis.com/v4/spreadsheets/{os.environ['SHEET_ID']}/values"
     gtok = os.environ["GOOGLE_ACCESS_TOKEN"]
-    current = call(f"{sheets}/A1:ZZ?majorDimension=ROWS", gtok).get("values", [])
+    # UNFORMATTED: the merge writes old cells back RAW, so a formatted read would turn
+    # every number into text, and a date's display format would stop it matching.
+    current = call(f"{sheets}/A1:ZZ?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE",
+                   gtok).get("values", [])
     header = current[0] if current else []
     for col in row:
         if col not in header:
             header.append(col)
-    line = ["" if row.get(c) is None else row[c] for c in header]
-    dates = [r[0] if r else "" for r in current[1:]]
-    target = (dates.index(row["date"]) + 2) if row["date"] in dates else len(current) + 1 if current else 2
+    dates = [cell_date(r[0]) if r else "" for r in current[1:]]
+    if row["date"] in dates:
+        target = dates.index(row["date"]) + 2
+        existing = current[target - 1]
+    else:
+        target, existing = (len(current) + 1 if current else 2), []
+    line = merge_row(existing, header, row)
     rng = urllib.parse.quote("A1:ZZ1")
     call(f"{sheets}/{rng}?valueInputOption=RAW", gtok, json.dumps({"values": [header]}).encode(), "PUT")
     rng = urllib.parse.quote(f"A{target}:ZZ{target}")
