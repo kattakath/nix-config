@@ -195,6 +195,11 @@ let
   # which is granted to the operator and to nobody else. No key file exists.
   gcpAutomationServiceAccount = "tofu-fleet@kattakath-family.iam.gserviceaccount.com";
 
+  # The Grafana Cloud stack's region, ONE spelling: the grafana terranix stack builds its
+  # Synthetic Monitoring URL from it, and fleet-gauges lists that region's gcom tokens
+  # (modules/parts/hosts.nix).
+  grafanaRegion = "ca-east-0";
+
   # ---- The Cloudflare Access organisation, as data ------------------------
   # Rendered by infra/cloudflare/access-org.nix. Read that module's header before
   # changing anything here: the resource models the WHOLE organisation with every
@@ -243,7 +248,7 @@ let
   # Home-Manager block can never drift. Only args with a live module consumer
   # are carried: loginName (core/host), fullName+userEmail (modules/home/default.nix),
   # domainName (the `nixpi.<domain>` ssh host block + the darwin file-rotation launchd label).
-  # userName only builds userEmail above, and orgName is consumed only by
+  # userName and orgName reach only the ENGINE (config.fleet) and, through it,
   # PACKAGES (via callPackage, not specialArgs) — the Mac's runner lanes take
   # their org from their own options (local.macosGithubRunner.org,
   # local.tart.githubRunners.<name>.scope), never from identityArgs — so neither is
@@ -333,6 +338,7 @@ in
         jsonResumeUrl
         logoUrl
         tokensUrl
+        userName
         orgName
         repoName
         flakeRef
@@ -350,6 +356,7 @@ in
         gcpProjectId
         gcpStateBucket
         gcpStateBucketLocation
+        grafanaRegion
         identityArgs
         ;
     };

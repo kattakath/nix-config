@@ -251,22 +251,12 @@ in
       ];
       description = ''
         Units that must be active for the heartbeat to fire. An ALLOWLIST, never a
-        blanket `systemctl is-system-running` check.
-
-        WHY NOT BLANKET, and this is a reversal worth dating: on 2026-10-02 I argued
-        against checking system state at all, as over-strict. The same day refuted
-        me — this host sat `degraded` for 23 hours with a corrupt rootfs while the
-        tunnel stayed healthy and both of this module's other tests passed. So some
-        system-state check belongs here.
-
-        But blanket `degraded` is still wrong, and for the reason I originally gave:
-        ONE unrelated failed unit silences the whole heartbeat. That is how this
-        repo's acceptance harness came to print REJECTED on every clean run until
-        everyone stopped reading it. Naming the units that actually matter keeps the
-        signal honest in both directions.
+        blanket `systemctl is-system-running` check: a blanket `degraded` check
+        silences the heartbeat on ONE unrelated failed unit. (History: `git log -S
+        requireUnits -- modules/nixos/service-heartbeat.nix`.)
 
         Empty by default: a host that names nothing gets the Caddy and rootfs tests
-        only, exactly as before.
+        only.
       '';
     };
 

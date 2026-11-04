@@ -490,16 +490,8 @@ in
       nixpiTunnel
       dontsellDns
     ];
-    githubOrgs = [ "kattakath" ];
-    githubUsers = [ "ismailkattakath" ];
-    # ca-east-0 is the stack's region (its one spelling is infra/grafana/stack.nix's
-    # sm_url); us-west-0 holds the access policy of the gcx Cloud token itself.
-    gcomRegions = [
-      "prod-ca-east-0"
-      "prod-us-west-0"
-    ];
-    # build-installers.yml publishes the live nixpi image here.
-    sdReleaseRepo = "kattakath/nix-config";
+    # githubOrgs, githubUsers, gcomRegions and sdReleaseRepo are operator values, set from
+    # config.fleet in modules/parts/hosts.nix.
   };
   # ADR-012 § 5 step 1. `package` comes from modules/parts/hosts.nix (engine-built).
   local.terranixDrift.enable = isMacosHost;

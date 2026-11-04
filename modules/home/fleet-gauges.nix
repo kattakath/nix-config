@@ -14,6 +14,7 @@ let
   pkg = pkgs.callPackage ../../packages/fleet-gauges.nix {
     homeProfileDir = config.home.profileDirectory;
     items = import ../_lib/keychain-items.nix;
+    inherit (import ../_lib/terranix-stacks.nix) driftStateDirName;
     launchdDoctor = pkgs.callPackage ../../packages/launchd-doctor.nix { };
     inherit (cfg)
       cloudflareItems

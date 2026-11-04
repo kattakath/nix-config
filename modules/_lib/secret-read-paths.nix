@@ -34,6 +34,8 @@
   # Paths under $HOME, written WITHOUT a leading slash. Rendered `Read(~/<p>/**)`
   # for Claude.
   underHome = [
+    # The tunnel stack's tofu state. A LITERAL, not ./terranix-stacks.nix's stateDirName:
+    # the Bash guard hook parses this file's strings as text (loadSecretPaths).
     ".local/state/nix-config-cf-tunnel"
     ".local/state/nix-config-mcp-public"
     ".aws/sso/cache"

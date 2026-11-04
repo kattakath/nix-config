@@ -40,6 +40,12 @@
   lib,
   rulesetTemplates,
   orgOwner,
+  # The operator's user account, the one other owner in repos.nix.
+  userOwner,
+  # This repo (config.fleet.repoName), whose Actions carry the rollup variables.
+  fleetRepo,
+  # The userOwner repo whose Actions read RESUME_JSON_GIST (modules/parts/terranix.nix).
+  resumeSiteRepo,
   grafanaUrl,
   rollupWriterSa,
   ...
@@ -186,13 +192,13 @@ let
             else
               [ (mk "CI_BOT_CLIENT_ID" "\${var.ci_bot_client_id}" { }) ]
           )
-          ++ lib.optionals (owner == orgOwner && repo == "nix-config") [
+          ++ lib.optionals (owner == orgOwner && repo == fleetRepo) [
             (mk "GRAFANA_URL" grafanaUrl { })
             (mk "ROLLUP_SHEET_ID" "\${var.rollup_sheet_id}" { })
             (mk "ROLLUP_WIF_PROVIDER" "\${var.rollup_wif_provider}" { })
             (mk "ROLLUP_WRITER_SA" rollupWriterSa { })
           ]
-          ++ lib.optional (owner != orgOwner && repo == "website") (
+          ++ lib.optional (owner == userOwner && repo == resumeSiteRepo) (
             mk "RESUME_JSON_GIST" "\${var.resume_json_gist}" { }
           )
         ) byRepo

@@ -42,6 +42,7 @@ _: {
     {
       packages.doctor-report = pkgs.callPackage ../../packages/doctor-report.nix {
         catalogue = ../../.claude/skills/doctors/rules.json;
+        pingKeyItem = (import ../_lib/keychain-items.nix).healthchecksPingKey;
       };
 
       apps.doctor-report = {

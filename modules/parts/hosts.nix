@@ -12,6 +12,8 @@ let
     heartbeats
     orgName
     repoName
+    userName
+    grafanaRegion
     # The operator's login credential. Reached here rather than defaulted inside
     # mkNixos so the grant is written where the host is declared — see the
     # `operatorSshKey` note in modules/parts/compose.nix.
@@ -87,6 +89,26 @@ in
           {
             home-manager.users.${loginName}.local.terranixDrift.package =
               flakePackages.${pkgs.stdenv.hostPlatform.system}.terranix-drift;
+          }
+        )
+        # What fleet-gauges probes: THIS operator's owners, repo and Grafana region, read
+        # from config.fleet so each keeps one spelling. Operator-only, like the rest of this
+        # list; the home profile gates `enable` and ships no owner of its own.
+        (
+          { loginName, ... }:
+          {
+            home-manager.users.${loginName}.local.fleetGauges = {
+              githubOrgs = [ orgName ];
+              githubUsers = [ userName ];
+              # Grafana's gcom regions carry a `prod-` prefix. us-west-0 holds the access
+              # policy of the gcx Cloud token itself, and has no other spelling.
+              gcomRegions = [
+                "prod-${grafanaRegion}"
+                "prod-us-west-0"
+              ];
+              # build-installers.yml publishes the live nixpi image here.
+              sdReleaseRepo = "${orgName}/${repoName}";
+            };
           }
         )
       ];

@@ -17,6 +17,9 @@ let
   # Keychain item NAMES, one spelling each (modules/_lib/keychain-items.nix).
   items = import ../_lib/keychain-items.nix;
 
+  # The stack list and each stack's state dir name; the Claude guardrails read the same list.
+  stacks = import ../_lib/terranix-stacks.nix;
+
   # The login-Keychain item every Cloudflare stack's unset-token guard tells the operator to use.
   cfTokenItem = items.cloudflare.api;
 
@@ -55,7 +58,13 @@ let
     googleAccount
     orgName
     repoName
+    userName
+    grafanaRegion
     ;
+
+  # The repo (owned by userName) whose Actions read the RESUME_JSON_GIST variable: the
+  # github stack declares it, the github wrapper reads its live value back.
+  resumeSiteRepo = "website";
 
   # The Grafana rollup's writer service account, ONE spelling: infra/gcp/foundation.nix
   # creates it from this account id, and infra/github/stack.nix is handed its email.
@@ -287,7 +296,7 @@ let
         # connector token (a `data` source result) — encrypted at rest since
         # ADR-005, but the dir is still 0700 and must never be committed or synced.
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-tunnel"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -482,7 +491,7 @@ let
         # The SAME pinned state dir the cf-tunnel-{plan,apply,destroy} wrappers
         # use. Importing anywhere else writes the adoption into a state file those
         # apps will never read — the wound that cost this repo its state twice.
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-tunnel"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -596,7 +605,7 @@ let
         fi
 
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-access-org"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-access-org"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -758,7 +767,7 @@ let
           exit 1
         fi
 
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-access-org"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-access-org"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -824,7 +833,7 @@ let
         # holds no token, but it holds the zone, and the two prior state losses
         # were both about a stray working directory rather than about secrets.
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-zones"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-zones"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -1163,7 +1172,7 @@ let
         # stack's state lives in, so it cannot live there itself. See the header
         # of infra/gcp/foundation.nix.
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-gcp-foundation"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "gcp-foundation"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -1267,7 +1276,7 @@ let
         # was never the fix; it was the thing breaking impersonation.
 
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-gcp-budget"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "gcp-budget"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -1393,7 +1402,7 @@ let
         {
           _module.args = {
             operatorEmail = googleAccount;
-            inherit gcpProjectId grafanaUrl;
+            inherit gcpProjectId grafanaUrl grafanaRegion;
             publicSiteUrl = "https://${(builtins.head hostedSites).domain}/";
           };
         }
@@ -1415,7 +1424,9 @@ let
           _module.args = {
             rulesetTemplates = inputs.kattakath-dotgithub;
             orgOwner = orgName;
-            inherit grafanaUrl;
+            userOwner = userName;
+            fleetRepo = repoName;
+            inherit grafanaUrl resumeSiteRepo;
             rollupWriterSa = "${rollupWriterAccountId}@${gcpProjectId}.iam.gserviceaccount.com";
           };
         }
@@ -1514,7 +1525,7 @@ let
         ${vars}
 
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-${stack}"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName stack}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -1594,7 +1605,7 @@ let
       # The Sheet id comes from the ROLLUP_SHEET_ID repository variable (no data in the repo).
       vars = ''
         if [ -z "''${TF_VAR_rollup_sheet_id:-}" ]; then
-          TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/nix-config)
+          TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/${repoName})
           export TF_VAR_rollup_sheet_id
         fi
       '';
@@ -1632,9 +1643,9 @@ let
       # header). A missing one fails here, which the drift check classes as an error.
       vars = ''
         TF_VAR_ci_bot_client_id=$(gh variable get CI_BOT_CLIENT_ID --org ${orgName})
-        TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/nix-config)
-        TF_VAR_rollup_wif_provider=$(gh variable get ROLLUP_WIF_PROVIDER -R ${orgName}/nix-config)
-        TF_VAR_resume_json_gist=$(gh variable get RESUME_JSON_GIST -R ismailkattakath/website)
+        TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/${repoName})
+        TF_VAR_rollup_wif_provider=$(gh variable get ROLLUP_WIF_PROVIDER -R ${orgName}/${repoName})
+        TF_VAR_resume_json_gist=$(gh variable get RESUME_JSON_GIST -R ${userName}/${resumeSiteRepo})
         export TF_VAR_ci_bot_client_id TF_VAR_rollup_sheet_id TF_VAR_rollup_wif_provider TF_VAR_resume_json_gist
       '';
       createLine = "The others would be CREATED next to their live objects.";
@@ -1802,6 +1813,8 @@ in
         terranix-drift = (pkgsFor system).callPackage ../../packages/terranix-drift.nix {
           plans = nixpkgs.lib.filterAttrs (n: _: nixpkgs.lib.hasSuffix "-plan" n) config.packages;
           gcloudScope = import ../_lib/gcloud-scope.nix;
+          pingKeyItem = items.healthchecksPingKey;
+          stateDirName = stacks.driftStateDirName;
         };
       };
 
