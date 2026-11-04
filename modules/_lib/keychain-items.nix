@@ -19,6 +19,9 @@
   # The healthchecks.io project API key (the hc-checks stack).
   healthchecksApi = "hc:healthchecks.io:api";
 
+  # The healthchecks.io project PING key: runitor pings with it (terranix-drift, doctor-report weekly).
+  healthchecksPingKey = "hc:healthchecks.io:ping-key";
+
   grafana = {
     # The OTLP gateway: base URL, instance id (basic-auth user), write token. Read by the
     # claude-otel collector and the fleet-gauges push.

@@ -29,7 +29,7 @@ nothing — hence one regex, not two calls.
 | `packages.nix` | `perSystem.packages` + every non-terranix `apps.*` (the terranix apps live in `terranix.nix`). |
 | `checks.nix` | The engine's own checks, including `claude-md-budget`, `line-refs-cite-constructs` (no `path:N` citation into this repo's OWN files in living text — name the option, binding or block; a pinned input's citation leads with the input's name; which files count as as-of records, and so are skipped, is listed once, in the check's own header. 75 of 146 such citations had drifted when it landed, 2026-10-17), `bedrock-gate-after-loader`, `launchd-log-rotation` (every declared launchd log reaches exactly one rotator, and never both — re-walks the composed agents itself rather than reading `logging.nix`'s own answer back), `mcp-launcher-parity` (its legs: the check's own `subject`/assertions), the two Determinate host contracts (`determinate-daemon-macos` / `-nixpi` — the host is in the NAME: a check name present on two systems must come from ONE source block) and `nixpi-security-posture` ([`modules-nixos.md`](modules-nixos.md) § `modules/nixos/` — its legs, read in BOTH directions since 2026-10-01: a WIDENING of the firewall fails it, and so does REMOVING the declared LAN recovery ingress). Its one shared helper, `mkHostContract`, reports EVERY broken leg rather than the first — that behaviour, not code reuse, is the bar for reaching for it. |
 | `capsules.nix` | The capsule registry and its internal seam `capsuleModules`, plus `checks.<system>.capsule-registry`. |
-| `terranix.nix` | The tofu builders (every `cf-*` / `gcp-*` / `hc-*` app). The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
+| `terranix.nix` | The tofu builders (every terranix `*-plan` / `*-apply` app — the stack list is [`entry-points.md`](entry-points.md)'s app table). The `mcp-public-*` builders and the `mcp-worker-probe` package were deleted 2026-10-02 with that stack. |
 | `devshell.nix` | `devShells` + the `git-hooks.nix` wiring: two hooks (treefmt, gitleaks), run by `checks.<system>.pre-commit` and never installed as git hooks. |
 | `deploy.nix` | `deploy.nodes.nixpi` (deploy-rs has **no** flakeModule — grepped; this stays hand-written in the freeform `flake` attr) + `checks.<system>.deploy-schema`. |
 | `doctors.nix` | ADR-013's output contract in one place: `packages`/`apps.doctor-report` (`packages/doctor-report.nix`, fed `.claude/skills/doctors/rules.json`) and `checks.<system>.doctor-report-contract` — the real catalogue, then the good and broken runs in `packages/doctor-report-fixtures/` (the broken ones are LISTED in the check, so an emptied directory fails), each broken one required to exit exactly 1 — plus `doctor-report weekly --no-ping` (the weekly Desktop task's entry point, ADR-013 § 6) against fresh, missing, stale and invalid runs. |
@@ -361,6 +361,13 @@ The layer exists for its files' shape rather than their count:
   Alloy applies to the journal before it leaves the host (`modules/nixos/alloy-shipper.nix`).
   `checks.<system>.log-redaction` runs sample lines through them, so a pattern that leaks or
   over-redacts fails the build.
+- **`modules/_lib/redaction-canary.nix`** — the ACTIVE redaction canary (ADR-013): the addresses
+  nixpi logs daily that must arrive redacted. Read by `modules/nixos/alloy-shipper.nix` (the timer
+  that logs it) and the `grafana` stack's two canary rules (`infra/grafana/resources.nix`).
+- **`modules/_lib/terranix-stacks.nix`** — the terranix stack names and each one's state-dir name,
+  ONE list: every wrapper's `state_dir` in `terranix.nix` (an unlisted stack throws at eval) and
+  the tofu state-dir `permissions.ask` rules in `modules/home/claude-guardrails.nix`. Also the
+  drift agent's state dir, which `packages/terranix-drift.nix` and `packages/fleet-gauges.nix` share.
 - **`modules/_lib/nixpi-units.nix`** — nixpi's systemd units worth a panel or an alert, ONE list
   for two consumers: `hosts/nixpi.nix` ships all of them to Grafana, and the `grafana` stack's
   "service not active" rule alerts on `longRunning` only (a timer oneshot is idle between runs).

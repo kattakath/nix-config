@@ -61,6 +61,15 @@ let
   secretReadDenies =
     map (p: "Read(/${p}/**)") secretReadPaths.absolute
     ++ map (p: "Read(~/${p}/**)") secretReadPaths.underHome;
+
+  # Every terranix stack's state dir is an ASK, except one already in the deny tier above
+  # (cf-tunnel), so no path sits in both tiers.
+  stacks = import ../_lib/terranix-stacks.nix;
+  tofuStateAsks = map (s: "Read(~/${s}/**)") (
+    builtins.filter (s: !(builtins.elem s secretReadPaths.underHome)) (
+      map (n: ".local/state/${stacks.stateDirName n}") stacks.names
+    )
+  );
 in
 lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   # The ONE failure mode this file's own commentary names as worse than a weak
@@ -72,6 +81,10 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     {
       assertion = secretReadDenies != [ ];
       message = "modules/_lib/secret-read-paths.nix yielded no Read denies — the secret-path floor in claude-guardrails.nix would be silently empty.";
+    }
+    {
+      assertion = tofuStateAsks != [ ];
+      message = "modules/_lib/terranix-stacks.nix yielded no tofu state-dir asks — that tier in claude-guardrails.nix would be silently empty.";
     }
   ];
 
@@ -309,14 +322,13 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     "Edit(~/.gitconfig)"
     "Edit(~/.config/git/**)"
 
-    # ── OpenTofu state dirs not already denied above ──
-    # Tofu state is encrypted at rest but secrets-adjacent, so the operator confirms reads.
-    "Read(~/.local/state/nix-config-cf-access-org/**)"
-    "Read(~/.local/state/nix-config-cf-zones/**)"
-    "Read(~/.local/state/nix-config-gcp-foundation/**)"
-    "Read(~/.local/state/nix-config-gcp-budget/**)"
-    "Read(~/.local/state/nix-config-hc-checks/**)"
-
+  ]
+  # ── OpenTofu state dirs not already denied above ──
+  # Tofu state is encrypted at rest but secrets-adjacent, so the operator confirms reads.
+  # DERIVED from modules/_lib/terranix-stacks.nix, the list every wrapper's state_dir is
+  # built from: the hand-kept copy that stood here missed the grafana and github stacks.
+  ++ tofuStateAsks
+  ++ [
     # ── Secret Manager writes go through `secrets-push`, never raw gcloud ──
     # secrets-push is the only writer that enforces the billable-version cap
     # (keychain-secrets capsule, `backend.maxVersions`). Raw gcloud skips it, and the

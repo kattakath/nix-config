@@ -3,7 +3,7 @@
 # (modules/home/launchd-launcher.nix). It is a USER agent because every stack's state
 # passphrase and API keys live in the login Keychain. logging.nix picks the log path up
 # from launchd.agents on its own; only counts reach it, full plan output stays 0600
-# under $XDG_STATE_HOME/nix-config-terranix-drift/.
+# under its state dir (the name: modules/_lib/terranix-stacks.nix).
 #
 # The package is BUILT IN THE FLAKE ENGINE (modules/parts/terranix.nix), because only
 # the engine sees every `*-plan` wrapper. modules/parts/hosts.nix sets `package` for the
@@ -17,9 +17,6 @@ let
   cfg = config.local.terranixDrift;
   pkg = cfg.package.override {
     homeProfileDir = config.home.profileDirectory;
-    # The healthchecks.io slug, registered in modules/parts/heartbeats.nix;
-    # checks.<system>.heartbeat-workflow-parity reads this literal.
-    slug = "nix-config-terranix-drift";
   };
 in
 {

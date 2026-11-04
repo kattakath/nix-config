@@ -143,7 +143,8 @@ resistance:
 Each is a **shell function** (`set`/`rm`/`bind`/`unbind`/`load` also mutate the current shell —
 export/unset/reload) backed by a **PATH binary** *and* a **`nix run .#secret -- …`** app (`load`
 is function-only). `set-secret <KEY> [VALUE]` and `remove-secret <KEY>` remain as back-compat
-**aliases** for `secret set` / `secret rm`. The mutating verbs forward to `set-secret` so the
+**aliases** for `secret set` / `secret rm`; `set-secret` is also a flake app,
+`nix run .#set-secret -- KEY [VALUE]`, which only persists (no shell to export into). The mutating verbs forward to `set-secret` so the
 Keychain/index logic lives once, and the Keychain index (`__set_secret_index__`) is
 authoritative — so **secret names sit in `.nix` only where a launcher needs one**.
 

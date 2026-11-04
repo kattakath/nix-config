@@ -250,6 +250,7 @@ in
           # Python (writePython3Bin's flake8) and shellchecks the wrapper.
           fleet-gauges = pkgs.callPackage ../../packages/fleet-gauges.nix {
             items = import ../_lib/keychain-items.nix;
+            inherit (import ../_lib/terranix-stacks.nix) driftStateDirName;
           };
         }
       );

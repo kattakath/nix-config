@@ -40,7 +40,14 @@
   # The Home Manager profile whose `bin/secret` to call. null = `secret` from PATH, the
   # interactive `nix run .#terranix-drift` case.
   homeProfileDir ? null,
+  # The heartbeat it pings (modules/parts/heartbeats.nix), ONE spelling. Named here, in
+  # quotes, so checks.<system>.heartbeat-workflow-parity's agentPingers leg sees it.
   slug ? "nix-config-terranix-drift",
+  # The Keychain item NAME runitor reads PING_KEY from (modules/_lib/keychain-items.nix).
+  pingKeyItem,
+  # Its state dir under $XDG_STATE_HOME (modules/_lib/terranix-stacks.nix); fleet-gauges
+  # reads summary.json from the same name.
+  stateDirName,
 }:
 let
   # Every plan must STATE its credential, even as `{ }` (ADR-012 coverage): a new stack
@@ -67,7 +74,7 @@ let
     text = ''
       # One fixed working directory. Each wrapper then cd's into its own pinned state
       # dir, so tofu never runs in a stray CWD (state was lost twice that way).
-      dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-terranix-drift"
+      dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stateDirName}"
       mkdir -p "$dir"
       chmod 700 "$dir"
       cd "$dir"
@@ -142,7 +149,7 @@ writeShellApplication {
     fi
     # Values arrive only through `secret exec`'s environment, never argv. runitor reads
     # PING_KEY itself and sends the run's output (counts only) as the ping body.
-    exec ${secretBin} exec ${secretArgs} PING_KEY=hc:healthchecks.io:ping-key -- \
+    exec ${secretBin} exec ${secretArgs} PING_KEY=${pingKeyItem} -- \
       runitor -slug ${lib.escapeShellArg slug} -on-nonzero-exit fail -- ${lib.getExe run}
   '';
 }

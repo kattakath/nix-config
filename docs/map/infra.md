@@ -332,8 +332,8 @@ only ever consumed by the `cachix` CLI at push time.
 - **Adopted, not created.** Every object ADR-011 built by hand has an `import` block.
 - **`resources.nix` is generated.** It came from `tofu plan -generate-config-out` plus a
   deterministic HCL-to-Nix conversion. A `builtins.toJSON` value is exactly what the provider stores.
-- **Provider from nixpkgs** (`opentofu.withPlugins`, `grafana_grafana`), the first stack to do so
-  (ADR-012 § 3). It is not in `provider-pins.nix`.
+- **Provider from nixpkgs** (`opentofu.withPlugins`, `grafana_grafana`; ADR-012 § 3), not
+  `provider-pins.nix`.
 - **Credentials:** `GRAFANA_AUTH` (service account `terranix`, Admin) and
   `GRAFANA_SM_ACCESS_TOKEN`, through `secret exec`. The Sheet id is the `ROLLUP_SHEET_ID`
   repository variable, read at run time.
@@ -345,5 +345,6 @@ only ever consumed by the `cachix` CLI at push time.
 
 ### `infra/github/stack.nix` — fleet rulesets and variables (ADR-012 step 3)
 
-Adopted by `import` blocks, like grafana. What it declares, skips and why: its header.
+Adopted by `import` blocks, like grafana. Repo registry: `infra/github/repos.nix`. The rest: its
+header.
 
