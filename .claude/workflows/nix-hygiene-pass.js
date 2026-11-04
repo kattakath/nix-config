@@ -22,10 +22,10 @@ const BASE = `You are running the nix-hygiene skill (.claude/skills/nix-hygiene/
 
 const DIMS = [
   { k: 'A-surface', p: 'Checklist A (surface inventory): CLAUDE.md one-liners vs docs/map/* sections vs actual paths; flake apps (modules/parts/packages.nix AND modules/parts/terranix.nix, plus capsule packages) vs packages/* vs runbook mentions, both directions; skills/commands/rules lists in CLAUDE.md vs .claude/ contents.' },
-  { k: 'B-lean', p: 'Checklist B (LEAN/abandoned): dual paths, commented-out blocks, dead options / unused let bindings deadnix misses, settings that restate an upstream default, vendor copies whose justification has expired.' },
+  { k: 'B-lean', p: 'Checklist B (LEAN/abandoned): dual paths, commented-out blocks, dead options / unused let bindings deadnix misses, settings that restate an upstream default, vendor copies whose justification has expired. Also the fleet anti-patterns NH-X-guest-rotation, NH-X-image-in-flake and NH-X-lock-hand-edit (the skill\'s "Anti-patterns specific to this fleet").' },
   { k: 'C-dry', p: 'Checklist C (DRY/modular/atomic): one fact stated in two places (code or docs), host-specific lists in shared modules without a gate, launchd naming, secrets rules. Deliberate duplicates (deny lists combining across scopes) are not findings.' },
   { k: 'D-docs', p: 'Checklist D (comments & docs): comments that restate code, experiment narratives, runbooks/skill frontmatter not matching current commands, stale claims (counts, dates, "still open", "unmeasured") that code, CI runs or git history now contradict.' },
-  { k: 'E-upstream', p: 'Checklist E (community patterns / upstream-first): custom shims duplicating an option in the PINNED inputs (grep the input source via nix eval of inputs.<x>.outPath), writeShellApplication use, environment.etc hacks, Determinate Nix rules, capsule boundary.' },
+  { k: 'E-upstream', p: 'Checklist E (community patterns / upstream-first): custom shims duplicating an option in the PINNED inputs (grep the input source via nix eval of inputs.<x>.outPath), writeShellApplication use, environment.etc hacks, Determinate Nix rules, capsule boundary, and NH-E-deprecated-config: grep -i deprecat over nix flake check --all-systems --no-build --no-eval-cache (a cached eval prints NO warnings) and over each declared launchd/systemd unit\'s log.' },
   { k: 'recent', p: `RECENT-CHANGE lens: audit exactly git diff ${RECENT} for hygiene defects it introduced: contradictions between the docs it touched, duplicated predicates, comment rot, anything now stated twice.` },
 ]
 

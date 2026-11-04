@@ -250,7 +250,7 @@
       "section": "nix-hygiene § E",
       "shortDescription": "A config key or component name that the PINNED upstream marks deprecated (an alias, a renamed option, a superseded component)",
       "level": "warning",
-      "detect": "for each declared launchd agent or systemd unit with a log, grep -i 'deprecat' over its log since the last activation (Mac: the agent's StandardErrorPath; NixOS: journalctl -u <unit> -b); for the Nix side, grep the pinned evaluation's warnings (nix flake check --all-systems --no-build 2>&1 | grep -i 'deprecat\\|renamed\\|obsolete'); map each line to the declaring .nix construct",
+      "detect": "for each declared launchd agent or systemd unit with a log, grep -i 'deprecat' over its log since the last activation (Mac: the agent's StandardErrorPath; NixOS: journalctl -u <unit> -b); for the Nix side, grep the pinned evaluation's warnings (nix flake check --all-systems --no-build --no-eval-cache 2>&1 | grep -i 'deprecat\\|renamed\\|obsolete'; the eval cache suppresses warnings); map each line to the declaring .nix construct",
       "evidence": [
         "the deprecation line, verbatim, with its source (log path or eval warning)",
         "the pinned package or input version that emits it",
