@@ -356,6 +356,10 @@ The layer exists for its files' shape rather than their count:
   one site hands to `secret exec`, one spelling each: the terranix stacks' credentials
   (`modules/parts/terranix.nix`) and the fleet-gauges / OTLP readers. `grep -rl keychain-items.nix`
   lists the importers; the file's header states the layer rule.
+- **`modules/_lib/log-redactions.nix`** — the ordered redaction patterns (MAC, IPv6, IPv4) nixpi's
+  Alloy applies to the journal before it leaves the host (`modules/nixos/alloy-shipper.nix`).
+  `checks.<system>.log-redaction` runs sample lines through them, so a pattern that leaks or
+  over-redacts fails the build.
 - **`modules/_lib/tor-browser-alpha.nix`** — an overlay pointing `tor-browser` at the aarch64
   ALPHA build, because the pinned nixpkgs' stable one THROWS at eval on aarch64-linux. Imported
   by `hosts/nixos.nix` only (nixvm's desktop, its other consumer, was deleted 2026-10-17).
