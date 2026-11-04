@@ -597,7 +597,9 @@ let
             fi
             if [ -z "$image" ]; then
               echo "nixpi-flash: building the sdImage (needs an aarch64-linux builder — see --release)…"
-              out=$(nix build --no-link --print-out-paths \
+              # TTL 0: an earlier query's 404 must not outlive the Cachix warm-up
+              # and turn this fetch into a local build (docs/map/hosts.md).
+              out=$(nix build --no-link --print-out-paths --narinfo-cache-negative-ttl 0 \
                 ".#nixosConfigurations.nixpi.config.system.build.sdImage")
               set -- "$out"/sd-image/*.img.zst
               image="$1"

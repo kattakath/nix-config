@@ -186,8 +186,34 @@ in
             # is kept strictly lint-only (see modules/parts/checks.nix) — paying
             # a Rust build on every local `/eval` to save it on the rare fresh-Mac
             # `nix develop` is the worse trade. Budget for it once per machine.
+            #
+            # WRAPPED so every deploy reads the narinfo cache with a negative TTL of
+            # 0. Default 3600: a 404 recorded by an earlier query (a dry-run before
+            # warm-nixpi-cache went green) is trusted for an hour, so the deploy
+            # plans a BUILD against a warmed cache (docs/map/hosts.md). Nix manual,
+            # `narinfo-cache-negative-ttl`: "Set to 0 to force updating the lookup
+            # cache". It applies to this READ only; an earlier query still records
+            # its 404s.
+            # grepped deploy-rs interface.json + src/cli.rs: no per-node build
+            # setting exists (generic_settings stop at sshUser…interactiveSudo), and
+            # its one channel, `deploy … -- <nix build args>`, is per-invocation. So
+            # NIX_CONFIG, Nix's own per-process config (the manual: "its contents are
+            # treated as the contents of a configuration file"); measured 2026-11-03
+            # to reach the daemon, because the operator is a trusted user
+            # (compose.nix). Appended, never clobbered; a later `--` flag still wins.
+            # Rejected: the same line machine-wide in determinateNix.customSettings.
+            # Measured over 200 never-cached paths: a cached-negative dry-run takes
+            # 0.18 s, a TTL-0 one 1.3-1.7 s. That is ~6 ms per missing path on
+            # EVERY Mac build, `nix flake check` included, to protect one command.
             ++ nixpkgs.lib.optionals (nixpkgs.lib.elem system darwinSystems) [
-              deploy-rs.packages.${system}.default
+              (pkgs.writeShellApplication {
+                name = "deploy";
+                text = ''
+                  export NIX_CONFIG="''${NIX_CONFIG:+$NIX_CONFIG
+                  }narinfo-cache-negative-ttl = 0"
+                  exec ${deploy-rs.packages.${system}.default}/bin/deploy "$@"
+                '';
+              })
             ];
 
           # We deliberately DO NOT run git-hooks.nix's installer — which is why
