@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "A four-rule TEST catalogue for the doctor-report-contract check. Not the real one.",
+  "about": "A five-rule TEST catalogue for the doctor-report-contract check. Not the real one.",
   "rules": [
     {
       "id": "NH-A-one",
@@ -51,6 +51,19 @@
         "the label"
       ],
       "vacuousWhen": "scope 0"
+    },
+    {
+      "id": "FD-D-hygiene",
+      "doctor": "fleet-doctor",
+      "section": "test \u00a7 D",
+      "shortDescription": "test composed hygiene",
+      "statusOnFinding": "warn",
+      "checkKey": "nix-config:hygiene",
+      "detect": "doctor-report hygiene-for",
+      "evidence": [
+        "the SARIF file"
+      ],
+      "vacuousWhen": "out of scope"
     }
   ]
 }
