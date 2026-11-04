@@ -4,7 +4,11 @@
 # What the run EMITS is checked here, so a model's output is held to a contract rather than
 # trusted:
 #   rules                 the catalogue (.claude/skills/doctors/rules.json) is well formed
-#   validate FILE         SARIF 2.1.0 (hygiene) or health+json (fleet-doctor) conforms
+#   validate FILE [SARIF] SARIF 2.1.0 (hygiene) or health+json (fleet-doctor) conforms; with a
+#                         hygiene SARIF too, FD-D-hygiene must be what `hygiene-for` derives
+#   hygiene-for SHA [SARIF]  the FD-D-hygiene check object for fleet-doctor subject SHA, from the
+#                         hygiene run (default: hygiene's `latest`); exit 3 when that run is
+#                         for another SHA — it prints the `skipped:` object instead, never findings
 #   verdict FILE          exit 0 clean, 2 findings or vacuous (ADR-013 § 7)
 #   diff OLD NEW          new / resolved / persisting finding IDs, as JSON
 #   fingerprint RULE FILE CONSTRUCT   the stable findingId/v1 (never a line number)
@@ -68,7 +72,8 @@ writeShellApplication {
     usage() {
       cat >&2 <<'EOF'
     usage: doctor-report rules
-           doctor-report validate FILE
+           doctor-report validate FILE [HYGIENE_SARIF]   (with both: FD-D-hygiene must match the SARIF)
+           doctor-report hygiene-for SUBJECT_SHA [HYGIENE_SARIF]   (0 current, 3 stale = skipped object, 1 invalid)
            doctor-report verdict FILE          (0 clean, 2 findings/vacuous, 1 invalid)
            doctor-report diff OLD NEW          ({new, resolved, persisting} finding IDs)
            doctor-report fingerprint RULE_ID FILE_OR_SUBJECT CONSTRUCT
@@ -170,12 +175,15 @@ writeShellApplication {
       report "$f" "$problems"
     }
 
+    # FD-D-hygiene's IDs WRAP the hygiene SARIF's own findingId/v1 (see `hygiene_for`), so the
+    # NH id stays readable and stripping "FD-D-hygiene/" gives back the SARIF's ID.
     check_health() {
       local f=$1 problems
       problems=$(jq -r --slurpfile cat "$rules" '
         . as $root
         | ($cat[0].rules | map(select(.doctor == "fleet-doctor"))) as $fd
         | ($fd | map({key: .id, value: .}) | from_entries) as $by
+        | [$cat[0].rules[] | select(.doctor == "hygiene") | .id] as $nhIds
         | def rank: {"pass": 0, "warn": 1, "fail": 2}[.];
           (if (.status | IN("pass","warn","fail")) then empty else "status must be pass, warn or fail (base words only)" end),
           (if ((.releaseId // "") | test("^[0-9a-f]{40}$")) then empty else "releaseId must be the subject 40-hex SHA" end),
@@ -197,7 +205,12 @@ writeShellApplication {
                     ((($c.output // "") | split(" ") | map(select(length > 0))) as $ids
                       | (if $c.status == $r.statusOnFinding then empty else "\($k): a finding reads status \($r.statusOnFinding), not \($c.status)" end),
                         (if ($ids | length) == $c.observedValue then empty else "\($k): observedValue \($c.observedValue) but output lists \($ids | length) finding IDs" end),
-                        ($ids[] | select(startswith($r.id + "/") | not) | "\($k): finding ID \(.) must start with \($r.id)/"))
+                        ($ids[] | select(startswith($r.id + "/") | not) | "\($k): finding ID \(.) must start with \($r.id)/"),
+                        (if $r.id == "FD-D-hygiene" then
+                           $ids[] | select(startswith($r.id + "/")) | . as $id | ($id | ltrimstr($r.id + "/")) as $inner
+                           | select([$nhIds[] | . as $h | $inner | startswith($h + "/")] | any | not)
+                           | "\($k): \($id) must be FD-D-hygiene/<hygiene findingId/v1> or FD-D-hygiene/<NH rule>/vacuous (doctor-report hygiene-for)"
+                         else empty end))
                   elif $c.status != "pass" then "\($k): no finding over \($c.inputsExamined) inputs is pass, not \($c.status)"
                   else empty end
               end),
@@ -205,10 +218,62 @@ writeShellApplication {
             | "\(.checkKey): missing; every catalogue check reports (pass, a finding, vacuous or skipped)"),
           ([.checks[] | arrays | .[] | objects | .status | rank] | max // 0) as $worst
           | (if (.status | rank) == $worst then empty else "status \(.status) is not the worst check status" end),
-          ([.checks[] | arrays | .[] | objects | (.output // "") | strings | split(" ")[] | select(test("^FD-"))] | group_by(.)[]
+          ([.checks[] | arrays | .[] | objects | select((.observedValue | type) == "number" and .observedValue > 0)
+            | (.output // "") | strings | split(" ")[] | select(length > 0)] | group_by(.)[]
             | select(length > 1) | "duplicate finding ID \(.[0])")
       ' "$f") || { echo "$f: jq failed" >&2; return 1; }
       report "$f" "$problems"
+    }
+
+    # The FD-D-hygiene check object for fleet-doctor subject SHA, derived from a hygiene SARIF.
+    # Stale (the SARIF's revisionId is another SHA): the `skipped:` object, and return 3, so a
+    # caller can never pass along findings from a different subject.
+    hygiene_for() {
+      local sha=$1 sarif=$2
+      [[ $sha =~ ^[0-9a-f]{40}$ ]] || die "SUBJECT_SHA must be 40 hex characters"
+      validate "$sarif" || return 1
+      [ "$(kind_of "$sarif")" = sarif ] || { echo "$sarif: not a hygiene SARIF run" >&2; return 1; }
+      jq -e '.rules[] | select(.id == "FD-D-hygiene")' "$rules" >/dev/null || die "catalogue has no FD-D-hygiene rule"
+      jq -c --arg sha "$sha" --slurpfile cat "$rules" '
+        ($cat[0].rules[] | select(.id == "FD-D-hygiene")) as $r
+        | .runs[0] as $run | $run.versionControlProvenance[0].revisionId as $rev
+        | {ruleId: $r.id, componentId: "nix-config"}
+          + if $rev != $sha then
+              {status: "warn", observedValue: 0, inputsExamined: 0,
+               output: "skipped: hygiene run is for \($rev[0:12]), subject is \($sha[0:12])"}
+            else
+              ([$run.results[] | select(.kind == "fail") | $r.id + "/" + .partialFingerprints["findingId/v1"]]
+               + [$run.results[] | select(.kind == "notApplicable") | $r.id + "/" + .ruleId + "/vacuous"]
+               | unique) as $ids
+              | {status: (if ($ids | length) > 0 then $r.statusOnFinding else "pass" end),
+                 observedValue: ($ids | length), inputsExamined: ($run.results | length)}
+                + (if ($ids | length) > 0 then {output: ($ids | join(" "))} else {} end)
+            end
+      ' "$sarif" || return 1
+      jq -e --arg sha "$sha" '.runs[0].versionControlProvenance[0].revisionId == $sha' "$sarif" >/dev/null && return 0
+      echo "hygiene-for: $sarif is for $(jq -r '.runs[0].versionControlProvenance[0].revisionId' "$sarif" | cut -c1-12), subject is ''${sha:0:12}: run /hygiene at the subject, or report the skipped object" >&2
+      return 3
+    }
+
+    # validate HEALTH SARIF: FD-D-hygiene is either vacuous/skipped or exactly hygiene_for's object.
+    check_fd_hygiene() {
+      local health=$1 sarif=$2 key got want rc
+      [ "$(kind_of "$health")" = health ] && [ "$(kind_of "$sarif")" = sarif ] \
+        || die "validate FILE SARIF: FILE must be health+json and SARIF a hygiene run"
+      key=$(jq -r '.rules[] | select(.id == "FD-D-hygiene") | .checkKey' "$rules")
+      [ -n "$key" ] || die "catalogue has no FD-D-hygiene rule"
+      got=$(jq -c --arg k "$key" '[.checks[$k][]? | select(.ruleId == "FD-D-hygiene")
+        | {ruleId, status, observedValue, inputsExamined, output: (.output // "")}]' "$health")
+      if jq -e 'length == 1 and .[0].inputsExamined == 0' <<<"$got" >/dev/null; then return 0; fi
+      set +e; want=$(hygiene_for "$(jq -r .releaseId "$health")" "$sarif" 2>/dev/null); rc=$?; set -e
+      case $rc in
+        0) ;;
+        3) echo "$health: FD-D-hygiene reports findings from a hygiene run for another subject: $(jq -r .output <<<"$want")" >&2; return 1 ;;
+        *) echo "$sarif: not a valid hygiene run" >&2; return 1 ;;
+      esac
+      jq -e --argjson want "$want" 'length == 1 and .[0] == ($want | {ruleId, status, observedValue, inputsExamined, output: (.output // "")})' \
+        <<<"$got" >/dev/null \
+        || { echo "$health: FD-D-hygiene is not what \`doctor-report hygiene-for\` derives from $sarif: want $want" >&2; return 1; }
     }
 
     validate() {
@@ -319,10 +384,20 @@ writeShellApplication {
         echo "catalogue ok: $(jq '[.rules[] | select(.doctor == "hygiene")] | length' "$rules") hygiene, $(jq '[.rules[] | select(.doctor == "fleet-doctor")] | length' "$rules") fleet-doctor rules" >&2
         ;;
       validate)
-        [ $# -eq 1 ] || usage
+        [ $# -eq 1 ] || [ $# -eq 2 ] || usage
         check_rules
         validate "$1"
+        if [ $# -eq 2 ]; then
+          validate "$2"
+          check_fd_hygiene "$1" "$2"
+          echo "$1: FD-D-hygiene matches $2" >&2
+        fi
         echo "$1: valid $(kind_of "$1")" >&2
+        ;;
+      hygiene-for)
+        [ $# -eq 1 ] || [ $# -eq 2 ] || usage
+        check_rules
+        hygiene_for "$1" "''${2:-$(state_dir hygiene)/latest}"
         ;;
       verdict)
         [ $# -eq 1 ] || usage

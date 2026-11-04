@@ -84,11 +84,12 @@ method, the `evidence` and its `vacuousWhen`. Each step below names its rules.
 | `releaseId` | the subject SHA |
 | `checks["<component>:<measurement>"]` | an ARRAY of check objects, one key per `FD-*` rule; `componentId` names the instance (repo, label, slug) |
 | check object | `ruleId`, `status`, `observedValue` = finding count, `inputsExamined`, `output` = the finding IDs, space-separated |
-| finding ID | `doctor-report fingerprint <ruleId> <subject> <construct>` (e.g. `FD-B-red` + `kattakath/skills#12` + the check name) |
+| finding ID | `doctor-report fingerprint <ruleId> <subject> <construct>` (e.g. `FD-B-red` + `kattakath/skills#12` + the check name). **Except `FD-D-hygiene`**: `doctor-report hygiene-for` wraps the hygiene SARIF's IDs (step D) |
 | vacuous | `inputsExamined: 0` → `status: warn`, `observedValue: 0`, `output: "vacuous"` — never `pass` |
 
 `doctor-report skeleton fleet-doctor <sha>` starts the file; `validate` checks it (every rule's
-key present, statuses consistent); `verdict` exits **0** pass, **2** warn or fail, **1** invalid;
+key present, statuses consistent; given step D's SARIF as a second file, FD-D must match it);
+`verdict` exits **0** pass, **2** warn or fail, **1** invalid;
 `publish fleet-doctor <file>` files it under
 `${DOCTOR_REPORT_DIR:-${XDG_STATE_HOME:-~/.local/state}/nix-config-doctors}/fleet-doctor/` with a
 `latest` symlink; `diff <old> <new>` lists new / resolved / persisting finding IDs. Composed step
@@ -184,8 +185,23 @@ work here"). Suggest a fork to investigate if the user wants it fixed now.
 If nix-config itself is in scope, compose the **nix-hygiene** skill
 (`.claude/skills/nix-hygiene/SKILL.md`) rather than re-deriving its
 checklist here — run it in the same mode (`audit`/`fix`) fleet-doctor was
-given. Its SARIF verdict is this step's: exit 2 makes `FD-D-hygiene` a `warn` whose `output`
-lists the hygiene finding IDs.
+given, **at the subject SHA**. Never hand-copy its findings: derive the check object.
+
+```bash
+doctor-report hygiene-for "$sha" [<hygiene.sarif>]   # default: the hygiene `latest`
+# 0 → the FD-D-hygiene check object; put it in checks["nix-config:hygiene"] as printed
+# 3 → that SARIF is for ANOTHER SHA: either run /hygiene at "$sha" and call it again, or
+#     report the object it printed — warn, inputsExamined 0,
+#     "skipped: hygiene run is for <sha12>, subject is <sha12>". Never its findings.
+# 1 → the SARIF is invalid
+```
+
+Its `output` WRAPS the SARIF's own IDs: `FD-D-hygiene/<findingId/v1>` per failing result
+(e.g. `FD-D-hygiene/NH-D-stale-count/1a2b…`) and `FD-D-hygiene/<NH rule>/vacuous` per
+`notApplicable` rule. The NH id stays readable, and stripping the prefix gives the SARIF's ID,
+so a fleet-doctor `diff` and a hygiene `diff` move together. Then
+`doctor-report validate <health.json> <hygiene.sarif>` proves the pair agrees: it rejects an
+FD-D whose findings come from a hygiene run for another subject.
 
 ### E. Garbage collection — `FD-E-disk-free`
 

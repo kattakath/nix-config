@@ -24,6 +24,15 @@
         "status": "pass",
         "inputsExamined": 40
       }
+    ],
+    "nix-config:hygiene": [
+      {
+        "ruleId": "FD-D-hygiene",
+        "componentId": "nix-config",
+        "observedValue": 0,
+        "status": "pass",
+        "inputsExamined": 2
+      }
     ]
   }
 }
