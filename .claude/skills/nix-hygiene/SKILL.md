@@ -127,6 +127,14 @@ because CLAUDE.md is near its 40k budget. A path missing from both is itself a f
       (`launchd-naming.md` item 2 names the one left) — never bare `sh`/`open`. (`mkNixAgent` is gone; see
       `.claude/rules/launchd-naming.md`.)
 - [ ] Secrets: never plaintext in `.nix`; agenix vault vs Keychain rules unchanged.
+- [ ] **Already mechanical — spend judgment elsewhere.** Three registry↔consumer invariants
+      are enforced, not audited: the drift check covers every `*-plan` app **by construction**
+      (`terranix-drift` in `modules/parts/terranix.nix` filters `config.packages` on the suffix);
+      every `cron:` workflow pings a heartbeat or sits in the `unwatched` allowlist
+      (`checks.<system>.heartbeat-workflow-parity`); the Bash guard knows every `*-apply`
+      (`checks.<system>.terranix-guard-knows-every-apply`). What none of them sees: a new
+      `*-plan` wrapper with no `passthru.terranixDriftEnv` runs credential-less and shows up
+      only at runtime, as a drift-run `error` — that one IS a finding.
 
 ### D. Comments & docs
 

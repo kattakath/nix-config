@@ -24,3 +24,5 @@ github.com/kattakath/nix-config
 github.com/kattakath/skills
 # orbit: where the userscript lint runs since this repo's gate left (checks.nix)
 github.com/ismailkattakath/userscripts
+# orbit: the `kattakath-dotgithub` flake input (the github stack reads its rulesets, #1059), and its shared `gate` action gates this repo's merges
+github.com/kattakath/.github

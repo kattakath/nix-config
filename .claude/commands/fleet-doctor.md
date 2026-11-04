@@ -1,7 +1,8 @@
 ---
 description: >
   Fleet-wide consistency sweep — branches/worktrees, open PRs, CI, nix-config's
-  own hygiene, Nix store GC, host re-activation — across every repo in the
+  own hygiene, Nix store GC, launchd/terranix drift, heartbeats, nixpi unit
+  health and cache warmth, host re-activation — across every repo in the
   fleet manifest. Composes the fleet-doctor skill with nix-hygiene, git-purity
   and pr-title.
 argument-hint: "[audit|fix] [repo|host]  # e.g. fix | audit macos"
@@ -27,7 +28,7 @@ Examples:
 
 ## Required sequence
 
-1. **Read** `.claude/skills/fleet-doctor/SKILL.md` and follow it (checklist A→F).
+1. **Read** `.claude/skills/fleet-doctor/SKILL.md` and follow it (checklist A→F, including E2–E9).
 2. Read `.claude/skills/fleet-doctor/fleet-repos.txt` for the manifest — do not hardcode a repo list elsewhere.
 3. Apply the skill's **fix policy table** exactly — auto-fix only what it lists as auto-fix; everything else is a reported finding, confirmed with the user before acting.
 4. If nix-config itself is in scope: compose the **nix-hygiene** skill (same mode) rather than re-deriving its checks.
@@ -42,6 +43,7 @@ Examples:
 
 - Merge any PR, ever, regardless of mode — always a reported finding.
 - Auto-fix CI failures — diagnosis is repo/workflow-specific; offer to investigate, don't guess.
-- Touch nixpi beyond a disk-usage report without an explicit ask.
+- Touch nixpi beyond its read-only reports (disk usage, step E8's unit status) without an explicit ask.
+- Run any `*-apply`, or re-run a workflow, to clear an E6–E9 finding — those steps are report-only.
 
 $ARGUMENTS
