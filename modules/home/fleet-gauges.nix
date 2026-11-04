@@ -14,7 +14,12 @@ let
   pkg = pkgs.callPackage ../../packages/fleet-gauges.nix {
     homeProfileDir = config.home.profileDirectory;
     items = import ../_lib/keychain-items.nix;
-    inherit (cfg) cloudflareItems;
+    inherit (cfg)
+      cloudflareItems
+      githubOrgs
+      githubUsers
+      gcomRegions
+      ;
   };
 in
 {
@@ -24,6 +29,21 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       description = "Keychain item NAMES of Cloudflare API tokens whose expiry is reported.";
+    };
+    githubOrgs = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "GitHub orgs whose public, non-fork, non-archived repos' open security alerts are counted.";
+    };
+    githubUsers = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "GitHub users whose owned public, non-fork, non-archived repos' open security alerts are counted.";
+    };
+    gcomRegions = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = "Grafana Cloud (gcom) regions whose access-policy tokens' expiry is reported; gcom lists tokens per region.";
     };
   };
 

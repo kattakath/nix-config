@@ -349,26 +349,15 @@
     };
   };
 
-  # ADR-011 step 4-5: metrics + WARN+ journal to Grafana Cloud. The unit list is the
-  # services whose state is worth a panel or an alert — including audiobookshelf, which
-  # is NOT in serviceHeartbeat.requireUnits on purpose (it is LAN-only, so its death
-  # does not mean "not serving").
+  # ADR-011 step 4-5: metrics + WARN+ journal to Grafana Cloud. The unit list
+  # (modules/_lib/nixpi-units.nix, shared with the Grafana "service not active" alert) is
+  # the services whose state is worth a panel or an alert — including audiobookshelf,
+  # which is NOT in serviceHeartbeat.requireUnits on purpose (it is LAN-only, so its
+  # death does not mean "not serving").
   local.alloyShipper = {
     enable = true;
     environmentFile = config.local.firmwareProvisioning.files.grafana-alloy.target;
-    systemdUnits = [
-      "caddy.service"
-      "cloudflared-connector.service"
-      "audiobookshelf.service"
-      "alloy.service"
-      "avahi-daemon.service"
-      "sshd.service"
-      "supplicant-wlan0.service"
-      "dhcpcd.service"
-      "service-heartbeat.service"
-      "uplink-watchdog.service"
-      "nix-gc.service"
-    ];
+    systemdUnits = with import ../modules/_lib/nixpi-units.nix; longRunning ++ oneshot;
     # It logs network names and BSSIDs.
     dropJournalUnits = [ "supplicant-wlan0.service" ];
   };
