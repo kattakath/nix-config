@@ -41,6 +41,9 @@
   coreutils,
   gnugrep,
   tart,
+  # ../slot-defaults.nix, passed in by both callers (a capsule leaf takes what it needs
+  # as an argument; no `..` path literal).
+  slotDefaults,
 }:
 let
   version = "1.28.0";
@@ -73,14 +76,14 @@ let
   slotEnvDefaults = ''
     export TART="''${TART:-${tartBin}}"
     # Fallback ONLY for the imperative `tart-gitlab-print-config` route — the
-    # declarative agent exports the real value (modules/gitlab-runner.nix).
-    # This literal MUST track modules/slots.nix's runnerStateDir default: if
-    # the two lanes ever resolve different slot dirs, the two-guest semaphore
-    # silently stops being shared and a third guest fails inside
-    # Virtualization.framework mid-job. Resolved from $HOME at RUNTIME (the
-    # packages/tart-vm.nix pattern), never a /Users/<name> literal.
-    export TR_SLOTS_DIR="''${TR_SLOTS_DIR:-$HOME/.local/state/tart-runner/slots}"
-    export TR_SLOTS_MAX="''${TR_SLOTS_MAX:-2}"
+    # declarative agent exports the real value (../gitlab-runner.nix).
+    # Both fallbacks come from slot-defaults.nix, the file slots.nix's option
+    # defaults are built from: if the two lanes ever resolved different slot dirs,
+    # the two-guest semaphore would silently stop being shared and a third guest
+    # would fail inside Virtualization.framework mid-job. The dir resolves from
+    # $HOME at RUNTIME (the packages/tart-vm.nix pattern), never a /Users/<name> literal.
+    export TR_SLOTS_DIR="''${TR_SLOTS_DIR:-$HOME/${slotDefaults.stateSubdir}/slots}"
+    export TR_SLOTS_MAX="''${TR_SLOTS_MAX:-${toString slotDefaults.max}}"
     # Slot-wait ceiling (tart-slots.sh). This lane is the UNFORGIVING one: the
     # prepare stage runs only AFTER the coordinator has assigned the job, so the
     # wait is billed to that job's own timeout while GitLab believes it is

@@ -29,8 +29,10 @@ let
   # already a documented multi-file ritual (secrets/secrets.nix) — 4689619,
   # 4845230 and 4243998 were all retired on 2026-09-06 — so leaving the id
   # duplicated added a fourth place to forget. `installationId` differs per
-  # ORG, not per lane: both dontsell-ai lanes share this one.
+  # ORG, not per lane: both dontsell-ai lanes share this one, and so do the org's
+  # login and installation id below.
   fleetAppId = 4849830;
+  dontsellOrg = "dontsell-ai";
   dontsellInstallationId = 159496676;
 in
 {
@@ -172,7 +174,7 @@ in
   # file being replaced.
   local.macosGithubRunner = {
     enable = true;
-    org = "dontsell-ai";
+    org = dontsellOrg;
     appId = fleetAppId;
     installationId = dontsellInstallationId;
     count = 2;
@@ -274,7 +276,7 @@ in
         dontsell-vm = fleetApp // {
           scope = {
             type = "org";
-            value = "dontsell-ai";
+            value = dontsellOrg;
           };
           installationId = dontsellInstallationId;
         };

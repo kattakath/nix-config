@@ -41,7 +41,9 @@
 let
   cfg = config.local.tart.gitlabRunner;
   tartCfg = config.local.tart;
-  gitlabTart = pkgs.callPackage ./packages/gitlab-tart.nix { };
+  gitlabTart = pkgs.callPackage ./packages/gitlab-tart.nix {
+    slotDefaults = import ./slot-defaults.nix;
+  };
 
   # NOT `nix-gitlab-runner`: the agent below sets
   # `launcher.name = "nix-gitlab-runner"`, so home-manager builds a launcher
