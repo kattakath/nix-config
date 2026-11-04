@@ -17,6 +17,9 @@ let
   # Keychain item NAMES, one spelling each (modules/_lib/keychain-items.nix).
   items = import ../_lib/keychain-items.nix;
 
+  # The stack list and each stack's state dir name; the Claude guardrails read the same list.
+  stacks = import ../_lib/terranix-stacks.nix;
+
   # The login-Keychain item every Cloudflare stack's unset-token guard tells the operator to use.
   cfTokenItem = items.cloudflare.api;
 
@@ -287,7 +290,7 @@ let
         # connector token (a `data` source result) — encrypted at rest since
         # ADR-005, but the dir is still 0700 and must never be committed or synced.
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-tunnel"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -482,7 +485,7 @@ let
         # The SAME pinned state dir the cf-tunnel-{plan,apply,destroy} wrappers
         # use. Importing anywhere else writes the adoption into a state file those
         # apps will never read — the wound that cost this repo its state twice.
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-tunnel"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-tunnel"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -596,7 +599,7 @@ let
         fi
 
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-access-org"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-access-org"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -758,7 +761,7 @@ let
           exit 1
         fi
 
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-access-org"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-access-org"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -824,7 +827,7 @@ let
         # holds no token, but it holds the zone, and the two prior state losses
         # were both about a stray working directory rather than about secrets.
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-cf-zones"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "cf-zones"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -1163,7 +1166,7 @@ let
         # stack's state lives in, so it cannot live there itself. See the header
         # of infra/gcp/foundation.nix.
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-gcp-foundation"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "gcp-foundation"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -1267,7 +1270,7 @@ let
         # was never the fix; it was the thing breaking impersonation.
 
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-gcp-budget"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName "gcp-budget"}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
@@ -1514,7 +1517,7 @@ let
         ${vars}
 
         ${savedPlanArgs pkgs action}
-        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-${stack}"
+        state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/${stacks.stateDirName stack}"
         mkdir -p "$state_dir"
         chmod 700 "$state_dir"
         cd "$state_dir"
