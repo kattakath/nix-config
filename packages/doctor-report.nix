@@ -10,6 +10,17 @@
 #   fingerprint RULE FILE CONSTRUCT   the stable findingId/v1 (never a line number)
 #   skeleton DOCTOR SHA   an empty, catalogue-derived envelope to fill
 #   publish DOCTOR FILE   validate, copy to the state dir, point `latest` at it
+#   weekly [--no-ping]    the scheduled audit's ONE entry point (below)
+#
+# `weekly` is what the weekly Claude Desktop task runs after `/fleet-doctor` and `/hygiene`
+# (prompt: docs/doctors-coverage-adr.md § 6). It reads both `latest` runs, refuses a missing,
+# invalid or STALE one (a doctor that died before `publish` leaves last week's `latest`, which
+# still validates), diffs each against that doctor's previous run, and prints counts plus the
+# NEW finding IDs. Then it pings the `nix-config-doctors-weekly` heartbeat through runitor.
+# The exit policy is the inverse of terranix-drift's, on purpose: FINDINGS ARE NOT FAILURES.
+# Verdict 0 (clean) and 2 (findings or vacuous) both exit 0, so runitor pings success; only a
+# broken run exits 1, which runitor sends as /fail. A run that never happens alerts on the
+# monitor's grace. `--no-ping` runs the same report and touches neither `secret` nor runitor.
 #
 # Upstream-first: SARIF conformance is the OASIS schema run through nixpkgs' check-jsonschema,
 # not a hand-written shape. The health-check draft (-06) publishes no JSON Schema, so its
@@ -25,7 +36,11 @@
   jq,
   check-jsonschema,
   coreutils,
+  runitor,
   catalogue,
+  # The heartbeat `weekly` pings (modules/parts/heartbeats.nix). Named here, in quotes, so
+  # checks.<system>.heartbeat-workflow-parity's agentPingers leg can see this file names it.
+  slug ? "nix-config-doctors-weekly",
 }:
 let
   # SARIF 2.1.0 Plus Errata 01, the schema ADR-013 § 8 cites.
@@ -40,6 +55,7 @@ writeShellApplication {
     jq
     check-jsonschema
     coreutils
+    runitor
   ];
   text = ''
     rules="''${DOCTOR_RULES:-${catalogue}}"
@@ -56,6 +72,7 @@ writeShellApplication {
            doctor-report fingerprint RULE_ID FILE_OR_SUBJECT CONSTRUCT
            doctor-report skeleton hygiene|fleet-doctor SUBJECT_SHA [REPO_URI] [BRANCH]
            doctor-report publish hygiene|fleet-doctor FILE
+           doctor-report weekly [--no-ping]   (validate + diff both latest runs, ping the heartbeat)
     EOF
       exit 1
     }
@@ -214,6 +231,84 @@ writeShellApplication {
       printf '%s/%s\n' "''${DOCTOR_REPORT_DIR:-''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-doctors}" "$1"
     }
 
+    # 0 when FILE has nothing open, else 1 (any finding, vacuous or skipped section).
+    is_open() {
+      case $(kind_of "$1") in
+        sarif) jq -e '[.runs[0].results[] | select(.kind != "pass")] | length > 0' "$1" >/dev/null ;;
+        health) jq -e '.status != "pass"' "$1" >/dev/null ;;
+      esac
+    }
+
+    # Sections that examined nothing (ADR-013 § 7): they make a run verdict 2 with 0 findings.
+    vacuous_count() {
+      case $(kind_of "$1") in
+        sarif) jq '[.runs[0].results[] | select(.kind == "notApplicable")] | length' "$1" ;;
+        health) jq '[.checks[][] | select(.status == "warn" and ((.output // "") | test("^(vacuous|skipped)")))] | length' "$1" ;;
+      esac
+    }
+
+    # The scheduled audit (header). Prints the report; exits 1 only for a broken run.
+    weekly_report() {
+      local max_age=''${DOCTOR_MAX_AGE:-86400} now worst=0 d dir latest cur base prev f t age want n v ids old_ids
+      now=$(date -u +%s)
+      check_rules
+      for d in fleet-doctor hygiene; do
+        dir=$(state_dir "$d")
+        latest="$dir/latest"
+        case $d in hygiene) want=sarif ;; fleet-doctor) want=health ;; esac
+        if [ ! -e "$latest" ]; then
+          echo "$d: BROKEN: no published run ($latest is missing or dangling)"; worst=1; continue
+        fi
+        cur=$(readlink -f "$latest")
+        base=$(basename "$cur")
+        # `publish` names every run <UTC>.<ext>; that name IS the run time (a symlink's mtime
+        # moves on every `ln -sfn`, the file's on every copy, so neither is trusted).
+        if ! [[ $base =~ ^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z\.(sarif|json)$ ]]; then
+          echo "$d: BROKEN: latest -> $base, not a name \`publish\` writes"; worst=1; continue
+        fi
+        t=$(date -u -d "''${BASH_REMATCH[1]}-''${BASH_REMATCH[2]}-''${BASH_REMATCH[3]}T''${BASH_REMATCH[4]}:''${BASH_REMATCH[5]}:''${BASH_REMATCH[6]}Z" +%s)
+        age=$((now - t))
+        if [ "$age" -gt "$max_age" ]; then
+          echo "$d: BROKEN: latest run $base is $((age / 3600)) h old (limit $((max_age / 3600)) h): this week's run did not publish"
+          worst=1; continue
+        fi
+        if ! validate "$cur" 2>"$dir/.weekly-validate.err"; then
+          echo "$d: BROKEN: $base does not validate:"; sed 's/^/  /' "$dir/.weekly-validate.err"; worst=1; continue
+        fi
+        if [ "$(kind_of "$cur")" != "$want" ]; then
+          echo "$d: BROKEN: $base is $(kind_of "$cur"), expected $want"; worst=1; continue
+        fi
+        rm -f "$dir/.weekly-validate.err"
+        ids=$(finding_ids "$cur")
+        n=$(grep -c . <<<"$ids" || true)
+        if is_open "$cur"; then v="2 (findings or vacuous)"; else v="0 (clean)"; fi
+        # The previous run: the newest published name that sorts before this one.
+        prev=""
+        for f in "$dir"/*; do
+          f=$(basename "$f")
+          [[ $f =~ ^[0-9]{8}T[0-9]{6}Z\.(sarif|json)$ ]] || continue
+          [[ $f < $base ]] && prev=$f
+        done
+        echo "$d: verdict $v · $n findings · $(vacuous_count "$cur") vacuous/skipped · run $base"
+        if [ -z "$prev" ]; then
+          echo "  no previous run: nothing to diff (this run is the baseline)"
+          if [ -n "$ids" ]; then while IFS= read -r f; do echo "  finding: $f"; done <<<"$ids"; fi
+        elif ! validate "$dir/$prev" 2>/dev/null; then
+          echo "  previous run $prev does not validate: no diff (this run is the baseline)"
+          if [ -n "$ids" ]; then while IFS= read -r f; do echo "  finding: $f"; done <<<"$ids"; fi
+        else
+          old_ids=$(finding_ids "$dir/$prev")
+          echo "  vs $prev: $(comm -13 <(echo "$old_ids") <(echo "$ids") | grep -c . || true) new · $(comm -12 <(echo "$old_ids") <(echo "$ids") | grep -c . || true) persisting · $(comm -23 <(echo "$old_ids") <(echo "$ids") | grep -c . || true) resolved"
+          comm -13 <(echo "$old_ids") <(echo "$ids") | sed '/^$/d; s/^/  new: /'
+        fi
+      done
+      if [ "$worst" -ne 0 ]; then
+        echo "doctors-weekly: BROKEN RUN: heartbeat ${slug} gets /fail"
+        return 1
+      fi
+      echo "doctors-weekly: ok (findings are not failures): heartbeat ${slug} gets success"
+    }
+
     cmd=''${1:-}
     [ $# -gt 0 ] && shift
     case $cmd in
@@ -287,6 +382,19 @@ writeShellApplication {
         cp "$2" "$out"
         ln -sfn "$(basename "$out")" "$dir/latest"
         echo "$out"
+        ;;
+      weekly)
+        case ''${1:-} in
+          --no-ping) [ $# -eq 1 ] || usage; weekly_report ;;
+          "")
+            # Values only through `secret exec`'s environment, never argv; runitor reads
+            # PING_KEY and sends the report (counts and finding IDs only) as the ping body.
+            command -v secret >/dev/null || die "weekly: \`secret\` (the Home Manager profile) is not on PATH; nothing pinged"
+            exec secret exec PING_KEY=hc:healthchecks.io:ping-key -- \
+              runitor -slug "${slug}" -on-nonzero-exit fail -- "$0" weekly --no-ping
+            ;;
+          *) usage ;;
+        esac
         ;;
       *) usage ;;
     esac

@@ -169,7 +169,9 @@ mandatory `grace`; the render refuses both/neither, a bad slug, or more than the
   each `nix-config-*` CI slug ← its workflow's "Heartbeat ping" step, on **scheduled** runs only
   (#1032; the `pingers` map, slug + cron parity, and a `cron:` workflow with no pinger are all
   gated by `checks.<system>.heartbeat-workflow-parity`); `evidence-discover` ← the agentic-jobseek cloud
-  routine, a different repo; `nix-config-terranix-drift` ← the Mac's daily drift agent (below). A
+  routine, a different repo; `nix-config-terranix-drift` ← the Mac's daily drift agent (below);
+  `nix-config-doctors-weekly` ← `doctor-report weekly`, run by the operator's weekly Claude Desktop
+  task (ADR-013 § 6; the task is app state, so it reads `new` until its first run). A
   FUTURE entry still needs its pinger: a never-pinged check stays `new` and **never alerts**
   (`Check.get_status`).
 - State object `hc-checks/` in the shared encrypted bucket; the working dir is
