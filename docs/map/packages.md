@@ -243,7 +243,8 @@ Smaller, single-purpose CLIs:
 - **Documented with their consumer, not here:** `keychain-mcp.nix` (the MCP launcher factory — [`modules-home.md`](modules-home.md)
   § `plugin-mcp.nix`); and `rogers-gw.nix` (the
   inspection-only gateway CLI) and `launchd-doctor.nix` (the launchd runtime health check),
-  both in [`modules-darwin.md`](modules-darwin.md).
+  both in [`modules-darwin.md`](modules-darwin.md); and `doctor-report.nix` (the doctors'
+  output validator, [`engine.md`](engine.md) § `doctors.nix`; the decisions are ADR-013 § 13).
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
 
