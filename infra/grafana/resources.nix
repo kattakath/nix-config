@@ -956,12 +956,12 @@ in
         (mkRule {
           uid = "fleet-hc-status";
           name = "healthchecks.io check new or down";
-          summary = "healthchecks.io check {{ $labels.slug }} is new or down";
-          description = "From hc_check_status (fleet-gauges, hourly). Paused checks and those in grace do not count. healthchecks.io emails on down itself; this catches a check that never pinged (new).";
-          expr = "max by (slug) (last_over_time(hc_check_status{status=~\"new|down\"}[26h]))";
+          summary = "healthchecks.io check {{ $labels.slug }} is down, or never pinged past its first due time";
+          description = "From hc_check_overdue (fleet-gauges, hourly): down, or still new after its first ping was due (first seen + period or next cron fire + grace), so a just-created weekly check does not page. healthchecks.io emails on down itself; this catches a pinger that never pinged.";
+          expr = "max by (slug) (last_over_time(hc_check_overdue[2h]))";
           op = "gt";
           threshold = 0;
-          for = "26h0m0s";
+          for = "1h0m0s";
           labels = {
             domain = "infra";
             severity = "warning";

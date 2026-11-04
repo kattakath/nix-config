@@ -19,6 +19,9 @@ source that errors is skipped and counted in fleet_gauges_source_errors, never f
       Age of the newest nixos-sd-image-*.img(.zst) asset on the SD_RELEASE_REPO's
       installer-latest release (its updated_at: the publish re-uploads the asset).
   hc_check_up{slug}, hc_check_status{slug,status}, hc_check_last_ping_age_seconds{slug}
+  hc_check_overdue{slug}   1 when a check is `down`, or still `new` past the time its first
+      ping was due: first seen (by this script) + its period or next cron fire + its grace.
+      A brand-new weekly check is therefore not "overdue" for up to a week (2026-11-04).
       healthchecks.io Management API v3. up = 1 for up/grace, else 0; status is one
       0/1 point per slug for each of new/up/grace/down/paused, so a recovery shows at
       once; the ping age only when the check has pinged.
@@ -192,6 +195,42 @@ def workflow_health(owner, repos, tok):
             fail(f"github:{owner}/{name}:workflows", e)
 
 
+HC_SEEN = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
+                       "fleet-gauges", "hc-first-seen.json")
+
+
+def cron_field(spec, lo, hi):
+    """The values one cron field allows: `*`, a number, `a-b`, `*/n`, comma lists."""
+    out = set()
+    for part in spec.split(","):
+        rng, _, step = part.partition("/")
+        a, b = (lo, hi) if rng == "*" else (int(rng.split("-")[0]), int(rng.split("-")[-1]))
+        out.update(range(a, b + 1, int(step) if step else 1))
+    return out
+
+
+def cron_next(schedule, after):
+    """First minute strictly after `after` (UTC epoch) that a 5-field cron schedule fires."""
+    mi, hr, dom, mon, dow = schedule.split()
+    sets = (cron_field(mi, 0, 59), cron_field(hr, 0, 23), cron_field(dom, 1, 31),
+            cron_field(mon, 1, 12), {d % 7 for d in cron_field(dow, 0, 7)})
+    t = datetime.datetime.fromtimestamp(after, datetime.timezone.utc).replace(second=0, microsecond=0)
+    for _ in range(60 * 24 * 370):
+        t += datetime.timedelta(minutes=1)
+        if (t.minute in sets[0] and t.hour in sets[1] and t.day in sets[2]
+                and t.month in sets[3] and (t.isoweekday() % 7) in sets[4]):
+            return t.timestamp()
+    raise ValueError(f"cron schedule never fires: {schedule}")
+
+
+def first_ping_due(c, seen):
+    """When a `new` check's first ping is due: first seen + period (or next fire) + grace."""
+    grace = c.get("grace") or 0
+    if c.get("schedule") and (c.get("tz") or "UTC") == "UTC":
+        return cron_next(c["schedule"], seen) + grace
+    return seen + (c.get("timeout") or 0) + grace
+
+
 def healthchecks():
     key = os.environ.get("HC_API_KEY")
     if not key:
@@ -199,13 +238,29 @@ def healthchecks():
     try:
         checks = http("https://healthchecks.io/api/v3/checks/", extra={"X-Api-Key": key})["checks"]
         now = time.time()
+        try:
+            with open(HC_SEEN) as f:
+                seen = json.load(f)
+        except (OSError, ValueError):
+            seen = {}
         for c in checks:
             slug, status = c.get("slug") or c.get("name", "?"), c.get("status")
+            # The API has no creation time, so `new` is dated from when this script first
+            # saw it; a ping later clears it (status leaves `new`).
+            if status == "new":
+                seen.setdefault(slug, now)
+            else:
+                seen.pop(slug, None)
+            overdue = status == "down" or (status == "new" and now > first_ping_due(c, seen[slug]))
+            gauge("hc_check_overdue", 1 if overdue else 0, slug=slug)
             gauge("hc_check_up", 1 if status in ("up", "grace") else 0, slug=slug)
             for s in HC_STATUSES:
                 gauge("hc_check_status", 1 if status == s else 0, slug=slug, status=s)
             if c.get("last_ping"):
                 gauge("hc_check_last_ping_age_seconds", now - iso_to_epoch(c["last_ping"]), slug=slug)
+        os.makedirs(os.path.dirname(HC_SEEN), exist_ok=True)
+        with open(HC_SEEN, "w") as f:
+            json.dump(seen, f)
     except Exception as e:  # noqa: BLE001
         fail("healthchecks", e)
 
