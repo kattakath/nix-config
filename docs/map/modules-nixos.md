@@ -299,6 +299,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     `modules/_lib/log-redactions.nix`, and `dropJournalUnits` lines never leave the host.
     `checks.<system>.log-redaction` feeds sample lines through the same patterns with Go's
     `regexp` (Alloy's engine), so a regression fails the build.
+  - **Active canary (ADR-013):** a daily `redaction-canary` timer logs reserved addresses
+    (`modules/_lib/redaction-canary.nix`). Grafana alerts if the line arrives unredacted, or
+    not at all for 26 h.
   - **Querying:** every line is `service_name="<host>-journal"`; the unit and level are per-line
     structured metadata, so filter with `| unit="caddy.service"`.
   - **SD-card safety:** the WAL and journal positions live in `/run/alloy`

@@ -10,9 +10,15 @@
 #     WorkingDirectory %S/alloy — on an SD-card host every byte written there is wear;
 #   * the unit only starts when that file exists (ConditionPathExists): a host flashed
 #     without it simply ships nothing, instead of crash-looping into the journal.
-{ config, lib, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}:
 let
   cfg = config.local.alloyShipper;
+  canary = import ../_lib/redaction-canary.nix;
   # The patterns are shared DATA, also fed sample lines by checks.<system>.log-redaction,
   # so the test and the shipper cannot drift apart.
   redactions = import ../_lib/log-redactions.nix;
@@ -59,6 +65,25 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # The active redaction canary (modules/_lib/redaction-canary.nix): one WARNING line a
+    # day through the same journal -> redact -> Loki path as every other line. Grafana
+    # alerts if it arrives unredacted, or not at all.
+    systemd.services.redaction-canary = {
+      description = "Log the redaction canary line (ADR-013)";
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.util-linux}/bin/logger -p user.warning -t ${canary.marker} ${lib.escapeShellArg "${canary.marker} ${lib.concatStringsSep " " canary.values}"}";
+      };
+    };
+    systemd.timers.redaction-canary = {
+      wantedBy = [ "timers.target" ];
+      timerConfig = {
+        OnCalendar = "daily";
+        Persistent = true;
+        RandomizedDelaySec = "1h";
+      };
+    };
+
     services.alloy = {
       enable = true;
       inherit (cfg) environmentFile;
