@@ -47,6 +47,7 @@ in
     {
       packages.doctor-report = pkgs.callPackage ../../packages/doctor-report.nix {
         catalogue = ../../.claude/skills/doctors/rules.json;
+        inherit repoName;
         repoUrl = "https://github.com/${orgName}/${repoName}";
         pingKeyItem = (import ../_lib/keychain-items.nix).healthchecksPingKey;
       };

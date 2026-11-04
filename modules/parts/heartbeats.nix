@@ -13,9 +13,8 @@
 # EVERY ENTRY IS WIRED (2026-11-02): nixpi-serving by the host's service-heartbeat;
 # the workflow nix-config-* checks by a ping step in their workflow (scheduled runs
 # only, #1032); nix-config-terranix-drift by the Mac's drift agent; evidence-discover by the agentic-jobseek cloud routine — a
-# DIFFERENT repo, so nothing here can check that pinger. The one exception, from
-# 2026-11-04: nix-config-doctors-weekly is pinged by `doctor-report weekly`, but only
-# once the operator creates its Desktop task; until the first run it reads `new`.
+# DIFFERENT repo, so nothing here can check that pinger; nix-config-doctors-weekly by
+# `doctor-report weekly`, run from a Claude Desktop local task.
 #
 # PURE DATA, NO SECRETS. A slug names a check; it does not authorise a ping. The
 # ping KEY (the project secret in `https://hc-ping.com/<ping-key>/<slug>`) is
@@ -192,7 +191,7 @@ in
         desc = "Daily terranix drift check from the operator Mac. Silence = the agent did not run; /fail = a stack drifted or could not plan.";
       };
 
-      # WIRED by a Claude Desktop local task the operator creates by hand (its prompt:
+      # WIRED by a Claude Desktop local task (its settings and prompt:
       # docs/doctors-coverage-adr.md § 6). The task runs /fleet-doctor, then /hygiene, then
       # `doctor-report weekly`, which pings through runitor: success when both runs are
       # valid and fresh (findings included), /fail when one is missing, stale or invalid.

@@ -1430,7 +1430,6 @@ in
 
   # ---- Home Manager program modules --------------------------------------------
   programs = {
-    # Let Home Manager manage itself.
     home-manager.enable = true;
 
     # JDK 17 for the Android sdkmanager/avdmanager (JVM tools; the emulator

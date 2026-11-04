@@ -193,7 +193,7 @@ let
   # The service account terranix impersonates for GCP. An identifier, not a
   # credential: impersonating it requires roles/iam.serviceAccountTokenCreator,
   # which is granted to the operator and to nobody else. No key file exists.
-  gcpAutomationServiceAccount = "tofu-fleet@kattakath-family.iam.gserviceaccount.com";
+  gcpAutomationServiceAccount = "tofu-fleet@${gcpProjectId}.iam.gserviceaccount.com";
 
   # The Grafana Cloud stack's region, ONE spelling: the grafana terranix stack builds its
   # Synthetic Monitoring URL from it, and fleet-gauges lists that region's gcom tokens
