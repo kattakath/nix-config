@@ -30,11 +30,12 @@
  *
  * RULE NUMBERING — the "4 rules" above are the ORIGIN SET, not the current one.
  * Rules 1-4 are what the retired prompt gate carried and what this file first
- * ported; every number since is an addition made here. The code implements SEVEN
+ * ported; every number since is an addition made here. The code implements EIGHT
  * rules today: Rule 1 (Cloudflare API — terranix apply/destroy, wrangler,
  * api.cloudflare.com), Rule 1c (printing a secret VALUE), Rule 1d (building ON
  * nixpi), Rule 1e (dumping the environment, which holds the ambient Keychain
- * secrets), Rule 1f (a decrypted-secret PATH in any command's words), Rule 2
+ * secrets), Rule 1f (a decrypted-secret PATH in any command's words), Rule 1g
+ * (a nudge: deploying nixpi over the tunnel without `--hostname`), Rule 2
  * (Cloudflare docs fetches) and Rule 4 (default approve, plus any
  * accumulated nudges). Rule 3 was REMOVED 2026-10-07 (see below); its number
  * is left unused so the removal stays legible. Rule 1b was added after
@@ -680,6 +681,39 @@ const SSH_BUILD_ON_PI = new RegExp(
 // A remote BUILDER pointed at the Pi (`--builders ssh://…nixpi`, `--store ssh://…`).
 const BUILDERS_PI = new RegExp(String.raw`--(?:builders|store)[=\s]+["']?ssh(?:-ng)?://` + PI_HOSTS, "i");
 
+// ---- Rule 1g: deploying nixpi over the tunnel it may restart (2026-11-03) ----
+// `deploy.nodes.nixpi.hostname` is the TUNNELLED name (modules/parts/deploy.nix),
+// so a plain `deploy --targets .#nixpi` rides the cloudflared connector. When
+// the new generation's activation stops cloudflared, it cuts the deploy's own
+// SSH; magic rollback then restores the old GENERATION but not the running
+// units, and cloudflared + caddy stay STOPPED. Measured 2026-10-21: a 13-minute
+// outage, ended by starting them by hand over the LAN. The LAN path
+// (`--hostname <pi-lan-ip>`) does not ride the connector, so it survives that.
+//
+// A NUDGE, not an ask (RULE1G_DEPLOY_TUNNEL_ASKING = false): most deploys do not
+// restart cloudflared, the risk is recoverable over the LAN, and operator policy
+// (2026-11-02, DENY vs ASK above) adds no new asks. Know what that buys: the
+// systemMessage reaches the OPERATOR, after the command is already allowed — a
+// heads-up, not a gate. Flip the flag to make it ASK.
+//
+// Matched per-segment on a `deploy` argv0 (unwrap() peels `nix develop -c`), so
+// a commit message or an echo that names the command stays silent. Fires on a
+// flake ref whose fragment is `nixpi` (`.#nixpi`, `.#nixpi.system`, a
+// `github:` ref), positional or after `--targets`. NOT on a bare `deploy` with
+// no ref, which fans out over every node: CLAUDE.md already forbids that shape,
+// and telling a flag VALUE from a ref needs deploy's whole flag table.
+// deploy-rs spells the override only `--hostname` (pinned deploy-rs
+// src/cli.rs: `#[arg(long)] hostname`, no short form).
+const RULE1G_DEPLOY_TUNNEL_ASKING = false;
+const DEPLOY_NIXPI_REF = /(?:^|\s)["']?[^\s"'#]*#nixpi(?:\.[^\s"']*)?["']?(?=\s|$)/;
+const DEPLOY_HOSTNAME = /(?:^|\s)--hostname(?:=|\s|$)/;
+function deploysPiOverTunnel(tail) {
+  // `tail` starts at `deploy`; only deploy's OWN argv counts, so everything
+  // after a bare `--` (extra `nix build` args) is dropped first.
+  const args = tail.replace(/^\S+/, "").split(/\s--(?=\s|$)/)[0];
+  return DEPLOY_NIXPI_REF.test(args) && !DEPLOY_HOSTNAME.test(args);
+}
+
 // ---- the Bedrock trap (2026-08-30) -----------------------------------------
 // CLAUDE_CODE_USE_BEDROCK lives in the login Keychain, so it SURVIVES any
 // activation. Its companions AWS_REGION/AWS_PROFILE do NOT: since 2026-09-15 no
@@ -1061,6 +1095,16 @@ function main() {
         "The Pi should only SUBSTITUTE. CI warms the whole nixpi closure into Cachix on every closure change (.github/workflows/warm-nixpi-cache.yml), so after that lands use `nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo` (builds HERE, activates there) or `nix develop -c deploy --targets .#nixpi` — over the LAN (`--hostname <pi-lan-ip>`) when it restarts cloudflared, per docs/map/hosts.md. If the Mac still wants to BUILD instead of fetch, the cache is merely not warm yet — or Nix negatively cached an earlier 404 for up to an hour; retry with `--narinfo-cache-negative-ttl 0` rather than moving the build onto the Pi.",
       );
     }
+  }
+  // ---- Rule 1g: deploying nixpi over the tunnel (no --hostname) --------------
+  // After Rule 1d on purpose: a `--remote-build` deploy has already blocked.
+  if (tails.some((t, i) => segs[i] === "deploy" && deploysPiOverTunnel(t))) {
+    const why =
+      "deploys nixpi over the Cloudflare tunnel (no `--hostname`). If this generation restarts cloudflared (any nixpkgs bump can), activation cuts the deploy's own SSH and magic rollback leaves cloudflared + caddy STOPPED — a 13-min outage on 2026-10-21.";
+    if (RULE1G_DEPLOY_TUNNEL_ASKING) emitAsk(`This ${why} Allow anyway?`);
+    nudges.push(
+      `This ${why} Pass \`--hostname <pi-lan-ip>\` (the LAN path, docs/map/hosts.md), or accept the self-cut risk when cloudflared is not restarting.`,
+    );
   }
   // ---- Rule 1c: printing a secret into the transcript ------------------------
   // Ranked with the blocks, not the nudges, for the reason the others are: it

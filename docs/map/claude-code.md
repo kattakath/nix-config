@@ -178,7 +178,9 @@ and, above it on `macos`, root-owned managed scope in
   decrypted-secret PATH anywhere in a command's words, `@`-prefixed included — the user-scope
   `Read()` deny binds only readers Claude Code recognises, and `curl --data-binary @<path>`
   ran past it on 2026-10-30; the list is READ at runtime from
-  `modules/_lib/secret-read-paths.nix`, never copied). Rule 1b — which
+  `modules/_lib/secret-read-paths.nix`, never copied), and **Rule 1g** (a NUDGE, never a block:
+  `deploy` to `.#nixpi` without `--hostname` rides the tunnel that activation may restart —
+  the 2026-10-21 self-cut). Rule 1b — which
   blocked `deploy` and public-`#macos` activation while a private layer existed — was
   RETIRED 2026-09-15 with that layer.
 - **`.claude/hooks/tests/*.sh`** — the case suites for every gate and the SessionStart

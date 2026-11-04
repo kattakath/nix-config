@@ -179,9 +179,9 @@ they bite any future second account:
     - **The EPERM only fires on a cache MISS**, and a miss can OUTLIVE the warm: if you
       evaluate a nixpi change before CI has pushed it, Nix records the 404 in its narinfo
       negative cache for an hour (`narinfo-cache-negative-ttl`, default 3600), so it keeps
-      planning a build against an already-warmed cache. Clear it per command with
-      `--narinfo-cache-negative-ttl 0`: the operator is a trusted user (`extra-trusted-users` in
-      `modules/parts/compose.nix`), so the daemon honours it.
+      planning a build against an already-warmed cache. `--narinfo-cache-negative-ttl 0` clears
+      it (the operator is trusted, `modules/parts/compose.nix`). The devShell `deploy` and
+      `nixpi-flash` set it by default — why not machine-wide: `modules/parts/devshell.nix`.
     - **Your own `nix build --dry-run` counts as that evaluation.** Measured 2026-10-18 (#877):
       a dry-run of the nixpi toplevel run to *prove* "fetch, not build" before the warm-up
       finished poisoned the cache, and the deploy 13 min later still EPERMed on
