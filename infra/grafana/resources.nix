@@ -15,6 +15,8 @@ let
   # The units hosts/nixpi.nix ships; the alert watches the long-running ones only.
   # Imported by relative path, as infra/cloudflare/nixpi-tunnel.nix does derived-names.nix.
   nixpiUnits = (import ../../modules/_lib/nixpi-units.nix).longRunning;
+  # The planted line (ADR-013); its values carry no regex metacharacters, so they join as-is.
+  canary = import ../../modules/_lib/redaction-canary.nix;
   nixpiUnitRegex = "(${
     builtins.concatStringsSep "|" (map (u: builtins.replaceStrings [ ".service" ] [ "" ] u) nixpiUnits)
   })\\\\.service";
@@ -955,7 +957,7 @@ in
         }
         (mkRule {
           uid = "fleet-hc-status";
-          name = "healthchecks.io check new or down";
+          name = "healthchecks.io check down or overdue";
           summary = "healthchecks.io check {{ $labels.slug }} is down, or never pinged past its first due time";
           description = "From hc_check_overdue (fleet-gauges, hourly): down, or still new after its first ping was due (first seen + period or next cron fire + grace), so a just-created weekly check does not page. healthchecks.io emails on down itself; this catches a pinger that never pinged.";
           expr = "max by (slug) (last_over_time(hc_check_overdue[2h]))";
@@ -1391,6 +1393,40 @@ in
           ];
           uid = "eg34wqldz9slcb";
         }
+        (mkRule {
+          uid = "nixpi-canary-unredacted";
+          name = "nixpi: redaction canary arrived unredacted";
+          summary = "The daily redaction canary reached Loki with a planted address intact: the redact stage is not running";
+          description = "modules/_lib/redaction-canary.nix plants reserved addresses in one WARNING line a day; this matches any of them verbatim.";
+          datasource = "grafanacloud-logs";
+          expr = "sum(count_over_time({service_name=\"nixpi-journal\"} |= `${canary.marker}` |~ `${builtins.concatStringsSep "|" canary.values}` [26h]))";
+          rangeSeconds = 93600;
+          op = "gt";
+          threshold = 0;
+          for = "0s";
+          labels = {
+            domain = "infra";
+            host = "nixpi";
+            severity = "critical";
+          };
+        })
+        (mkRule {
+          uid = "nixpi-canary-missing";
+          name = "nixpi: redaction canary missing";
+          summary = "No redaction canary line from nixpi in 26 h: journal shipping (or its timer) is broken";
+          description = "The redaction-canary timer logs one line a day; `or vector(0)` makes its absence a 0 rather than no data.";
+          datasource = "grafanacloud-logs";
+          expr = "sum(count_over_time({service_name=\"nixpi-journal\"} |= `${canary.marker}` [26h])) or vector(0)";
+          rangeSeconds = 93600;
+          op = "lt";
+          threshold = 1;
+          for = "1h";
+          labels = {
+            domain = "infra";
+            host = "nixpi";
+            severity = "warning";
+          };
+        })
         (mkRule {
           uid = "nixpi-redaction-canary";
           name = "nixpi: journal redaction gap";
