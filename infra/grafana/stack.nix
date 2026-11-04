@@ -66,6 +66,8 @@ in
 
   provider.grafana = {
     url = grafanaUrl;
+    # The stack's region; fleet-gauges reads the same region from its module option
+    # (`local.fleetGauges.gcomRegions`, set in modules/home/default.nix).
     sm_url = "https://synthetic-monitoring-api-ca-east-0.grafana.net";
   };
 

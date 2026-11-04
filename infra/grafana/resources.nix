@@ -11,6 +11,14 @@
   gcpProjectId,
   publicSiteUrl,
 }:
+let
+  # The units hosts/nixpi.nix ships; the alert watches the long-running ones only.
+  # Imported by relative path, as infra/cloudflare/nixpi-tunnel.nix does derived-names.nix.
+  nixpiUnits = (import ../../modules/_lib/nixpi-units.nix).longRunning;
+  nixpiUnitRegex = "(${
+    builtins.concatStringsSep "|" (map (u: builtins.replaceStrings [ ".service" ] [ "" ] u) nixpiUnits)
+  })\\\\.service";
+in
 {
   grafana_contact_point = {
     operator_email = {
@@ -928,7 +936,7 @@
       rule = [
         {
           annotations = {
-            description = "Cut per ADR-011 § 5 (nix-config docs/observability-hub-adr.md): top consumers are nixpi node, Mac host_metrics, Caddy, cloudflared.";
+            description = "Cut per ADR-011 § 5 (nix-config docs/observability-hub-adr.md): top consumers are nixpi node_exporter (Alloy), Mac hostmetrics and Claude Code metrics (both via claude-otel).";
             summary = "Grafana Cloud active series above 70% of the free 10k";
           };
           condition = "C";
@@ -1082,7 +1090,7 @@
             {
               datasource_uid = "grafanacloud-prom";
               model = builtins.toJSON {
-                expr = "max by (name) (node_systemd_unit_state{instance=\"nixpi\", state=\"active\", name=~\"(caddy|cloudflared-connector|audiobookshelf|alloy|avahi-daemon|sshd|supplicant-wlan0|dhcpcd)\\\\.service\"})";
+                expr = "max by (name) (node_systemd_unit_state{instance=\"nixpi\", state=\"active\", name=~\"${nixpiUnitRegex}\"})";
                 instant = true;
                 refId = "A";
               };

@@ -17,6 +17,11 @@
   # Keychain item NAMES (modules/_lib/keychain-items.nix), handed in by the calling module.
   items,
   cloudflareItems ? [ ],
+  # What to probe, from the calling module; empty = probe none (the generic package
+  # carries no owner or region of its own).
+  githubOrgs ? [ ],
+  githubUsers ? [ ],
+  gcomRegions ? [ ],
 }:
 let
   script = writers.writePython3Bin "fleet-gauges-run" {
@@ -31,11 +36,13 @@ let
     )
   );
   secretBin = if homeProfileDir == null then "secret" else "${homeProfileDir}/bin/secret";
+  words = builtins.concatStringsSep " ";
 in
 writeShellApplication {
   name = "fleet-gauges";
   text = ''
-    export CF_TOKEN_NAMES="${builtins.concatStringsSep " " cloudflareItems}" GH_TOKEN_NAME=${items.githubPat}
+    export CF_TOKEN_NAMES="${words cloudflareItems}" GH_TOKEN_NAME=${items.githubPat}
+    export GH_ORGS="${words githubOrgs}" GH_USERS="${words githubUsers}" GCOM_REGIONS="${words gcomRegions}"
     # The daily drift check's summary: packages/terranix-drift.nix writes it into its
     # fixed working dir, this exact path. Named here, once, so the script does not guess.
     export TERRANIX_DRIFT_SUMMARY="''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-terranix-drift/summary.json"
