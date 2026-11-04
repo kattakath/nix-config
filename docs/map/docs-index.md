@@ -142,6 +142,13 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   hand after ADR-005, the tool for each — Grafana, GitHub and GitLab under terranix, Gmail filters via
   gmailctl with the filter file in Drive — what cannot be declared (TCC, Keychain values, claude.ai
   routines), and a daily Mac-side drift check that keeps the state passphrase out of CI. § 5 is the order.)
+  [`ADR-013`](../doctors-coverage-adr.md) (**DECIDED 2026-11-03**: `/hygiene` audits the desired
+  state, `/fleet-doctor` whether the world matches it. A 28-incident coverage study — 46% caught
+  automatically, 39% only by a doctor, 14% by nothing — and six moves that turn doctor finds into
+  hourly `fleet-gauges` alerts. Doctor runs default to `audit`, read `origin/<default>`, exit
+  0/2/1 and report `vacuous`; output is SARIF 2.1.0 (hygiene, not uploaded) and the expired
+  health-check draft's `pass`/`warn`/`fail` (fleet-doctor). § 6 blocks the Desktop lane: the
+  scheduled-tasks directory is empty.)
 - [`docs/workspace-runbook.md`](../workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](../identity-and-offboarding.md) — the single lever:
