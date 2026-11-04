@@ -204,22 +204,29 @@ in
       # nix-claude-otel-collector, so the inner script must NOT take that name too
       # (launchd-naming.md item 1: one name, two store paths).
       # `secret` comes from the Home Manager profile, the runtime path every shell uses.
-      collector = pkgs.writeShellScriptBin "claude-otel-collector-run" ''
-        secret=${config.home.profileDirectory}/bin/secret
-        ${lib.optionalString cfg.grafana.enable ''
-          if "$secret" fp ${lib.escapeShellArg otlpItems.endpoint} >/dev/null 2>&1 \
-            && "$secret" fp ${lib.escapeShellArg otlpItems.instance} >/dev/null 2>&1 \
-            && "$secret" fp ${lib.escapeShellArg otlpItems.token} >/dev/null 2>&1; then
-            exec "$secret" exec \
-              GRAFANA_OTLP_ENDPOINT=${lib.escapeShellArg otlpItems.endpoint} \
-              GRAFANA_OTLP_INSTANCE=${lib.escapeShellArg otlpItems.instance} \
-              GRAFANA_OTLP_TOKEN=${lib.escapeShellArg otlpItems.token} \
-              -- ${otelcol} --config ${grafanaConfig}
-          fi
-          echo "claude-otel-collector-run: a Grafana Keychain item is missing; running local-only" >&2
-        ''}
-        exec ${otelcol} --config ${localConfig}
-      '';
+      # upstream-first: grepped the pinned home-manager and nix-darwin `modules/` for
+      # otelcol|opentelemetry — 0 files (2026-11-04), so no service module to reuse.
+      # Tool axis: no community launcher starts otelcol with Keychain-sourced env;
+      # `secret exec` is this fleet's lane for that, so the wrapper stays this thin.
+      collector = pkgs.writeShellApplication {
+        name = "claude-otel-collector-run";
+        text = ''
+          secret=${config.home.profileDirectory}/bin/secret
+          ${lib.optionalString cfg.grafana.enable ''
+            if "$secret" fp ${lib.escapeShellArg otlpItems.endpoint} >/dev/null 2>&1 \
+              && "$secret" fp ${lib.escapeShellArg otlpItems.instance} >/dev/null 2>&1 \
+              && "$secret" fp ${lib.escapeShellArg otlpItems.token} >/dev/null 2>&1; then
+              exec "$secret" exec \
+                GRAFANA_OTLP_ENDPOINT=${lib.escapeShellArg otlpItems.endpoint} \
+                GRAFANA_OTLP_INSTANCE=${lib.escapeShellArg otlpItems.instance} \
+                GRAFANA_OTLP_TOKEN=${lib.escapeShellArg otlpItems.token} \
+                -- ${otelcol} --config ${grafanaConfig}
+            fi
+            echo "claude-otel-collector-run: a Grafana Keychain item is missing; running local-only" >&2
+          ''}
+          exec ${otelcol} --config ${localConfig}
+        '';
+      };
     in
     {
       # packages/claude-otel-doctor.nix is a generic flake package and reads these first;
@@ -239,6 +246,8 @@ in
         /bin/mkdir -p ${lib.escapeShellArg (builtins.dirOf cfg.eventsFile)}
       '';
 
+      # upstream-first: `launchd.agents` IS the upstream option — the same 0-module grep
+      # (see `collector`) leaves no otelcol service to enable instead.
       launchd.agents.claude-otel-collector = {
         enable = true;
         config = {
