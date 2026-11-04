@@ -167,14 +167,19 @@ The gates need the flake's inputs, so a cloud `/hygiene` cannot run them. Hence 
 
 ### The Desktop task — settings and prompt
 
-Created by hand in **Claude Desktop → Scheduled** (ADR-010 § 3, lane 1). Settings:
+Created in **Claude Desktop → Scheduled** (ADR-010 § 3, lane 1) on 2026-11-04, by the agent
+driving the Desktop UI. Only the prompt lands on disk (`~/.claude/scheduled-tasks/doctors-weekly/SKILL.md`);
+every setting below lives in Desktop's own store. Settings:
 
 | Setting | Value |
 |---|---|
 | Frequency | weekly, **Monday afternoon**, local time |
 | Working folder | the nix-config **main checkout** (not a worktree; both doctors audit a detached `origin/main` snapshot anyway, § 13) |
 | Keep the Mac awake | *Keep computer awake* ON in Desktop settings; Desktop must be open (ADR-010 § 4). A missed window gets one catch-up run on wake, which the 24 h freshness limit tolerates |
-| First run | **Run now** once and *always allow* each prompt, or later runs stall in Manual mode (ADR-010 § 4) |
+| Runs on | *Only on this computer*; worktree OFF; model Default |
+| Permission mode | **Bypass permissions** ("Always allowed: Skip all approvals"). Manual mode stalls an unattended run on its first prompt (ADR-010 § 4); the prompt itself forbids fix, merge and apply |
+| Remote Control | *Connect new sessions to Remote Control* ON (Settings → Code), so each run's session is reachable from the phone |
+| First run | **Run now** once, then confirm the `nix-config-doctors-weekly` heartbeat ping and the published `latest` files |
 
 The prompt, exactly:
 
@@ -183,6 +188,7 @@ Weekly doctors audit. Audit mode only: never fix, never merge, never apply.
 1. Run /fleet-doctor (no arguments).
 2. Run /hygiene (no arguments).
 3. Run: nix run .#doctor-report -- weekly
+Audit every rule fresh at the current origin/main SHA; never carry findings or passes forward from an earlier run.
 Report only what step 3 prints as new findings or BROKEN, one line each. If nothing is new and nothing is broken, reply "no new findings".
 ```
 
