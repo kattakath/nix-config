@@ -229,8 +229,9 @@ because CLAUDE.md is near its 40k budget. A path missing from both is itself a f
       which is why nothing else catches it: it fails only on the bump that removes the alias.
       Read it from upstream's own output, not from memory: `grep -i deprecat` over each
       declared service's log since the last activation (launchd `StandardErrorPath`;
-      `journalctl -u <unit> -b` on NixOS), and over `nix flake check --all-systems --no-build`
-      warnings. Confirm the replacement against the pinned package before renaming. Worked
+      `journalctl -u <unit> -b` on NixOS), and over `nix flake check --all-systems --no-build
+      --no-eval-cache` warnings — a cached evaluation prints NO warnings (measured 2026-11-04:
+      the scripted-initrd deprecation appeared only with `--no-eval-cache`). Confirm the replacement against the pinned package before renaming. Worked
       example (2026-11-04): otelcol-contrib 0.155.0 logs `"otlphttp" alias is deprecated; use
       "otlp_http"` (and `hostmetrics` → `host_metrics`); `otelcol-contrib components` lists
       only the new names.

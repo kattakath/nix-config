@@ -187,11 +187,17 @@ The prompt, exactly:
 Weekly doctors audit. Audit mode only: never fix, never merge, never apply.
 0. Run: git fetch -q origin && git merge --ff-only origin/main (this is a dedicated read-only audit clone; it never carries local changes).
 1. Run /fleet-doctor (no arguments).
-2. Run /hygiene (no arguments).
+2. Run /hygiene (no arguments). Use a workflow: run the saved nix-hygiene-pass workflow with args {"mode": "audit", "root": "<the detached origin/main snapshot>"}, then run the NH-F gate yourself and write and publish the SARIF as the skill's step 5 says. If the Workflow tool is unavailable, fan out yourself: one read-only Agent per checklist dimension (A, B, C, D, E with the NH-X anti-patterns), in parallel.
 3. Run: nix run .#doctor-report -- weekly
 Audit every rule fresh at the current origin/main SHA; never carry findings or passes forward from an earlier run.
 Report only what step 3 prints as new findings or BROKEN, one line each. If nothing is new and nothing is broken, reply "no new findings".
 ```
+
+**Why step 2 fans out (2026-11-04).** The first unattended run, one agent doing the whole
+checklist, reported 1 finding at `0b00126`; an interactive run with one auditor per dimension
+reported 9 at `b0bf99b` 15 minutes later, a tree that differs only by an ADR edit. A judged
+rule's depth varies with the agent's attention, and a deterministic output format does not make
+coverage deterministic, so the weekly run uses the same fan-out the interactive pass does.
 
 **The empty task folder is explained.** ADR-010's census (2026-11-01) listed six tasks under
 `~/.claude/scheduled-tasks/`. On 2026-11-03 that directory is **empty** (zero entries, last
