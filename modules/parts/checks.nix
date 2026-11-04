@@ -385,6 +385,7 @@ in
           log-redaction =
             let
               patterns = import ../_lib/log-redactions.nix;
+              canary = import ../_lib/redaction-canary.nix;
               cases = [
                 # [ input expected ]
                 [
@@ -434,6 +435,12 @@ in
                 [
                   "listening on ::1"
                   "listening on ::1"
+                ]
+                # The active canary's own line must come out fully redacted, or its
+                # "arrived unredacted" rule would fire every day.
+                [
+                  "${canary.marker} ${lib.concatStringsSep " " canary.values}"
+                  "${canary.marker} <ip6> <ip6> <mac>"
                 ]
               ];
               main = pkgs.writeText "redact.go" ''
