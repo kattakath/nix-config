@@ -86,7 +86,8 @@ activate                                     # Activate macos, from ANY director
                                              #   --ff-only origin/main`), or the fix reads as FAILED. The tell, the
                                              #   cost and the FALSE alarm: docs/map/packages.md
 nix run github:kattakath/nix-config#macos    # FIRST activation only, straight from the flake (before `activate` exists). Self-elevates.
-nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo
+nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo \
+  --option narinfo-cache-negative-ttl 0      # a stale 404 must not plan a build (hosts.md); deploy's wrapper sets it itself
                                              # nixos-rebuild is NOT on the Mac's PATH; without --sudo activation fails as ismail.
                                              # Activate the Pi: builds HERE (substituting the CI-warmed closure from
                                              #   Cachix), activates THERE. NEVER --build-host — the Pi must not build
