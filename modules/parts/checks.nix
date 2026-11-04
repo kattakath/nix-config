@@ -378,6 +378,111 @@ in
                 ''
             );
 
+          # nixpi's journal redaction (modules/_lib/log-redactions.nix) fed real-shaped
+          # lines through GO's `regexp` — Alloy's own engine — in Alloy's order. The 2026-11-03
+          # hygiene audit found the old pattern redacting clock times and missing every
+          # compressed IPv6 address; each case below pins one side of that.
+          log-redaction =
+            let
+              patterns = import ../_lib/log-redactions.nix;
+              cases = [
+                # [ input expected ]
+                [
+                  "2026/11/03 12:34:56 started"
+                  "2026/11/03 12:34:56 started"
+                ]
+                [
+                  "took 1:02:03"
+                  "took 1:02:03"
+                ]
+                [
+                  "fe80::1 up"
+                  "<ip6> up"
+                ]
+                [
+                  "from 2001:db8::1 port 22"
+                  "from <ip6> port 22"
+                ]
+                [
+                  "2607:f2c0:e000::1234"
+                  "<ip6>"
+                ]
+                [
+                  "2001:0db8:85a3:0000:0000:8a2e:0370:7334"
+                  "<ip6>"
+                ]
+                [
+                  "fe80::1%wlan0"
+                  "<ip6>%wlan0"
+                ]
+                [
+                  "bssid aa:bb:cc:dd:ee:ff"
+                  "bssid <mac>"
+                ]
+                [
+                  "AA-BB-CC-DD-EE-FF"
+                  "<mac>"
+                ]
+                [
+                  "std::vector<int> fmt::Display"
+                  "std::vector<int> fmt::Display"
+                ]
+                [
+                  "Failed password from 10.1.2.3 port 5"
+                  "Failed password from <ip> port 5"
+                ]
+                [
+                  "listening on ::1"
+                  "listening on ::1"
+                ]
+              ];
+              main = pkgs.writeText "redact.go" ''
+                package main
+
+                import (
+                	"encoding/json"
+                	"fmt"
+                	"os"
+                	"regexp"
+                )
+
+                type pat struct{ Name, Expr, Replace string }
+
+                func main() {
+                	var ps []pat
+                	var cs [][2]string
+                	json.Unmarshal([]byte(os.Getenv("PATTERNS")), &ps)
+                	json.Unmarshal([]byte(os.Getenv("CASES")), &cs)
+                	bad := 0
+                	for _, c := range cs {
+                		got := c[0]
+                		for _, p := range ps {
+                			got = regexp.MustCompile(p.Expr).ReplaceAllLiteralString(got, p.Replace)
+                		}
+                		if got != c[1] {
+                			bad++
+                			fmt.Fprintf(os.Stderr, "  ✘ %q -> %q, want %q\n", c[0], got, c[1])
+                		}
+                	}
+                	if bad > 0 {
+                		os.Exit(1)
+                	}
+                	fmt.Printf("%d lines, %d patterns: all redacted as expected\n", len(cs), len(ps))
+                }
+              '';
+            in
+            pkgs.runCommand "log-redaction"
+              {
+                nativeBuildInputs = [ pkgs.go ];
+                PATTERNS = builtins.toJSON patterns;
+                CASES = builtins.toJSON cases;
+              }
+              ''
+                export HOME="$TMPDIR" GOCACHE="$TMPDIR/go-cache" GO111MODULE=off
+                cp ${main} redact.go
+                go run redact.go > "$out"
+              '';
+
           # The bash guard's TERRANIX_MUTATING_APP is DERIVED from the `-apply` suffix, so a
           # new stack is nudged the day it lands — but the per-stack worst case is a
           # hand-kept JS map, and it missed grafana and github once. Every `*-apply`
