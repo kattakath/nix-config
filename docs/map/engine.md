@@ -314,7 +314,8 @@ Per-file index: [`modules/features/local-rag/README.md`](../../modules/features/
 
 Per-file index: [`modules/features/cloud-cli/README.md`](../../modules/features/cloud-cli/README.md).
 
-`local.cloudCli.aws`: the AWS CLI plus `aws-sso-util`, and **`~/.aws/config.example` —
+`local.cloudCli.aws`: the AWS CLI plus `aws-sso-util` and `ssm-session-manager-plugin` (no
+upstream option: pinned `awscli.nix` declares only enable/package/settings/credentials), and **`~/.aws/config.example` —
 placeholders only.** It NEVER writes `~/.aws/config`. That file is the human's, written by
 `aws configure sso` or by copying the example, living outside Nix and git, and it is what
 `modules/home/claude-bedrock-gate.nix` reads at runtime.

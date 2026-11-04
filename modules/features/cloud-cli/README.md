@@ -1,7 +1,7 @@
 # cloud-cli
 
 **The tool and the shape, never the content.** `local.cloudCli.aws.enable` installs the AWS
-CLI (upstream `programs.awscli`) and `aws-sso-util`, and writes `~/.aws/config.example` with
+CLI (upstream `programs.awscli`), `aws-sso-util` and the Session Manager plugin, and writes `~/.aws/config.example` with
 `<<PLACEHOLDERS>>`. It never writes `~/.aws/config` — that file is yours.
 
 > **Provenance.** Born in-tree, 2026-09-20 (ADR-004 phase 3). It replaced the operator's
@@ -15,6 +15,7 @@ CLI (upstream `programs.awscli`) and `aws-sso-util`, and writes `~/.aws/config.e
 ```nix
 local.cloudCli.aws.enable = true;      # in a user's home-manager block
 # local.cloudCli.aws.ssoTooling = false;   # skip aws-sso-util
+# local.cloudCli.aws.ssmPlugin = false;    # skip ssm-session-manager-plugin (aws ssm start-session)
 ```
 
 Then, once, on the machine:

@@ -23,6 +23,10 @@
 # exactly the boundary this capsule exists to keep. The example file is a plain
 # `home.file` — there is no upstream "write an example" option to reach for.
 # `aws-sso-util` is nixpkgs' (aws-sso-util-4.33.0, darwin-clean).
+# `ssm-session-manager-plugin` is nixpkgs' too (Apache-2.0, served by cache.nixos.org);
+# the pinned upstream awscli module has no plugin option (awscli.nix declares only
+# enable/package/settings/credentials, 2026-11-04), so it goes in home.packages here.
+# `aws ssm start-session` (and every port-forward built on it) needs it on PATH.
 {
   config,
   lib,
@@ -41,11 +45,19 @@ in
       default = true;
       description = "Also install aws-sso-util (login/configure helpers for IAM Identity Center).";
     };
+
+    ssmPlugin = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Also install the Session Manager plugin, which `aws ssm start-session` (and SSM port forwarding) needs.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
     programs.awscli.enable = true; # package only — `settings` stays { }, so no ~/.aws/config
-    home.packages = lib.optional cfg.ssoTooling pkgs.aws-sso-util;
+    home.packages =
+      lib.optional cfg.ssoTooling pkgs.aws-sso-util
+      ++ lib.optional cfg.ssmPlugin pkgs.ssm-session-manager-plugin;
 
     home.file.".aws/config.example".text = ''
       # ~/.aws/config.example — SHAPE ONLY (written by nix-config's cloud-cli capsule).
