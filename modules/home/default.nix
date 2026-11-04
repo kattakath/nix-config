@@ -498,6 +498,8 @@ in
       "prod-ca-east-0"
       "prod-us-west-0"
     ];
+    # build-installers.yml publishes the live nixpi image here.
+    sdReleaseRepo = "kattakath/nix-config";
   };
   # ADR-012 § 5 step 1. `package` comes from modules/parts/hosts.nix (engine-built).
   local.terranixDrift.enable = isMacosHost;
