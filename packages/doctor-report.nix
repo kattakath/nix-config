@@ -42,9 +42,10 @@
   coreutils,
   runitor,
   catalogue,
-  # The skeleton's default repositoryUri and the rules' informationUri base, from
-  # config.fleet (modules/parts/doctors.nix).
+  # The skeleton's default repositoryUri and the rules' informationUri base, and the
+  # FD-D-hygiene componentId, from config.fleet (modules/parts/doctors.nix).
   repoUrl,
+  repoName,
   # The heartbeat `weekly` pings (modules/parts/heartbeats.nix). Named here, in quotes, so
   # checks.<system>.heartbeat-workflow-parity's agentPingers leg can see this file names it.
   slug ? "nix-config-doctors-weekly",
@@ -237,10 +238,10 @@ writeShellApplication {
       validate "$sarif" || return 1
       [ "$(kind_of "$sarif")" = sarif ] || { echo "$sarif: not a hygiene SARIF run" >&2; return 1; }
       jq -e '.rules[] | select(.id == "FD-D-hygiene")' "$rules" >/dev/null || die "catalogue has no FD-D-hygiene rule"
-      jq -c --arg sha "$sha" --slurpfile cat "$rules" '
+      jq -c --arg sha "$sha" --arg comp "${repoName}" --slurpfile cat "$rules" '
         ($cat[0].rules[] | select(.id == "FD-D-hygiene")) as $r
         | .runs[0] as $run | $run.versionControlProvenance[0].revisionId as $rev
-        | {ruleId: $r.id, componentId: "nix-config"}
+        | {ruleId: $r.id, componentId: $comp}
           + if $rev != $sha then
               {status: "warn", observedValue: 0, inputsExamined: 0,
                output: "skipped: hygiene run is for \($rev[0:12]), subject is \($sha[0:12])"}

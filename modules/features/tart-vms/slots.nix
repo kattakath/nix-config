@@ -24,12 +24,13 @@ let
     "/private/var/run"
   ];
   underVolatileRoot = p: lib.any (root: p == root || lib.hasPrefix "${root}/" p) volatileRoots;
+  slotDefaults = import ./slot-defaults.nix;
 in
 {
   options.local.tart = {
     runnerSlots = lib.mkOption {
       type = lib.types.ints.positive;
-      default = 2;
+      default = slotDefaults.max;
       description = "Host-wide concurrent-VM ceiling shared by ALL CI VM lanes.";
     };
     runnerStateDir = lib.mkOption {
@@ -51,8 +52,8 @@ in
       # catchable with `builtins.tryEval`, which is exactly why the lanes
       # restate the registration — upstream's guided assertion is the readable
       # half, and only a consumer who sets this option explicitly ever sees it.
-      default = "${config.system.primaryUserHome}/.local/state/tart-runner";
-      defaultText = lib.literalExpression ''"''${config.system.primaryUserHome}/.local/state/tart-runner"'';
+      default = "${config.system.primaryUserHome}/${slotDefaults.stateSubdir}";
+      defaultText = lib.literalExpression ''"''${config.system.primaryUserHome}/${slotDefaults.stateSubdir}"'';
       description = ''
         Durable state for BOTH CI lanes: the slot semaphore, the per-image SSH
         host-key pins, and both lanes' agent logs.

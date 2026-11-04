@@ -382,7 +382,8 @@ let
         text = ''
           reg_token=''${RUNNER_REG_TOKEN:?no registration token from the root half of runDaemon}
           unset RUNNER_REG_TOKEN
-          # Always clean the working directory.
+          # --ephemeral resets the registration, not the disk: wipe the last job's checkout
+          # so none of its files reach the next job.
           ${lib.getExe pkgs.findutils} ${lib.escapeShellArg workDir} -mindepth 1 -delete || true
           # Ephemeral: wipe RUNNER_ROOT so each start is a fresh registration.
           echo "Cleaning $RUNNER_ROOT"

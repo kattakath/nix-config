@@ -12,6 +12,16 @@
   publicSiteUrl,
 }:
 let
+  # The public site's host, from the same hostedSites entry the probe targets.
+  publicSiteHost = builtins.head (builtins.match "https://([^/]+)/" publicSiteUrl);
+  # The Synthetic Monitoring probes public_site runs from, and their cities for the alert
+  # text, side by side so a probe change edits both.
+  smProbeIds = [
+    3
+    44
+    45
+  ];
+  smProbeCities = "Montreal, Calgary, Ohio";
   # The units hosts/nixpi.nix ships; the alert watches the long-running ones only.
   # Imported by relative path, as infra/cloudflare/nixpi-tunnel.nix does derived-names.nix.
   nixpiUnits = (import ../../modules/_lib/nixpi-units.nix).longRunning;
@@ -680,7 +690,7 @@ in
         {
           annotations = {
             description = "Outside-in view; ICMP stayed green through the 2026-10 outage. Check the tunnel first (nixpi-liveness-probing), then Caddy.";
-            summary = "snoringirl.com failing from most Synthetic Monitoring probes (Montreal, Calgary, Ohio)";
+            summary = "${publicSiteHost} failing from most Synthetic Monitoring probes (${smProbeCities})";
           };
           condition = "C";
           data = [
@@ -1458,11 +1468,7 @@ in
         domain = "infra";
         host = "nixpi";
       };
-      probes = [
-        3
-        44
-        45
-      ];
+      probes = smProbeIds;
       settings = [
         {
           http = [
