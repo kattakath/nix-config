@@ -1,7 +1,7 @@
 # ADR-013 — The doctors: what they cover, what gauges take over, and how a run reports
 
 **Status:** **DECIDED 2026-11-03** (every decision here is the operator's, chosen click-to-select).
-Docs only; each move in § 5 is its own later PR. § 6 has a **blocker** for the Desktop lane.
+Docs only; each move in § 5 is its own later PR.
 
 **Question.** This repo has two "doctors": `/hygiene` (skill `nix-hygiene`) and `/fleet-doctor`.
 Which past incidents would they have caught, which would only an automatic check catch, and which
@@ -123,7 +123,7 @@ in the terranix Grafana stack (ADR-012 § 5 step 2).
 
 | Doctor | Lane (ADR-010) | Cadence | Precondition |
 |---|---|---|---|
-| fleet-doctor `audit` | Claude Desktop local task | weekly, Monday afternoon, after the `update-flake-lock` PR | **the blocker below** |
+| fleet-doctor `audit` | Claude Desktop local task | weekly, Monday afternoon, after the `update-flake-lock` PR | none; the empty task folder is explained below |
 | nix-hygiene `audit` | cloud routine | weekly or every two weeks | one proof run shows the cloud lane can run the gates |
 
 - **Every scheduled doctor gets a declared `fleet.heartbeats` entry.** Schedules are not
@@ -132,10 +132,10 @@ in the terranix Grafana stack (ADR-012 § 5 step 2).
   issue only for a finding the operator accepts.
 - **Scheduled runs never fix and never merge.**
 
-**BLOCKER for the Desktop lane.** ADR-010's census (2026-11-01) listed six tasks under
+**The empty task folder is explained.** ADR-010's census (2026-11-01) listed six tasks under
 `~/.claude/scheduled-tasks/`. On 2026-11-03 that directory is **empty** (zero entries, last
-modified 2026-11-01). Nobody has explained why. Until it is explained — moved, deleted, or never
-there — the Desktop lane is not relied on, and fleet-doctor's schedule waits.
+modified 2026-11-01). The operator **removed those six tasks on purpose** around 2026-11-01; they
+were not lost. The Desktop lane stays usable for the weekly fleet-doctor audit.
 
 ## 7. Deterministic runs with no arguments
 
@@ -258,7 +258,7 @@ branches; a gauge would make it hourly.
 | **Alerts actually reach the operator** | every move ends in an alert nobody has test-fired | test-fire each new rule once, end to end |
 | A never-pinged hc check stays silent | true by design until move 1 lands; incident 6 proved it | move 1, then a deliberately unpinged test check |
 | The cloud lane can run the gates | a fresh clone may lack Nix or the time budget | one proof run before scheduling hygiene |
-| The Desktop lane is in use | `~/.claude/scheduled-tasks/` is empty (§ 6) | explain the empty directory |
+| The Desktop lane runs the weekly audit | Desktop must be open and the Mac awake (ADR-010 § 4) | the first scheduled run's heartbeat ping |
 
 Would reopen:
 
