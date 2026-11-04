@@ -1,7 +1,7 @@
 # Two checks over a throwaway home-manager config (same argument-passing shape as
 # every other capsule's checks — a capsule may not import upward):
 #
-#   module-evaluates  enabled → awscli + aws-sso-util in home.packages, the example
+#   module-evaluates  enabled → awscli + aws-sso-util + ssm-session-manager-plugin in home.packages, the example
 #                     file exists, and there is NO ~/.aws/config target at all
 #                     (the shape-not-content boundary, asserted rather than trusted).
 #   inert             the ZERO-INSTALL gate: with the module imported and everything
@@ -41,6 +41,7 @@ in
     fail() { echo "cloud-cli-module: $*" >&2; exit 1; }
     case " ${toString (names on)} " in *" awscli2 "*) ;; *) fail "awscli2 not installed when enabled" ;; esac
     case " ${toString (names on)} " in *" aws-sso-util "*) ;; *) fail "aws-sso-util not installed when enabled" ;; esac
+    case " ${toString (names on)} " in *" ssm-session-manager-plugin "*) ;; *) fail "ssm-session-manager-plugin not installed when enabled" ;; esac
     test "${toString (awsTargets on)}" = ".aws/config.example" \
       || fail "expected exactly .aws/config.example under ~/.aws, got: ${toString (awsTargets on)}"
     grep -q '<<ACCOUNT_ID>>' ${
