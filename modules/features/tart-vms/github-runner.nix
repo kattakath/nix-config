@@ -30,6 +30,7 @@
   ...
 }:
 let
+  slotDefaults = import ./slot-defaults.nix;
   cfg = config.local.tart;
   engine = pkgs.callPackage ./packages/tart-runner.nix { };
 
@@ -261,8 +262,8 @@ in
   config = lib.mkIf (enabled != { }) {
     assertions = [
       {
-        assertion = cfg.runnerSlots <= 2;
-        message = "local.tart.runnerSlots must be <= 2: Apple's Virtualization framework refuses a third concurrent macOS guest.";
+        assertion = cfg.runnerSlots <= slotDefaults.max;
+        message = "local.tart.runnerSlots must be <= ${toString slotDefaults.max}: Apple's Virtualization framework refuses a third concurrent macOS guest.";
       }
     ];
 
