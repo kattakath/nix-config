@@ -114,6 +114,22 @@ whole domain under Security › API controls › App access control › Configur
 policy. If the drift check reports `reauth` again, check that this entry is still Trusted and
 that the exemption box is still ticked.
 
+### Agentic OAuth clients — decided: none marked (2026-11-06)
+
+Google's "agentic" setting (`is_agentic`) gates only Google's hosted **Workspace MCP
+servers**: from 2026-11-11 they reject clients not marked agentic, and from 2026-11-12 an
+existing client's setting is fixed (Google Workspace email, 2026-10-12, listing this project).
+
+- **Nothing here breaks.** The one Internal client (§ 7) serves google-workspace-mcp, an AI
+  agent that calls Workspace **REST** APIs through workspace-mcp, and gmailctl, which is not an
+  agent. REST callers are unaffected.
+- **Not flipped on purpose.** Google says traffic that mixes agent and non-agent use needs a
+  separate client for the agent. Agentic clients also get agent access controls, which would
+  reach gmailctl.
+- **To adopt Google's MCP servers later:** create a **new** OAuth client marked agentic for
+  the agent only. A new client can be made agentic at any time; only flipping the existing one
+  ends on 2026-11-12.
+
 ---
 
 ## 3. Verify
