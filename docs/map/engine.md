@@ -380,7 +380,7 @@ The layer exists for its files' shape rather than their count:
   and home-manager instead of each re-deriving them.
 - **`modules/_lib/is-macos-host.nix`** — `osConfig -> bool`, the ONE `isMacosHost` predicate
   (#856) for the home modules that gate macos-only behaviour: `default.nix`,
-  `macos-user-agents.nix`, `spotlight-actions.nix`, `tor-browser-backup-exclusion.nix`. It reads
+  `macos-user-agents.nix`, `tor-browser-backup-exclusion.nix`. It reads
   `local.operatorHost` (`modules/darwin/operator-host.nix`), NOT the hostname: a template
   consumer may name its own Mac "macos" (`checks.*.template-consumer` builds one to prove it).
 - **`modules/_lib/brew-prefix.nix`** — `osConfig -> string`, the ONE Homebrew prefix

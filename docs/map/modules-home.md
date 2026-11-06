@@ -2,11 +2,11 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,spotlight-actions.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
+`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
-same day. This manifest also silently omitted `spotlight-actions.nix` and
+same day. This manifest also silently omitted
 `chromium-extensions/` until the same pass.
 
 **It was `modules/shared/` until 2026-10-02**, and the entry point was `home.nix`.
@@ -33,9 +33,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
   wired. Also declares a Spotlight-visible, focus-or-launch `.app` bundle for the Android
   emulator (`home.file."Applications/Android Emulator.app"`, backed by
-  `packages/spotlight-launchers.nix`, macos-only). The four COMMAND bundles from the same
-  package land via `./spotlight-actions.nix` instead — a separate module so the mapping is
-  one `mapAttrs'` rather than four more `home.file` lines here. **qBittorrent** is planted the
+  `packages/spotlight-launchers.nix`, macos-only). **qBittorrent** is planted the
   same `recursive = true` way (`home.file."Applications/qBittorrent.app"`, from nixpkgs): NOT the
   Homebrew cask, which Homebrew DISABLED on 2026-09-01 for failing Gatekeeper, and NOT
   `home.packages`, whose `Home Manager Apps` symlink Spotlight does not index.
@@ -48,31 +46,11 @@ in the repo can catch that; see that fixture file's header for the measurement.
   therefore run as **tmux panes** rather than in-process, so a session that uses them wants a
   tmux-capable terminal. `EXPERIMENTAL` is upstream's word, not ours — the flag can disappear
   under a `claude-code` bump, and nothing here pins it.
-- **`spotlight-actions.nix`** — macos-only: maps `spotlight-launchers`' `commandApps` **and**
-  `aliasApps` into `~/Applications/<name>.app`. The one alias is **`Terminal`**, which opens
-  Ghostty, and it works on the bundle's own NAME — verified: `mdfind` for an app named
-  `*terminal*` returns both `/System/Applications/Utilities/Terminal.app` and this one. It
-  shares that name deliberately (one query, both rows); the gold icon tells them apart, and
-  Spotlight's ranking learns which gets clicked. The bundle **id** is NOT shared
-  (`com.kattakath.ghostty-terminal`) — a duplicate id makes LaunchServices pick one of the two
-  at random for every `open -b` and URL handler.
-  It is a SIBLING bundle rather than an edit to `/Applications/Ghostty.app` because that is a
-  Homebrew cask: an edit is clobbered by the next `brew upgrade` and breaks the bundle's code
-  signature.
-  **`CFBundleAlternateNames` was tried and REMOVED**, and the finding is worth keeping: Apple's
-  alias key (Calendar answers "iCal", System Settings answers "Preferences") does work on a
-  plain unsigned third-party bundle, but NOT through `home.file`'s `recursive = true`, which
-  symlinks `Info.plist` into `/nix/store`. Measured 2026-09-23, same bundle both ways: a real
-  copied directory indexed all four names, the symlinked one indexed none. The display name
-  survives either way because it comes from the filename. Recovering the synonyms would mean
-  COPYING the bundle — home-manager's `targets.darwin.copyApps` exists for exactly that, at the
-  price of an App Management TCC grant and a subfolder. Uses `home.file` with `recursive = true`, **not**
-  home-manager's `targets.darwin.copyApps` ("works with Spotlight",
-  `modules/targets/darwin/copyapps.nix:14`): that option's default is
-  `isDarwin && stateVersion >= 25.11` and this profile is on 24.05, so what is live is the
-  older `linkApps` — `~/Applications/Home Manager Apps` is a SYMLINK into `/nix/store`, which
-  Spotlight does not index. Both also nest the bundles in a subfolder, and `copyApps` needs
-  the App Management TCC grant (a click, per Mac).
+- **`spotlight-actions.nix` — DELETED 2026-11-06.** It planted the `Nix Activate` / `Nix Flake
+  Check` / `Nix Open Repo` / `NixOS VM` command bundles and a `Terminal` alias for Ghostty;
+  the operator found them useless. The commands stay on PATH. `home.file` + `recursive = true`
+  (not `targets.darwin.copyApps`) is still how the Android Emulator and qBittorrent bundles
+  land — the reason is in `modules/home/default.nix` beside the qBittorrent entry.
 - **`mcp.nix` — DELETED 2026-10-02 (#734); this entry is a RECORD, not a live file.** What it
   was: the fleet MCP gateway, one `mcp-proxy` hosting every server with **no plugin
   owner**, reached by every client as ONE portal connector. See

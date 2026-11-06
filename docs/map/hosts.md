@@ -235,7 +235,7 @@ they bite any future second account:
   distinction is base-vs-vmVariant, not graphical-vs-headless.)
 - **`nixos.nix`** — a **long-lived GNOME desktop guest** under **UTM's QEMU backend**
   (`virtio-gpu-gl-pci` + virgl). A real disk-backed host, driven from the Mac by `nixos-vm`
-  (`packages/nixos-vm.nix`; also the **"NixOS VM"** Spotlight entry):
+  (`packages/nixos-vm.nix`):
   - `create` — builds the image (or `--image`), writes the UTM bundle at
     `${XDG_DATA_HOME:-~/.local/share}/utm/nixos.utm` (fixed UUID/MAC, 64 GiB qcow2), registers
     it, shares `~/Shared` via UTM's `update registry` AppleScript, boots it, runs the first

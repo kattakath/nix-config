@@ -15,7 +15,7 @@
 # modules/parts/packages.nix keeps `nixvmRunner` out of `packages`. Resolving it
 # in `create` (the `nixpi-flash` "build, or --image" precedent in
 # packages/nixpi-provision.nix) keeps this a tiny pure-darwin package that is
-# safe in `packages`, in the flake check, and on PATH for the Spotlight launcher.
+# safe in `packages`, in the flake check, and on PATH.
 #
 # WHY SEED + SWITCH: the image is a small SEED system (boots, sshd, operator
 # key), and the desktop arrives by the first `nixos-rebuild switch`. The full

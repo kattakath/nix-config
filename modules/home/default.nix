@@ -343,11 +343,6 @@ in
     # upstream's home.file entry, so it has to be loaded at all — which this
     # explicit list, not auto-discovery, is what guarantees.
     ./claude-code-settings.nix
-    # The Spotlight-findable .app bundles (packages/spotlight-launchers.nix owns the
-    # set). Its own module rather than more `home.file."Applications/…"` lines here:
-    # the module system merges the two definitions, so the mapping stays one
-    # `mapAttrs'` instead of hand-written entries. macos-gated internally.
-    ./spotlight-actions.nix
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./kdeconnect.nix # local.kdeConnect — merges declared keys into the kde-connect cask's INI files
@@ -1206,8 +1201,10 @@ in
   # From nixpkgs, NOT the cask: Homebrew DISABLED `qbittorrent` on 2026-09-01
   # (fails Gatekeeper), so `brew bundle` errors on it. Planted like the bundle
   # above rather than via home.packages, because linkApps' "Home Manager Apps"
-  # is a symlink into /nix/store that Spotlight does not index
-  # (modules/home/spotlight-actions.nix has the full copyApps comparison).
+  # is a symlink into /nix/store that Spotlight does not index. Not
+  # `targets.darwin.copyApps` either: its default needs stateVersion >= 25.11
+  # (this profile is 24.05), it nests bundles in a subfolder, and it needs an
+  # App Management TCC grant — a click per Mac.
   home.file."Applications/qBittorrent.app" = lib.mkIf isMacosHost {
     source = "${pkgs.qbittorrent}/Applications/qbittorrent.app";
     recursive = true;
@@ -1326,7 +1323,7 @@ in
     ++ lib.optionals isMacosHost [
       claudeWork # `claude-work` — Claude Code as the work account via a per-process CLAUDE_CODE_OAUTH_TOKEN from the login Keychain, so it runs ALONGSIDE the personal `claude` with shared ~/.claude (packages/claude-work.nix)
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
-      nixosVm # `nixos-vm <verb>` (verbs: the case in packages/nixos-vm.nix) — the long-lived nixos UTM guest (packages/nixos-vm.nix); on PATH so the "NixOS VM" Spotlight launcher can run `nixos-vm start`
+      nixosVm # `nixos-vm <verb>` (verbs: the case in packages/nixos-vm.nix) — the long-lived nixos UTM guest (packages/nixos-vm.nix)
       pkgs.gcx # `gcx` — Grafana's official Cloud CLI (public preview; supersedes grafanactl, archived 2026-06-01), for the operator's Grafana Cloud stack; ships agent skills Claude Code auto-detects
       pkgs.scrcpy # mirror/control a PHYSICAL Android phone. Was the `scrcpy` BREW until 2026-09-29 (hosts/macos.nix records the move). Its nixpkgs wrapper prepends its OWN android-tools adb to PATH for its own process only — so it drives adb 37.0.0 while mobile-mcp/android-phone use the cask's 37.0.1. Harmless: both speak protocol 1.0.41, so they share one adb server instead of killing each other's. `adb` itself stays on the cask
       # Operator-personal: his bookmark DB, his job search, his Resend Keychain key.
