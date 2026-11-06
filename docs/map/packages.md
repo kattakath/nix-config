@@ -96,37 +96,8 @@ Core package set:
   in-Nix SVG/icns icons via librsvg+libicns). `mkLauncherApp` gives the Android
   emulator a Spotlight-visible, focus-or-launch identity (consumed by
   `modules/home/default.nix`'s `home.file."Applications/Android Emulator.app"`).
-  `mkAliasApp` builds the `Terminal` alias bundle that opens Ghostty — see
-  [`modules-home.md`](modules-home.md) § `spotlight-actions.nix`.
-  `mkCommandApp` emits **one bundle per fleet operation** — the four `commandApps`
-  (`Nix Activate`, `Nix Flake Check`, `Nix Open Repo`, `NixOS VM`) planted by
-  `modules/home/spotlight-actions.nix`. Three `shape`s: `terminal` opens a **Ghostty**
-  window running the command (`--wait-after-command=true -e /bin/zsh -lc …`) so `activate`'s
-  Touch ID sheet and the build log are both visible; `shell` opens an ordinary interactive
-  Ghostty window via its own `--working-directory`; `quiet` runs straight from the launcher
-  (no consumer today). The working tree resolves through `/etc/nix-darwin/flake.nix` — the
-  same link `darwin-rebuild` follows — and travels as an **argv element**, never an exported
-  variable: measured 2026-09-23 on Ghostty 1.3.1, a second `open -n` opens a window in the
-  EXISTING process, which does not inherit the launcher's environment.
-  Both Ghostty shapes share one `ghosttyLook` list: `--background=#6b4300` — the darkest stop
-  of the mark's own `goldDeep` gradient, **8.65:1** against the theme's `#FFFFFF` ink (the
-  obvious brighter golds fail AA: `#b57b12` is 3.62:1) — plus the same mark again as a
-  `bottom-right` corner watermark at `opacity 0.35`. `background-image-fit = none` is
-  load-bearing there: it is the only fit that does NOT scale to the window, so the mark stays
-  a corner mark instead of the full-bleed backdrop `contain` (the default) would give. The
-  image is a 256px PNG rasterised into the store, because Ghostty's `background-image` takes
-  **PNG or JPEG only** and will not read the `.svg`. All of it is per-window on the command
-  line, so `local.terminalTheme`'s `#300A24` ground is untouched everywhere else.
-  All four wear ONE shared `.icns`, the operator's gold chevron
-  (`packages/fleet-mark.svg`; the `fleetMarkSvg` assert in `spotlight-launchers.nix` guards it); the non-square
-  434.94 x 448 canvas is rewritten to a centred 560 x 560 viewBox **in Nix**, behind an
-  `assert`, so the committed file stays refreshable with a plain `cp`.
-  **Bundles cut at birth** — `Nix Deploy nixpi` (deploy-rs failed even
-  after a successful Cloudflare Access login) and `Nix Launchd Doctor` (`launchd-doctor` is
-  not on a login shell's PATH) were both BROKEN; update-inputs / rollback /
-  determinate-status / search-packages were dropped as unused, and a `code`-based editor bundle
-  was replaced by `Nix Open Repo`.
-  The package header records each, so none returns as an oversight.
+  The `mkCommandApp`/`mkAliasApp` makers, their four `Nix *` bundles, the `Terminal` alias and
+  `packages/fleet-mark.svg` were REMOVED 2026-11-06 as unused (git history has them).
   **Not Spotlight's "Actions" lane** — that is App Intents (Swift + signing) or Shortcuts.app
   (iCloud sqlite; the `shortcuts` CLI has no `import`), and a Shortcuts shell script launched
   from Spotlight needs a hand-granted Full Disk Access on `Spotlight.app`. Neither is
@@ -233,7 +204,7 @@ Smaller, single-purpose CLIs:
   default, never prunes transcripts; a CLI rather than a check or activation step because all
   of it is a property of the running machine.
 - **`nixos-vm.nix`** — the `nixos-vm` CLI for the `nixos` UTM desktop host
-  (create / switch / restart …); the `NixOS VM` Spotlight bundle runs `nixos-vm start`. Documented
+  (create / switch / restart …). Documented
   with the host in [`hosts.md`](hosts.md).
 - **`resend-cli.nix`** — the official Resend CLI, not yet in nixpkgs so `npx`-wrapped and
   version-pinned like `mcp-wordpress@<version>` in `modules/home/plugin-mcp.nix`; injects `RESEND_API_KEY` from the
