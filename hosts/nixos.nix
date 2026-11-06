@@ -1,7 +1,6 @@
 # `nixos` — a LONG-LIVED GNOME desktop guest for the Mac, run by UTM's QEMU
 # backend (virtio-gpu-gl + virgl). The Mac side (UTM bundle, `nixos-vm` CLI)
-# lives in packages/nixos-vm.nix; its Spotlight launcher in
-# packages/spotlight-launchers.nix.
+# lives in packages/nixos-vm.nix.
 #
 # WHY UTM AND NOT TART / nixvm (R&D 2026-10-17): under Apple Virtualization a
 # Linux guest renders with llvmpipe only and virtio-sound stalls (measured:

@@ -172,7 +172,7 @@ Blueprint has no `features/` key at all, so the per-capsule `packages/` is this 
 rests on ADR-002 §2 instead: a capsule owning its packages is what replaces the satellite repo
 that used to own them.
 
-**Where it IS a wart:** `packages/next-right-thing/` and `packages/fleet-mark.svg` — §9a.
+**Where it IS a wart:** `packages/next-right-thing/` — §9a (`packages/fleet-mark.svg`, the other, was deleted 2026-11-06).
 
 ## 5. The capsule contract
 
@@ -356,14 +356,14 @@ fixes in noise and make the one commit that needs real review unreviewable.
 
 ## 9. The weakest parts of the current shape
 
-### 9a. `packages/` holds two things that are not packages
+### 9a. `packages/` holds a thing that is not a package (it held two until 2026-11-06)
 
-Blueprint's contract is `packages/<pname>(.nix|/default.nix)`. Two entries break it:
+Blueprint's contract is `packages/<pname>(.nix|/default.nix)`. Two entries broke it; one remains:
 
 | Entry | What it actually is, with the evidence |
 |---|---|
 | `packages/next-right-thing/` | **six shell scripts, no `default.nix`** — not a package, and not a flake output either: zero references in `modules/parts/packages.nix`. It is a *source tree*, read as `scriptDir = ../../packages/next-right-thing;` by `modules/home/next-right-thing.nix:28`, which assembles the real derivation itself with `runCommand` |
-| `packages/fleet-mark.svg` | a bare asset at the directory root, `builtins.readFile`-d by a sibling (`packages/spotlight-launchers.nix:115`) |
+| `packages/fleet-mark.svg` | **gone 2026-11-06** with the command bundles that read it — was a bare asset at the directory root, `builtins.readFile`-d by `packages/spotlight-launchers.nix` |
 
 **Corroborated independently the same day.** #763's own census of tracked `.sh` files — run for a
 different reason, to fix a false claim in `bootstrap-lint`'s header — counted **15** tracked
