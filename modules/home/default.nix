@@ -284,7 +284,6 @@ let
     dontCheckRuntimeDeps = true;
   });
 
-  # `android-emu` — the Android emulator launcher (packages/android-emu.nix).
   androidEmu = pkgs.callPackage ../../packages/android-emu.nix { inherit androidSdkRoot brewPrefix; };
 
   # "Focus-or-launch" Spotlight .app bundle for the Android emulator
