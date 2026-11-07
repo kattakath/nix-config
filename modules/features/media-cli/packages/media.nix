@@ -29,31 +29,10 @@
 # media-queue-pause, media-queue-resume. The rest stays out for the concrete
 # reasons below, which are about breakage, not taste.
 #
-# THIS PARAGRAPH USED TO STATE A DIFFERENT CRITERION, and it was wrong: it said
-# those tools belong here because "nothing hardcodes them — no Finder .workflow,
-# no launchd arg0, no flake app, no composition seam". That is a fact about the
-# CALLERS, not a membership rule, and reading it as one is what kept
-# media-enqueue out. A verb is ADDITIVE: the binary keeps its name, so every
-# hardcoded caller is untouched by definition. media-queue-status is the proof
-# it was never the real rule — it is reachable as `media queue` AND under its
-# own name, and always has been. The genuine exclusions below turn on breakage
-# (an arg0 that must stay `nix-media-queue` for TCC, a composition seam not
-# meant for hand use), never on who happens to call a tool today.
-#
-# RETRACTED 2026-09-06 — `enqueue` IS a verb. This file used to exclude it in
-# one line, "the Finder Services call it by absolute store path". That is true
-# (packages/media-quick-actions.nix:73, 85, 100) and it argues about the
-# BINARY's NAME, which the ADDITIVE rule above already settles for all of
-# these: a verb ADDS a name and removes none, so no store-path caller can tell
-# the difference. The HUMAN-types/MACHINES-call line above partitions CALLERS,
-# not verbs — one name serves both, which is what "purely additive" means.
-# media-worker directly below is what a REAL exclusion looks like: there the
-# dispatcher REPLACES the arg0 launchd execs and the TCC grant dies with it.
-# The confusion had a concrete cost: `media-describe <dir>` and the Describe
-# Image(s) Quick Action run the same work through the same binary
-# (media-worker's `setsid` dispatch in packages/media-queue.nix), and only the Quick Action's copy ever
-# appeared in `media queue` — a shell-started pass could not be put into the
-# list the operator was already watching, pausing and resuming.
+# A verb is ADDITIVE (the binary keeps its name), so who calls a tool never
+# excludes it; only an arg0/TCC or seam breakage does (media-worker below).
+# Excluding `enqueue` had a real cost: a shell-started `media-describe` pass
+# could not join the `media queue` list the Quick Action's copy appears in.
 #
 # WHAT IS DELIBERATELY NOT A VERB, and why each one would break if it were:
 #

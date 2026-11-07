@@ -87,10 +87,6 @@ in
   # Why and the measurements: modules/darwin/clat-guard.nix. 2026-10-16.
   local.clatGuard.enable = true;
 
-  # `local.ytDlpWebUi` and `local.meTube` used to be enabled here, at DARWIN
-  # scope. Both are Home Manager modules since 2026-09-22 — their enables moved
-  # into the `home-manager.users.${loginName}` block below.
-
   # Machine-wide CLIs — the mechanism for "shared by every account". A
   # systemPackages entry is ONE store path on PATH for every user, so no
   # profile has to declare it and none can drift to a different version.
@@ -151,14 +147,8 @@ in
   # appId/installationId: the "ismailkattakath-ci" App (4849830) — the SAME App
   # the Tart lane below uses. Neither value is secret on its own.
   #
-  # 2026-09-06: this lane used to have its own App, "dontsell-ai" (4689619),
-  # org-owned and granted only Organization/Self-hosted-runners RW. That was
-  # retired because it stopped buying anything: ismailkattakath-ci is already
-  # installed on dontsell-ai with repos=all, so the broader access existed
-  # regardless, and a second narrow credential for the same job was defence in
-  # depth that depth no longer had. (It WOULD still be worth keeping if
-  # dontsell-ai were a third party who might need to revoke this Mac's access
-  # without touching a personal account — it is not.)
+  # One App for both lanes: a second, narrower dontsell-ai App (retired
+  # 2026-09-06) bought nothing, since ismailkattakath-ci already has repos=all there.
   #
   # WHY THERE ARE STILL TWO AGENIX SECRETS FOR ONE APP: an agenix secret has
   # exactly one owner, and these two lanes run as different users —

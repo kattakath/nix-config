@@ -4,10 +4,8 @@
 # which this block also forces as default/startup. UNGATED: every darwin host.
 # Type size is ergonomics (the operator's eyes), so every darwin host gets it.
 # Values come from `local.terminalTheme` (modules/home/terminal-theme.nix) — this
-# module owns the DELIVERY, never the palette. This repo used to VENDOR a whole
-# Terminal profile here ("Ubuntu", plus a generator script) and import it on first
-# activation; #319 dropped that, and what replaces it is Apple's own scripting
-# interface rather than an NSKeyedArchiver blob.
+# module owns the DELIVERY, never the palette. It drives Apple's own scripting
+# interface, never a vendored NSKeyedArchiver profile (#319).
 {
   config,
   lib,
