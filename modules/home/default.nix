@@ -812,6 +812,9 @@ in
       pyright # `pyright-langserver --stdio` — Python LSP
       typescript-language-server # `typescript-language-server --stdio`; nixpkgs' wrapper pins typescript_5's tsserver, so no project-local `typescript` is needed
       nixd # `nixd` — eval-aware Nix LSP (stdio by default, no flag)
+      bash-language-server # `bash-language-server start` — Bash/sh LSP (stdio); shells out to the two below
+      shellcheck # bash-language-server's diagnostics backend (found on PATH); was a Homebrew formula (hosts/macos.nix)
+      shfmt # bash-language-server's formatter backend (found on PATH)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       gitTidy # `git-tidy` — switch to the default branch, fast-forward, delete branches whose GitHub PR merged (gh-poi, so squash merges count) (packages/git-tidy.nix)
     ]
