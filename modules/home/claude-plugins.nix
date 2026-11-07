@@ -4,8 +4,7 @@
 # carrying a .claude-plugin/marketplace.json. This module owns everything
 # generic about DECLARING them — `extraKnownMarketplaces` + `enabledPlugins`,
 # which is all Claude Code needs to fetch a marketplace and download its
-# enabled plugins itself. WHICH marketplaces exist and which plugins come from
-# each is data, declared through `local.claudePlugins.marketplaces` — by this
+# enabled plugins itself. WHICH marketplaces exist is data, declared through `local.claudePlugins.marketplaces` — by this
 # repo (modules/home/default.nix) and, additively, by any private layer composed
 # on top of it.
 #
@@ -137,8 +136,7 @@ in
       }
     '';
     description = ''
-      Claude Code plugin marketplaces to register, and the plugins to install
-      from each. attrsOf, so a private layer ADDS a key and this repo's own
+      Claude Code plugin marketplaces to register. attrsOf, so a private layer ADDS a key and this repo's own
       marketplaces survive untouched.
     '';
   };

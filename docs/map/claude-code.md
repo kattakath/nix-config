@@ -295,16 +295,16 @@ belonged to is rejected outright (`programs.claude-code.skills` in `modules/home
 
 Placed at `~/.claude/skills/<name>/` declaratively by `programs.claude-code.skills`
 (`modules/home/default.nix`, darwin-gated) on `darwin-rebuild switch`. Since 2026-11-07 only the
-two UNLICENSED skills remain here (`excalidraw-diagram`, `vercel-cli-with-tokens`, PINNED
-`flake = false` inputs); every licensed one moved to a plugin (Nix registers the marketplace,
-the plugin is enabled at runtime). anthropics/skills (`mcp-builder`,
+skills no plugin can serve remain here — unlicensed, or whose upstream plugin fails to load
+(PINNED `flake = false` inputs; each entry's comment there says which and why). Every other
+one moved to a plugin (Nix registers the marketplace, the plugin is enabled at runtime). anthropics/skills (`mcp-builder`,
 `webapp-testing`, `pdf`/`docx`/`pptx`/`xlsx`) is NOT an input any more, and its marketplace
 registration was dropped 2026-11-02 (it enabled no plugin); those skills reach sessions through
 the claude.ai account.
 
 The `agent-skills-anthropic` input (anthropics/claude-code → plugin-dev + hookify authoring
-skills) was REMOVED 2026-09-29. Those eight skills now arrive as the `plugin-dev` and `hookify`
-PLUGINS from `claude-plugins-official`, which also carry the agents, commands and hook scripts a
+skills) was REMOVED 2026-09-29. Those eight skills now arrive as the claude.ai-synced
+`plugin-dev@synced` and `hookify@synced` PLUGINS, which also carry the agents, commands and hook scripts a
 skill-directory mapping drops. Keeping both would have served the same eight skill names from two
 upstreams on two unrelated pins.
 

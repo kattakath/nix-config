@@ -267,8 +267,8 @@
       url = "github:xai-org/grok-build-plugin-cc";
       flake = false;
     };
-    # ---- Third-party skills with NO licence, so no marketplace can carry them (2026-11-07:
-    # every licensed one moved to a plugin). Wired into programs.claude-code.skills.
+    # ---- Third-party skills no plugin can serve — unlicensed, or whose plugin fails to load
+    # (2026-11-07: every other one moved to a plugin). Wired into programs.claude-code.skills.
     agent-skills-mac-automation = {
       # MIT: `automating-mac-apps` foundation (AppleScript/JXA). Its marketplace plugin fails to
       # load (manifest conflict upstream), so the one skill is installed from this pin instead.
