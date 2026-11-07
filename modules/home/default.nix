@@ -808,6 +808,8 @@ in
     # org name. `idsOf` in ./claude-plugins.nix derives the plugin id as
     # "<plugin>@<key>", so a guessed key silently resolves nothing.
     #   trailofbits/skills    -> "trailofbits"                (44 plugins)
+    #   Jeffallan/claude-skills -> "fullstack-dev-skills"     (1 plugin, 2026-11-07)
+    #   SpillwaveSolutions/automating-mac-apps-plugin -> "automating-mac-apps-plugin" (1 plugin, 2026-11-07)
 
     # Trail of Bits (CC-BY-SA-4.0), no flake input. 44 plugins. See the licence note above — share-alike is a
     # positive reason to consume this as a marketplace rather than vendor it.
@@ -817,6 +819,19 @@ in
         "gh-cli"
         "supply-chain-risk-auditor"
       ];
+    };
+
+    # Upstream marketplaces that replace cherry-picked `agent-skills-*` skills (2026-11-07,
+    # operator: Nix registers, the plugin is enabled at runtime). Both MIT. Accepted cost:
+    # each plugin is the WHOLE bundle — fullstack-dev-skills ships 67 skills (we used
+    # postgres-pro), automating-mac-apps 16 skills + 9 agents + 10 commands.
+    fullstack-dev-skills = {
+      source = lib.mkDefault "https://github.com/Jeffallan/claude-skills.git";
+      plugins = [ "fullstack-dev-skills" ];
+    };
+    automating-mac-apps-plugin = {
+      source = lib.mkDefault "https://github.com/SpillwaveSolutions/automating-mac-apps-plugin.git";
+      plugins = [ "automating-mac-apps" ];
     };
   };
 
