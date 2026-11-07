@@ -62,6 +62,16 @@ let
     "searchconsole.googleapis.com" =
       "kattakath.com search analytics, URL inspection and sitemap submit, called with operator ADC";
     "pagespeedonline.googleapis.com" = "PageSpeed Insights / Core Web Vitals checks for kattakath.com";
+    "gmail.googleapis.com" = "gmailctl's filter sync (packages/gmail-filters.nix), operator ADC";
+    "admin.googleapis.com" = "Admin SDK, enabled 2026-09-07 with ws_domain_admin below";
+    # Operator-enabled by hand (2026-09-21 .. 10-31) for Workspace work outside this repo,
+    # and kept on by choice when the workspace-mcp plugins were removed (2026-11-07).
+    # No code here calls them; declared so the project's live API set is reproducible.
+    "drive.googleapis.com" = "operator Workspace use (Drive API), kept on by choice";
+    "tasks.googleapis.com" = "operator Workspace use (Tasks API), kept on by choice";
+    "chat.googleapis.com" = "operator Workspace use (Chat API), kept on by choice";
+    "people.googleapis.com" = "operator Workspace use (People API), kept on by choice";
+    "workspacestudio.googleapis.com" = "Workspace Studio flows, kept on by choice";
   };
 in
 {
