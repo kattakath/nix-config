@@ -62,6 +62,11 @@ let
     "searchconsole.googleapis.com" =
       "kattakath.com search analytics, URL inspection and sitemap submit, called with operator ADC";
     "pagespeedonline.googleapis.com" = "PageSpeed Insights / Core Web Vitals checks for kattakath.com";
+    "geocoding-backend.googleapis.com" =
+      "Geocoding API: address text to coordinates for operator scripts (key below)";
+    "apikeys.googleapis.com" = "API Keys API, which manages the restricted geocoding key below";
+    "cloudquotas.googleapis.com" =
+      "Cloud Quotas API, which holds the geocoding daily request cap below";
     "gmail.googleapis.com" = "gmailctl's filter sync (packages/gmail-filters.nix), operator ADC";
     "admin.googleapis.com" = "Admin SDK, enabled 2026-09-07 with ws_domain_admin below";
     # Operator-enabled by hand (2026-09-21 .. 10-31) for Workspace work outside this repo,
@@ -120,7 +125,19 @@ in
   # creates. Measured 2026-09-22 — as the SA, every import here failed with
   # `accessNotConfigured` or IAM_PERMISSION_DENIED, which is the correct answer to
   # an under-privileged identity.
-  provider.google.project = projectId;
+  provider.google = [
+    { project = projectId; }
+    # User ADC carries no quota project, and the Cloud Quotas API refuses such calls
+    # (403 "requires a quota project", measured 2026-11-07). An ALIAS bills only the
+    # resources that opt in: setting the override on the default provider billed every
+    # call to this project and broke the plan on APIs it never enabled.
+    {
+      alias = "billed";
+      project = projectId;
+      user_project_override = true;
+      billing_project = projectId;
+    }
+  ];
 
   # ---- Enabled services ------------------------------------------------------
   # `disable_on_destroy = false` on every one. The default is TRUE, which means a
@@ -138,6 +155,30 @@ in
       timeouts.create = "10m";
     };
   }) services;
+
+  # ---- Geocoding: a hard daily cap, and a key kept OUT of state ---------------
+  # 31 days x 300 = 9,300 requests/month, under Google Maps Platform's 10,000 free
+  # Essentials calls per month (pricing since 2025-03-01), so this API cannot bill
+  # even if a script loops. The budget in budget.nix only ALERTS; this quota STOPS.
+  resource.google_cloud_quotas_quota_preference.geocoding_daily_cap = {
+    parent = "projects/${projectId}";
+    name = "geocoding-billable-per-day";
+    provider = "google.billed";
+    service = "geocoding-backend.googleapis.com";
+    quota_id = "BillableDefaultPerDayPerProject";
+    quota_config.preferred_value = 300;
+    # Unlimited -> 300 is a >10% cut, which Google refuses as "unsafe" unless told the
+    # decrease is intended (FAILED_PRECONDITION, measured 2026-11-07). It is: that is the cap.
+    ignore_safety_checks = "QUOTA_DECREASE_PERCENTAGE_TOO_HIGH";
+    justification = "Hard cap below the monthly free tier for operator scripts.";
+    depends_on = [ "google_project_service.cloudquotas_googleapis_com" ];
+  };
+  # The API KEY itself is deliberately NOT declared, for the reason given for
+  # service-account keys below: a declared key lands its secret in state. It was
+  # created once (2026-11-07) through the API Keys REST API, restricted to
+  # geocoding-backend.googleapis.com, and its value piped straight into the login
+  # Keychain as `gcp:geocoding:apikey` (`secret exec GEOCODE_KEY=gcp:geocoding:apikey -- …`).
+  # To rotate: create a new restricted key the same way, `secret set` it, delete the old.
 
   # ---- Default service accounts: no Editor ----------------------------------
   # Google grants the default compute SA roles/editor on the whole project. Nothing
