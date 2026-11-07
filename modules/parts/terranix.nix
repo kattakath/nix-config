@@ -1433,6 +1433,66 @@ let
       ];
     };
 
+  # ---- workspace-mcp stack (terranix -> OpenTofu) --------------------------
+  # Renders infra/gcp/workspace-mcp.nix: the Cloud Run MCP server for Google Tasks +
+  # Chat, its domain mapping and kattakath.com's Site Verification ownership, all
+  # adopted by `import` blocks. Its own stack because its blast radius is one
+  # service, not the project (foundation) or the alarm (budget).
+  gcpWorkspaceMcpConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/gcp/workspace-mcp.nix
+        (tofuGcsBackend "gcp-workspace-mcp")
+        {
+          _module.args = {
+            projectId = gcpProjectId;
+            inherit domainName;
+          };
+        }
+      ];
+    };
+
+  # ADC as the OPERATOR, no impersonation (the stack file's header has why), so the
+  # credential check is mkGcpBudgetTofu's: a MISSING ADC file lets the provider fall
+  # back to another credential silently.
+  mkGcpWorkspaceMcpTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    mkAdoptedTofu {
+      inherit system name action;
+      stack = "gcp-workspace-mcp";
+      typePrefix = "google_";
+      envPrefix = "GCP_WORKSPACE_MCP";
+      label = "workspace-mcp";
+      # The google provider comes from the registry, pinned in infra/provider-pins.nix.
+      plugins = null;
+      renderer = gcpWorkspaceMcpConfig;
+      driftEnv = { };
+      vars = "";
+      credentialCheck = ''
+        adc="''${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json"
+        if [ ! -f "$adc" ]; then
+          echo "ERROR: no Application Default Credentials at $adc" >&2
+          echo "  Inside 'nix develop', with the siteverification scope this stack needs:" >&2
+          echo "    gcloud auth application-default login --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/siteverification" >&2
+          exit 1
+        fi
+        echo "ADC: $adc" >&2
+      '';
+      createLine = "The others would be CREATED next to live objects of the same name. Run the matching *-plan first and read it.";
+      dropLines = [
+        "Applying it would DELETE each one: the bucket holds every connected"
+        "account's encrypted tokens, and the service is the connector's backend."
+        "tofu apply has NO rollback."
+      ];
+      autoApproveWhy = "Read the plan: a replaced service or bucket drops every connection.";
+    };
+
   # ---- Adopted, import-guarded stacks: grafana, github and hc-checks --------
   # ONE builder for the stacks ADR-012 adopted with `import` blocks, plus hc-checks,
   # which needs the same three guards with no imports. The older wrappers above stay
@@ -1774,6 +1834,16 @@ in
           name = "hc-checks-apply";
           action = "apply";
         };
+        gcp-workspace-mcp-plan = mkGcpWorkspaceMcpTofu {
+          inherit system;
+          name = "gcp-workspace-mcp-plan";
+          action = "plan";
+        };
+        gcp-workspace-mcp-apply = mkGcpWorkspaceMcpTofu {
+          inherit system;
+          name = "gcp-workspace-mcp-apply";
+          action = "apply";
+        };
         grafana-plan = mkGrafanaTofu {
           inherit system;
           name = "grafana-plan";
@@ -1871,6 +1941,16 @@ in
           type = "app";
           program = "${config.packages.hc-checks-apply}/bin/hc-checks-apply";
           meta.description = "tofu apply the healthchecks.io checks — refuses a render that drops a check, an apply against empty state, and -auto-approve (needs HEALTHCHECKSIO_API_KEY)";
+        };
+        gcp-workspace-mcp-plan = {
+          type = "app";
+          program = "${config.packages.gcp-workspace-mcp-plan}/bin/gcp-workspace-mcp-plan";
+          meta.description = "Render infra/gcp/workspace-mcp.nix (terranix) and tofu PLAN the workspace-mcp Cloud Run service, its domain mapping and the domain's Site Verification — read-only, run it before gcp-workspace-mcp-apply (needs ADC with the siteverification scope)";
+        };
+        gcp-workspace-mcp-apply = {
+          type = "app";
+          program = "${config.packages.gcp-workspace-mcp-apply}/bin/gcp-workspace-mcp-apply";
+          meta.description = "tofu apply the workspace-mcp stack — refuses a render that drops an object state holds, an apply against empty state without imports, and -auto-approve (needs ADC)";
         };
         grafana-plan = {
           type = "app";

@@ -90,6 +90,14 @@ in
       }) dnsRecords
     );
 
+  # A record created out-of-band carries `importId` (zone_id/record_id), so it is
+  # ADOPTED rather than created twice. OpenTofu skips an import block whose
+  # address is already in state, so the entry is inert after the first apply.
+  import = map (r: {
+    to = "cloudflare_dns_record.${r.key}";
+    id = r.importId;
+  }) (builtins.filter (r: r ? importId) dnsRecords);
+
   # Surfaced so the apply wrapper can assert the render is the size it expects
   # before it touches anything.
   output.record_count.value = builtins.length dnsRecords;
