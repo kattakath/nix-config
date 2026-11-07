@@ -36,86 +36,6 @@
         "type": "github"
       }
     },
-    "agent-skills-jeffallan": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1793383219,
-        "narHash": "sha256-jmpTlpKva/3vHxcyIHcb8Jsz6302a5KH0JRNhNZ1/dA=",
-        "owner": "Jeffallan",
-        "repo": "claude-skills",
-        "rev": "078a25cc5bfd8011459be7b91d004e900c1d02d3",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Jeffallan",
-        "repo": "claude-skills",
-        "type": "github"
-      }
-    },
-    "agent-skills-jsonresume": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1781853629,
-        "narHash": "sha256-Mv1rSfP5TzeQiyt5+KLSJqPWBr7w6dEgqt4PuGE3hAc=",
-        "owner": "Paramchoudhary",
-        "repo": "ResumeSkills",
-        "rev": "74ae19e7c62b0516d1c298328e5544976c12da5d",
-        "type": "github"
-      },
-      "original": {
-        "owner": "Paramchoudhary",
-        "repo": "ResumeSkills",
-        "type": "github"
-      }
-    },
-    "agent-skills-mac-automation": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1787358320,
-        "narHash": "sha256-zN89p/l9xTKxjSSoN/8J3PZNJeQaiz2N8ztdta/p7Yo=",
-        "owner": "SpillwaveSolutions",
-        "repo": "automating-mac-apps-plugin",
-        "rev": "5f37bd4ecb1746fc86f3d618e8aa81fc6a61c486",
-        "type": "github"
-      },
-      "original": {
-        "owner": "SpillwaveSolutions",
-        "repo": "automating-mac-apps-plugin",
-        "type": "github"
-      }
-    },
-    "agent-skills-superpowers": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1792616449,
-        "narHash": "sha256-9+69YEdjdaDu5sWTyAbufSVcZgGD7h6wAq4nUVY2syE=",
-        "owner": "obra",
-        "repo": "superpowers",
-        "rev": "2ce8aa15d05bd57213e6f746f953aafb7ded7a8b",
-        "type": "github"
-      },
-      "original": {
-        "owner": "obra",
-        "repo": "superpowers",
-        "type": "github"
-      }
-    },
-    "agent-skills-vercel": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1793234976,
-        "narHash": "sha256-FI+bM+AtmOb4rpeQnR0XHvGhuc7XhF5NQ73zmqh6Cb0=",
-        "owner": "vercel-labs",
-        "repo": "skills",
-        "rev": "92a9a34ac3bf88e695e468b90c7bf32f163d32c8",
-        "type": "github"
-      },
-      "original": {
-        "owner": "vercel-labs",
-        "repo": "skills",
-        "type": "github"
-      }
-    },
     "agent-skills-vercel-agent": {
       "flake": false,
       "locked": {
@@ -129,22 +49,6 @@
       "original": {
         "owner": "vercel-labs",
         "repo": "agent-skills",
-        "type": "github"
-      }
-    },
-    "agent-skills-vercel-workflow": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1793399779,
-        "narHash": "sha256-mDAPaJ3/myi3ZjQzCCOdnVQ1tqvfRY+VcWhngzZT49Q=",
-        "owner": "vercel",
-        "repo": "workflow",
-        "rev": "44d7c769e94fb8b8a684dd69f2450ea9c52990cc",
-        "type": "github"
-      },
-      "original": {
-        "owner": "vercel",
-        "repo": "workflow",
         "type": "github"
       }
     },
@@ -666,13 +570,7 @@
       "inputs": {
         "agenix": "agenix",
         "agent-skills-excalidraw": "agent-skills-excalidraw",
-        "agent-skills-jeffallan": "agent-skills-jeffallan",
-        "agent-skills-jsonresume": "agent-skills-jsonresume",
-        "agent-skills-mac-automation": "agent-skills-mac-automation",
-        "agent-skills-superpowers": "agent-skills-superpowers",
-        "agent-skills-vercel": "agent-skills-vercel",
         "agent-skills-vercel-agent": "agent-skills-vercel-agent",
-        "agent-skills-vercel-workflow": "agent-skills-vercel-workflow",
         "deploy-rs": "deploy-rs",
         "determinate": "determinate",
         "flake-parts": "flake-parts_2",
