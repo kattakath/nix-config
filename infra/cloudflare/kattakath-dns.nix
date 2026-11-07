@@ -183,6 +183,18 @@
     proxied = false;
   }
   {
+    # The DNS_TXT proof behind Site Verification's `dns://kattakath.com` web
+    # resource, which Search Console relies on. Deleting it un-verifies the domain.
+    # Created out-of-band; adopted 2026-11-06 via `importId` (zone_id/record_id).
+    key = "txt_apex_4";
+    type = "TXT";
+    name = "kattakath.com";
+    content = "\"google-site-verification=vH6idgIwNfPLgra4FRHZJBSie3r1ALheCCjifA1APA0\"";
+    ttl = 3600;
+    proxied = false;
+    importId = "6e28971881e488941d052bbbf50d69cd/2e0035889ec9dc042781299008105ba3";
+  }
+  {
     key = "txt_dmarc";
     type = "TXT";
     name = "_dmarc.kattakath.com";

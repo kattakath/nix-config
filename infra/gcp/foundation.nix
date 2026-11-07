@@ -104,8 +104,8 @@ in
 
   # ---- Default service accounts: no Editor ----------------------------------
   # Google grants the default compute SA roles/editor on the whole project. Nothing
-  # here uses it (Compute, Cloud Build, App Engine and Functions are all off;
-  # workspace-mcp runs as its own SA), so it was project-wide write power held by an
+  # here uses it (Compute, Cloud Build, App Engine and Functions are all off), so
+  # it was project-wide write power held by an
   # identity no workload needs. NOT `google_project_default_service_accounts`
   # (DEPRIVILEGE): it finds default SAs by DISPLAY NAME ("compute engine default
   # service account", pdsa.go), and this one is named "Default compute service
