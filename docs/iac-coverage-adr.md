@@ -383,15 +383,17 @@ removed it — the exception that shows this generalises, and the first half of 
 
 ## 10. What stays out of IaC, by design (census 2026-11-07)
 
-A full live census of both Cloudflare accounts and the `kattakath-family` GCP project, taken
-after the day's rollbacks and adoptions. Every object a live system uses is now declared,
-except these. A future census that finds one of them is **not** drift.
+A full live census of both Cloudflare accounts and the `kattakath-family` GCP project, then a
+second pass that adopted or deleted everything adoptable: every Access app, the Gateway
+location, the device profile, every API (declared set = live set), the operator's own
+grants and the `_Default` log bucket. Unused objects (WARP enrollment, Gateway rules, the
+App Launcher, email-routing addresses) were deleted. Only these remain, and a census that
+finds one is **not** drift.
 
-| Object | Why it stays out |
+| Object | Why it cannot be declared here |
 |---|---|
-| Every zone except `kattakath.com` | §3.1: ownership. Deliberately not listed here, for the same reason |
-| Cloudflare App Launcher, the default Gateway DNS location, the two default Gateway rules, the default device profile | Cloudflare-owned defaults. The default location cannot be deleted (API error 1217) and nothing resolves through it |
+| Every zone except `kattakath.com` | §3.1: ownership. Deliberately not listed, for the same reason |
 | GCP OAuth clients and the consent screen | No Terraform resource exists |
-| GCP baseline APIs and log buckets, the operator's `owner` / `billing.admin` grants | Google defaults; managing the operator's own grants risks a self-lockout |
-| Secret Manager `fleet-*` secrets | Owned by keychain-secrets `secrets-push` (ADR-004) |
-| Workspace domain-wide delegation | §3.3: Admin console only |
+| The `_Required` log bucket | Google-locked |
+| Secret Manager `fleet-*` secrets | Their source of truth is the login Keychain; `secrets-push` owns the copy (ADR-004) |
+| Workspace domain-wide delegation | §3.3: Admin console only, no maintained provider |
