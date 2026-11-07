@@ -45,11 +45,10 @@ let
 
   # The overlay holds only what the plugin's path-free defaults cannot know:
   # where the dedicated profiles' executable comes from. `daily` is attach mode
-  # and needs nothing here. The schema `page-lab/profile@1` is the design's
-  # § 4.1 table. It is not yet shipped by the plugin (skills plan step 1), so
-  # this shape is the fleet's reading and must be re-checked when it lands.
+  # and needs nothing here. The plugin's overlay contract is EXACTLY
+  # `{"profiles":[…]}` — any other top-level key exits 2 — so no schema/version
+  # marker goes here; each merged record is validated as page-lab/profile@1.
   overlay = {
-    schema = "page-lab/profile@1";
     profiles =
       map
         (name: {
