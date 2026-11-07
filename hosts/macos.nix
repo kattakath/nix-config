@@ -550,7 +550,8 @@ in
       # modules/home/default.nix for flake.lock pinning. `adb` deliberately did
       # NOT move — the android-platform-tools cask below still owns it, because
       # mobile-mcp and android-phone both resolve that one.
-      "shellcheck"
+      # `shellcheck` is NOT brewed any more (2026-11-07): nixpkgs carries it, so it
+      # moved to modules/home/default.nix beside bash-language-server, which uses it.
       # `starship` is NOT brewed either, for the same reason as `git` above:
       # programs.starship installs it and writes ~/.config/starship.toml, both
       # were 1.26.0, and the brewed one won the PATH.
