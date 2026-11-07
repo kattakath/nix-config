@@ -172,6 +172,12 @@
  * Input: hook JSON on stdin — tool_input.command.
  */
 "use strict";
+// @ts-check — types only, checked by checks.<system>.hook-types (tsconfig.json beside this file).
+/** @typedef {import("@anthropic-ai/claude-agent-sdk").PreToolUseHookInput} PreToolUseHookInput */
+/** @typedef {import("@anthropic-ai/claude-agent-sdk").SyncHookJSONOutput} SyncHookJSONOutput */
+/** @typedef {import("@anthropic-ai/claude-agent-sdk/sdk-tools").BashInput} BashInput */
+// `x.split("/").pop()` is cast to string below: split() always returns at least one element.
+
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -228,6 +234,7 @@ const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE abo
 const TERRANIX_MUTATING_APP =
   /^(?:\S*\/)?nix\s+run\s+(?:-\S+\s+)*["']?(?:\.|github:kattakath\/nix-config)#([a-z][a-z0-9-]*)-apply(?=$|[\s"';)|&])/;
 
+/** @type {Record<string, string>} */
 const TERRANIX_APPLY_WORST_CASE = {
   "cf-tunnel": "a site-free render blanks nixpi's ingress",
   "cf-zones": "a render under the record floor DELETES mail records",
@@ -309,6 +316,7 @@ const CMD_POS = String.raw`(?:^|(?<!\\)[\n;|&(]|\$\(|\x60)\s*`;
 // So collapse escaped PAIRS to a non-backslash placeholder first; whatever
 // backslash survives is genuinely escaping the character after it. Length is
 // preserved (two chars in, two out) so reported offsets stay meaningful.
+/** @param {string} c */
 const unescapePairs = (c) => c.replace(/\\\\/g, "\0\0");
 const SECRET_REVEAL = new RegExp(CMD_POS + String.raw`(?:\S*/)?secret\s+reveal\b`);
 // The bypass that matters more: the agent does not need the CLI at all.
@@ -370,6 +378,7 @@ const ENV_DUMP_VERBS = new Set(["printenv", "set", "export", "declare", "typeset
 // splitTopLevel splits on `&`, so `2>&1` arrives here as a dangling `2>`.
 const REDIRECT_TOK = /^\d*(?:>>?|<|>\||<>|>&|<&)/;
 const REDIRECT_OP_ONLY = /^\d*(?:>>?|<|>\||<>|>&|<&)$/;
+/** @param {string} s @returns {string[]} */
 function operandWords(s) {
   const out = [];
   const toks = s.split(/\s+/).filter(Boolean);
@@ -383,7 +392,9 @@ function operandWords(s) {
   return out;
 }
 // Returns the dumping verb, or null. `--help`/`--version` print usage, not the env.
+/** @param {string} w */
 const asksUsage = (w) => w === "--help" || w === "--version";
+/** @param {string} segment @returns {string | null} */
 function envDump(segment) {
   // A subshell or group is not a command: `(env | grep X)` splits to `(env`.
   const s = segment.replace(/^[({\s]+/, "").replace(/[\s)}]+$/, "");
@@ -392,7 +403,7 @@ function envDump(segment) {
     .slice(0, s.length - tail.length)
     .split(/\s+/)
     .filter(Boolean)
-    .map((t) => t.split("/").pop().toLowerCase());
+    .map((t) => /** @type {string} */ (t.split("/").pop()).toLowerCase());
   // `command -v env` LOOKS UP a name. unwrap() peels `command` and eats `-v` as a
   // wrapper flag, which would leave the bare `env` this rule blocks.
   if (prefix.some((t, i) => t === "command" && /^-[a-z]*v/i.test(prefix[i + 1] || ""))) return null;
@@ -407,7 +418,7 @@ function envDump(segment) {
     return emptied || after.some(asksUsage) ? null : "env";
   }
   if (!words.length) return null;
-  const verb = words[0].split("/").pop().toLowerCase();
+  const verb = /** @type {string} */ (words[0].split("/").pop()).toLowerCase();
   if (!ENV_DUMP_VERBS.has(verb)) return null;
   const args = words.slice(1);
   if (args.some(asksUsage)) return null;
@@ -488,6 +499,7 @@ function loadSecretPaths() {
   // Line comments first: the header prose quotes Nix syntax. No string in either
   // list contains `#`, so a whole-line strip cannot cut one.
   const code = src.replace(/#.*$/gm, "");
+  /** @param {string} name @returns {string[]} */
   const list = (name) => {
     const m = code.match(new RegExp(String.raw`\b${name}\s*=\s*\[([^\]]*)\]`));
     return m ? [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]) : [];
@@ -507,6 +519,7 @@ const NAME_ONLY_ARGV0 = new Set(["ls", "stat", "test", "[", "readlink", "realpat
 const PATTERN_ARGV0 = new Set(["grep", "egrep", "fgrep", "rg", "ag", "ack"]);
 
 // Quote-aware whitespace split, quotes kept (they are removed per word later).
+/** @param {string} s @returns {string[]} */
 function shellWords(s) {
   const out = [];
   let cur = "";
@@ -543,6 +556,7 @@ function shellWords(s) {
 }
 // The path a word names, with its argument decoration peeled, or null if none.
 // Returns "bare" for the directory itself, "inside" for anything under it.
+/** @param {string} word @returns {"bare" | "inside" | null} */
 function secretPathIn(word) {
   let w = word.replace(/['"]/g, "");
   w = w.replace(/^\d*[<>]+&?/, ""); // glued redirection: <f, >f, 2>f
@@ -559,6 +573,7 @@ function secretPathIn(word) {
 }
 // The pattern word of a search tool is text, not a file. Returns the index set
 // of words to skip: every `-e`/`--regexp` value, else the first operand.
+/** @param {string[]} words @param {number} start @returns {Set<number>} */
 function patternWordIndexes(words, start) {
   const skip = new Set();
   let sawE = false;
@@ -583,10 +598,11 @@ function patternWordIndexes(words, start) {
   return skip;
 }
 // "bare" | "inside" | null for one segment.
+/** @param {string} seg @returns {"bare" | "inside" | null} */
 function secretPathSegment(seg) {
   const words = shellWords(seg);
   const tailWords = shellWords(unwrap(seg).tail);
-  const a0 = tailWords.length ? tailWords[0].replace(/^[({]+/, "").split("/").pop().toLowerCase() : "";
+  const a0 = tailWords.length ? /** @type {string} */ (tailWords[0].replace(/^[({]+/, "").split("/").pop()).toLowerCase() : "";
   if (NAME_ONLY_ARGV0.has(a0)) return null;
   let skip = new Set();
   // The tail is the suffix of the segment, so its word i is the segment's word
@@ -594,6 +610,7 @@ function secretPathSegment(seg) {
   const offset = words.length - tailWords.length;
   if (PATTERN_ARGV0.has(a0)) skip = patternWordIndexes(tailWords, 1);
   else if (a0 === "git" && tailWords[1] === "grep") skip = patternWordIndexes(tailWords, 2);
+  /** @type {"bare" | "inside" | null} */
   let hit = null;
   words.forEach((w, i) => {
     if (hit === "inside" || skip.has(i - offset)) return;
@@ -603,6 +620,7 @@ function secretPathSegment(seg) {
 }
 // `$(…)` and backtick bodies, outside single quotes. Skipped entirely for a
 // command carrying a heredoc: see WHAT THIS DOES NOT CLAIM above.
+/** @param {string} cmd @returns {string[]} */
 function substitutionBodies(cmd) {
   if (/<<(?!<)/.test(cmd)) return [];
   const out = [];
@@ -707,6 +725,7 @@ const BUILDERS_PI = new RegExp(String.raw`--(?:builders|store)[=\s]+["']?ssh(?:-
 const RULE1G_DEPLOY_TUNNEL_ASKING = false;
 const DEPLOY_NIXPI_REF = /(?:^|\s)["']?[^\s"'#]*#nixpi(?:\.[^\s"']*)?["']?(?=\s|$)/;
 const DEPLOY_HOSTNAME = /(?:^|\s)--hostname(?:=|\s|$)/;
+/** @param {string} tail */
 function deploysPiOverTunnel(tail) {
   // `tail` starts at `deploy`; only deploy's OWN argv counts, so everything
   // after a bare `--` (extra `nix build` args) is dropped first.
@@ -736,13 +755,17 @@ const awsIdentityLive = ["AWS_REGION", "AWS_PROFILE"].filter((v) => process.env[
 // schemes are case-insensitive (`HTTP://...` is shell/curl-valid and was
 // previously missed — 2026-08-19 push-review finding).
 const URL_HOST = /https?:\/\/([^/\s"'<>]+)/gi;
+/** @param {string} h */
 const isLocalHost = (h) => /^(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])(:\d+)?$/i.test(h);
+/** @param {string} h */
 const isCloudflareApiHost = (h) => /^(api\.cloudflare\.com|[^.]+\.[^.]*\bapi\.cloudflare\.com)$/i.test(h) || h.toLowerCase() === "api.cloudflare.com";
+/** @param {string} h */
 const isCloudflareDocsHost = (h) => /(^|\.)developers\.cloudflare\.com$/i.test(h);
 
+/** @param {"block"} decision @param {string} reason @param {string} [systemMessage] @returns {never} */
 function emit(decision, reason, systemMessage) {
   if (decision !== "block") throw new Error(`emit() only blocks; got ${decision} (use noObjection)`);
-  process.stdout.write(JSON.stringify({ decision, reason, systemMessage: systemMessage || reason }));
+  process.stdout.write(JSON.stringify(/** @satisfies {SyncHookJSONOutput} */ ({ decision, reason, systemMessage: systemMessage || reason })));
   process.exit(0);
 }
 
@@ -758,8 +781,9 @@ function emit(decision, reason, systemMessage) {
 // `{"decision":"approve"}` it RAN. An ask rule was NOT bypassed by either approve
 // or allow (both denied, as the docs say ask/deny rules are evaluated regardless).
 // A nudge is `systemMessage` alone: measured, it grants nothing (denied likewise).
+/** @param {string} [systemMessage] @returns {never} */
 function noObjection(systemMessage) {
-  if (systemMessage) process.stdout.write(JSON.stringify({ systemMessage }));
+  if (systemMessage) process.stdout.write(JSON.stringify(/** @satisfies {SyncHookJSONOutput} */ ({ systemMessage })));
   process.exit(0);
 }
 
@@ -769,10 +793,11 @@ function noObjection(systemMessage) {
 // this same reason, and `additionalContext` beside it does NOT reach Claude, so the
 // one line must serve both readers. Stays-deny rules keep `emit("block")`: superhook's
 // loop breaker only counts that shape.
+/** @param {string} reason @returns {never} */
 function emitAsk(reason) {
-  process.stdout.write(JSON.stringify({
+  process.stdout.write(JSON.stringify(/** @satisfies {SyncHookJSONOutput} */ ({
     hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: reason },
-  }));
+  })));
   process.exit(0);
 }
 
@@ -793,6 +818,7 @@ function emitAsk(reason) {
 // escape outside single quotes. Heredocs, $'…' and nested command substitution
 // are out of scope — and every one of them fails toward MORE segments, i.e.
 // toward the old behaviour, never toward silently merging two real commands.
+/** @param {string} cmd @returns {string[]} */
 function splitTopLevel(cmd) {
   const out = [];
   let cur = "";
@@ -863,6 +889,7 @@ const QUOTED_PAYLOAD = /^(['"])([\s\S]*)\1$/;
 // The wrapper segment is KEPT as well as expanded: other rules still reason
 // about it, and the payload's own segments are appended so `segs[i]` stays
 // aligned with `rawSegs[i]`. Depth-capped at 3 for `bash -c "bash -c '…'"`.
+/** @param {string} cmd @param {number} [depth] @returns {string[]} */
 function segments(cmd, depth = 0) {
   const raw = splitTopLevel(cmd);
   if (depth >= 3) return raw;
@@ -937,6 +964,7 @@ const NIX_DEVELOP_COMMAND =
 // the second re-listed the wrapper names as its own inline regex, and the third
 // did not ask at all and matched the raw string — which is why a wrapper prefix
 // defeated Rule 1c completely while Rule 1d survived `sudo` but not `timeout`.
+/** @param {string} segment @returns {{ tail: string, stripped: boolean }} */
 function unwrap(segment) {
   let s = segment.trim();
   let sawWrapper = false;
@@ -979,7 +1007,7 @@ function unwrap(segment) {
     }
     // Path-stripped, so `/usr/bin/sudo` is skipped like a bare `sudo`. The old
     // list compared the RAW token, so an absolute path defeated it.
-    if (TRANSPARENT_WRAPPERS.has(tok.split("/").pop().toLowerCase())) {
+    if (TRANSPARENT_WRAPPERS.has(/** @type {string} */ (tok.split("/").pop()).toLowerCase())) {
       s = rest;
       sawWrapper = true;
       continue;
@@ -1008,9 +1036,10 @@ function unwrap(segment) {
 }
 
 // First real token of a segment, path prefix stripped.
+/** @param {string} segment @returns {string} */
 function argv0(segment) {
   const head = unwrap(segment).tail.match(/^(\S+)/);
-  return head ? head[1].split("/").pop().toLowerCase() : "";
+  return head ? /** @type {string} */ (head[1].split("/").pop()).toLowerCase() : "";
 }
 
 function main() {
@@ -1020,13 +1049,14 @@ function main() {
   } catch {
     /* no stdin */
   }
+  /** @type {Partial<PreToolUseHookInput>} */
   let payload = {};
   try {
     payload = JSON.parse(stdin);
   } catch {
     noObjection();
   }
-  const cmd = String((payload.tool_input && payload.tool_input.command) || "");
+  const cmd = String((payload.tool_input && /** @type {Partial<BashInput>} */ (payload.tool_input).command) || "");
   if (!cmd.trim()) noObjection();
 
   // Computed once for the wrangler check (Rule 1) — argv0() strips path prefixes, so
@@ -1052,6 +1082,7 @@ function main() {
   const runViews = [...rawSegs, ...substitutionBodies(cmd).flatMap((b) => segments(b))].map(
     (seg) => unwrap(seg.replace(/^[({\s]+/, "")).tail,
   );
+  /** @param {RegExp} re */
   const terranixRun = (re) => runViews.find((t) => re.test(t));
   if (terranixRun(CF_TERRANIX_DESTROY)) {
     emit(
@@ -1066,7 +1097,9 @@ function main() {
     if (RULE1_TERRANIX_APPLY_BLOCKING) {
       emitAsk("Runs a terranix apply app, which mutates live infra via the API. Ran the stack's *-plan first? Allow anyway?");
     }
-    const stack = TERRANIX_MUTATING_APP.exec(applyRun)[1];
+    // Non-null: applyRun is the string this same non-global regex just matched in
+    // terranixRun, so exec() cannot miss (a /g flag would break that via lastIndex).
+    const stack = /** @type {RegExpExecArray} */ (TERRANIX_MUTATING_APP.exec(applyRun))[1];
     const worst = TERRANIX_APPLY_WORST_CASE[stack];
     nudges.push(
       `Applies live infra via terranix (${stack}). Run its *-plan first: ` +
@@ -1148,6 +1181,7 @@ function main() {
   // are pair-collapsed first, and `tails` already includes the `sh -c`/`eval`
   // payloads segments() appended.
   const views = [unescapePairs(cmd), ...tails.map(unescapePairs)];
+  /** @param {RegExp} re */
   const leaksVia = (re) => views.some((v) => re.test(v));
   if (leaksVia(SECRET_REVEAL) || leaksVia(SECURITY_PRINTS_VALUE)) {
     const via = leaksVia(SECRET_REVEAL) ? "`secret reveal`" : "`security find-generic-password -w/-g`";
@@ -1249,7 +1283,7 @@ if (process.argv[2] === "--list-secret-paths") {
 
 try {
   main();
-} catch (e) {
+} catch (/** @type {any} */ e) {
   // Never let a bug here wedge the session — superhook.js also crash-safes this,
   // but fail open locally too.
   // No decision: a crash falls back to the normal permission flow, never to allow.

@@ -1,0 +1,21 @@
+{
+  "//": [
+    "Type-checks the hook scripts in this directory; emits nothing. Built by checks.<system>.hook-types",
+    "(modules/parts/checks.nix), which supplies node_modules from pinned fixed-output fetches.",
+    "Every option is spelled out because TypeScript 6/7 flipped the defaults (strict, module, target),",
+    "so an implicit default would change what this check means on a nixpkgs bump."
+  ],
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "es2023",
+    "lib": ["es2023"],
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "include": ["*.js"]
+}
