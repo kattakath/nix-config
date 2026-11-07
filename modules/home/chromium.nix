@@ -168,8 +168,9 @@ in
       type = lib.types.bool;
       default = false;
       description = ''
-        Install `nix-chromium-debug [port]` — a hand-run command that launches Chromium
-        with `--remote-debugging-port` (default 9222, loopback only).
+        Install `nix-chromium-debug [--user-data-dir DIR] [port]` — a hand-run command
+        that launches Chromium with `--remote-debugging-port` (default 9222, loopback
+        only), on the default profile or on a separate one in DIR.
 
         Opening the port is a browser concern, not an MCP one, which is why it lives
         in this module. The Kapture extension below is the same shape: this file owns
@@ -224,32 +225,79 @@ in
           pkgs.jq
         ];
         text = ''
+          # Usage: nix-chromium-debug [--user-data-dir DIR] [port]
+          #
           # 9222 is the de-facto default every CDP client assumes. Bound to 127.0.0.1
           # only — never expose or forward it; that turns a local-only debugging
           # channel into a remote one.
-          port="''${1:-9222}"
+          default_dir="$HOME/Library/Application Support/Chromium"
+          dir="$default_dir"
+          port=9222
+          while [ "$#" -gt 0 ]; do
+            case "$1" in
+              --user-data-dir) dir="''${2:?--user-data-dir needs a directory}"; shift 2 ;;
+              --user-data-dir=*) dir="''${1#--user-data-dir=}"; shift ;;
+              -h | --help) echo "usage: nix-chromium-debug [--user-data-dir DIR] [port]"; exit 0 ;;
+              *) port="$1"; shift ;;
+            esac
+          done
 
           # Relaunching while the same profile is already running silently reuses the
           # existing process and the port never opens — indistinguishable from the
           # flag being ignored, and it cost real debugging time to learn. Refuse
           # instead of producing a browser that looks right and is not.
-          if /usr/bin/pgrep -x "Chromium" >/dev/null 2>&1; then
-            echo "nix-chromium-debug: Chromium is already running." >&2
-            echo "  --remote-debugging-port is a STARTUP flag, so it cannot be added to" >&2
-            echo "  this process. Either quit Chromium completely and re-run, or leave it" >&2
-            echo "  running and turn debugging on in-browser at chrome://inspect/#remote-debugging" >&2
-            echo "  — that needs no relaunch, and the server finds the port it picks." >&2
+          #
+          # The DEFAULT profile keeps the blunt any-Chromium test: that is the daily
+          # debugging browser's own dir. A NON-default dir is a separate instance, so
+          # another Chromium running is no reason to refuse. The one that matters is a
+          # live owner of THAT dir, and Chromium names it in its own lock:
+          # `SingletonLock` is a symlink to `<host>-<pid>` (design § 7.5 of skills
+          # docs/page-lab-vnext-design.md). No second lock file of ours.
+          #
+          # NOT page-lab's dedicated profiles (~/.local/state/page-lab): those are
+          # Chrome for Testing 156 dirs opened with a mock keychain. This launches the
+          # cask Chromium, an older build on the real Keychain, so it would read them
+          # as a newer profile with cookies it cannot decrypt. page-lab's own launcher
+          # owns those dirs.
+          if [ "$dir" = "$default_dir" ]; then
+            if /usr/bin/pgrep -x "Chromium" >/dev/null 2>&1; then
+              echo "nix-chromium-debug: Chromium is already running." >&2
+              echo "  --remote-debugging-port is a STARTUP flag, so it cannot be added to" >&2
+              echo "  this process. Either quit Chromium completely and re-run, or leave it" >&2
+              echo "  running and turn debugging on in-browser at chrome://inspect/#remote-debugging" >&2
+              echo "  — that needs no relaunch, and the server finds the port it picks." >&2
+              echo "  Or pass --user-data-dir DIR (and a free port) for a separate profile." >&2
+              exit 1
+            fi
+          else
+            mkdir -p "$dir"
+            owner="$(readlink "$dir/SingletonLock" 2>/dev/null || true)"
+            pid="''${owner##*-}"
+            if [ -n "$owner" ] && [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+              echo "nix-chromium-debug: $dir is already open (SingletonLock -> $owner)." >&2
+              echo "  A second launch would hand off to that process and the port never opens." >&2
+              exit 1
+            fi
+          fi
+
+          # A second instance cannot bind a port the first one holds.
+          if curl -fsS --max-time 1 "http://127.0.0.1:$port/json/version" >/dev/null 2>&1; then
+            echo "nix-chromium-debug: 127.0.0.1:$port already answers CDP. Pick another port." >&2
             exit 1
           fi
 
-          echo "nix-chromium-debug: opening CDP on 127.0.0.1:$port" >&2
+          echo "nix-chromium-debug: opening CDP on 127.0.0.1:$port ($dir)" >&2
           echo "  WARNING: any local process can now drive this browser and read its" >&2
           echo "  pages, cookies and session state. Quit Chromium when you are done." >&2
           # `-g`: launch without stealing focus — the window still opens (unlike
           # `-j`, which hides it outright), it just does not jump to the front.
           # A debug session driven by an agent should not fight the operator for
           # the foreground on every new tab it opens.
-          /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port"
+          if [ "$dir" = "$default_dir" ]; then
+            /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port"
+          else
+            /usr/bin/open -g -na "Chromium" --args "--remote-debugging-port=$port" "--user-data-dir=$dir"
+          fi
 
           # Rewrite DevToolsActivePort from the live endpoint. Chromium writes that file
           # only in chrome://inspect consent mode, NEVER for --remote-debugging-port
@@ -258,7 +306,7 @@ in
           # UUID, and any client in `--autoConnect` mode — page-lab's attach probe falls
           # back to it when no browser answered at MCP start — gets a 404 until the
           # file is fixed by hand. Same two-line format Chromium writes.
-          active="$HOME/Library/Application Support/Chromium/DevToolsActivePort"
+          active="$dir/DevToolsActivePort"
           path=""
           for _ in $(seq 1 30); do
             path="$(curl -fsS --max-time 1 "http://127.0.0.1:$port/json/version" 2>/dev/null \
