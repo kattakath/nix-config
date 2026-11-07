@@ -1252,41 +1252,22 @@ in
           # `strict` over everything in between. Types only: the scripts still run under
           # plain `node`, with no dependency, and the annotations are comments.
           #
-          # Pins, and why each:
-          #   typescript   nixpkgs' own (7.0.2 at this pin) — the native compiler, so no
-          #                node in the closure. Every compiler option is explicit in
-          #                .claude/hooks/tsconfig.json, because TS 6/7 flipped the defaults.
-          #   SDK 0.3.300  its package.json `claudeCodeVersion` is 2.1.300, the
-          #                `claude-code` nixpkgs ships at this pin: the types describe the
-          #                CLI the fleet actually runs. Bump it WITH the claude-code bump.
-          #   @types/node  24.19.2 — the node 24 line nixpkgs' `nodejs` is on.
-          # Both tarballs are fixed-output fetches whose hash IS the registry's own
-          # `dist.integrity` (sha512 SRI), so the pin is checkable with `npm view`.
+          # Pins: typescript is nixpkgs' own (7.0.2 at this pin) — the native compiler,
+          # so no node in the closure; every compiler option is explicit in
+          # .claude/hooks/tsconfig.json, because TS 6/7 flipped the defaults. The npm
+          # pins live with the tree: packages/hook-types-node-modules.nix, which the
+          # devShell also links into the worktree for the editor (packages/link-hook-types.nix).
           #
           # Why a flake check, not an `npx tsc` step in claude-config-lint.yml: the
           # `actionlint` precedent below — the tool comes from this repo's pinned
           # nixpkgs, one less supply-chain edge, and the gate runs locally in
           # `nix flake check` instead of only in CI.
           #
-          # No peer dependencies: sdk.d.ts imports zod, @anthropic-ai/sdk and
-          # @modelcontextprotocol/sdk, none of which the hooks touch. `skipLibCheck`
-          # silences their unresolved imports; the hook types are plain object types and
-          # resolve fully (proven 2026-11-07: a wrong `hook_event_name` literal, a
-          # number `command` and `decision: "allow"` each failed).
+          # The hook types are plain object types and resolve fully (proven 2026-11-07:
+          # a wrong `hook_event_name` literal, a number `command` and `decision: "allow"`
+          # each failed).
           hook-types =
             let
-              npmTarball =
-                name: version: hash:
-                pkgs.fetchurl {
-                  url = "https://registry.npmjs.org/${name}/-/${baseNameOf name}-${version}.tgz";
-                  inherit hash;
-                };
-              agentSdk =
-                npmTarball "@anthropic-ai/claude-agent-sdk" "0.3.300"
-                  "sha512-3NGPEUj+VTMQAQ0vaUUQtrce6rNb9a4XhY8QKIOLUp9mDkdbwrrjjD9oMKcDpcLhFKqZdTc02RBUo55GrbY9CA==";
-              typesNode =
-                npmTarball "@types/node" "24.19.2"
-                  "sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==";
               hooks = lib.fileset.toSource {
                 root = ../../.claude/hooks;
                 fileset = lib.fileset.unions [
@@ -1298,18 +1279,15 @@ in
             pkgs.runCommand "hook-types" { nativeBuildInputs = [ pkgs.typescript ]; } ''
               cp -r ${hooks} hooks
               chmod -R u+w hooks
-              mkdir -p hooks/node_modules/@anthropic-ai/claude-agent-sdk hooks/node_modules/@types/node
-              # --strip-components: each tarball has ONE top directory, and @types/node's
-              # is literally `node v24.19` (with a space), not npm's usual `package`.
-              tar -xzf ${agentSdk} --strip-components=1 -C hooks/node_modules/@anthropic-ai/claude-agent-sdk
-              tar -xzf ${typesNode} --strip-components=1 -C hooks/node_modules/@types/node
+              # A symlink to the store tree, the same shape link-hook-types gives the editor.
+              ln -s ${self'.packages.hook-types-node-modules} hooks/node_modules
               if ! tsc -p hooks; then
                 echo "" >&2
                 echo "hook-types: fix the type errors above in .claude/hooks/*.js. Annotations are" >&2
                 echo "JSDoc only — never change what a hook does to satisfy the checker." >&2
                 exit 1
               fi
-              echo "hook-types: $(ls hooks/*.js | wc -l | tr -d " ") hook scripts type-check (strict) against claude-agent-sdk 0.3.300" > "$out"
+              echo "hook-types: $(ls hooks/*.js | wc -l | tr -d " ") hook scripts type-check (strict) against ${self'.packages.hook-types-node-modules.name}" > "$out"
             '';
 
           # ---- Workflow literals that restate a fleet fact -----------------------

@@ -1,7 +1,8 @@
 {
   "//": [
     "Type-checks the hook scripts in this directory; emits nothing. Built by checks.<system>.hook-types",
-    "(modules/parts/checks.nix), which supplies node_modules from pinned fixed-output fetches.",
+    "(modules/parts/checks.nix) against node_modules from packages/hook-types-node-modules.nix;",
+    "`nix develop` or `nix run .#link-hook-types` links that same tree here for the editor.",
     "Every option is spelled out because TypeScript 6/7 flipped the defaults (strict, module, target),",
     "so an implicit default would change what this check means on a nixpkgs bump."
   ],
