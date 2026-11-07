@@ -246,9 +246,7 @@ agree, because git is doing the copying.
 ## Adding to an extracted repo
 
 1. Commit in that repo and push.
-2. For a NEW plugin, add its bare name to
-   `local.claudePlugins.marketplaces.kattakath.plugins` (`modules/home/default.nix` — a
-   catalogue: it only makes the id resolvable), AND enable it with `/plugin`. A change to an
+2. For a NEW plugin, enable it with `/plugin` (Nix keeps no plugin list). A change to an
    existing plugin ships from the merge alone — the marketplace auto-updates.
 3. Bump the `kattakath-skills` pin here (`/update-input kattakath-skills`) ONLY if the change
    touches what that pin feeds: `page-lab-pick`, or a `nix-mcp-*` name that

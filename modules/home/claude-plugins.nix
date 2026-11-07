@@ -54,20 +54,14 @@
 let
   cfg = config.local.claudePlugins;
 
-  # "<plugin>@<marketplace>" — the id shape `settings.enabledPlugins` keys on,
-  # derived from the marketplace name so a plugin's id can never drift from the
-  # marketplace it came from through a typo.
-  idsOf = name: mp: map (p: "${p}@${name}") mp.plugins;
-  allIds = lib.concatLists (lib.mapAttrsToList idsOf cfg.marketplaces);
-
-  # The three plugins #648 decided Nix must assert, by bare name. Resolved against the
-  # declared marketplaces so a name cannot drift from its source.
-  alwaysOnNames = [
-    "nix-flake-kit"
-    "superhook"
-    "brain-signals"
+  # The three plugins #648 decided Nix must assert, as full "<plugin>@<marketplace>"
+  # ids (the shape `settings.enabledPlugins` keys on). Written literally since
+  # 2026-11-07: marketplaces carry no plugin list any more (Nix registers stores only).
+  alwaysOnIds = [
+    "nix-flake-kit@kattakath"
+    "superhook@kattakath"
+    "brain-signals@kattakath"
   ];
-  alwaysOnIds = lib.filter (id: lib.elem (lib.head (lib.splitString "@" id)) alwaysOnNames) allIds;
 
   # ONE predicate for "this marketplace is a store path", shared by the three
   # places that must agree: the assertion, the settings-shape branch, and the
@@ -111,19 +105,7 @@ in
               SCALAR ON PURPOSE: a marketplace has exactly one source, so two
               differing definitions SHOULD be a loud conflict rather than a
               silent pick. Everything a downstream layer needs to ADD —
-              marketplaces (attrsOf) and their plugins (listOf) — merges.
-            '';
-          };
-
-          plugins = lib.mkOption {
-            type = lib.types.listOf lib.types.str;
-            default = [ ];
-            example = [ "llmstxt" ];
-            description = ''
-              Bare plugin names inside this marketplace; the install id is
-              derived as "<plugin>@<marketplace-name>". listOf, so a private
-              layer can append to a marketplace THIS repo declares without
-              forking its list.
+              marketplaces (attrsOf) — merges.
             '';
           };
 
@@ -151,7 +133,6 @@ in
       {
         my-marketplace = {
           source = "''${../plugins}";
-          plugins = [ "my-plugin" ];
         };
       }
     '';
@@ -168,24 +149,16 @@ in
   # would change those hosts' closures for no benefit.
   config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     assertions =
-      # Every always-on name must resolve to exactly one declared plugin. Without
-      # this, renaming a plugin upstream (or dropping its marketplace) would leave a
-      # member matching NOTHING and the guard it exists for would vanish silently —
-      # the same "a rule naming something that does not exist is no rule" failure
-      # claude-guardrails.nix warns about. A build error is the only honest outcome.
-      map (n: {
-        assertion = lib.length (lib.filter (id: lib.hasPrefix "${n}@" id) allIds) == 1;
-        message =
-          let
-            hits = lib.length (lib.filter (id: lib.hasPrefix "${n}@" id) allIds);
-          in
-          ''
-            local.claudePlugins: always-on plugin "${n}" resolves to ${toString hits} declared plugins, expected exactly 1.
-            It is in the curated always-on set (#648), so a name matching nothing would
-            silently disable a guard this repo depends on. Either the plugin was renamed
-            upstream, or its marketplace is no longer declared.
-          '';
-      }) alwaysOnNames
+      # Every always-on id must name a DECLARED marketplace, or the guard it exists for
+      # would vanish silently. (Whether the plugin still exists upstream is not knowable
+      # at eval; the old catalogue check only compared against a hand-written list.)
+      map (id: {
+        assertion = lib.hasAttr (lib.last (lib.splitString "@" id)) cfg.marketplaces;
+        message = ''
+          local.claudePlugins: always-on plugin "${id}" names a marketplace that is not
+          declared in local.claudePlugins.marketplaces, so this guard would be silently off.
+        '';
+      }) alwaysOnIds
       ++ lib.mapAttrsToList (name: mp: {
         assertion = isStorePath mp || lib.hasPrefix "https://" mp.source;
         message = ''
@@ -210,16 +183,8 @@ in
     # that aren't cached yet" (docs/en/plugins/loading § Plugins and
     # marketplaces that aren't on disk at session start). User scope qualifies.
     #
-    # DO NOT FILTER THIS BY autoUpdate. Until 2026-09-30 it read
-    # `filterAttrs (_: mp: mp.autoUpdate)`, so only `kattakath` — one of four —
-    # was ever declared. The other three existed on disk purely because the
-    # activation script below re-added them imperatively, which made the
-    # declaration cosmetic and a reset Mac silently short of three marketplaces.
-    # Measured by eval, not read: claude-plugins-official=false,
-    # context7-marketplace=false, kattakath=true, xai-grok-build=false.
-    #
-    # The two facts are independent: WHETHER a marketplace is declared, and
-    # whether Claude Code may refresh it in the background. Emitting
+    # Never filter this by autoUpdate: WHETHER a marketplace is declared and
+    # whether Claude Code may refresh it in the background are independent. Emitting
     # `autoUpdate = true` unconditionally would also contradict the assertion
     # above, which forbids the flag on a store path.
     #
@@ -273,10 +238,6 @@ in
     # Everything else is the operator's to toggle, and the toggle now PERSISTS. A
     # fresh machine starts with these three and nothing more; the rest come back on
     # demand because their marketplace is declared.
-    #
-    # Ids are resolved through `idsOf` rather than written literally, so a member can
-    # never drift from the marketplace it came from, and the assertion below fails the
-    # build if a name stops matching instead of silently enabling nothing.
     #
     # NO SECOND LANE since 2026-11-07. ADR-008's `local.claudePlugins.declared` (an
     # operator-written map re-asserted every activation) was RETIRED by the operator's

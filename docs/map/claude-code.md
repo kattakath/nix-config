@@ -406,8 +406,8 @@ The pinned-era record stands as written; see [`modules-home.md`](modules-home.md
 § `claude-plugins.nix` for what replaced it
 (one `plugin marketplace add`, which only removes a first-session lag).
 
-Its plugins are the live list at `local.claudePlugins.marketplaces.kattakath.plugins`
-(`modules/home/default.nix`) — read it rather than any count in prose here.
+Its plugins are the live list in that repo's `.claude-plugin/marketplace.json` — read it
+rather than any count in prose here (Nix keeps no plugin list since 2026-11-07).
 Two of them carry write-ups worth keeping:
 
 - **`llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
@@ -474,10 +474,8 @@ no Nix wiring, and it cannot be loaded in sessions that have nothing to do with 
 The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`.
 
 Adding one = a `plugins/<name>/` tree
-and a `marketplace.json` entry **in that repo**, then its bare name in
-`local.claudePlugins.marketplaces.kattakath.plugins` here. That list is a **catalogue** and
-enables nothing (the #751 trap): turning the plugin on is a
-`/plugin` toggle (runtime state; ADR-008's `declared` lane was retired 2026-11-07). **No pin bump:** a change to an
+and a `marketplace.json` entry **in that repo** — nothing to list here. Turning the plugin on
+is a `/plugin` toggle (runtime state; ADR-008's `declared` lane was retired 2026-11-07). **No pin bump:** a change to an
 already-enabled plugin ships from a merge there. Validate with `claude plugin validate .`.
 
 **A SECOND source costs one input and its own entries — no new mechanism.**
