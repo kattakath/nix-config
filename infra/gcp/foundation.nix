@@ -109,6 +109,24 @@ in
     };
   }) services;
 
+  # ---- Default service accounts: no Editor ----------------------------------
+  # Google grants the default compute SA roles/editor on the whole project. Nothing
+  # here uses it (Compute, Cloud Build, App Engine and Functions are all off;
+  # workspace-mcp runs as its own SA), so it was project-wide write power held by an
+  # identity no workload needs. NOT `google_project_default_service_accounts`
+  # (DEPRIVILEGE): it finds default SAs by DISPLAY NAME ("compute engine default
+  # service account", pdsa.go), and this one is named "Default compute service
+  # account", so it would apply green and remove nothing. `iam_member_remove`
+  # states the absence directly, and a re-grant (enabling Compute does that) shows
+  # up as drift on the next plan.
+  # The SA's email embeds the project NUMBER; read it rather than write it down.
+  data.google_project.this.project_id = projectId;
+  resource.google_project_iam_member_remove.default_compute_sa_editor = {
+    project = projectId;
+    role = "roles/editor";
+    member = "serviceAccount:\${data.google_project.this.number}-compute@developer.gserviceaccount.com";
+  };
+
   # ---- The automation identity ----------------------------------------------
   # No KEY. Nothing here creates or stores a service-account key, and the org
   # policy `constraints/iam.managed.disableServiceAccountApiKeyCreation` is
