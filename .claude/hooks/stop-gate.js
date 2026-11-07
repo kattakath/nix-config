@@ -27,6 +27,14 @@
  * through.
  */
 
+// @ts-check — types only, checked by checks.<system>.hook-types (tsconfig.json beside this file).
+/** @typedef {import("@anthropic-ai/claude-agent-sdk").StopHookInput} StopHookInput */
+/** @typedef {import("@anthropic-ai/claude-agent-sdk").SyncHookJSONOutput} SyncHookJSONOutput */
+/** execSync's thrown error: a plain Error carrying the child's captured output. */
+/** @typedef {Error & { stdout?: string, stderr?: string }} ExecError */
+/** One job in the grok-build plugin's state.json — its schema, not Claude Code's. */
+/** @typedef {{ id: string, status?: string, sessionId?: string, errorMessage?: string, summary?: string, kindLabel?: string, kind?: string, logFile?: string }} GrokJob */
+
 const { execSync } = require("node:child_process");
 const fs = require("node:fs");
 
@@ -34,6 +42,7 @@ const projectDir = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 // Large enough for verbose `nix flake check` progress (default 1 MiB is tight
 // under concurrent eval noise and can throw maxBuffer → false "check failed").
 const BIG_BUF = 20 * 1024 * 1024;
+/** @param {string} cmd */
 const run = (cmd) =>
   execSync(cmd, {
     cwd: projectDir,
@@ -41,6 +50,7 @@ const run = (cmd) =>
     stdio: ["ignore", "pipe", "pipe"],
     maxBuffer: BIG_BUF,
   });
+/** @param {string} bin */
 const has = (bin) => {
   try {
     run(`command -v ${bin}`);
@@ -51,6 +61,7 @@ const has = (bin) => {
 };
 // Like `run`, but bounded by a timeout so a hung container start/eval cannot
 // wedge the Stop gate forever.
+/** @param {string} cmd @param {number} ms */
 const runLong = (cmd, ms) =>
   execSync(cmd, {
     cwd: projectDir,
@@ -59,7 +70,7 @@ const runLong = (cmd, ms) =>
     timeout: ms,
     maxBuffer: BIG_BUF,
   });
-/** Prefer real error lines over the last N chars of progress spam. */
+/** Prefer real error lines over the last N chars of progress spam. @param {ExecError} e */
 const formatCheckFailure = (e) => {
   const raw = `${e.stdout || ""}\n${e.stderr || ""}\n${e.message || ""}`.trim();
   const lines = raw.split("\n");
@@ -91,11 +102,12 @@ const formatCheckFailure = (e) => {
 const ENV_FAILURE =
   /opening lock file[^\n]*Operation not permitted|No space left on device|Too many open files|Cannot allocate memory/i;
 const approve = () => {
-  process.stdout.write(JSON.stringify({ decision: "approve" }));
+  process.stdout.write(JSON.stringify(/** @satisfies {SyncHookJSONOutput} */ ({ decision: "approve" })));
   process.exit(0);
 };
+/** @param {string} reason */
 const block = (reason) => {
-  process.stdout.write(JSON.stringify({ decision: "block", reason }));
+  process.stdout.write(JSON.stringify(/** @satisfies {SyncHookJSONOutput} */ ({ decision: "block", reason })));
   process.exit(0);
 };
 // Syntax passed but full multi-system eval couldn't run locally (no host nix and
@@ -122,6 +134,7 @@ try {
 }
 let sessionId = "";
 try {
+  /** @type {Partial<StopHookInput>} */
   const evt = raw ? JSON.parse(raw) : {};
   sessionId = evt.session_id || "";
   // Avoid infinite loops: if a previous stop hook already blocked, don't re-block.
@@ -146,6 +159,7 @@ try {
 const GROK_STATE_DIR = `${process.env.HOME}/.claude/plugins/data/grok-build-xai-grok-build/state`;
 const SURFACED_FILE = `${projectDir}/.claude/hooks/.grok-runs-state.json`;
 
+/** @param {string} p @param {any} fallback @returns {any} */
 const readJson = (p, fallback) => {
   try {
     return JSON.parse(fs.readFileSync(p, "utf8"));
@@ -162,6 +176,7 @@ const grokFailures = (() => {
     return []; // plugin never ran on this machine — nothing to check
   }
   const surfaced = new Set(readJson(SURFACED_FILE, {}).surfaced || []);
+  /** @type {GrokJob[]} */
   const out = [];
   for (const d of dirs) {
     for (const j of readJson(`${GROK_STATE_DIR}/${d}/state.json`, {}).jobs || []) {
@@ -174,6 +189,7 @@ const grokFailures = (() => {
   return out;
 })();
 
+/** @param {GrokJob[]} jobs */
 const markSurfaced = (jobs) => {
   const prev = readJson(SURFACED_FILE, {}).surfaced || [];
   // Keep the tail bounded — this file is a dedupe ledger, not a history.
@@ -186,6 +202,7 @@ const markSurfaced = (jobs) => {
 };
 
 /** Terminal "the Nix side is fine" path — a dead background run still blocks the stop. */
+/** @param {string} [systemMessage] */
 const finishOk = (systemMessage) => {
   if (grokFailures.length) {
     markSurfaced(grokFailures);
@@ -204,7 +221,9 @@ const finishOk = (systemMessage) => {
         `Full record: \`/grok-build:runs <run-id>\`.`,
     );
   }
-  process.stdout.write(JSON.stringify(systemMessage ? { decision: "approve", systemMessage } : { decision: "approve" }));
+  process.stdout.write(
+    JSON.stringify(/** @satisfies {SyncHookJSONOutput} */ (systemMessage ? { decision: "approve", systemMessage } : { decision: "approve" })),
+  );
   process.exit(0);
 };
 
@@ -223,7 +242,7 @@ const finishOk = (systemMessage) => {
 // BLOCKS and says plainly that no gate ran.
 try {
   run("git rev-parse --is-inside-work-tree");
-} catch (e) {
+} catch (/** @type {any} */ e) {
   const msg = `${(e && e.stderr) || ""}${(e && e.message) || ""}`;
   // if/else, NOT a bare `if` followed by block(). approve() ends in
   // process.exit(0), so a fallthrough is unreachable TODAY — but that makes the
@@ -255,6 +274,7 @@ try {
 // Both `git ls-files` queries below inherit the rev-parse failure mode above: an
 // empty answer and a failed query are indistinguishable, so swallowing one skips
 // the gate it feeds while the stop still reports green.
+/** @param {ExecError} e @param {string} what @param {string} skipped */
 const gitQueryFailed = (e, what, skipped) => {
   const msg = `${(e && e.stderr) || ""}${(e && e.message) || ""}`;
   block(
@@ -278,7 +298,7 @@ const gitQueryFailed = (e, what, skipped) => {
 let untracked = "";
 try {
   untracked = run("git ls-files --others --exclude-standard -- '*.nix'").trim();
-} catch (e) {
+} catch (/** @type {any} */ e) {
   gitQueryFailed(e, "list untracked files", "git purity did NOT run");
 }
 if (untracked) {
@@ -292,14 +312,14 @@ if (untracked) {
 let nixFiles = "";
 try {
   nixFiles = run("git ls-files -- '*.nix'").trim();
-} catch (e) {
+} catch (/** @type {any} */ e) {
   gitQueryFailed(e, "list tracked .nix files", "neither the syntax check nor `nix flake check` ran");
 }
 if (nixFiles && has("nix-instantiate")) {
   for (const f of nixFiles.split("\n").filter(Boolean)) {
     try {
       run(`nix-instantiate --parse ${JSON.stringify(f)} > /dev/null`);
-    } catch (e) {
+    } catch (/** @type {any} */ e) {
       block(
         `✘ stop-gate BLOCKED — Nix syntax error in ${f}:\n${(e.stderr || e.stdout || e.message || "").trim()}`,
       );
@@ -315,7 +335,7 @@ if (nixFiles && has("nix")) {
   // systems are omitted unless --all-systems (CI covers aarch64-linux).
   try {
     runLong("nix flake check --no-build 2>&1", 600_000);
-  } catch (e) {
+  } catch (/** @type {any} */ e) {
     const detail = formatCheckFailure(e);
     if (ENV_FAILURE.test(detail)) {
       finishOk(
@@ -368,6 +388,7 @@ if (nixFiles && has("nix")) {
       // call above — commonDir/projectDir are derived from git/env, not
       // attacker input, but quote them anyway for consistency and so a path
       // containing a `"` or space can't break the composed command.
+      /** @param {string} dir */
       const mountArg = (dir) => `--mount ${JSON.stringify(`type=bind,source=${dir},target=${dir}`)}`;
       extraMountArgs = ` ${mountArg(commonDir)} ${mountArg(projectDir)}`;
       extraSafeDirs = `git config --global --add safe.directory ${JSON.stringify(commonDir)}; git config --global --add safe.directory ${JSON.stringify(projectDir)}; `;
@@ -394,7 +415,7 @@ if (nixFiles && has("nix")) {
         'printf "\\nSTOPGATE_NATIVE=%s\\n" "$(nix eval --raw --impure --expr builtins.currentSystem)"\'',
       TEN_MIN,
     );
-  } catch (e) {
+  } catch (/** @type {any} */ e) {
     block(
       `✘ stop-gate BLOCKED — \`nix flake check\` (run in the devcontainer) failed — configuration does not evaluate:\n` +
         `${(e.stdout || e.stderr || e.message || "").trim().slice(-2000)}`,

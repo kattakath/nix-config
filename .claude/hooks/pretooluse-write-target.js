@@ -17,6 +17,11 @@
  * permission flow runs. This is an ask gate, not a boundary.
  */
 "use strict";
+// @ts-check — types only, checked by checks.<system>.hook-types (tsconfig.json beside this file).
+/** @typedef {import("@anthropic-ai/claude-agent-sdk").PreToolUseHookInput} PreToolUseHookInput */
+/** @typedef {import("@anthropic-ai/claude-agent-sdk").SyncHookJSONOutput} SyncHookJSONOutput */
+/** @typedef {import("@anthropic-ai/claude-agent-sdk/sdk-tools").FileWriteInput} FileWriteInput */
+/** @typedef {import("@anthropic-ai/claude-agent-sdk/sdk-tools").FileEditInput} FileEditInput */
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -33,11 +38,13 @@ const SCRATCHPAD = /^\/(private\/)?tmp\/claude-\d+\/[^/]+\/[^/]+\/scratchpad(\/|
 // /etc would slip past a plain string compare. Each rule is checked against the
 // path as written AND its real path (the target's, or its nearest existing
 // parent's for a file not yet written), case-folded on darwin.
+/** @param {string} p */
 const fold = (p) => (process.platform === "darwin" ? p.toLowerCase() : p);
 const F_ROOTS = SYSTEM_ROOTS.map(fold);
 const F_FILES = LOGIN_FILES.map(fold);
 const F_DIRS = LOGIN_DIRS.map(fold);
 
+/** @param {string} p @returns {string} */
 function realish(p) {
   let head = p;
   const tail = [];
@@ -53,6 +60,7 @@ function realish(p) {
   }
 }
 
+/** @param {string} candidate @param {string} abs @returns {string | null} */
 function verdictFor(candidate, abs) {
   const c = fold(candidate);
   if (F_FILES.includes(c) || F_DIRS.some((d) => c.startsWith(d))) {
@@ -64,6 +72,7 @@ function verdictFor(candidate, abs) {
   return null;
 }
 
+/** @param {unknown} filePath @param {string | undefined} projectDir @returns {string | null} */
 function verdict(filePath, projectDir) {
   if (typeof filePath !== "string" || !filePath) return null;
   const abs = path.resolve(projectDir || process.cwd(), filePath);
@@ -88,12 +97,13 @@ if (require.main === module) {
   let raw = "";
   process.stdin.on("data", (d) => (raw += d)).on("end", () => {
     try {
+      /** @type {Partial<PreToolUseHookInput>} */
       const input = JSON.parse(raw);
-      const reason = verdict((input.tool_input || {}).file_path, process.env.CLAUDE_PROJECT_DIR || input.cwd);
+      const reason = verdict(/** @type {Partial<FileWriteInput | FileEditInput>} */ (input.tool_input || {}).file_path, process.env.CLAUDE_PROJECT_DIR || input.cwd);
       if (reason) {
-        process.stdout.write(JSON.stringify({
+        process.stdout.write(JSON.stringify(/** @satisfies {SyncHookJSONOutput} */ ({
           hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: reason },
-        }));
+        })));
       }
     } catch (_) {
       // fail open: no output, normal permission flow

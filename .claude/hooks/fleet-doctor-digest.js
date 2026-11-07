@@ -25,6 +25,8 @@
  * exits 0. Stdout from SessionStart is shown to the user and added to context.
  */
 
+// @ts-check — types only, checked by checks.<system>.hook-types (tsconfig.json beside this file).
+
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -34,8 +36,10 @@ const NUDGE_DAYS = 3;
 try {
   const stateDir = path.join(process.env.XDG_STATE_HOME || path.join(os.homedir(), ".local", "state"), "nix-config");
   const legacyPath = path.join(process.env.CLAUDE_PROJECT_DIR || process.cwd(), ".claude", "hooks", ".fleet-doctor-state.json");
+  /** @param {string} f @returns {any} */
   const readState = (f) => JSON.parse(fs.readFileSync(f, "utf8"));
 
+  /** @type {{ lastRunAt?: unknown } | null} */
   let state = null;
   try {
     try {
