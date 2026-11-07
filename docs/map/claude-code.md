@@ -277,16 +277,16 @@ a line there when a new flake is extracted from this repo, nothing else needs to
 (`NH-*`, `FD-*`), checked with their output by `doctor-report` (ADR-013 § 13).
 There is **no `npx skills` CLI lockfile** any more: `skills-lock.json` was deleted 2026-10-02,
 having sat at `{"version":1,"skills":{}}` with zero consumers in Nix, CI or hooks. The CLI it
-belonged to is rejected outright (the `agent-skills-vercel` input's comment in `flake.nix`, and
-`programs.claude-code.skills` in `modules/home/default.nix`), so the flake
-path below is the only lane for a global skill — do not re-add the lockfile.
+belonged to is rejected outright (`programs.claude-code.skills` in `modules/home/default.nix`)
+— do not re-add the lockfile.
 
 ### Global skills
 
 Placed at `~/.claude/skills/<name>/` declaratively by `programs.claude-code.skills`
-(`modules/home/default.nix`, darwin-gated) on `darwin-rebuild switch`. Most are sourced from
-PINNED `flake = false` inputs (e.g. `agent-skills-vercel` = vercel-labs/skills → `find-skills`),
-**NOT vendored**; `nix flake update` bumps them. anthropics/skills (`mcp-builder`,
+(`modules/home/default.nix`, darwin-gated) on `darwin-rebuild switch`. Since 2026-11-07 only the
+two UNLICENSED skills remain here (`excalidraw-diagram`, `vercel-cli-with-tokens`, PINNED
+`flake = false` inputs); every licensed one moved to a plugin (Nix registers the marketplace,
+the plugin is enabled at runtime). anthropics/skills (`mcp-builder`,
 `webapp-testing`, `pdf`/`docx`/`pptx`/`xlsx`) is NOT an input any more, and its marketplace
 registration was dropped 2026-11-02 (it enabled no plugin); those skills reach sessions through
 the claude.ai account.

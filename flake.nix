@@ -255,11 +255,6 @@
     # (modules/home/default.nix, darwin-gated). Pinned in flake.lock, bumped via
     # `nix flake update` — the reproducible replacement for imperative
     # `npx skills add --global`, with NO vendored copies committed here.
-    # find-skills: skill discovery from skills.sh.
-    agent-skills-vercel = {
-      url = "github:vercel-labs/skills";
-      flake = false;
-    };
     # xAI's OFFICIAL Claude Code plugin (grok-build-plugin-cc) — the sanctioned
     # Grok Build <-> Claude Code bridge (/grok-build:{review,critique,delegate,
     # import,...}). Pinned flake=false; patched (`grokBuildPluginPatched`) and wired as
@@ -272,55 +267,19 @@
       url = "github:xai-org/grok-build-plugin-cc";
       flake = false;
     };
-    # ---- Additional third-party skill collections (source-only, flake = false) --
-    # Wired into programs.claude-code.skills. Chosen to
-    # DRIVE tools this fleet already has (the postgres/macos-automator MCP servers, the Excalidraw
-    # connector). Bumped via `nix flake update`; nothing vendored.
-    agent-skills-jeffallan = {
-      # MIT: `postgres-pro` (senior-Postgres skill) — pairs with the postgres MCP server + local pgvector RAG.
-      url = "github:Jeffallan/claude-skills";
-      flake = false;
-    };
-    agent-skills-mac-automation = {
-      # MIT: `automating-mac-apps` foundation (AppleScript/JXA) — pairs with the macos-automator MCP server.
-      url = "github:SpillwaveSolutions/automating-mac-apps-plugin";
-      flake = false;
-    };
+    # ---- Third-party skills with NO licence, so no marketplace can carry them (2026-11-07:
+    # every licensed one moved to a plugin). Wired into programs.claude-code.skills.
     agent-skills-excalidraw = {
       # Generates .excalidraw diagrams (Playwright render-loop) — pairs with the Excalidraw connector.
       # Root-level SKILL.md, so the whole repo IS the skill dir. No LICENSE file (source-available; personal pin only).
       url = "github:coleam00/excalidraw-diagram-skill";
       flake = false;
     };
-    agent-skills-superpowers = {
-      # obra/superpowers (MIT): only systematic-debugging + verification-before-completion are pinned
-      # (cherry-picked subpaths, NOT the whole plugin) — hypothesis-driven debugging plus an evidence-before-claims completion check. Keeps the always-loaded set lean.
-      url = "github:obra/superpowers";
-      flake = false;
-    };
-    agent-skills-jsonresume = {
-      # Paramchoudhary/ResumeSkills (MIT, 1.4k★): job-search agent skills. We cherry-pick a LEAN,
-      # complementary subset in programs.claude-code.skills (JD analysis / ATS / cover-letter / interview /
-      # salary) — NOT resume-tailor, which the json-native jsonresume-tailor (kattakath/skills) supersedes.
-      # These are plain-markdown workflows over pasted text; they DON'T touch resume.json / resume-cli.
-      url = "github:Paramchoudhary/ResumeSkills";
-      flake = false;
-    };
     agent-skills-vercel-agent = {
-      # OFFICIAL Vercel Labs monorepo (vercel-labs/agent-skills — DISTINCT from `agent-skills-vercel` =
-      # vercel-labs/skills, the find-skills discovery tool). We cherry-pick ONLY `vercel-cli-with-tokens`
+      # OFFICIAL Vercel Labs monorepo (vercel-labs/agent-skills). We cherry-pick ONLY `vercel-cli-with-tokens`
       # in programs.claude-code.skills — it drives the `vercel` CLI (hosts/macos.nix Homebrew) for
       # non-interactive/token auth. No top-level LICENSE (source-available; personal pin only, like excalidraw).
       url = "github:vercel-labs/agent-skills";
-      flake = false;
-    };
-    agent-skills-vercel-workflow = {
-      # OFFICIAL Vercel Workflow SDK repo (vercel/workflow, Apache-2.0, 2.3k★) — the durable/resumable
-      # TypeScript workflow engine, DISTINCT from the two vercel-labs skill repos above. We cherry-pick
-      # a subset in programs.claude-code.skills (workflow / workflow-init /
-      # migrating-to-workflow-sdk); we deliberately DROP `internal-dev-workbench`, which only sets up a
-      # tmux/portless dev session for contributors HACKING ON the SDK repo itself — irrelevant to this fleet.
-      url = "github:vercel/workflow";
       flake = false;
     };
     # ---- THIS OPERATOR'S OWN agent resources (source-only, flake = false) -----

@@ -35,14 +35,8 @@
   domainName,
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
-  agent-skills-vercel,
-  agent-skills-jeffallan,
-  agent-skills-mac-automation,
   agent-skills-excalidraw,
-  agent-skills-superpowers,
-  agent-skills-jsonresume,
   agent-skills-vercel-agent,
-  agent-skills-vercel-workflow,
   grok-build-plugin-cc,
   # The ABSORBED local-rag capsule (local.rag.ollama +
   # local.rag.pgvector — the loopback RAG stack) — a MODULE, not a flake,
@@ -1288,74 +1282,19 @@ in
       # them — nothing vendored. (Repo-SPECIFIC skills stay in .claude/skills/ and
       # activate only when working in this repo.)
       skills = {
-        # Skill discovery from skills.sh (vercel-labs/skills).
-        find-skills = "${agent-skills-vercel}/skills/find-skills";
-        # NO plugin-dev / hookify SKILL ENTRIES HERE, deliberately: those ship as
-        # claude.ai-synced plugins, which carry the agents/commands/hooks a skill entry
-        # cannot. See the claude-plugins-official note above before re-adding.
-
-        # ---- Tool-driver skills: each pairs with an MCP server / connector this
-        # fleet already runs (see flake.nix `agent-skills-*` inputs). Additive,
-        # git-pinned, bumped via `nix flake update`. ----
-        # Cloudflare's skills come from the claude.ai-synced `cloudflare` plugin, not a flake input.
-        # The Anthropic skills (mcp-builder, webapp-testing, pdf/docx/pptx/xlsx) are NOT
-        # here. Their heavy runtime deps still live in this repo: pandoc + poppler from nixpkgs
-        # (home.packages above), LibreOffice/soffice from the macos-only Homebrew cask
-        # (nixpkgs libreoffice-bin cannot reliably block on headless --convert-to).
-        # Community (MIT, 10.9k★): senior-Postgres skill — pairs with the `postgres` MCP + pgvector RAG.
-        postgres-pro = "${agent-skills-jeffallan}/skills/postgres-pro";
-        # Community (MIT): AppleScript/JXA foundation — pairs with the `macos-automator` MCP server.
-        # Foundation skill only (the 15 per-app skills can be added later) to keep the global set lean.
-        automating-mac-apps = "${agent-skills-mac-automation}/plugins/automating-mac-apps-plugin/skills/automating-mac-apps";
+        # ONLY the two skills whose upstream ships NO licence, so neither a marketplace nor
+        # kattakath/skills can carry them (2026-11-07). Every other skill comes from a plugin:
+        # superpowers@synced (systematic-debugging, verification-before-completion),
+        # fullstack-dev-skills (postgres-pro), automating-mac-apps, and kattakath's job-search
+        # and vercel-workflow. find-skills was dropped: capability-broker covers discovery.
+        # NO plugin-dev / hookify entries either: those ship as claude.ai-synced plugins.
+        #
         # Community: generate .excalidraw diagrams — pairs with the Excalidraw connector.
         # Root-level SKILL.md, so the whole repo is the skill dir.
         excalidraw-diagram = "${agent-skills-excalidraw}";
         # OFFICIAL Vercel Labs (vercel-labs/agent-skills): drives the `vercel` CLI
-        # (hosts/macos.nix Homebrew cask `vercel`) for non-interactive / token auth —
-        # the deploy/manage counterpart to the CLI itself. Cherry-picked (one skill).
+        # (hosts/macos.nix Homebrew cask `vercel`) for non-interactive / token auth.
         vercel-cli-with-tokens = "${agent-skills-vercel-agent}/skills/vercel-cli-with-tokens";
-        # OFFICIAL Vercel Workflow SDK (vercel/workflow, Apache-2.0): USER-facing
-        # skills for building/adopting durable, resumable TypeScript workflows. We DROP the
-        # repo's `internal-dev-workbench` skill (tmux/portless session for hacking on the SDK
-        # repo itself — not applicable here). Pairs with the `inngest` CLI already on PATH.
-        workflow = "${agent-skills-vercel-workflow}/skills/workflow";
-        workflow-init = "${agent-skills-vercel-workflow}/skills/workflow-init";
-        migrating-to-workflow-sdk = "${agent-skills-vercel-workflow}/skills/migrating-to-workflow-sdk";
-        # ---- Security / methodology skills (from the audit) ----
-        # obra/superpowers (MIT): the SINGLE systematic-debugging skill (cherry-picked subpath, NOT
-        # the whole plugin) — a hypothesis-driven debugging methodology.
-        systematic-debugging = "${agent-skills-superpowers}/skills/systematic-debugging";
-        # obra/superpowers (MIT): the SINGLE verification-before-completion skill, same
-        # cherry-picked-subpath rule as systematic-debugging above. 120 lines, one file, no
-        # references/ — measured at the pin, not estimated.
-        #
-        # WHY ADOPT RATHER THAN WRITE ONE. It is the de facto standard for this (181.9k
-        # installs) and nothing equivalent exists in anthropics/skills (19 skills) or
-        # anthropics/claude-plugins-official (315 plugins) — searched 2026-10-02. Writing our
-        # own would be a second copy of a maintained artifact.
-        #
-        # WHAT IT DOES NOT COVER, and why a kattakath plugin still exists alongside it: its
-        # gate step 3 is "READ: Full output, check exit code", which ASSUMES the exit code you
-        # read is the command's and the output is complete. The instrument layer under that
-        # assumption — a stale ${PIPESTATUS[0]}, a partial API page, a CI run that is green
-        # because its only job SKIPPED, a zsh loop that exits 0 having iterated once over one
-        # blob — is absent from it (verified: the skill ships ONE file and mentions none of
-        # them). That layer is ours; the discipline is not.
-        #
-        # A vanished subpath fails LOUDLY: `cp: cannot stat .../skills/<name>` at build, so a
-        # bump that reorganises upstream breaks activation rather than silently dropping the
-        # skill. Measured 2026-10-02.
-        verification-before-completion = "${agent-skills-superpowers}/skills/verification-before-completion";
-        # ---- Job-search skills (Paramchoudhary/ResumeSkills, MIT) ----
-        # A LEAN, complementary slice of the pack — the text-based job-search steps that
-        # AREN'T resume.json-specific. resume-tailor is deliberately OMITTED: the json-native
-        # jsonresume-tailor plugin (kattakath/skills) supersedes it, reading/writing real resume.json
-        # and rendering via the `jsonresume` wrapper. These pair with the jobspy + Indeed connectors.
-        job-description-analyzer = "${agent-skills-jsonresume}/skills/job-description-analyzer";
-        resume-ats-optimizer = "${agent-skills-jsonresume}/skills/resume-ats-optimizer";
-        cover-letter-generator = "${agent-skills-jsonresume}/skills/cover-letter-generator";
-        interview-prep-generator = "${agent-skills-jsonresume}/skills/interview-prep-generator";
-        salary-negotiation-prep = "${agent-skills-jsonresume}/skills/salary-negotiation-prep";
       };
     };
 
