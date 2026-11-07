@@ -478,6 +478,7 @@ in
     # Dropping a brew is an operator decision about PATH, made one tool at a time.
     brews = [
       "age"
+      "apify-cli" # Actor development (apify create/run/push); the hosted MCP plugin cannot do these
       "aws-vault"
       "btop"
       "bruno-cli"
