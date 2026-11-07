@@ -963,7 +963,6 @@ in
     # "<plugin>@<key>", so a guessed key silently resolves nothing.
     #   cloudflare/skills     -> "cloudflare"                 (1 plugin)
     #   trailofbits/skills    -> "trailofbits"                (44 plugins)
-    #   apify/apify-claude-code-plugin -> "apify"            (1 plugin, 2026-10-26)
 
     # OFFICIAL Cloudflare (Apache-2.0). One plugin, `cloudflare`, carrying the whole product
     # reference (incl. `cloudflare`, `cloudflare-one`). Catalogued, declared, seen in a
@@ -983,25 +982,6 @@ in
         "gh-cli"
         "supply-chain-risk-auditor"
       ];
-    };
-
-    # Apify's OFFICIAL plugin (Apache-2.0), github:apify/apify-claude-code-plugin —
-    # key `apify` is the `name` in its own .claude-plugin/marketplace.json (read
-    # 2026-10-26). It REPLACES kattakath/skills' `apify` plugin and the
-    # `nix-mcp-apify` launcher: one source of truth instead of a local unpinned
-    # `npx @apify/actors-mcp-server` copy of the same server. Ships the hosted
-    # mcp.apify.com (type=http, one-time in-client OAuth via `/mcp`, same shape as
-    # stripe/resend; its AS advertises the refresh_token grant), 5 skills
-    # and an `apify` agent.
-    #
-    # Trade accepted on purpose: OAuth, not the Keychain token, so a HEADLESS run
-    # (`claude -p`, launchd, CI) loses Apify if the refresh token lapses — its
-    # lifetime is unpublished. Vetted at that read: no injected instructions; its
-    # skills suggest `npm install -g apify-cli` and `apify login --token TOKEN`
-    # (argv), neither of which this fleet does — prefer the MCP route.
-    apify = {
-      source = lib.mkDefault "https://github.com/apify/apify-claude-code-plugin.git";
-      plugins = [ "apify" ];
     };
   };
 
@@ -1033,9 +1013,6 @@ in
     # #753 meant.
     "silent-instruments@kattakath" = true;
 
-    # Apify's official plugin — see the `apify` marketplace above for why it
-    # replaced the kattakath one. Declared so a fresh Mac gets it without a click.
-    "apify@apify" = true;
     # Same-named as the claude.ai-synced copy, which this one hides rather than doubles
     # (the declared copy takes precedence over the `@synced` one — `claude plugin list`'s
     # shadow note, measured 2026-11-01).
