@@ -96,6 +96,8 @@
   # The Google Workspace IdP (identity.nix `accessOrg.googleIdp`) and the Workspace
   # domain it is restricted to.
   googleIdp,
+  # The dashboard-SSO app (identity.nix `accessOrg.dashSso`), adopted below.
+  dashSso,
   domainName,
   ...
 }:
@@ -174,10 +176,46 @@
     lifecycle.prevent_destroy = true;
   };
 
+  # ---- Cloudflare dashboard SSO ----------------------------------------------
+  # The system `dash_sso` app: with it, logging in to dash.cloudflare.com as a
+  # kattakath.com user goes through the Google IdP above. Losing it does not lock the
+  # account (the owner's password login stays), but it silently drops the SSO gate,
+  # so it shares this stack's blast radius and cannot be destroyed from a plan.
+  # Its one policy is app-scoped (not reusable); the API requires an email_domain
+  # include for dash_sso, and `allowed_idps` narrows it to Workspace sign-ins.
+  resource.cloudflare_zero_trust_access_application.dash_sso = {
+    account_id = accountId;
+    type = "dash_sso";
+    name = "SSO App";
+    allowed_idps = [ googleIdp.id ];
+    auto_redirect_to_identity = true;
+    session_duration = "24h";
+    # The SAML half is Cloudflare's own dashboard as the service provider; the
+    # provider requires it for dash_sso (and rejects app_launcher_visible).
+    saas_app = {
+      auth_type = "saml";
+      consumer_service_url = "https://dash.cloudflare.com/api/v4/saml/acs";
+      sp_entity_id = "dash.cloudflare.com";
+      name_id_format = "id";
+    };
+    logo_url = "https://raw.githubusercontent.com/kattakath/kattakath.github.io/refs/heads/main/icon.svg";
+    policies = [
+      {
+        id = dashSso.policyId;
+        precedence = 1;
+      }
+    ];
+    lifecycle.prevent_destroy = true;
+  };
+
   import = [
     {
       to = "cloudflare_zero_trust_access_identity_provider.google";
       id = "accounts/${accountId}/${googleIdp.id}";
+    }
+    {
+      to = "cloudflare_zero_trust_access_application.dash_sso";
+      id = "accounts/${accountId}/${dashSso.appId}";
     }
   ];
 
