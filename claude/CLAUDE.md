@@ -168,13 +168,14 @@ diagram code is a non-answer.
   check; boxes can be closed and arrows connected and the thing still wraps:
 
   ```bash
-  … | mermaid-ascii -p 0 -x 1 -y 2 | LC_ALL=en_US.UTF-8 wc -L   # true display columns
+  … | mermaid-ascii -p 0 -x 1 -y 2 | LC_ALL=C.UTF-8 wc -mL   # LAST number = display columns
   ```
 
-  Use `wc -L`, **not** `awk length()` — awk counts *bytes*, so every box-drawing glyph counts 3
-  and a 17-column diagram reports 51. Keep the `LC_ALL`: the agent's Bash tool runs with no
-  locale, where `wc -L` counts box glyphs as 0 and UNDERCOUNTS (measured: 4 for a diagram 15
-  columns wide), so a too-wide diagram can pass.
+  The same recipe as the `brain-signals` plugin, so there is one copy. It holds on GNU `wc`
+  (what Nix puts on `PATH`) **and** macOS's BSD `/usr/bin/wc`: BSD `wc -L` without `-m` counts
+  *bytes* (measured 25 for a 9-column diagram), as does `awk length()`. Keep the `LC_ALL`: the
+  agent's Bash tool runs with no locale, where box glyphs count as 0 and the width UNDERCOUNTS
+  (measured: 4 for a 9-column diagram), so a too-wide diagram can pass.
 
   Over 80: shorten labels, switch to `TD`, or split into two diagrams. Never widen the terminal
   in your head and call it done.
