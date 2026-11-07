@@ -5,8 +5,8 @@
 # (`grafana-plan` / `grafana-apply`), state encrypted in the shared GCS bucket like the others.
 #
 # ADOPTED, NOT CREATED: every object predates this stack, so each has an `import` block below.
-# The first plan reads "12 to import, 0 to add, 0 to change, 0 to destroy" (measured
-# 2026-11-03). An import block is a no-op once its object is in state, and the blocks ARE the
+# The first plan read "12 to import, 0 to add, 0 to change, 0 to destroy" (measured
+# 2026-11-03); the three maps-platform objects, created 2026-11-07, joined after. An import block is a no-op once its object is in state, and the blocks ARE the
 # empty-state guard: with state lost, each re-adopts its live object instead of creating (or,
 # for a rule group, silently upserting over) it. So every resource needs one; the wrapper
 # refuses an empty-state run where the counts differ.
@@ -61,6 +61,9 @@ let
     "grafana_rule_group.fleet_health" = "fleet:fleet-health";
     "grafana_rule_group.career" = "fleet:career";
     "grafana_synthetic_monitoring_check.public_site" = "15886";
+    "grafana_data_source.gcp_monitoring" = "gcp-monitoring";
+    "grafana_dashboard.maps_platform" = "maps-platform";
+    "grafana_rule_group.maps_platform" = "fleet:maps-platform";
   };
 in
 {
