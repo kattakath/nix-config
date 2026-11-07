@@ -62,7 +62,7 @@ Standards were each checked at the source the same day (§ 8 gives URLs and vers
 | 20 | cf-tunnel state/render split | guards + drift | — |
 | 21 | Google re-auth lapse | drift `reauth` label | — |
 | 22 | build-installers: 10 `startup_failure`s | doctor | 4 |
-| 23 | Plugins enabled by click only | doctor (fleet-doctor E5) | a gauge, later |
+| 23 | Plugins enabled by click only | none — expected since 2026-11-07 (plugin state is runtime, ADR-008 `declared` lane retired) | — |
 | 24 | launchd orphans | doctor (`launchd-doctor`) | 3 |
 | 25 | **Leaked or stuck agent processes** | **NONE** | optional `ps` gauge |
 | 26 | **Comment-only activation that changed nothing** | **NONE** | judgment; stays agent-run |

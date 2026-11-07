@@ -708,9 +708,8 @@ in
                         || namedHm.local.claudeOtel.enable
                       )
                       "a consumer whose host is NAMED 'macos' got operator-only behaviour — gate on local.operatorHost, never the hostname"
-                  # The operator's plugin choices (`local.claudePlugins.declared`) are
-                  # identity, not fleet shape: a consumer renders the always-on floor
-                  # and nothing else. Compared on the RENDERED keys, so a personal id
+                  # Plugin choices are runtime state, not fleet shape: a consumer
+                  # renders the always-on floor and nothing else. Compared on the RENDERED keys, so a personal id
                   # reaching the consumer by any path goes red, not just via `declared`.
                   ++
                     lib.optional

@@ -484,26 +484,14 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `<plugin>@<marketplace>` resolvable; `extraKnownMarketplaces` never reads it. Adding a name
     there merged twice and did nothing both times — #751 (`empire`, reverted in #754) and #753
     (`silent-instruments`).
-  - **`local.claudePlugins.declared` is what turns an id on or off** (`attrsOf bool`, added
-    2026-10-02, ADR-008's `declared` lane). Full `<plugin>@<marketplace>` ids, user scope,
-    re-asserted every activation. Rendered as
-    `enabledPlugins = cfg.declared // genAttrs alwaysOnIds (_: true)` — floor last, so the
-    always-on three win the merge even without the assertion that already forbids an overlap.
-    **The whole map is `lib.mkIf isMacosHost`** in `default.nix`: every id in it is the operator's
-    choice, so a template consumer renders the always-on floor alone, and
-    `checks.<system>.template-consumer` fails if its rendered `enabledPlugins` keys are anything else.
-    **The invariant it preserves, which is the real content of #648:** Nix may write an
-    `enabledPlugins` key only for an id a human named ON PURPOSE — never one DERIVED from the
-    catalogue — so the jq merge in `claude-code-settings.nix` (`.[0] * $nix[0]`, right operand
-    wins per key) leaves every unnamed id, `false` included, exactly as `/plugin` wrote it.
-    Three assertions, each measured firing via `extendModules`: a malformed key, an overlap with
-    the always-on three, and a plugin absent from its own marketplace's catalogue — the last
-    skipped when the marketplace is not declared here, because `<plugin>@synced` (claude.ai
-    sync) is live and unknowable at eval. **Full ids, not bare names, for that reason.** A
-    `<plugin>@synced` copy is SHADOWED, not doubled, by a same-named plugin from a declared
-    marketplace (`claude plugin list --json` note `synced-plugin-shadowed`) — which is why
-    a declared copy would hide a claude.ai install of the same plugin. The
-    `assured` (managed-settings) lane of ADR-008 §6 is **NOT built**.
+  - **No `declared` lane since 2026-11-07.** ADR-008's `local.claudePlugins.declared` (re-asserted
+    `enabledPlugins` ids) was RETIRED: Nix registers marketplaces, plugin state is a runtime choice
+    (`/plugin`, or claude.ai for `<plugin>@synced`). Nix writes `enabledPlugins` keys only for the
+    always-on three, so the jq merge in `claude-code-settings.nix` leaves every other id as the UI
+    wrote it, and `checks.<system>.template-consumer` still pins a consumer to that floor. A
+    `<plugin>@synced` copy is SHADOWED by a same-named plugin from a declared marketplace
+    (`claude plugin list --json` note `synced-plugin-shadowed`), so never declare one that claude.ai
+    already installs.
   - **Why it exists.** This was a single-marketplace mechanism inlined in `home.nix`
     (`claudePluginIds` / `localPluginsMarketplace` / `home.activation.claudeCodePlugins`)
     until [redacted] needed a second marketplace and grew a near-verbatim 80-line COPY of

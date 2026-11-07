@@ -553,17 +553,6 @@
       "vacuousWhen": "claude mcp list printed zero servers"
     },
     {
-      "id": "FD-E5-undeclared-plugin",
-      "doctor": "fleet-doctor",
-      "section": "fleet-doctor § E5",
-      "shortDescription": "A plugin enabled live but declared neither in Nix nor in the overlay",
-      "statusOnFinding": "warn",
-      "checkKey": "macos:undeclared-plugins",
-      "detect": "the jq in fleet-doctor § E5 over the declared, overlay and live enabledPlugins (declared read at the subject SHA)",
-      "evidence": ["the plugin id"],
-      "vacuousWhen": "the live enabledPlugins map is empty"
-    },
-    {
       "id": "FD-E6-drift",
       "doctor": "fleet-doctor",
       "section": "fleet-doctor § E6",

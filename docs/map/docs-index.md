@@ -95,8 +95,9 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   images go through the `grok` CLI and not `api.x.ai` — the subscription pays for one and not
   the other, and `XAI_API_KEY` silently flips the lane).
   [`ADR-008`](../declarative-plugin-floor-adr.md) (**PARTIALLY ACCEPTED 2026-10-02 — read §9a
-  FIRST**: the `declared` lane is BUILT as `local.claudePlugins.declared`, the `assured`
-  managed-settings lane is NOT, and §9a tables which of §7's five open questions that split made
+  FIRST**: the `declared` lane was BUILT as `local.claudePlugins.declared` and RETIRED
+  2026-11-07 (plugin state is runtime; Nix registers marketplaces only), the `assured`
+  managed-settings lane is NOT built, and §9a tables which of §7's five open questions that split made
   irrelevant). Can the fleet declare a plugin enabled
   **or disabled** in VCS, restored each activation, while ad-hoc choices still survive? §5 names
   the one sentence in the request that cannot be built: for an id Nix declares, "assured" and

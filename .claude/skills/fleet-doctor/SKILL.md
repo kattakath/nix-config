@@ -60,7 +60,7 @@ branch@rev before it builds. Step F below already runs it.
 ## Subject, rules and output
 
 **Subject = nix-config's `origin/<default>`.** `git fetch origin` first and record its SHA. The
-manifest and every repo-DECLARED fact (E5's declared plugins, E8's unit list, F's expected
+manifest and every repo-DECLARED fact (E8's unit list, F's expected
 system) are read at that SHA, from a detached snapshot, never from the checkout this session
 is on. The WORLD (branches on disk, launchd, hosts, CI) is what gets compared against it.
 
@@ -298,24 +298,11 @@ name is gone: a renamed server key would slip past a name check but still shows 
 Non-zero means a deny no longer matches, so read `claude mcp list` and update the
 `serverName` entry.
 
-### E5. Enablement drift: clicked but undeclared plugins (macos) — `FD-E5-undeclared-plugin`
+### E5. (retired 2026-11-07)
 
-A `/plugin` toggle writes only the live `~/.claude/settings.json`, so a plugin turned on by
-click is lost on a fresh Mac. Until 2026-11-01, 27 of 50 enabled plugins lived only there.
-Report every live-`true` id that neither Nix (`local.claudePlugins.declared` + the always-on
-three) nor the operator's overlay declares:
-
-```bash
-nix eval --json "$snap#darwinConfigurations.macos.config.home-manager.users.$USER.programs.claude-code.settings.enabledPlugins" > /tmp/declared.json
-jq -rn --slurpfile nix /tmp/declared.json \
-  --slurpfile ov <(jq '.enabledPlugins // {}' ~/.config/nix-config/claude-settings.overlay.json 2>/dev/null || echo '{}') \
-  --slurpfile live <(jq '.enabledPlugins' ~/.claude/settings.json) \
-  '(($nix[0]|keys)+($ov[0]|keys)|unique) as $d
-   | $live[0] | to_entries[] | select(.value and ((.key|IN($d[]))|not)) | .key'   # must print nothing
-```
-
-Each line is a finding. Declare it (catalogue entry + `declared` key in the same commit), or
-switch it off. A dependency that Claude Code auto-enabled shows up here too: declare it as well.
+Plugin enablement is runtime state now, not a repo-declared fact: Nix only registers
+marketplaces and the always-on three. A plugin enabled by click is expected, so there is
+nothing to diff. Section number kept so E6+ stay stable.
 
 ### E6. Terranix drift (macos) — `FD-E6-*`
 

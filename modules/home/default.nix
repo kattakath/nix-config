@@ -785,8 +785,8 @@ in
     # subdirectories out of a tarball.
     #
     # Registering a marketplace INSTALLS NOTHING — it only makes `<plugin>@<marketplace>`
-    # resolvable. Enabling is `local.claudePlugins.declared` (ADR-008), never a name in a
-    # `plugins` list (that is a catalogue — #751 got it wrong, #754 reverted). Remove a
+    # resolvable. Enabling is the operator's `/plugin` toggle (runtime state, not Nix), never a
+    # name in a `plugins` list (that is a catalogue — #751 got it wrong, #754 reverted). Remove a
     # skills-only input only after its plugin is enabled AND seen in a session.
     #
     # `autoUpdate` is left at its `false` default on every entry here, matching every other
@@ -818,126 +818,6 @@ in
         "supply-chain-risk-auditor"
       ];
     };
-  };
-
-  # ADR-008's `declared` lane: which ids of the catalogue above are actually ON or
-  # OFF, re-asserted into ~/.claude/settings.json on every activation. The list
-  # above is a CATALOGUE and enables nothing (#751 proved that the hard way); this
-  # is the only thing here that does.
-  #
-  # DELIBERATELY SHORT. Membership is not "useful" — that bar belongs to /plugin,
-  # whose toggle stays durable for every id absent from this map. An entry here is
-  # for a choice that must be REPRODUCIBLE on a fresh Mac and REVIEWABLE as a diff.
-  # The three plugins this repo structurally breaks without are NOT here: they are
-  # the always-on set in ./claude-plugins.nix, and the two lanes are asserted
-  # disjoint.
-  #
-  # OPERATOR-ONLY — gated on isMacosHost (local.operatorHost, set only in hosts/macos.nix), so a
-  # template consumer gets none of it. Every id below is the operator's choice, not fleet shape:
-  # nothing in the engine breaks without one (that bar is the always-on floor). A consumer starts
-  # from the floor alone; `checks.<system>.template-consumer` pins exactly that.
-  local.claudePlugins.declared = lib.mkIf isMacosHost {
-    # The PostToolUse instrument layer under the verification gate — see the
-    # `silent-instruments` entry in the kattakath catalogue above for what it is and
-    # why it is a plugin. It is here rather than always-on because nothing in this
-    # repo BREAKS without it: the gate still runs, it just loses the measured
-    # cases where "check the exit code" lies. Reproducible is the requirement, not
-    # unoverridable — a session can still turn it off, until the next `activate`.
-    #
-    # #753 added the name to the catalogue and enabled NOTHING. This line is what
-    # #753 meant.
-    "silent-instruments@kattakath" = true;
-
-    # Clicked toggles do not survive a fresh Mac; these four were absent or click-only (2026-10-02).
-    "prior-art-recon@kattakath" = true;
-    "foundation-audit@kattakath" = true;
-    "mac-app-send@kattakath" = true;
-
-    # Harvested 2026-10-26 after the third public-history scrub in a week; declared
-    # here so it is LOADED, not just catalogued — the failure the block above records.
-    "history-scrub@kattakath" = true;
-
-    # gif-meme (kattakath/skills#72): the recurring short-video → looping-GIF →
-    # Tenor/GIPHY flow, harvested 2026-10-07. Declared here rather than clicked so a
-    # fresh machine gets it with `media-gif` (media-cli capsule, #818) — the skill
-    # calls that command by name and is useless without it.
-    "gif-meme@kattakath" = true;
-
-    # pgp-ops (kattakath/skills#81): the recurring PGP decrypt-to-clipboard / encrypt-
-    # to-recipient / key-backup flow, harvested 2026-10-17. Declared, not clicked, so a
-    # fresh machine has it alongside the brew GnuPG and keychain-secrets lane it names.
-    "pgp-ops@kattakath" = true;
-
-    # ats-safe-pdf (kattakath/skills#167): rendering machine-readable PDFs, harvested
-    # 2026-11-02 after HTML print-to-PDF résumés measured badly in ATS checkers. Declared,
-    # not clicked, so every repo that produces a document PDF loads it.
-    "ats-safe-pdf@kattakath" = true;
-
-    "statement-extract@kattakath" = true;
-    "beancount@kattakath" = true;
-    "plaid-pfc@kattakath" = true;
-
-    # OFF since 2026-10-06, at the operator's judgement that the plugin was
-    # inefficient in use. It was the one id here that changed EVERY session on this
-    # machine: `empire`'s manifest carries `settings.agent = "empire:queen"`, and a
-    # plugin's `settings` block merges into the effective settings once the plugin is
-    # ENABLED — so while it was on, the main agent wore the Queen persona with no
-    # flag. (Measured against Claude Code 2.1.268 with a throwaway probe plugin; it
-    # was the enablement #751 believed a `plugins` entry performed — it did not, and
-    # that PR was reverted in #754.) `false` restores the normal default agent from
-    # the next session start.
-    #
-    # WHY `false` AND NOT DELETING THE LINE. `declared` is an `attrsOf bool` that is
-    # re-asserted into ~/.claude/settings.json on every activation, where `false` is
-    # first-class — "`true` enables, `false` disables"
-    # (the `local.claudePlugins.declared` option in modules/home/claude-plugins.nix). Deleting the key emits NO key, and
-    # the jq merge in claude-code-settings.nix (`mergeScript`) then LEAVES the
-    # stale `true` the previous activation wrote. Deletion does not disable; it
-    # abandons.
-    #
-    # The catalogue entry for "empire" above STAYS. An assertion in claude-plugins.nix
-    # asserts every `declared` id names a plugin present in that marketplace's
-    # `plugins` list, so removing it fails the build — and keeping it leaves the id
-    # resolvable from `/plugin` if the operator wants it back.
-    #
-    # `declared` is a DEFAULT rather than a lock, so a session can still turn it on
-    # by hand until the next `activate`.
-    "empire@kattakath" = false;
-
-    # Live-off by the operator's toggle; declared `false` (the `empire` reason above) so a
-    # fresh Mac reproduces the same state instead of leaving them unset.
-    "llmstxt@kattakath" = false;
-    "jsonresume-tailor@kattakath" = false;
-    "logo-construction-geometry@kattakath" = false;
-
-    # DELIBERATELY ABSENT: `brag-dossier`. It is merged in skills, but the brag
-    # subsystem was removed from this repo on 2026-09-12 at the operator's request.
-    # Enabling the plugin would reintroduce that capability by the back door, so it
-    # stays out until the operator says otherwise. The repo map records NOTHING about
-    # it — `brag` appears 0 times across docs/repo-map.md and all eleven docs/map/
-    # files; the two places that do record the removal, and that nothing replaced it,
-    # are git history (the retired `brags` fleet-repos.txt line) and the
-    # declarative-plugin-floor ADR.
-
-    # CLICKED-ONLY until 2026-11-01: these were `true` in the live settings.json and
-    # declared nowhere, so a fresh Mac came up without them. Declared as they were, no pruning (operator).
-    # fleet-doctor's enablement-drift step reports any new id that appears only by click.
-    "page-lab@kattakath" = true;
-    "rag@kattakath" = true;
-    "capability-broker@kattakath" = true;
-    "android-phone@kattakath" = true;
-    "nix-dev-toolkit@kattakath" = true;
-    "harvest@kattakath" = true;
-    "github-release-gate@kattakath" = true;
-    "skill-curator@kattakath" = true;
-    "session-relay@kattakath" = true;
-    "context7@context7-marketplace" = true;
-    # OFF since 2026-11-02 (operator: "neither ask nor block"). Its PreToolUse hooks
-    # DENY WebFetch/curl of GitHub and its PATH shim refuses `gh api …/contents` and
-    # temp clones; a third-party deny cannot be turned into an ask, so the plugin goes.
-    # `false`, not a deleted line, for the reason the `empire` entry above gives.
-    "gh-cli@trailofbits" = false;
-    "supply-chain-risk-auditor@trailofbits" = true;
   };
 
   # Spotlight-launchable "Android Emulator" — click (or re-click) like any
