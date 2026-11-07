@@ -406,6 +406,31 @@ in
     lifecycle.prevent_destroy = true;
   };
 
+  # ---- Grafana reads Cloud Monitoring (Maps Platform usage) ------------------
+  # The Grafana `gcp-monitoring` datasource (infra/grafana/resources.nix) queries Cloud
+  # Monitoring ON DEMAND, so Maps request counts, errors, latency and the quota limit cost
+  # zero Grafana series. Same key model as the Sheets reader above: ONE key, created
+  # out-of-band and sent straight into the datasource, never in state or on disk. To
+  # rotate: mint a new key the same way, PUT it into the datasource, delete the old key.
+  # Rejected: Workload Identity Federation for the datasource, which is per signed-in
+  # user in Grafana Cloud and so breaks alert evaluation (ADR-011 step 11).
+  resource.google_service_account.grafana_monitoring_reader = {
+    project = projectId;
+    account_id = "grafana-monitoring-reader";
+    display_name = "Grafana Cloud Monitoring reader";
+    description = "ONE key, held only by the Grafana gcp-monitoring datasource (not in state). monitoring.viewer only.";
+    # A destroy soft-deletes it for 30 days and silently kills the key Grafana holds.
+    lifecycle.prevent_destroy = true;
+  };
+
+  # monitoring.viewer, the least role that reads time series and metric descriptors.
+  # Not monitoring.editor (writes), not roles/viewer (every resource in the project).
+  resource.google_project_iam_member.grafana_monitoring_reader_viewer = {
+    project = projectId;
+    role = "roles/monitoring.viewer";
+    member = "serviceAccount:\${google_service_account.grafana_monitoring_reader.email}";
+  };
+
   output.wif_provider.value = "\${google_iam_workload_identity_pool_provider.github_actions.name}";
   output.grafana_rollup_writer.value = "\${google_service_account.grafana_rollup_writer.email}";
   output.grafana_sheets_reader.value = "\${google_service_account.grafana_sheets_reader.email}";
