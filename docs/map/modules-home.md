@@ -472,18 +472,13 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `extraServers` (empty in public since 2026-11-01) into Desktop's `claude_desktop_config.json`;
   Desktop chat's MCP now comes only from claude.ai connectors. Design record:
   [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md).
-- **`claude-plugins.nix`** — `local.claudePlugins.marketplaces` **+ `.declared`**, the
-  **N-marketplace** Claude Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
+- **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
+  Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure
-  `toString ../plugins` fails loudly), a `plugins` list of BARE names, and an `autoUpdate`
-  flag (https only). Install ids are derived as `<plugin>@<marketplace>`, which is what
-  `settings.enabledPlugins` keys on, so a plugin's id can never drift from its marketplace
-  through a typo. **A `repin` option existed until 2026-09-30** and is GONE — nothing outside
+  `toString ../plugins` fails loudly) and an `autoUpdate` flag (https only). **No plugin list
+  since 2026-11-07:** Nix registers stores only; the always-on three are literal ids
+  (`alwaysOnIds`), asserted to name a declared marketplace. **A `repin` option existed until 2026-09-30** and is GONE — nothing outside
   the module ever set it, and the teardown it named is deleted (see the two bullets below).
-  - **`marketplaces.*.plugins` is a CATALOGUE and enables nothing.** It makes
-    `<plugin>@<marketplace>` resolvable; `extraKnownMarketplaces` never reads it. Adding a name
-    there merged twice and did nothing both times — #751 (`empire`, reverted in #754) and #753
-    (`silent-instruments`).
   - **No `declared` lane since 2026-11-07.** ADR-008's `local.claudePlugins.declared` (re-asserted
     `enabledPlugins` ids) was RETIRED: Nix registers marketplaces, plugin state is a runtime choice
     (`/plugin`, or claude.ai for `<plugin>@synced`). Nix writes `enabledPlugins` keys only for the

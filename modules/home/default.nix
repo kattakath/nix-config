@@ -560,7 +560,6 @@ in
     # with this plugin and its flake input.
     xai-grok-build = {
       source = lib.mkDefault "${grokBuildPluginPatched}";
-      plugins = [ "grok-build" ];
     };
 
     # Anthropic's official marketplace (`claude-plugins-official`) is NOT declared here
@@ -579,7 +578,7 @@ in
 
     # Upstash's OWN marketplace (github:upstash/context7), HTTPS — the KEY must be the name upstream declares
     # in its .claude-plugin/marketplace.json ("context7-marketplace"), because
-    # `idsOf` in ./claude-plugins.nix derives the plugin id as "<plugin>@<key>".
+    # The plugin id is "<plugin>@<key>".
     #
     # WHY NOT the `context7` entry in claude-plugins-official: Anthropic's copy
     # is `external_plugins/context7`, which carries a .mcp.json and NOTHING else
@@ -606,7 +605,6 @@ in
     # a lead; the citable grep still has to run against flake.lock.
     context7-marketplace = {
       source = lib.mkDefault "https://github.com/upstash/context7.git";
-      plugins = [ "context7" ];
     };
 
     # This operator's OWN published marketplace, github:kattakath/skills, as a
@@ -629,144 +627,10 @@ in
     # input, and no home-manager module takes it at all: every consumer lives
     # in the flake engine and reads `inputs.kattakath-skills` directly.
     #
-    # Adding a plugin or skill = its tree + marketplace entry IN THAT REPO, then
-    # its bare name below. Changing one that is already listed = a merge there.
+    # Adding or changing a plugin = a merge IN THAT REPO; nothing to list here.
     kattakath = {
       source = lib.mkDefault "https://github.com/kattakath/skills.git";
       autoUpdate = true;
-      plugins = [
-        # llmstxt: authoring skill + /llmstxt command + a stdlib-only linter for the
-        # llmstxt.org v2 standard. Nothing upstream AUTHORS these files (the ecosystem is
-        # site-build generators + consumers/parsers), and nixpkgs carries only the Sphinx
-        # build plugin (python3Packages.sphinx-llms-txt) — the plugin's own README.md
-        # carries the reuse-vs-build reasoning, including why the linter is stdlib-only.
-        "llmstxt"
-        # page-lab: userscript authoring AND live-page diagnosis, merged — the
-        # measure-before-you-select method, the browser probes, the pre-vetted patterns,
-        # the Greasy Fork rulebook, the CDP diagnosis surface, and a runnable metadata
-        # linter. That linter is the plugin's own now: `checks.<system>.userscripts` was
-        # RETIRED 2026-09-14 with the userscripts it linted (the fleet declares zero —
-        # docs/agent-resource-externalization.md), so nothing in this repo runs it.
-        #
-        # The fleet-specific half stays in .claude/skills/userscript-author — it is about
-        # THIS repo, not about userscripts. The MCP servers page-lab drives are declared in the plugin's
-        # own .mcp.json; this repo owns only the browser half (modules/home/chromium.nix's
-        # debugLauncher and the Kapture extension).
-        "page-lab"
-        # nix-flake-kit: the two Nix PostToolUse hooks this repo used to carry in
-        # .claude/hooks — auto-stage a .nix write (flakes evaluate the GIT tree, so an
-        # unstaged file is invisible to the evaluator) and flag a hardcoded per-user home
-        # path in a .nix VALUE. They arrive as PLUGIN hooks now (the plugin's own
-        # hooks/hooks.json, against ''${CLAUDE_PLUGIN_ROOT}), which is why the two entries
-        # were deleted from .claude/settings.json rather than repointed — leaving both
-        # would fire each hook twice. Enabling globally is safe: both are no-ops in a repo
-        # with no .nix files.
-        "nix-flake-kit"
-        # superhook: the hook SUPERVISOR — crash safety so a throwing gate cannot wedge a
-        # session, plus a 3-strikes loop breaker. Same plugin-hook delivery as
-        # nix-flake-kit above, and the same DELETE-don't-repoint rule: the Stop,
-        # PreToolUse:Bash and SessionStart-digest entries left .claude/settings.json in the
-        # same commit that added this line, because a settings entry and a plugin entry
-        # both fire — the gate would run TWICE. /superhook-review left .claude/commands/
-        # for the same reason: the plugin ships a byte-identical copy.
-        #
-        # This line reverses a standing claim, so the correction matters. Until
-        # 2026-09-30 this fleet consumed superhook as a Nix-packaged `superhook` binary on
-        # PATH (packages/superhook.nix, now DELETED) because a wrapper "cannot be a plugin
-        # hook": ''${CLAUDE_PLUGIN_ROOT} was believed not to expand in a hook command, and
-        # a plugin was believed able only to ADD a hook, never to wrap one. Measured on
-        # Claude Code 2.1.268, both halves are FALSE — ''${CLAUDE_PLUGIN_ROOT} and
-        # ''${CLAUDE_PROJECT_DIR} both expand, inline AND as process environment, so a
-        # plugin hook can name the supervisor and pass the inner command as arguments.
-        # (Still TRUE, and a different measurement: a plugin's `bin/` reaches the Bash
-        # tool's PATH but NOT a hook's — which is why the plugin uses an absolute
-        # ''${CLAUDE_PLUGIN_ROOT} path rather than a bare command name.)
-        #
-        # Enabling globally is safe and INERT by construction: each entry resolves the git
-        # root itself (''${CLAUDE_PROJECT_DIR} is the session's LAUNCH CWD, not the repo
-        # root — this fleet starts sessions in worktrees constantly) and exits 0 silently
-        # unless that root holds .claude/hooks/stop-gate.js or pretooluse-bash-guard.js.
-        # Only THIS repo does, so only this repo is gated.
-        "superhook"
-        # Skills published at that repo's top level (skills/<name>/, plain Agent
-        # Skills), each installed as its own marketplace-root plugin. They used to be
-        # cherry-picked into programs.claude-code.skills from the pin; the plugin form
-        # keeps the same per-skill granularity and the same bare /<name> invocation.
-        "rag"
-        "capability-broker"
-        "android-phone"
-        "nix-dev-toolkit"
-        "harvest"
-        # Remove a literal that must not be public from a public repo's history (kattakath/skills#101).
-        "history-scrub"
-        "jsonresume-tailor"
-        # Render PDFs whose text layer ATS parsers read in order: Typst + PDF/UA-1, one column,
-        # a multi-reader check (kattakath/skills#167).
-        "ats-safe-pdf"
-        "github-release-gate"
-        "skill-curator"
-        # Deterministic, reconcile-gated statement extraction (QFX/OFX, CSV, PDF) to masked,
-        # deduplicated JSONL; stdlib Python + poppler (kattakath/skills#117-#122).
-        "statement-extract"
-        # Derived double-entry journal from statement-extract JSONL + rules + decisions,
-        # bean-query recipes, Fava on demand read-only; needs local.beancount (kattakath/skills#127).
-        "beancount"
-        # Plaid PFC v2 taxonomy pinned (127 names) and strictly validated, v1-v2 crosswalk,
-        # JSON Schema for enum-bound categories; stdlib Python, no data (kattakath/skills#141).
-        "plaid-pfc"
-        # Rebuild a raster/auto-traced logo from measured construction geometry (kattakath/skills#23).
-        "logo-construction-geometry"
-        # The answer-shape kit: output style, the /explain family, cartographer, /task.
-        # modules/home/claude-brain.nix selects its (namespaced) output style.
-        "brain-signals"
-        # session-relay: peer-to-peer etiquette for concurrent Claude sessions — find
-        # your own address, publish a calling card, read the peer roster, judge whether
-        # to act on another session's message (kattakath/skills#26).
-        "session-relay"
-        # ---- Merged in kattakath/skills; resolvable here so `declared` can enable them ----
-        # Each was merged into kattakath/skills and absent from this list, so no id
-        # existed to enable.
-        #
-        # Listing them here is what makes the ids RESOLVABLE: `local.claudePlugins
-        # .declared` asserts every key against this catalogue, so these entries and
-        # the `declared` entries have to land in the same commit or the build fails.
-        "prior-art-recon"
-        "foundation-audit"
-        "mac-app-send"
-        "empire"
-        # silent-instruments: the instrument layer under the verification gate pinned in
-        # programs.claude-code.skills below. That gate's step 3 is "READ: Full output, check
-        # exit code"; this is the catalogue of commands for which that step LIES — a stale
-        # ${PIPESTATUS[0]} (which in zsh is always empty, because the variable is `pipestatus`
-        # and arrays are 1-indexed), a CI run green because its only job SKIPPED, ancestry after
-        # a squash, a truncated API page with no marker in the body, a zsh `for f in $list` that
-        # iterates ONCE and exits 0. Measured, with primary sources.
-        #
-        # WHY IT IS A PLUGIN AND NOT A nix-config RULE. The traps are repo-agnostic — they are
-        # properties of bash, zsh, git and the GitHub API, not of this tree — so the home for
-        # them is the marketplace, the same argument that moved the Nix hooks into
-        # nix-flake-kit. Enabling globally is safe: its hook is PostToolUse, which has NO
-        # permission authority, so unlike a PreToolUse hook it cannot allow, deny or re-prompt
-        # anything. (A PreToolUse advisory would have had to set `permissionDecision: "allow"`,
-        # documented as "proceeds WITHOUT permission prompt" — a global hook must never be able
-        # to bypass the operator's own permission rules. That is why the event is what it is.)
-        #
-        # No linter substitutes for it: ShellCheck catches 0 of the 9 shapes that motivated it
-        # and refuses zsh outright (SC1071), and anthropics/claude-code #74888 — the zsh
-        # field-splitting case — was closed as not planned.
-        "silent-instruments"
-
-        # Short video → looping GIF to a byte budget → Tenor/GIPHY over the Chrome
-        # DevTools Protocol (kattakath/skills#72). Its encoder is `media-gif` in this
-        # repo's media-cli capsule (#818); the plugin ships none of its own. ENABLED
-        # BELOW: a catalogue entry alone enables nothing (#751/#754).
-        "gif-meme"
-        # GnuPG from an agent with no TTY (kattakath/skills#81): passphrase via a real
-        # terminal window, plaintext only on the clipboard, answers proved from the
-        # packets. Its fleet adapter names this repo's brew gnupg and the keychain-
-        # secrets lane (set-secret / secrets-push). ENABLED BELOW.
-        "pgp-ops"
-      ];
     };
 
     # ---- UPSTREAM marketplaces (some of their repos are also pinned as skill inputs)
@@ -779,8 +643,7 @@ in
     # subdirectories out of a tarball.
     #
     # Registering a marketplace INSTALLS NOTHING — it only makes `<plugin>@<marketplace>`
-    # resolvable. Enabling is the operator's `/plugin` toggle (runtime state, not Nix), never a
-    # name in a `plugins` list (that is a catalogue — #751 got it wrong, #754 reverted). Remove a
+    # resolvable. Enabling is the operator's `/plugin` toggle (runtime state, not Nix). Remove a
     # skills-only input only after its plugin is enabled AND seen in a session.
     #
     # `autoUpdate` is left at its `false` default on every entry here, matching every other
@@ -799,7 +662,7 @@ in
     #
     # Every KEY below is the `name` field of that repo's own
     # .claude-plugin/marketplace.json, fetched and read 2026-09-30 — NOT the repo or
-    # org name. `idsOf` in ./claude-plugins.nix derives the plugin id as
+    # org name. The plugin id is
     # "<plugin>@<key>", so a guessed key silently resolves nothing.
     #   trailofbits/skills    -> "trailofbits"                (44 plugins)
     #   Jeffallan/claude-skills -> "fullstack-dev-skills"     (1 plugin, 2026-11-07)
@@ -809,10 +672,6 @@ in
     # positive reason to consume this as a marketplace rather than vendor it.
     trailofbits = {
       source = lib.mkDefault "https://github.com/trailofbits/skills.git";
-      plugins = [
-        "gh-cli"
-        "supply-chain-risk-auditor"
-      ];
     };
 
     # Upstream marketplaces that replace cherry-picked `agent-skills-*` skills (2026-11-07,
@@ -821,11 +680,9 @@ in
     # postgres-pro), automating-mac-apps 16 skills + 9 agents + 10 commands.
     fullstack-dev-skills = {
       source = lib.mkDefault "https://github.com/Jeffallan/claude-skills.git";
-      plugins = [ "fullstack-dev-skills" ];
     };
     automating-mac-apps-plugin = {
       source = lib.mkDefault "https://github.com/SpillwaveSolutions/automating-mac-apps-plugin.git";
-      plugins = [ "automating-mac-apps" ];
     };
   };
 
