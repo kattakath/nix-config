@@ -208,7 +208,47 @@
     lifecycle.prevent_destroy = true;
   };
 
+  # ---- Zero Trust objects Cloudflare will not let anyone delete ------------
+  # Both are idle (no device ever enrolled; nothing resolves through the location)
+  # and both are undeletable: the default DNS location needs another default first
+  # (API error 1217), and an account always has exactly one default device profile.
+  # Declared as they are, so a census finds nothing undeclared and a hand edit shows
+  # up as drift. Adopted 2026-11-07.
+  resource.cloudflare_zero_trust_dns_location.default = {
+    account_id = accountId;
+    name = "home";
+    client_default = true;
+    ecs_support = false;
+    dns_destination_ips_id = "0e4a32c6-6fb8-4858-9296-98f51631e8e6";
+    networks = [ ];
+    max_ttl.mode = "inherit";
+  };
+
+  resource.cloudflare_zero_trust_device_default_profile.default = {
+    account_id = accountId;
+    allow_mode_switch = false;
+    allow_updates = false;
+    allowed_to_leave = true;
+    auto_connect = 0;
+    captive_portal = 180;
+    disable_auto_fallback = false;
+    switch_locked = false;
+    tunnel_protocol = "masque";
+    service_mode_v2.mode = "warp_tunnel_only";
+    # 5.25.0 plans the computed `policy_id` as unknown (measured: 1 to change without
+    # this, 0 with it, though tofu warns the element is "redundant"). The id is fixed.
+    lifecycle.ignore_changes = [ "policy_id" ];
+  };
+
   import = [
+    {
+      to = "cloudflare_zero_trust_dns_location.default";
+      id = "${accountId}/da85ba9c26bb443688a067c84cab5174";
+    }
+    {
+      to = "cloudflare_zero_trust_device_default_profile.default";
+      id = accountId;
+    }
     {
       to = "cloudflare_zero_trust_access_identity_provider.google";
       id = "accounts/${accountId}/${googleIdp.id}";
