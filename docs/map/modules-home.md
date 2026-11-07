@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
+`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,page-lab.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -408,6 +408,12 @@ in the repo can catch that; see that fixture file's header for the measurement.
   Runbook: [`infra.md`](infra.md) § Drift detection.
   `default.nix` also installs `gmail-filters` (`packages/gmail-filters.nix`) in its `isMacosHost`
   list, because only the operator has the Drive filter file and the Keychain client.
+- **`page-lab.nix`** — `local.pageLab`, macos only: the fleet half of page-lab's DEDICATED
+  browser mode (skills `docs/page-lab-vnext-design.md` § 6). Exports `PAGE_LAB_CHROME`, the Chrome
+  for Testing executable inside nixpkgs `playwright-driver.browsers-chromium`, and writes a path-free
+  `$XDG_CONFIG_HOME/page-lab/profiles.json` that points the dedicated profiles at that variable.
+  It is NOT the daily Chromium (`chromium.nix`). The Read deny on the profile dirs is in
+  `modules/_lib/secret-read-paths.nix`.
 - **`claude-bedrock-gate.nix`** — **Bedrock routing's governance**: a `nix-bedrock-gate` shell
   hook that makes Claude Code's Bedrock routing conditional on an AWS identity actually
   resolving, instead of on `CLAUDE_CODE_USE_BEDROCK` merely existing.
