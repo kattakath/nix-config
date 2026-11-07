@@ -27,14 +27,8 @@ let
     determinate
     agenix
     nixos-hardware
-    agent-skills-vercel
-    agent-skills-jeffallan
-    agent-skills-mac-automation
     agent-skills-excalidraw
-    agent-skills-superpowers
-    agent-skills-jsonresume
     agent-skills-vercel-agent
-    agent-skills-vercel-workflow
     grok-build-plugin-cc
     ;
 
@@ -99,14 +93,8 @@ let
         backupFileExtension = "hm-bak";
         extraSpecialArgs = idArgs // {
           inherit
-            agent-skills-vercel
-            agent-skills-jeffallan
-            agent-skills-mac-automation
             agent-skills-excalidraw
-            agent-skills-superpowers
-            agent-skills-jsonresume
             agent-skills-vercel-agent
-            agent-skills-vercel-workflow
             grok-build-plugin-cc
             # kattakath-skills is DELIBERATELY ABSENT from this seam (removed
             # 2026-10-02, when its last home-manager consumer died). The pin is still
