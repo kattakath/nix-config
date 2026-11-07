@@ -224,6 +224,33 @@ in
     member = "user:${operatorAccount}";
   };
 
+  # ---- The operator's own grants ---------------------------------------------
+  # Declared so a hand edit shows up as drift. MEMBER resources, never the
+  # authoritative `_iam_policy`/`_iam_binding`: those would strip every grant not
+  # listed here. prevent_destroy because removing either is a self-lockout.
+  resource.google_project_iam_member.operator_owner = {
+    project = projectId;
+    role = "roles/owner";
+    member = "user:${operatorAccount}";
+    lifecycle.prevent_destroy = true;
+  };
+
+  resource.google_billing_account_iam_member.operator_billing_admin = {
+    billing_account_id = billingAccountId;
+    role = "roles/billing.admin";
+    member = "user:${operatorAccount}";
+    lifecycle.prevent_destroy = true;
+  };
+
+  # The project's default log bucket, at Google's default 30-day retention. The
+  # `_Required` bucket is locked by Google and cannot be managed.
+  resource.google_logging_project_bucket_config.default = {
+    project = projectId;
+    location = "global";
+    bucket_id = "_Default";
+    retention_days = 30;
+  };
+
   # ---- OpenTofu state bucket (ADR-005 phase 1) -------------------------------
   resource.google_storage_bucket.tofu_state = {
     project = projectId;
