@@ -28,7 +28,7 @@
 # its own state" trade this repo makes elsewhere.
 #
 # AND WHY NOT THE SIBLING OPTION, `programs.claude-code.plugins` (same file,
-# options.nix) — the half this note used to leave unexamined. It is an
+# options.nix). It is an
 # attrsOf (package|path) that SYMLINKS each plugin into configDir/skills/ and
 # loads it as a personal plugin: fully declarative, no activation script, no CLI
 # call, no mutable ~/.claude, and still an attrset, so a private layer would keep

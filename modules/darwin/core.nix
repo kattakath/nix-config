@@ -155,7 +155,6 @@ in
     ./user-folders.nix
     # local.operatorHost — the operator-only gate, false unless hosts/macos.nix sets it.
     ./operator-host.nix
-    # Declarative Homebrew (taps/brews/casks) for the Mac.
     ./homebrew.nix
     # Install Homebrew itself at the arch-correct prefix (nix-homebrew).
     ./nix-homebrew.nix
@@ -178,7 +177,6 @@ in
   # flakes + nix-command by default and OWNS /etc/nix/nix.conf — the `nix.*`
   # options are unavailable once Determinate manages the daemon.
 
-  # System-level packages (distinct from per-user Home Manager packages).
   environment.systemPackages = with pkgs; [
     coreutils
     curl
@@ -223,15 +221,12 @@ in
       finder = {
         AppleShowAllExtensions = true;
         FXPreferredViewStyle = "Nlsv"; # list view
-        # Show the path bar + status bar, and the full POSIX path in the title.
         ShowPathbar = true;
         ShowStatusBar = true;
         _FXShowPosixPathInTitle = true;
-        # Sort folders before files.
         _FXSortFoldersFirst = true;
         # Default new-window/search scope to the current folder, not "This Mac".
         FXDefaultSearchScope = "SCcf";
-        # No nag dialog when changing a file's extension.
         FXEnableExtensionChangeWarning = false;
         # Second half of the Downloads rotation: the hourly sweep agent
         # (`file-rotation-downloads`, modules/home/macos-user-agents.nix) only
@@ -257,12 +252,10 @@ in
         NSAutomaticPeriodSubstitutionEnabled = false;
         NSAutomaticQuoteSubstitutionEnabled = false;
         NSAutomaticSpellingCorrectionEnabled = false;
-        # Expanded save/print panels by default.
         NSNavPanelExpandedStateForSaveMode = true;
         NSNavPanelExpandedStateForSaveMode2 = true;
       };
 
-      # Tap-to-click on the trackpad.
       trackpad.Clicking = true;
 
       # Require the account password immediately when the screen locks / the

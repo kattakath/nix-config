@@ -1,11 +1,8 @@
 # Every home-manager launchd agent starts through a `nix-<name>` launcher whose
 # interpreter lives in the Nix store.
 #
-# THIS REPLACES A 560-LINE VENDORED FORK. modules/shared/hm-launchd/ used to copy
-# home-manager's whole modules/launchd/default.nix just to change one thing: the
-# agent's arg0. home-manager 87c391f (2026-09-14) made that expressible upstream,
-# so the fork, its `disabledModules` line and the hm-launchd-drift check all
-# retire together. This file is the whole replacement.
+# Sets each agent's arg0 via upstream home-manager (87c391f+), so no vendored
+# launchd fork is needed.
 #
 # WHY arg0 MATTERS — measured, not stylistic. macOS attributes a process to its
 # arg0 binary for TCC. A /nix/store arg0 can read ~/Downloads; `/bin/sh` is

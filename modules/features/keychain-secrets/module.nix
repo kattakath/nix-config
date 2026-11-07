@@ -403,7 +403,6 @@ in
     };
   };
 
-  # macOS-only: a clean no-op on Linux hosts.
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
     home.packages = [
       secretCmd

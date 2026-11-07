@@ -14,7 +14,7 @@
 # keeps writing to the same inode — the archive grows, the fresh file stays
 # empty, and not one byte is reclaimed.
 #
-# WHY NOT pidFile + signal, which this header used to defer to. The pinned
+# WHY NOT pidFile + signal. The pinned
 # nix-darwin module really does expose `pidFile`/`signal` (newsyslog.nix:130-160)
 # — the option grep returns a hit — but the option cannot do the job, and that
 # is the half of .claude/rules/upstream-first.md that matters here. newsyslog
