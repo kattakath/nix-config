@@ -10,7 +10,7 @@ one command.
 Everything here is grounded in the repo files:
 
 - `modules/parts/hosts.nix` — exports `nixosConfigurations.nixpi` (the `sdImage` build target); `modules/parts/packages.nix` surfaces it as the `nixpi-sd-image` package that CI prebuilds and publishes to the `installer-latest` release
-- `hosts/nixpi.nix` — the LIVE Pi profile, including the **scripted-initrd boot fix** (`boot.initrd.systemd.enable = lib.mkForce false`) that is the *other* thing that can hang stage-1
+- `hosts/nixpi.nix` — the LIVE Pi profile, including its stage-1 comment (systemd stage-1 since 2026-11-07, and the rollback path if it hangs)
 - `hosts/nixpi.nix` + the in-tree `modules/features/cloudflared-connector/` capsule — what `nixpi` does once booted (the Cloudflare Tunnel connector carrying static-key SSH + the Caddy landing page)
 
 ---
@@ -528,8 +528,8 @@ is not.)
 
 | Symptom | Most likely cause | First action |
 |---|---|---|
-| Green ACT flickers **once** then goes DARK; Ethernet link LED is up but there is **no DHCP lease / no SSH / no mDNS** | **Truncated SD write** (by far the most common). The FAT boot partition read fine (the flicker), but the ext4 root is half-written so the kernel hangs on `rootwait`. | **Re-flash with a verified full write** (§4) — confirm `dd`'s byte count equals the image's size this time. Only if a *verified* full write still hangs, suspect the scripted-initrd fix (next row). |
-| Green ACT blinks normally for a while, then boot stalls with root never mounting (only visible on serial, or as "up but never reachable" after a *known-good* full write) | **systemd-initrd stage-1 hang** — the `linux-rpi` kernel (6.6.x when measured) wedges mounting `/sysroot` under systemd stage-1. The fix (`boot.initrd.systemd.enable = lib.mkForce false`) lives in `hosts/nixpi.nix`; a config change that reintroduces systemd-initrd will hang here. | Confirm `hosts/nixpi.nix` still forces scripted initrd (§8); rebuild the image and re-flash. |
+| Green ACT flickers **once** then goes DARK; Ethernet link LED is up but there is **no DHCP lease / no SSH / no mDNS** | **Truncated SD write** (by far the most common). The FAT boot partition read fine (the flicker), but the ext4 root is half-written so the kernel hangs on `rootwait`. | **Re-flash with a verified full write** (§4) — confirm `dd`'s byte count equals the image's size this time. Only if a *verified* full write still hangs, suspect stage-1 (next row). |
+| Green ACT blinks normally for a while, then boot stalls with root never mounting (only visible on serial, or as "up but never reachable" after a *known-good* full write) | **systemd-initrd stage-1 hang** — the `linux-rpi` kernel (6.6.x when measured) wedges mounting `/sysroot` under systemd stage-1. Recovery: the stage-1 comment in `hosts/nixpi.nix`. | Pick the previous extlinux entry at the U-Boot menu (HDMI/serial), per that comment. |
 | A verified flash boots and serves fine, then root is **corrupt after a later reboot** (e2fsck: block-bitmap checksum mismatch), or first boot logs `EFSCORRUPTED` | **Fake-capacity card.** The image fits below its real edge, so the flash verifies; writes past the edge (first boot's `resize2fs`, store growth, a GC, the persistent journal) vanish | **f3-test the card** (§3c). On a FAIL, use another card or cap it (§4c) |
 | Green ACT **never blinks at all**; only the **red** power LED is on | Firmware can't read the card at all — the Pi never even loads the bootloader off FAT. | Check **power (needs a solid 5V/3A supply — undervoltage is a classic cause), the SD slot, and the card itself** (reseat / try another card). |
 
@@ -539,7 +539,8 @@ is not.)
 
 When there is no serial cable and the Pi hangs before userspace, you can still
 get a shell — put an **SSH server** (OpenSSH, not dropbear, in the pinned nixpkgs'
-`initrd-ssh.nix`) in the **scripted** initrd and bring up the
+`initrd-ssh.nix`) in the initrd (written for the scripted initrd; nixpi boots systemd
+stage-1 since 2026-11-07, so re-verify the network bring-up first) and bring up the
 network *before* root is mounted, then SSH in and inspect why the root mount is
 failing. This is the technique that actually diagnosed the truncated-write hang.
 
@@ -550,7 +551,7 @@ host):
 boot.kernelParams = [ "ip=dhcp" ];          # bring up eth0 in the initrd
 boot.initrd.network.enable = true;
 boot.initrd.network.ssh = {
-  enable = true;                            # OpenSSH in the SCRIPTED initrd  
+  enable = true;                            # OpenSSH in the initrd  
   port = 22;
   authorizedKeys = [ "ssh-ed25519 AAAA... your-debug-key" ];
   hostKeys = [ /path/to/an/initrd_host_key ];
@@ -585,11 +586,8 @@ ext4 errors, the card or write is corrupt.
 
 ## 8. Cross-references
 
-- **Scripted-initrd boot fix:** `hosts/nixpi.nix` forces
-  `boot.initrd.systemd.enable = lib.mkForce false` (the `tpm2` one is now set by
-  nixos-hardware's raspberry-pi/4 module itself — the Pi 4 has no TPM).
-  This MUST stay in place; why, and what is still untested on the current kernel, is the
-  "SCRIPTED initrd, KEPT" comment above that line in `hosts/nixpi.nix`.
+- **Stage-1:** systemd; why, and the rollback path, is the stage-1 comment in
+  `hosts/nixpi.nix` (pinned by `checks.<system>.nixpi-initrd-posture`).
   A systemd-initrd hang is invisible to eval / generic-kernel QEMU — only a real Pi
   (or serial) shows it.
 - **What `nixpi` does once booted:** `hosts/nixpi.nix` +

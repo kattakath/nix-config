@@ -67,7 +67,7 @@ Two corrections to the first-pass reading, both of which shrink the work:
   Exactly **one** per zone is authored (`redirect-www-to-apex-<zone>`), and `kattakath.com`'s is
   **already managed**. cf-terraforming has a specific fix for people who import the managed ones
   by mistake; do not be one of them.
-- **`kattakath.com`'s zone settings and redirect are already covered** by the `cf-tunnel` stack.
+- **`kattakath.com`'s zone settings are covered by the `cf-tunnel` stack; its redirect ruleset is `cf-zones`'s** (`infra/cloudflare/kattakath-redirects.nix`).
 
 **So the phase-1 job is ~21 DNS records, not 98.** The headline number was true of the account
 and false of the decided scope.

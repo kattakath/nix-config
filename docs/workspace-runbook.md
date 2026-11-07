@@ -24,7 +24,7 @@ inventory, a verification command per item, and the two things that must never b
 | Organisation | `kattakath.com`, id `26567817213` | Workspace / Cloud Console |
 | Canonical identity | `config.fleet.googleAccount` | **declared** (`modules/parts/identity.nix`) |
 | Cloudflare Access IdP | `Kattakath Google Workspace`, type `google-apps` — the **only** IdP | Cloudflare, declared |
-| GCP project | `kattakath-family`, billing `016854-91C33C-F9E522` (CAD) | **declared** (ADR-005 phase 3) |
+| GCP project | `kattakath-family`, billing account: `gcpBillingAccountId` in `modules/parts/identity.nix` | **declared** (ADR-005 phase 3) |
 | Admin-SDK automation identity | `ws-domain-admin@kattakath-family.iam.gserviceaccount.com` | account **declared**; its power is not — see §2 |
 | Terraform automation identity | `tofu-fleet@kattakath-family.iam.gserviceaccount.com` | **declared**, impersonated, no key |
 | Workspace-facing APIs | `admin`, `drive`, `gmail` | **not** declared — absent from `infra/gcp/foundation.nix`'s `services`; §3's `gcloud services list` is the check |

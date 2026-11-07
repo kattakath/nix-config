@@ -7,13 +7,14 @@
 # Adopted 2026-11-07. cf-tunnel created the ruleset (its name is that stack's
 # `redirect-www-to-apex-<key>` scheme) while kattakath.com was a hosted site, then
 # dropped it from state when the site moved off nixpi; the last three rules were
-# added by hand. `importId` is `zones/<zone_id>/<ruleset_id>`; `ref` keeps each
-# live rule's id, so adopting it rewrites nothing.
+# added by hand. `rulesetId` is the bare ruleset id (zones.nix composes the
+# `zones/<zone_id>/<ruleset_id>` import id); `ref` keeps each live rule's id, so
+# adopting it rewrites nothing.
 #
 # The www rule's DNS (`cname_www`) and the three `*_placeholder` AAAA records it
 # needs (proxied 100::, so the edge sees the request) are in ./kattakath-dns.nix.
 {
-  importId = "zones/6e28971881e488941d052bbbf50d69cd/3574a9add8a94993a15cf76d439628f7";
+  rulesetId = "3574a9add8a94993a15cf76d439628f7";
   name = "redirect-www-to-apex-kattakath_com";
   rules = [
     {

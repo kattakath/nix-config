@@ -61,9 +61,10 @@ forgotten on the last. "Local" here says where the file sits, never that it is p
 connector token and an Access service-token secret, and the GCS object holding them was
 encrypted at rest with the same Keychain passphrase.)
 
-### `infra/cloudflare/zones.nix` + `infra/cloudflare/kattakath-dns.nix`
+### `infra/cloudflare/zones.nix` + `infra/cloudflare/kattakath-dns.nix` + `infra/cloudflare/kattakath-redirects.nix`
 
-`kattakath.com`'s DNS records — the module renders, the sibling file is the data. Only this
+`kattakath.com`'s DNS records and its redirect ruleset — the module renders; `kattakath-dns.nix`
+and `kattakath-redirects.nix` are the data. Only this
 zone is declared, and the line is drawn by **ownership, not secrecy**: DNS is a public query, so
 publishing the operator's own zone discloses nothing `dig` does not, while the other six zones
 belong to businesses that are not only his.
@@ -80,14 +81,12 @@ stack hurts you is a shrunken render silently deleting mail, not a bad tunnel. A
 
 ### `infra/cloudflare/access-org.nix`
 
-The Zero Trust **organisation** (`cloudflare_zero_trust_organization`) plus its Google IdP, and its
+The Zero Trust **organisation** and the account-level Zero Trust objects (the file is the list), and its
 own stack because it sits *above* the other Cloudflare ones rather than beside them:
 `auth_domain` is the sign-in host for **every** Access application in the account, so a bad
 apply takes out nixpi's SSH gate along with anything else gated there. (Until 2026-10-02 the
 "anything else" was the MCP portal, which is what made this stack's blast radius legible in the
-first place; with the portal gone, nixpi's SSH app is the ONLY thing left behind this
-`auth_domain` — which makes a bad apply here *more* consequential, not less, because there is no
-longer a second victim to notice it by.) Few resources is not an argument for folding it into a
+first place.) Few resources is not an argument for folding it into a
 neighbour; the rule keys on consequence, not line count.
 
 **What it is for:** the login page's branding (`login_design` — logo, background, header,
@@ -120,7 +119,7 @@ blank the organisation and DELETE the IdP (`prevent_destroy` refuses that).
 
 ### `infra/gcp/foundation.nix`
 
-Enabled APIs, the automation service account, its IAM bindings, and the OpenTofu state bucket.
+The GCP project's declared objects (the file is the list; what stays out is ADR-005 §10).
 
 **Its state is LOCAL but not plaintext.** It cannot live in the bucket it declares, so it sits
 `0600` under `$XDG_STATE_HOME/nix-config-gcp-foundation` — and it still runs

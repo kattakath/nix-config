@@ -14,13 +14,13 @@ property it encodes.
 |---|---|
 | GitHub (org and personal) | signs in through Google |
 | FlakeHub / Determinate | authenticates with the Google identity — and with it the native Linux builder entitlement |
-| Cloudflare Access — **`nixpi` SSH** (the MCP portal and its published servers were destroyed 2026-10-02, so SSH is the only Access-gated surface left) | the only IdP is the Workspace domain (`Kattakath Google Workspace`, type `google-apps`), measured 2026-09-20 |
+| Cloudflare Access — **`nixpi` SSH** (the Access apps are listed in `infra/cloudflare/access-org.nix` and `nixpi-tunnel.nix`) | the only IdP is the Workspace domain (`Kattakath Google Workspace`, type `google-apps`), measured 2026-09-20 |
 | Secrets recovery (Secret Manager → Keychain, ADR-004) | IAM on the GCP project is granted to the Workspace identity |
 
 **~~One caveat~~ — RESOLVED 2026-09-22.** `mcp-allow-operator` now allows by **`email_domain`**
 (`kattakath.com`), applied through terranix after importing the live object so no duplicate
 policy was minted. Adding a second human is a Workspace action, not a policy edit. It gates
-`nixpi.kattakath.com` (the one Access application left, per the table above), so that one change widened SSH to the Pi from one
+`nixpi.kattakath.com`, so that one change widened SSH to the Pi from one
 mailbox to the domain — intended, and worth knowing. The apply also dropped the policy's
 `session_duration = "24h"`, which the resource does not declare.
 
