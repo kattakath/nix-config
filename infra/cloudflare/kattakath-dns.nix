@@ -72,14 +72,6 @@
     comment = "proxy placeholder for dynamic redirect";
   }
   {
-    key = "aaaa_mta_sts";
-    type = "AAAA";
-    name = "mta-sts.kattakath.com";
-    content = "100::";
-    ttl = 1;
-    proxied = true;
-  }
-  {
     key = "cname_apex";
     type = "CNAME";
     name = "kattakath.com";
@@ -220,15 +212,6 @@
     ttl = 300;
     proxied = false;
     comment = "Google Workspace DKIM - 2048-bit (rotated from 1024 on 2026-09-12)";
-  }
-  {
-    key = "txt_mta_sts";
-    type = "TXT";
-    name = "_mta-sts.kattakath.com";
-    content = "v=STSv1; id=20260912044403";
-    ttl = 3600;
-    proxied = false;
-    comment = "MTA-STS policy pointer";
   }
   {
     key = "txt_smtp_tls";

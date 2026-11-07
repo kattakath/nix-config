@@ -11,7 +11,7 @@
 # (A fourth, mcp-public, took the MCP portal offline when broken. Its
 # infrastructure was destroyed and the stack deleted 2026-10-02.)
 #
-# MX, DKIM, DMARC and MTA-STS are the highest consequence-per-byte objects in the
+# MX, DKIM, DMARC and TLS-RPT are the highest consequence-per-byte objects in the
 # account and share no failure mode with a tunnel. They must not ride in a plan
 # whose other half is a Raspberry Pi.
 #
