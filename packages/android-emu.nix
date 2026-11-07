@@ -15,8 +15,12 @@
 #                              gray screen here, so we force software.
 #   -no-snapshot               always cold boot; a corrupt saved snapshot is
 #                              what makes the *second* launch hang on gray.
-# Both are also baked into each AVD's config.ini (alongside hw.keyboard=yes so
-# the Mac keyboard types into Android). Extra args after the name override the
+# The GPU mode is also baked into each AVD's config.ini at creation (alongside
+# hw.keyboard=yes so the Mac keyboard types into Android). Cold boot is baked in
+# on EVERY launch (fastboot.forceColdBoot), because a bare `emulator -avd` that
+# skips this wrapper otherwise quick-boots: loading a quick-boot snapshot also
+# REVERTS the disk to it. On 2026-11-06 one such launch rewound pixel_play to an
+# Aug 4 snapshot and lost three months of state. Extra args after the name override the
 # emulator flags, so `android-emu pixel -gpu host` still works.
 #
 # androidSdkRoot and brewPrefix are passed by modules/home/default.nix, which owns both.
@@ -71,18 +75,19 @@ writeShellApplication {
     # Create the AVD on first use (decline the custom-hardware prompt), then
     # persist the settings that make it work: software GPU + hardware keyboard,
     # and PlayStore.enabled for play images.
+    cfg="$HOME/.android/avd/$avd.avd/config.ini"
+    set_key() {
+      if grep -q "^$1=" "$cfg"; then
+        sed -i "s|^$1=.*|$1=$2|" "$cfg"
+      else
+        echo "$1=$2" >> "$cfg"
+      fi
+    }
+
     if ! "$avdmanager" list avd -c | grep -qx "$avd"; then
       echo "android-emu: creating AVD '$avd'…" >&2
       echo "no" | "$avdmanager" create avd -n "$avd" -k "$image" -d pixel
 
-      cfg="$HOME/.android/avd/$avd.avd/config.ini"
-      set_key() {
-        if grep -q "^$1=" "$cfg"; then
-          sed -i "s|^$1=.*|$1=$2|" "$cfg"
-        else
-          echo "$1=$2" >> "$cfg"
-        fi
-      }
       set_key hw.gpu.enabled yes
       set_key hw.gpu.mode swiftshader_indirect
       set_key hw.keyboard yes
@@ -92,6 +97,11 @@ writeShellApplication {
       set_key disk.dataPartition.size 64G
       case "$avd" in *play*) set_key PlayStore.enabled yes ;; esac
     fi
+
+    # Every launch, not just creation: an AVD made before this line still says
+    # forceFastBoot=yes, which is what lets a bare `emulator -avd` quick-boot.
+    set_key fastboot.forceColdBoot yes
+    set_key fastboot.forceFastBoot no
 
     exec "$emulator" -avd "$avd" -no-snapshot -gpu swiftshader_indirect "''${@:2}"
   '';
