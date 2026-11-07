@@ -72,6 +72,33 @@ let
     "chat.googleapis.com" = "operator Workspace use (Chat API), kept on by choice";
     "people.googleapis.com" = "operator Workspace use (People API), kept on by choice";
     "workspacestudio.googleapis.com" = "Workspace Studio flows, kept on by choice";
+
+    # Google's project defaults, on since creation (2026-07-05) with no enable event
+    # in the 400-day audit log. Declared so the live API set and this map are equal:
+    # a census then has nothing to explain. `disable_on_destroy = false` keeps them on.
+    "analyticshub.googleapis.com" = "Google project default";
+    "backupdr.googleapis.com" = "Google project default";
+    "bigquery.googleapis.com" = "Google project default";
+    "bigqueryconnection.googleapis.com" = "Google project default";
+    "bigquerydatapolicy.googleapis.com" = "Google project default";
+    "bigquerydatatransfer.googleapis.com" = "Google project default";
+    "bigquerymigration.googleapis.com" = "Google project default";
+    "bigqueryreservation.googleapis.com" = "Google project default";
+    "bigquerystorage.googleapis.com" = "Google project default";
+    "cloudapis.googleapis.com" = "Google project default";
+    "cloudtrace.googleapis.com" = "Google project default";
+    "dataform.googleapis.com" = "Google project default";
+    "dataplex.googleapis.com" = "Google project default";
+    "datastore.googleapis.com" = "Google project default";
+    "logging.googleapis.com" = "Google project default";
+    "monitoring.googleapis.com" = "Google project default";
+    "servicemanagement.googleapis.com" = "Google project default";
+    "servicenetworking.googleapis.com" = "Google project default";
+    "serviceusage.googleapis.com" = "Google project default";
+    "sql-component.googleapis.com" = "Google project default";
+    "storage-api.googleapis.com" = "Google project default";
+    "storage-component.googleapis.com" = "Google project default";
+    "telemetry.googleapis.com" = "Google project default";
   };
 in
 {
