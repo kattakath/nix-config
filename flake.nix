@@ -314,10 +314,10 @@
       # PINNED FOR TWO THINGS: `page-lab-pick` runs a plugin script as a fleet CLI
       # (a plugin's own bin/ is on the Bash tool's PATH, NOT a hook's — measured
       # 2026-09-23 and still true); and `checks.<system>.mcp-launcher-parity` reads
-      # every `plugins/*/.mcp.json` here to join the `nix-mcp-*` launchers this
-      # fleet BUILDS against the servers those plugins NAME — the one assertion
-      # neither repo can make alone (only env-var and Keychain-service NAMES cross
-      # this pin; no value does). `modules/shared/mcp.nix`'s `mcpCatalog` was a
+      # the plugin behind each `local.pluginMcp.servers` entry macos declares, to
+      # check that the `nix-mcp-*` launcher this fleet BUILDS is one its pinned plugin
+      # runs (what it asserts: that check's header in modules/parts/checks.nix).
+      # No secret value crosses this pin. `modules/shared/mcp.nix`'s `mcpCatalog` was a
       # third reason until 2026-10-02 and died with that module.
       #
       # Plugins and skills themselves are STILL NOT read from here: Claude Code
