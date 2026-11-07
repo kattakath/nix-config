@@ -105,6 +105,19 @@
     proxied = false;
   }
   {
+    # Cloud Run domain mapping for the workspace-mcp service (kattakath-family,
+    # us-central1). DNS-only: a proxied record resolves to Cloudflare IPs, so
+    # Google cannot see ghs.googlehosted.com and never issues its managed cert.
+    # Delete this record with the mapping, or it dangles.
+    key = "cname_workspace";
+    type = "CNAME";
+    name = "workspace.kattakath.com";
+    content = "ghs.googlehosted.com";
+    ttl = 1;
+    proxied = false;
+    comment = "Cloud Run domain mapping: workspace-mcp";
+  }
+  {
     key = "cname_www";
     type = "CNAME";
     name = "www.kattakath.com";
