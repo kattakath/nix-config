@@ -188,6 +188,10 @@ and, above it on `macos`, root-owned managed scope in
   which SKIPS the permission prompt for any command no rule matches (measured on 2.1.300; a
   `permissions.ask` rule was NOT bypassed). Evidence: the `noObjection()` comment; contract:
   `tests/guard-no-blanket-approve.sh`. `stop-gate.js` keeps `approve` (its header says why).
+- **`.claude/hooks/tsconfig.json`** — `checks.<system>.hook-types` type-checks every hook
+  `strict` against JSDoc typedefs from `@anthropic-ai/claude-agent-sdk`. Types only: no runtime
+  dependency. The SDK pin follows the `claude-code` pin — **bump both together** (pins and
+  why: the check's header).
 - **`.claude/hooks/tests/*.sh`** — the case suites for every gate and the SessionStart
   digests (the directory is the list), **gated by
   `claude-config-lint.yml`**, a job the required `gate` needs (`cclint / Lint .claude

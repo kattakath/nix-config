@@ -37,6 +37,10 @@
  * exits 0. Stdout from SessionStart is shown to the user and added to context.
  */
 
+// @ts-check — types only, checked by checks.<system>.hook-types (tsconfig.json beside this file).
+/** Attributes of one OTLP log record, flattened. Untrusted JSON from the collector, so values stay loose. */
+/** @typedef {Record<string, any>} OtlpAttrs */
+
 const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
@@ -45,12 +49,15 @@ const NUDGE_THRESHOLD = 3;
 const RELEVANT_SOURCES = new Set(["user_temporary", "user_permanent"]);
 const MAX_DETAIL = 120;
 
+/** @param {unknown} s */
 const truncate = (s) => {
   const str = String(s == null ? "" : s).replace(/\s+/g, " ").trim();
   return str.length > MAX_DETAIL ? `${str.slice(0, MAX_DETAIL - 1)}…` : str;
 };
 
+/** @param {any} attributes @returns {OtlpAttrs} */
 const attrsToMap = (attributes) => {
+  /** @type {OtlpAttrs} */
   const map = {};
   for (const a of attributes || []) {
     if (!a || typeof a.key !== "string" || !a.value) continue;
@@ -60,6 +67,7 @@ const attrsToMap = (attributes) => {
   return map;
 };
 
+/** @param {string | number} timeUnixNano OTLP JSON encodes this uint64 as a string */
 const nanoToIso = (timeUnixNano) => {
   try {
     const ms = BigInt(timeUnixNano) / 1000000n;
