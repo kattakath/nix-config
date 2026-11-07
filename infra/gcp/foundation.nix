@@ -69,14 +69,6 @@ let
       "the ghcr.io pull-through repo workspace-mcp's image comes from";
     "tasks.googleapis.com" = "Google Tasks, which workspace-mcp's tools call";
     "chat.googleapis.com" = "Google Chat, which workspace-mcp's tools call";
-    "gmail.googleapis.com" = "Gmail, via workspace-mcp (replaces the official connector)";
-    "drive.googleapis.com" = "Drive, via workspace-mcp";
-    "calendar-json.googleapis.com" = "Calendar, via workspace-mcp";
-    "docs.googleapis.com" = "Docs, via workspace-mcp";
-    "slides.googleapis.com" = "Slides, via workspace-mcp";
-    "forms.googleapis.com" = "Forms, via workspace-mcp";
-    "people.googleapis.com" = "Contacts (People API), via workspace-mcp";
-    "script.googleapis.com" = "Apps Script, via workspace-mcp";
   };
 in
 {

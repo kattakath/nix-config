@@ -1,11 +1,8 @@
-# ---- workspace-mcp: one remote MCP server for every Google service (terranix -> OpenTofu)
+# ---- workspace-mcp: a remote MCP server for Google Tasks + Chat (terranix -> OpenTofu)
 #
 # WHY IT EXISTS: claude.ai cloud routines can only reach REMOTE MCP servers (custom
-# connectors), Google ships no connector for Tasks or Chat, an official connector
-# binds ONE Google account, and neither the Mac nor nixpi is always on. One
-# deployment serves every account: each claude.ai connector is its own sign-in, and
-# claude.ai refuses a duplicate URL, so further accounts add an ignored query tag
-# (`/mcp?account=personal`, measured 2026-11-07). So the upstream server the local plugin already runs
+# connectors), Google ships no connector for Tasks or Chat, and neither the Mac nor
+# nixpi is always on. So the upstream server the local plugin already runs
 # (taylorwilsdon/google_workspace_mcp, MIT) runs here instead, on Cloud Run, behind
 # https://workspace.kattakath.com/mcp. Built and measured imperatively on 2026-11-06,
 # then codified and ADOPTED by the import blocks below: an import is correct when
@@ -66,12 +63,7 @@ let
       "https://claude.com/api/mcp/auth_callback"
       "http://localhost:*/callback"
     ];
-    # Every Google service upstream ships, replacing the official claude.ai Google
-    # connectors. `extended` = 87 tools (measured from upstream tool_tiers.yaml at
-    # 2.3.0): the official connectors' feature set without the batch/admin extras
-    # `complete` adds (119), which every routine would otherwise load.
-    TOOLS = "gmail drive calendar docs sheets slides forms chat tasks contacts appscript";
-    WORKSPACE_MCP_TOOL_TIER = "extended";
+    TOOLS = "tasks chat";
   };
 
   # Env var -> Secret Manager secret id. Values are added out of band (clipboard ->
