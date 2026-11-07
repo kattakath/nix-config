@@ -222,4 +222,24 @@
     proxied = false;
     comment = "TLS-RPT: SMTP TLS failure reporting";
   }
+  {
+    key = "cname_jsonresume_connect";
+    type = "CNAME";
+    name = "jsonresume-connect.kattakath.com";
+    content = "ismailkattakath.github.io";
+    ttl = 1;
+    proxied = false;
+    comment = "GitHub Pages for ismailkattakath/jsonresume-connect (privacy/terms/homepage)";
+    importId = "6e28971881e488941d052bbbf50d69cd/b790d2d3999b3a5fa08415507714bcfe";
+  }
+  {
+    key = "txt_gh_pages_jsonresume_connect";
+    type = "TXT";
+    name = "_github-pages-challenge-ismailkattakath.jsonresume-connect.kattakath.com";
+    content = "\"0f57bcec3ce9746ce616d2f7cd8429\"";
+    ttl = 1;
+    proxied = false;
+    comment = "GitHub Pages domain verification for ismailkattakath (jsonresume-connect)";
+    importId = "6e28971881e488941d052bbbf50d69cd/601446102bc93dd337d3bbd4858fe6fa";
+  }
 ]
