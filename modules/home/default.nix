@@ -163,7 +163,6 @@ let
                      'sandbox: write ? undefined : "${grokSandboxProfile}",'
   '';
 
-  # Absolute operator SSH paths under $HOME.
   sshDir = "${config.home.homeDirectory}/.ssh";
   operatorPrivateKey = "${sshDir}/id_ed25519";
   operatorPublicKey = "${sshDir}/id_ed25519.pub";
@@ -1236,10 +1235,8 @@ in
     ]
     # claude-code: on darwin it is installed by the programs.claude-code module
     # below (which also owns the plugin/marketplace state and the global
-    # CLAUDE.md). The shared MCP registry that module used to inject is GONE —
-    # `modules/shared/mcp.nix` was deleted with the gateway 2026-10-02, and MCP
-    # servers now come only from an enabled plugin's own `.mcp.json`. On the Linux
-    # hosts we don't enable that module, so install the bare CLI here instead.
+    # CLAUDE.md). On the Linux hosts we don't enable that module, so install
+    # the bare CLI here instead.
     # Avoids a buildEnv /bin collision.
     ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [ claudeCode ]
     # Fonts only where they can be rendered (`wantsFonts`, above).
@@ -1814,7 +1811,6 @@ in
       };
     };
 
-    # GitHub CLI (`gh`) — devcontainer github-cli feature.
     gh.enable = true;
 
     direnv = {

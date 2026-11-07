@@ -53,12 +53,12 @@ Measured 2026-09-22 against the live account (read-only API sweep), **not** esti
 | Redirect rulesets (ours) | 1 | 6 |
 | Access apps / policies / tokens | **all 32** | 0 |
 | Tunnels + MCP portal + registrations | **all 47** | 0 |
+| Workers | 0 | 1 (`mta-sts`, deleted 2026-11-07) |
 
 (That 47-object row is the measured gap as of 2026-09-22. For contrast, the 2026-10-02 teardown
 destroyed **65** objects across the MCP half alone — the subsystem roughly doubled in object count
 between being brought under IaC and being removed, which is the best available evidence that
 declaring it was what made removing it safe at all.)
-| Workers | 0 | 1 (`mta-sts`) |
 
 Two corrections to the first-pass reading, both of which shrink the work:
 
@@ -183,7 +183,7 @@ belongs where:
 | `cf-zones` **(new)** | `kattakath.com` DNS records not owned above (the `mta-sts` Worker it once planned to own was deleted 2026-11-07) | Breaking it takes **mail** down |
 | `cf-access-org` **(added 2026-09-22)** | the Zero Trust organisation: `auth_domain` + the login page's branding | Breaking it locks **every** Access application at once |
 
-Mail is the argument for the third stack. `MX`, DKIM, DMARC and MTA-STS records are the highest
+Mail is the argument for the third stack. `MX`, DKIM and DMARC records are the highest
 consequence-per-byte objects in the account and they share no failure mode with a tunnel. They
 should not ride in a plan whose other half is a Pi.
 

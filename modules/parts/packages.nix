@@ -311,15 +311,12 @@ in
           meta.description = "First activation of the macos nix-darwin host from the flake (self-elevates via sudo/Touch ID; after Determinate Nix)";
         };
 
-        # Claude Code routing-telemetry collector health check.
         claude-otel-doctor = {
           type = "app";
           program = "${config.packages.claude-otel-doctor}/bin/claude-otel-doctor";
           meta.description = "Check the local Claude Code OTel Collector: launchd agent, OTLP port, events file";
         };
 
-        # Declared-vs-loaded drift, orphan plists and log hygiene, for every
-        # fleet launchd unit.
         launchd-doctor = {
           type = "app";
           program = "${config.packages.launchd-doctor}/bin/launchd-doctor";
@@ -335,14 +332,12 @@ in
           meta.description = "Inspect the Rogers CGM4981 gateway: status, connected devices and logs, without the GUI";
         };
 
-        # Deterministic ADB wired/wireless operator + scrcpy mirroring.
         android-phone = {
           type = "app";
           program = "${config.packages.android-phone}/bin/android-phone";
           meta.description = "ADB operator: android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor";
         };
 
-        # The long-lived nixos UTM guest (packages/nixos-vm.nix).
         nixos-vm = {
           type = "app";
           program = "${config.packages.nixos-vm}/bin/nixos-vm";

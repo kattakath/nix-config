@@ -265,13 +265,8 @@ in
 
     # COPIED, not symlinked — and the reason is a MIGRATION WALL, not removal.
     #
-    # The removal reason this comment used to give ("home.file would only
-    # unlink what it still knows about") is FALSE. Grepped pinned home-manager
-    # modules/files.nix for cleanOldGen/rmdir: `cleanOldGen` walks the OLD
-    # generation's leaves and hands each to `cleanup`, which `rm`s every target
-    # the new generation no longer has and `rmdir -p`s the emptied parents.
-    # That IS the
-    # `installQuickActions = false` case, and upstream already does it right.
+    # home.file WOULD clean up removed bundles (pinned home-manager files.nix
+    # cleanOldGen rm's + rmdir -p's them); the blocker is the migration wall below.
     #
     # What actually blocks `home.file` TODAY: these bundles are real
     # DIRECTORIES on every machine that has run this module. home-manager's

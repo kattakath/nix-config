@@ -286,8 +286,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   # secret value has no undo, and the managed tier mirrors them.
   programs.claude-code.settings.permissions.ask = [
     # ── Imperative MCP adoption (mcp-scout: "installation IS declaration") ──
-    # Servers arrive ONLY as Claude Code plugins now (./plugin-mcp.nix) —
-    # the gateway that used to be the single source is gone.
+    # Servers arrive ONLY as Claude Code plugins (./plugin-mcp.nix).
     # A runtime add lands in ~/.claude.json, outside flake.lock and every check that
     # can see a declared server. MCP tool prefixes have changed three times without
     # notice, so verify any MCP rule against a live session's tool names, never by reasoning.

@@ -265,12 +265,7 @@ const CF_TERRANIX_DESTROY =
 //
 // Neither view replaces the other, and their union needs no shell parser.
 //
-// WHAT THIS DOES NOT CLAIM. The sentence that used to sit here read "Every
-// execution shape still matches, substitutions and backticks included." It was
-// FALSE for every wrapper prefix listed above, and it was read as fact and
-// relayed onward as the reason this hook closed the wrapper gap (2026-10-02).
-// A written claim the code does not meet is worse than a documented gap, so
-// what follows is the gap, measured rather than assumed. Still NOT matched:
+// WHAT THIS DOES NOT CLAIM — measured, not assumed. Still NOT matched:
 //   - a wrapper prefix stacked deeper than unwrap()'s 256-iteration bound;
 //   - a quoted payload whose quotes are BACKSLASH-ESCAPED inside an outer
 //     payload (`sh -c "sh -c 'sh -c \"…\"'"`), and anything past segments()'
