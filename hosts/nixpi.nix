@@ -195,12 +195,11 @@
   # — the same tpm-tis/tpm-crb modules-shrunk failure this file used to mkForce
   # away on the old kernel. One copy, upstream's.
 
-  # SCRIPTED initrd, KEPT. On the raspberry-pi-nix 6.6.51 kernel systemd stage-1
-  # HUNG mounting /sysroot (the Pi never reached stage-2). Whether 6.18 + extlinux
-  # still hangs is UNTESTED — and a boot-chain swap is the wrong moment to change a
-  # second boot variable. Revisit only after this generation has booted clean
-  # (`checks.<system>.nixpi-initrd-posture` guards the upstream removal deadline).
-  boot.initrd.systemd.enable = lib.mkForce false;
+  # systemd stage-1 (the nixpkgs default; the scripted initrd is removed in 26.11).
+  # It replaced a forced scripted initrd on 2026-11-07, after the 6.6.51 kernel whose
+  # stage-1 hung mounting /sysroot was gone. `checks.<system>.nixpi-initrd-posture`
+  # pins it. If a boot ever hangs in stage-1, pick the previous extlinux entry at the
+  # U-Boot menu (HDMI/serial) — every older generation boots the scripted initrd.
 
   # The libbpf C23 patch (`kernelPatches.libbpf_C23_compat`) is GONE with the
   # 6.6.51 kernel: nixos-hardware's linux-rpi tag stable_20260911 already declares
