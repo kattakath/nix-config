@@ -26,7 +26,7 @@ AND="&""&"
 decide() {
   python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1" \
     | node "$H" 2>/dev/null \
-    | python3 -c 'import json,sys;print(json.load(sys.stdin).get("decision","?"))' 2>/dev/null
+    | python3 -c 'import json,sys;s=sys.stdin.read();d=json.loads(s) if s.strip() else {};print(d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision") or "none")' 2>/dev/null
 }
 ck() { # ck <want> <cmd>
   got="$(decide "$2")"
@@ -63,29 +63,29 @@ ck block "echo hi
 $SH $DC '$NR switch $BH nixpi'"
 
 echo "== must APPROVE (builds HERE, or does not build at all) =="
-ck approve "$NR switch --flake .#nixpi $TH ismail@$PI"
-ck approve "nix run --inputs-from . nixpkgs#${NR}-ng -- switch --flake .#nixpi $TH ismail@$PI --sudo"
-ck approve "deploy --targets .#nixpi"
-ck approve "darwin-rebuild switch --flake .#macos"
-ck approve "nix build .#nixosConfigurations.nixpi.config.system.build.toplevel"
-ck approve "ssh $PI systemctl status caddy"
-ck approve "$NR switch $BH builder.example.com"
-ck approve "$SH $DC '$NR switch --flake .#nixpi $TH ismail@$PI'"
-ck approve "$SH $DC 'echo hi'"
+ck none "$NR switch --flake .#nixpi $TH ismail@$PI"
+ck none "nix run --inputs-from . nixpkgs#${NR}-ng -- switch --flake .#nixpi $TH ismail@$PI --sudo"
+ck none "deploy --targets .#nixpi"
+ck none "darwin-rebuild switch --flake .#macos"
+ck none "nix build .#nixosConfigurations.nixpi.config.system.build.toplevel"
+ck none "ssh $PI systemctl status caddy"
+ck none "$NR switch $BH builder.example.com"
+ck none "$SH $DC '$NR switch --flake .#nixpi $TH ismail@$PI'"
+ck none "$SH $DC 'echo hi'"
 
 echo "== must APPROVE: the shape MENTIONED as data, not run =="
 # Gated on each segment's argv0, so git/echo/grep carrying the text are fine.
-ck approve "git commit -m \"blocks $BH $PI now\""
-ck approve "echo \"do not run: ssh $PI nix build\""
-ck approve "grep -rn \"$BH\" .claude/hooks/"
+ck none "git commit -m \"blocks $BH $PI now\""
+ck none "echo \"do not run: ssh $PI nix build\""
+ck none "grep -rn \"$BH\" .claude/hooks/"
 # A wrapper quoted INSIDE a message is part of that message's segment, so it is
 # never mistaken for one that would RUN.
-ck approve "git commit -m \"$SH $DC '$NR switch $BH nixpi' is blocked\""
+ck none "git commit -m \"$SH $DC '$NR switch $BH nixpi' is blocked\""
 # The MULTI-LINE version, which is the shape this repo actually writes. Until
 # quote-aware splitting (2026-09-16) the body's newline was read as a command
 # boundary, so this exact commit message was BLOCKED — the third time this rule
 # would have blocked its own carrier commit.
-ck approve "git commit -m \"fix the guard
+ck none "git commit -m \"fix the guard
 
 $SH $DC '$NR switch $BH nixpi' is blocked now\""
 

@@ -2,7 +2,7 @@
 # Rule 1g cases: a nixpi deploy WITHOUT `--hostname` rides the Cloudflare tunnel
 # it may restart (2026-10-21 self-cut, 13 min down), so it NUDGES.
 #
-# The rule never changes a DECISION — every case here is `approve` — so a
+# The rule never changes a DECISION — every case here has NONE — so a
 # decision-only `ck` would pass identically with the rule deleted. The NUDGE is
 # what changes, so that is what gets asserted, in both directions (the same
 # reason rule1-terranix-apply-vs-destroy.sh asserts its apply nudge).
@@ -20,21 +20,21 @@ AND="&""&"
 nudge() { # nudge <cmd> -> "<decision>|<systemMessage>"
   python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1" \
     | node "$H" 2>/dev/null \
-    | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("decision","?")+"|"+d.get("systemMessage",""))' 2>/dev/null
+    | python3 -c 'import json,sys;s=sys.stdin.read();d=json.loads(s) if s.strip() else {};print(d.get("decision","none")+"|"+d.get("systemMessage",""))' 2>/dev/null
 }
 ckn() { # ckn <cmd> — must APPROVE and carry the Rule 1g nudge
   got="$(nudge "$1")"
   case "$got" in
-    "approve|"*"--hostname <pi-lan-ip>"*) printf '  ok    nudged   %s\n' "$1"; pass=$((pass+1)) ;;
-    *) printf '  FAIL  want approve+nudge, got %s  <- %s\n' "$got" "$1"; fail=$((fail+1)) ;;
+    "none|"*"--hostname <pi-lan-ip>"*) printf '  ok    nudged   %s\n' "$1"; pass=$((pass+1)) ;;
+    *) printf '  FAIL  want none+nudge, got %s  <- %s\n' "$got" "$1"; fail=$((fail+1)) ;;
   esac
 }
 ckq() { # ckq <cmd> — must APPROVE with NO Rule 1g nudge
   got="$(nudge "$1")"
   case "$got" in
-    "approve|"*"pi-lan-ip"*) printf '  FAIL  unexpected nudge: %s  <- %s\n' "$got" "$1"; fail=$((fail+1)) ;;
-    "approve|"*) printf '  ok    quiet    %s\n' "$1"; pass=$((pass+1)) ;;
-    *) printf '  FAIL  want approve, got %s  <- %s\n' "$got" "$1"; fail=$((fail+1)) ;;
+    "none|"*"pi-lan-ip"*) printf '  FAIL  unexpected nudge: %s  <- %s\n' "$got" "$1"; fail=$((fail+1)) ;;
+    "none|"*) printf '  ok    quiet    %s\n' "$1"; pass=$((pass+1)) ;;
+    *) printf '  FAIL  want none, got %s  <- %s\n' "$got" "$1"; fail=$((fail+1)) ;;
   esac
 }
 

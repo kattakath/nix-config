@@ -18,7 +18,7 @@ raw() {
   python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1" \
     | node "$H" 2>/dev/null
 }
-decide() { raw "$1" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("decision","?"))' 2>/dev/null; }
+decide() { raw "$1" | python3 -c 'import json,sys;s=sys.stdin.read();d=json.loads(s) if s.strip() else {};print(d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision") or "none")' 2>/dev/null; }
 ck() { # ck <want> <cmd>
   got="$(decide "$2")"
   if [ "$got" = "$1" ]; then printf '  ok    %-8s %s\n' "$got" "$2"; pass=$((pass+1))
@@ -29,20 +29,23 @@ okif() { # okif <label> <condition-exit-status>
   else printf '  FAIL  %s\n' "$1"; fail=$((fail+1)); fi
 }
 
-# Same no-throw assertion as rule1c/rule1e: a crash emits {"decision":"approve"}
+# Same no-throw assertion as rule1c/rule1e: a crash emits a no-decision {"systemMessage"}
 # with "error (ignored)", which looks healthy unless the message is read.
 nothrow() { # nothrow <label> <cmd>
   got="$(raw "$2" | python3 -c '
 import json, sys
+s = sys.stdin.read()
+if not s.strip():
+    print("none"); raise SystemExit  # silence = no objection, the healthy allow path
 try:
-    d = json.load(sys.stdin)
+    d = json.loads(s)
 except Exception:
     print("NO-JSON"); raise SystemExit
 msg = d.get("systemMessage") or ""
-print("THREW" if ("error (ignored)" in msg or "DISARMED" in msg) else (d.get("decision") or "NO-DECISION"))
+print("THREW" if ("error (ignored)" in msg or "DISARMED" in msg) else (d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision") or "none"))
 ' 2>/dev/null)"
   case "$got" in
-    approve | block) printf '  ok    %-8s %s\n' "$got" "$1"; pass=$((pass + 1)) ;;
+    none | block | ask) printf '  ok    %-8s %s\n' "$got" "$1"; pass=$((pass + 1)) ;;
     *) printf '  FAIL  %-8s %s\n' "$got" "$1"; fail=$((fail + 1)) ;;
   esac
 }
@@ -141,47 +144,47 @@ ck block "(cat $A/x)"
 ck block "echo \"don't \$(cat $A/x)\""   # an apostrophe inside "…" opens no '…' region
 
 echo "== must APPROVE: listing NAMES, metadata only (names are public in secrets/secrets.nix) =="
-ck approve "ls $A"
-ck approve "ls -la $A/"
-ck approve "ls -l $A/gh-app-fleet-key"
-ck approve "stat $A/x"
-ck approve "test -r $A/x && echo readable"
-ck approve "[ -e $A/x ] && echo present"
-ck approve "readlink $A"
-ck approve "realpath $A"
-ck approve "ls $C"
+ck none "ls $A"
+ck none "ls -la $A/"
+ck none "ls -l $A/gh-app-fleet-key"
+ck none "stat $A/x"
+ck none "test -r $A/x && echo readable"
+ck none "[ -e $A/x ] && echo present"
+ck none "readlink $A"
+ck none "realpath $A"
+ck none "ls $C"
 
 echo "== must APPROVE: searching FOR the path string (the pattern is not a file) =="
-ck approve "grep -rn $A docs/"
-ck approve "grep -rn '$A/' docs/ modules/"
-ck approve "rg -n '$A' ."
-ck approve "git grep -n $A"
-ck approve "git grep -n -e $A -e agenix"
-ck approve "grep -e $A -e foo -rn ."
+ck none "grep -rn $A docs/"
+ck none "grep -rn '$A/' docs/ modules/"
+ck none "rg -n '$A' ."
+ck none "git grep -n $A"
+ck none "git grep -n -e $A -e agenix"
+ck none "grep -e $A -e foo -rn ."
 
 echo "== must APPROVE: the path MENTIONED inside prose =="
 # The class that blocked Rule 1c's own carrier commit twice. A quoted message is
 # ONE word that starts with prose, so it never begins with a secret path.
-ck approve "git commit -m \"claude: block reads of $A/<x> in argv\""
-ck approve "git commit -m 'Rule 1f: curl --data-binary @$A/x ran past the deny'"
-ck approve "echo 'never cat $A/x'"
-ck approve "gh pr create --title 'claude: secret paths' --body 'blocks $A/x and $C/y'"
+ck none "git commit -m \"claude: block reads of $A/<x> in argv\""
+ck none "git commit -m 'Rule 1f: curl --data-binary @$A/x ran past the deny'"
+ck none "echo 'never cat $A/x'"
+ck none "gh pr create --title 'claude: secret paths' --body 'blocks $A/x and $C/y'"
 # The heredoc commit shape Claude Code itself writes: one double-quoted word
 # beginning `$(cat <<`, whose body is data — so no substitution is unpacked.
-ck approve "$(printf '%s\n' 'git commit -m "$(cat <<'"'"'EOF'"'"'' \
+ck none "$(printf '%s\n' 'git commit -m "$(cat <<'"'"'EOF'"'"'' \
   'claude: Rule 1f blocks secret paths in argv' '' \
   "curl --data-binary @$A/x and openssl dgst $A/x both ran." 'EOF' ')"')"
 
 echo "== must APPROVE: neighbours that are not the secret paths =="
-ck approve 'ls /run'
-ck approve '/run/current-system/sw/bin/ls -l'
-ck approve 'ls /run/agenixfoo'
-ck approve 'cat secrets/gh-app-fleet-key.age'   # a PUBLIC ciphertext, not plaintext
-ck approve 'cat ~/.aws/config'
-ck approve 'ls ~/.aws/sso'
-ck approve "nix eval --json --file $NIXFILE"
-ck approve "sed -n '1,40p' $NIXFILE"
-ck approve 'sed -n "1,40p" .claude/hooks/tests/rule1f-secret-path-argv.sh'
+ck none 'ls /run'
+ck none '/run/current-system/sw/bin/ls -l'
+ck none 'ls /run/agenixfoo'
+ck none 'cat secrets/gh-app-fleet-key.age'   # a PUBLIC ciphertext, not plaintext
+ck none 'cat ~/.aws/config'
+ck none 'ls ~/.aws/sso'
+ck none "nix eval --json --file $NIXFILE"
+ck none "sed -n '1,40p' $NIXFILE"
+ck none 'sed -n "1,40p" .claude/hooks/tests/rule1f-secret-path-argv.sh'
 
 echo "== known FALSE POSITIVE, asserted so a change to it is deliberate =="
 # A TOP-LEVEL heredoc body is split into lines (splitTopLevel's documented limit),
@@ -199,7 +202,7 @@ nothrow 'unterminated backtick' "echo \`cat $A/x"
 nothrow 'separators only' ';;||&&(('
 nothrow 'nested substitutions' "echo \$(echo \$(echo \$(cat $A/x)))"
 nothrow '200k-char single token' "$(python3 -c 'print("x" * 200000)')"
-nothrow 'plain approve carries no DISARMED message' 'true'
+nothrow 'plain no-objection carries no DISARMED message' 'true'
 ck block "echo \$(echo \$(echo \$(cat $A/x)))"
 
 printf '\n%s passed, %s failed\n' "$pass" "$fail"

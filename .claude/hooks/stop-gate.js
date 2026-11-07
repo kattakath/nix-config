@@ -17,6 +17,14 @@
  * Protocol: reads the Stop hook event JSON from stdin, prints a decision
  * object to stdout, exits 0. `{"decision":"block","reason":...}` keeps the
  * agent working; `{"decision":"approve"}` lets it stop.
+ *
+ * `approve` stays HERE on purpose, unlike the PreToolUse guard (2026-11-07).
+ * On Stop it grants no permission: the only `decision` value Stop acts on is
+ * "block" (https://code.claude.com/docs/en/hooks, Stop decision control), so an
+ * approve reads exactly like silence. It does carry one signal: superhook clears
+ * its Stop loop counter only on an approve, so dropping it would let identical
+ * blocks from DIFFERENT stops add up to a loop-break that waves a real failure
+ * through.
  */
 
 const { execSync } = require("node:child_process");

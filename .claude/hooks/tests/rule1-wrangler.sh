@@ -13,7 +13,7 @@ W="wran""gler"
 decide() {
   python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1" \
     | node "$H" 2>/dev/null \
-    | python3 -c 'import json,sys;d=json.load(sys.stdin);print(d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision","?"))' 2>/dev/null
+    | python3 -c 'import json,sys;s=sys.stdin.read();d=json.loads(s) if s.strip() else {};print(d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision") or "none")' 2>/dev/null
 }
 reason() {
   python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1" \
@@ -33,9 +33,9 @@ ck ask "cd site && $W pages deploy dist"
 ck ask "npx --yes true; $W whoami"
 
 echo "== must APPROVE (a mention, not a call) =="
-ck approve "echo use $W later"
-ck approve "grep -rn $W docs/"
-ck approve "ls ${W}-config"
+ck none "echo use $W later"
+ck none "grep -rn $W docs/"
+ck none "ls ${W}-config"
 
 echo "== the ask reason is ONE line =="
 r="$(reason "$W deploy")"
