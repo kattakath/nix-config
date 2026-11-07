@@ -48,10 +48,12 @@
   pkgs,
   lib,
   config,
+  osConfig ? { },
   ...
 }:
 let
   cfg = config.local.claudePlugins;
+  isMacosHost = import ../_lib/is-macos-host.nix osConfig;
 
   # The plugins Nix must assert (#648's rule, below), as full "<plugin>@<marketplace>"
   # ids (the shape `settings.enabledPlugins` keys on). Written literally since
@@ -60,8 +62,15 @@ let
     "nix-flake-kit@kattakath"
     "superhook@kattakath"
     "brain-signals@kattakath"
-    "ci-watch@kattakath"
   ];
+
+  # OPERATOR-ONLY on top of the floor — gated on isMacosHost (local.operatorHost), so a
+  # template consumer still gets exactly the floor (checks.<system>.template-consumer).
+  #   ci-watch  the operator's fleet lands changes by direct push to main (global
+  #             claude/CLAUDE.md), and this plugin's asyncRewake hook is the ONLY report that
+  #             lane gets. Without it a red push is silent (2026-11-07). The landing policy is
+  #             the operator's, so it is not part of the floor a consumer inherits.
+  operatorIds = lib.optionals isMacosHost [ "ci-watch@kattakath" ];
 
   # ONE predicate for "this marketplace is a store path", shared by the three
   # places that must agree: the assertion, the settings-shape branch, and the
@@ -157,7 +166,7 @@ in
           local.claudePlugins: always-on plugin "${id}" names a marketplace that is not
           declared in local.claudePlugins.marketplaces, so this guard would be silently off.
         '';
-      }) alwaysOnIds
+      }) (alwaysOnIds ++ operatorIds)
       ++ lib.mapAttrsToList (name: mp: {
         assertion = isStorePath mp || lib.hasPrefix "https://" mp.source;
         message = ''
@@ -233,9 +242,6 @@ in
     #                    and #673 merged, so it is now unconditional.
     #   brain-signals    `claude-brain.nix`'s `outputStyle` declares a style that only this
     #                    plugin supplies. Dropping it was considered and declined.
-    #   ci-watch         the fleet lands changes by direct push to main (global CLAUDE.md),
-    #                    and this plugin's asyncRewake hook is the ONLY check that lane gets
-    #                    reported. Without it a red push is silent (2026-11-07).
     #
     # Everything else is the operator's to toggle, and the toggle now PERSISTS. A
     # fresh machine starts with this set and nothing more; the rest come back on
@@ -247,7 +253,7 @@ in
     # `/plugin` or on claude.ai (`@synced`). The invariant #648 bought holds trivially:
     # Nix writes an `enabledPlugins` key only for the ids above, so every other
     # id keeps whatever the UI wrote, `false` included.
-    programs.claude-code.settings.enabledPlugins = lib.genAttrs alwaysOnIds (_: true);
+    programs.claude-code.settings.enabledPlugins = lib.genAttrs (alwaysOnIds ++ operatorIds) (_: true);
 
     # ONE `marketplace add` per store-path marketplace, and nothing else. It
     # buys exactly one thing: the FIRST session after a fresh install or a
