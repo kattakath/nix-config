@@ -1436,8 +1436,8 @@ let
     };
 
   # ---- workspace-mcp stack (terranix -> OpenTofu) --------------------------
-  # Renders infra/gcp/workspace-mcp.nix: the Cloud Run MCP server for Google Tasks +
-  # Chat, its domain mapping and kattakath.com's Site Verification ownership, all
+  # Renders infra/gcp/workspace-mcp.nix: the Cloud Run MCP server for every Google
+  # service, its domain mapping and kattakath.com's Site Verification ownership, all
   # adopted by `import` blocks. Its own stack because its blast radius is one
   # service, not the project (foundation) or the alarm (budget).
   gcpWorkspaceMcpConfig =
