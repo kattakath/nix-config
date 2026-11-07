@@ -80,14 +80,14 @@ stack hurts you is a shrunken render silently deleting mail, not a bad tunnel. A
 
 ### `infra/cloudflare/access-org.nix`
 
-The Zero Trust **organisation** — one resource, `cloudflare_zero_trust_organization`, and its
+The Zero Trust **organisation** (`cloudflare_zero_trust_organization`) plus its Google IdP, and its
 own stack because it sits *above* the other Cloudflare ones rather than beside them:
 `auth_domain` is the sign-in host for **every** Access application in the account, so a bad
 apply takes out nixpi's SSH gate along with anything else gated there. (Until 2026-10-02 the
 "anything else" was the MCP portal, which is what made this stack's blast radius legible in the
 first place; with the portal gone, nixpi's SSH app is the ONLY thing left behind this
 `auth_domain` — which makes a bad apply here *more* consequential, not less, because there is no
-longer a second victim to notice it by.) One resource is not an argument for folding it into a
+longer a second victim to notice it by.) Few resources is not an argument for folding it into a
 neighbour; the rule keys on consequence, not line count.
 
 **What it is for:** the login page's branding (`login_design` — logo, background, header,
@@ -115,8 +115,8 @@ URL Cloudflare fetches, not an upload, so the asset is hosted rather than commit
    command, because a create here is a clobber.
 
 Data lives in `config.fleet.accessOrg` (`modules/parts/identity.nix`). Applied via
-`cf-access-org-apply`; `cf-access-org-plan` is read-only. There is **no** destroy app — there is
-no API to delete an organisation, so a destroy would merely blank one.
+`cf-access-org-apply`; `cf-access-org-plan` is read-only. There is **no** destroy app: it would
+blank the organisation and DELETE the IdP (`prevent_destroy` refuses that).
 
 ### `infra/gcp/foundation.nix`
 

@@ -54,6 +54,10 @@
   # literal address in a public repo is both an identity leak and a second source
   # of truth.
   operatorAccount,
+  # The Google Workspace IdP's id (modules/parts/identity.nix `accessOrg.googleIdp`),
+  # declared by cf-access-org. Threaded rather than a literal so the two stacks name
+  # one object from one place.
+  accessIdpId,
   ...
 }:
 let
@@ -450,7 +454,7 @@ in
     # Google Workspace only. Leaving this empty accepts EVERY configured IdP,
     # including Cloudflare's own dashboard login — a loop where the account that
     # administers Access is also a login to it.
-    allowed_idps = [ "3227ee11-f5a4-40ae-a1a7-612e1f035c1c" ];
+    allowed_idps = [ accessIdpId ];
     session_duration = "1h";
     app_launcher_visible = false;
     auto_redirect_to_identity = false;

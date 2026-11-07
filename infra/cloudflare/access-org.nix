@@ -93,6 +93,10 @@
   # application in the account.
   authDomain,
   orgName,
+  # The Google Workspace IdP (identity.nix `accessOrg.googleIdp`) and the Workspace
+  # domain it is restricted to.
+  googleIdp,
+  domainName,
   ...
 }:
 {
@@ -144,6 +148,38 @@
       footer_text = loginDesign.footerText;
     };
   };
+
+  # ---- The Google Workspace identity provider --------------------------------
+  # The login every Access app uses, so it shares this stack's blast radius. Created
+  # by hand before this stack, so it is ADOPTED by the import block below; without
+  # one, a plan against the existing state would CREATE a duplicate IdP.
+  #
+  # `client_secret` is deliberately ABSENT. The API never returns it, and 5.25.0's
+  # read path keeps state's value when the API sends none (normalizations.go), so
+  # it is null on both sides and the encoder omits it: no diff, and no copy of the
+  # secret in the repo, the Keychain or state. It lives only in Cloudflare.
+  # UNPROVEN: whether a PUT for some OTHER field keeps the stored secret. Before the
+  # first real change to this resource, confirm a Google login still works after.
+  resource.cloudflare_zero_trust_access_identity_provider.google = {
+    account_id = accountId;
+    inherit (googleIdp) name;
+    type = "google-apps";
+    config = {
+      apps_domain = domainName;
+      client_id = googleIdp.clientId;
+    };
+    # Unlike the organisation, deleting this is a REAL delete: every Access login
+    # ends, and a re-created IdP gets a new id and no client secret. A destroy, or a
+    # replace (`type` / `account_id` are RequiresReplace), must fail at plan.
+    lifecycle.prevent_destroy = true;
+  };
+
+  import = [
+    {
+      to = "cloudflare_zero_trust_access_identity_provider.google";
+      id = "accounts/${accountId}/${googleIdp.id}";
+    }
+  ];
 
   # Surfaced so the apply wrapper can assert the sign-in host it is about to
   # write, without the operator having to read the rendered JSON. This is the
