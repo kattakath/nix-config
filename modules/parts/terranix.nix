@@ -561,7 +561,12 @@ let
         {
           _module.args = {
             accountId = cloudflareAccountId;
-            inherit (accessOrg) authDomain loginDesign googleIdp;
+            inherit (accessOrg)
+              authDomain
+              loginDesign
+              googleIdp
+              dashSso
+              ;
             inherit domainName;
             orgName = accessOrg.name;
           };

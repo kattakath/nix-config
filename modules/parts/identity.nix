@@ -250,6 +250,13 @@ let
       name = "Kattakath Google Workspace";
       clientId = "305924238191-0spak05qhr0g7k0h05ubcq2kinmpi3dd.apps.googleusercontent.com";
     };
+    # Cloudflare dashboard SSO: the system `dash_sso` Access app that turns the
+    # dashboard login into a Google Workspace sign-in. Created by the dashboard's
+    # "SSO" setting 2026-07-05; adopted into cf-access-org 2026-11-07.
+    dashSso = {
+      appId = "8586d7b2-8c16-4c99-9f2b-aac10bd238d9";
+      policyId = "3b519650-80b4-45a4-bed7-148e230e4a6e";
+    };
   };
 
   # ---- Shared identity, as threaded into BOTH builders --------------------
