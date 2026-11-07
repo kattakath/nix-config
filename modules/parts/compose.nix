@@ -28,6 +28,7 @@ let
     agenix
     nixos-hardware
     agent-skills-excalidraw
+    agent-skills-mac-automation
     agent-skills-vercel-agent
     grok-build-plugin-cc
     ;
@@ -94,6 +95,7 @@ let
         extraSpecialArgs = idArgs // {
           inherit
             agent-skills-excalidraw
+            agent-skills-mac-automation
             agent-skills-vercel-agent
             grok-build-plugin-cc
             # kattakath-skills is DELIBERATELY ABSENT from this seam (removed

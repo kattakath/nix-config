@@ -269,6 +269,12 @@
     };
     # ---- Third-party skills with NO licence, so no marketplace can carry them (2026-11-07:
     # every licensed one moved to a plugin). Wired into programs.claude-code.skills.
+    agent-skills-mac-automation = {
+      # MIT: `automating-mac-apps` foundation (AppleScript/JXA). Its marketplace plugin fails to
+      # load (manifest conflict upstream), so the one skill is installed from this pin instead.
+      url = "github:SpillwaveSolutions/automating-mac-apps-plugin";
+      flake = false;
+    };
     agent-skills-excalidraw = {
       # Generates .excalidraw diagrams (Playwright render-loop) — pairs with the Excalidraw connector.
       # Root-level SKILL.md, so the whole repo IS the skill dir. No LICENSE file (source-available; personal pin only).
