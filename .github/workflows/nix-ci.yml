@@ -30,14 +30,16 @@ name: nix-ci
 #   * `gate` — the aggregator the shared ruleset requires. It needs the HEAVY
 #     jobs (legs, aarch64-linux, gitleaks, cclint) and asserts each ended exactly
 #     as this event expects, via kattakath/.github/actions/gate.
-#   * HEAVY jobs run once per PR: in the merge queue when the repo variable
-#     QUEUE_ENABLED is 'true', otherwise on the PR. A FORK PR always runs them on
-#     the PR, so a contributor sees a real failure before review.
+#   * HEAVY jobs run on every push to main (the operator's direct-push lane), and
+#     once per PR: in the merge queue when the repo variable QUEUE_ENABLED is
+#     'true', otherwise on the PR. A FORK PR always runs them on the PR, so a
+#     contributor sees a real failure before review.
 #   * aarch64-darwin — ADVISORY, on PRs ONLY, whoever wrote it, and NOT in the
 #     merge queue (operator decision). Nothing needs it. It runs the FULL darwin
 #     leg, and the linux leg still EVALUATES macos on every gated run.
-# nix-ci has NO `push: main` run: in the queue, the merge-group commit IS the commit
-# main gets, so it is validated BEFORE the merge rather than after.
+# A push to main is validated AFTER it lands (the ci-watch plugin reports a red run);
+# in the queue (bot/fork PRs) the merge-group commit IS the commit main gets, so it is
+# validated BEFORE the merge, then once more on the push.
 # Local verification is unchanged: agents still run both systems (CLAUDE.md
 # § Testing).
 #
@@ -56,8 +58,8 @@ name: nix-ci
 # READ from the kattakath Cachix cache is public. WRITE needs CACHIX_AUTH_TOKEN.
 # The linux leg writes on every event GitHub hands the secret to EXCEPT
 # `merge_group`. With QUEUE_ENABLED on, an own-branch PR skips that leg, so in
-# practice the linux leg pushes only on workflow_dispatch; the darwin advisory leg
-# still pushes from own-branch PRs.
+# practice the linux leg pushes on every push to main and on workflow_dispatch; the
+# darwin advisory leg still pushes from own-branch PRs.
 #   * pull_request: a FORK gets no repo secret, a Dependabot PR reads a separate
 #     store this token is not in — so only same-repo branches push.
 #   * merge_group: NOT pushed. A queue run executes the queued merge commit, which

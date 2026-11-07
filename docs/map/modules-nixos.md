@@ -348,7 +348,8 @@ flake, and never imported by path from the host.
   satellite's `apps/firmware-plant.nix` (a second, unused copy of what
   `packages/nixpi-provision.nix` already does — two copies of one procedure is two chances for
   the planted basenames to drift) and its `examples/pi-cloudflared.nix` (a stale sketch;
-  `hosts/nixpi.nix` is the real example, and it is evaluated on every PR).
+  `hosts/nixpi.nix` is the real example, and nix-ci's linux leg evaluates it on every push to
+  `main`, in the merge queue and on fork PRs).
 
 ## Web serving on `nixpi`
 

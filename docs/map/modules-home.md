@@ -21,11 +21,12 @@ matches zero files and the layer boundary stops existing with CI green. Nothing
 in the repo can catch that; see that fixture file's header for the measurement.
 
 - **`default.nix`** (the entry point; was `home.nix`) — git/ssh-signing, zsh+starship, direnv, gh, bash, claude-code + nerd-fonts;
-  darwin-only ssh/vscode blocks gated `lib.mkIf pkgs.stdenv.isDarwin`. The ssh block owns
-  `Host nixpi.<domain>` with the `cloudflared access ssh` `ProxyCommand` (store path, not
-  `/opt/homebrew`) — the *only* remote path to the Pi, and what makes both deploy-rs legs work
-  (`ssh` for activation + `nix copy` for the closure); see [`entry-points.md`](entry-points.md) § `deploy.nodes`. Host-gated: RAG
-  (ollama/pgvector) only on the operator's Mac (`isMacosHost`). **The public-MCP-tunnel half of
+  darwin-only ssh/vscode blocks gated `lib.mkIf pkgs.stdenv.isDarwin`. Inside it, the
+  `Host nixpi.<domain>` entry is gated again on `isMacosHost` (a template consumer has no
+  nixpi): the `cloudflared access ssh` `ProxyCommand` (store path, not `/opt/homebrew`) is the
+  Internet path to the Pi (the LAN path is `nixpi.local`), and what makes both deploy-rs legs work
+  (`ssh` for activation + `nix copy` for the closure); see [`entry-points.md`](entry-points.md) § `deploy.nodes`. Host-gated
+  on the operator's Mac (`isMacosHost`): that nixpi entry and RAG (ollama/pgvector). **The public-MCP-tunnel half of
   that gate is gone** — it went with the gateway on 2026-10-02
   ([`claude-code.md`](claude-code.md) § MCP after the gateway).
   `home.packages` also carries `pandoc`/`poppler-utils` (nixpkgs, darwin-only) — together with
