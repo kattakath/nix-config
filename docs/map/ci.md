@@ -49,8 +49,11 @@ is [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md)):
 - **`gate` asserts each needed job ended EXACTLY as the event expects** — `success` where it
   should run, `skipped` where it should not — via `kattakath/.github/actions/gate`. Its
   `expect` is a deliberate second copy of the heavy `if:`, so a drift between them goes red.
-- **No `nix-ci` run on `push: main`** (the publish workflows still run there). The merge-group commit is the commit `main` gets, so it is validated
-  before the merge. Darwin is out of the queue with no post-merge belt (operator decision).
+- **`nix-ci` runs on `push: main`** (since 2026-11-07), because direct push is the default
+  lane (`.claude/rules/landing-changes.md`). There it reports AFTER the push, and the
+  `ci-watch` plugin wakes the session on red. Push runs are keyed on the sha in `concurrency`.
+  In the queue (bot PRs) the merge-group commit is still validated before the merge, then
+  once more on the push. Darwin runs only on PRs, so `activate` is the darwin check.
 - **Linux evaluating macos is sound**, on two facts: pure flake eval has no
   `builtins.currentSystem`, and `darwinConfigurations.macos` evaluates with
   `--option allow-import-from-derivation false` (measured 2026-10-18), so no darwin builder is
@@ -107,10 +110,9 @@ publishes each push to `main` as a rolling release to FlakeHub via
 token; per FlakeHub's trusted-platform model, flakes publish only from CI, never ad-hoc from a
 laptop. Merge mechanics: [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md).
 
-**Not every change goes through a PR.** A docs/`.claude`-only change may push straight to
-`main` after a local gate; which paths qualify, and the gate, live in ONE place:
-[`landing-changes.md`](../../.claude/rules/landing-changes.md) § 2. § 1 of the same file says
-how to wait on a PR's CI: in the BACKGROUND, never by polling inside a turn.
+**Most changes don't go through a PR.** Direct push to `main` is the default lane
+([`landing-changes.md`](../../.claude/rules/landing-changes.md)). The PR and merge-queue
+machinery above stays for bots, forks and the rare requested PR.
 
 More, each self-documenting in its header:
 

@@ -313,15 +313,47 @@ I OWN THE REPO — MINE IS THE BIGGEST STAKE.
   this is about skipping *process* (PR/CI gatekeeping) on his own repos, not about skipping
   *confirmation* for actions that are hard to undo regardless of who owns the repo.
 
+## Landing on the fleet — push to main, hear about CI only when it fails (DEFAULT)
+
+**The fleet** is the repo list in nix-config's `.claude/skills/fleet-doctor/fleet-repos.txt`.
+There, a change lands by a **direct push to the default branch**, with **no PR**. Ismail is
+the only human on these repos. PRs add a wait, and every fleet PR also becomes noise in
+agentic-jobseek's career evidence store.
+
+1. **Work in a worktree** off `origin/<default>`. Never branch the main checkout.
+2. **Check only what you touched.** For `.nix`, stage it, then `nix fmt` and build the
+   output you changed. The full suite runs in CI on the push.
+3. **Leak gates, every push — the only mandatory pre-push step.** A push publishes every
+   pushed commit, and these repos are public. Run gitleaks over `origin/<default>..HEAD`.
+   Then run the Drive `client-literals.txt` patterns over the diff and the commit messages.
+4. **`git fetch && git rebase origin/<default> && git push origin HEAD:<default>`**, from a
+   Bash tool call. Workflow files go over SSH, because the gh token has no `workflow` scope.
+   **Never force-push the default branch:** the ruleset's `non_fast_forward` stays.
+5. **Don't wait — carry on with the next task.** The always-on **`ci-watch`** plugin's hook
+   watches every run the pushed sha triggered. **Green is silence.** The session wakes only
+   on `RED`, `NO_RUNS`, `STILL_RUNNING` or `WATCH_FAILED`, labelled "Stop hook blocking
+   error". Act on it with the plugin's skill and fix forward.
+6. **Follow-ups don't wait either.** `activate` runs straight away. A nixpi deploy is the one
+   exception: it waits for `warm-nixpi-cache`, so the Pi never builds.
+
+- **PR only when:** Ismail asks for one; the author is a bot, Dependabot or a fork (the merge
+  queue and auto-merge stay for them); or the repo is outside the fleet.
+- **The watcher misses some pushes.** It doesn't see a push he types (`! git push`), one
+  outside the session, or a commit that only a PR ever ran. For those, run
+  `ci-watch.js --sha <sha>` by hand in the background.
+
 ## CI waits — never poll inside a turn (every repo)
 
 - **Never busy-poll CI in the foreground.** No `sleep` loop, no foreground
   `gh pr checks --watch` / `gh run watch`, no re-running `gh pr view` to see if it moved. A
   foreground poll blocks his keyboard for the whole run, and the run ends no sooner.
-- **Need the outcome?** Start ONE watch in the background (`run_in_background` or Monitor),
-  then keep working or end the turn. Where the repo arms auto-merge, the armed merge IS the wait.
-- **Report only two outcomes:** **RED** (the check name and its run URL), or **merged, needs
-  a follow-up** (activate, deploy). A merge that needs nothing earns one line, not a report.
+- **Need the outcome?** On the fleet, `ci-watch` already is the wait (§ above). Elsewhere,
+  start ONE watch in the background (`run_in_background`, or the `ci-watch` CLI with
+  `--sha`), then keep working or end the turn. Where the repo arms auto-merge, the armed
+  merge IS the wait.
+- **Report only failures and follow-ups:** **RED** (the check name and its run URL), or
+  **landed, needs a follow-up** (activate, deploy). A green landing that needs nothing
+  earns one line, not a report.
 - **Evidence:** nix-config's `docs/pr-wait-research.md`, October 2026. In-turn polling cost
   **6.4–8.4 min of keyboard per day**, and only **1.5%** of 32,201 Bash calls ran in the
   background. That census covers one repo. It is global anyway, because the cost comes from
