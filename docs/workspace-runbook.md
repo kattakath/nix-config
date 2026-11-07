@@ -120,9 +120,8 @@ Google's "agentic" setting (`is_agentic`) gates only Google's hosted **Workspace
 servers**: from 2026-11-11 they reject clients not marked agentic, and from 2026-11-12 an
 existing client's setting is fixed (Google Workspace email, 2026-10-12, listing this project).
 
-- **Nothing here breaks.** The one Internal client (§ 7) serves google-workspace-mcp, an AI
-  agent that calls Workspace **REST** APIs through workspace-mcp, and gmailctl, which is not an
-  agent. REST callers are unaffected.
+- **Nothing here breaks.** The one Internal client (§ 7) serves gmailctl, which is not an
+  agent and calls Workspace **REST** APIs. REST callers are unaffected.
 - **Not flipped on purpose.** Google says traffic that mixes agent and non-agent use needs a
   separate client for the agent. Agentic clients also get agent access controls, which would
   reach gmailctl.
@@ -230,7 +229,7 @@ Drive or sharing, so everything above stays a runbook.
 | Piece | Where it lives | Why |
 |---|---|---|
 | Filter file `config.jsonnet` | a Drive folder the operator symlinks to `$XDG_CONFIG_HOME/nix-config/gmail` (override: `GMAIL_FILTERS_DIR`) | it is data (senders, addresses), so it never enters the repo |
-| OAuth client | Keychain items `GMAIL_OAUTH_CLIENT_ID` / `_SECRET`, through `secret exec` | the same Internal client google-workspace-mcp uses; one source of truth |
+| OAuth client | Keychain items `GMAIL_OAUTH_CLIENT_ID` / `_SECRET`, through `secret exec` | the one Internal client; one source of truth |
 | OAuth token | `$XDG_STATE_HOME/gmail-filters/token.json`, mode 0600 | gmailctl writes it as a file; local and not synced |
 
 gmailctl expects `credentials.json` in its config dir. The wrapper writes it into a private temp

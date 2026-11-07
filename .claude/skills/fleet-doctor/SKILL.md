@@ -315,8 +315,7 @@ jq -rn --slurpfile nix /tmp/declared.json \
 ```
 
 Each line is a finding. Declare it (catalogue entry + `declared` key in the same commit), or
-switch it off. A dependency that Claude Code auto-enabled
-(e.g. `google-workspace-mcp` under `workspace-gtd`) shows up here too: declare it as well.
+switch it off. A dependency that Claude Code auto-enabled shows up here too: declare it as well.
 
 ### E6. Terranix drift (macos) — `FD-E6-*`
 

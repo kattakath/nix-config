@@ -7,8 +7,7 @@
 #     It is `config.jsonnet` in $GMAIL_FILTERS_DIR (default $XDG_CONFIG_HOME/nix-config/gmail),
 #     a directory the operator symlinks to a Drive folder, like the nixpi Wi-Fi roster.
 #     gmailctl resolves Jsonnet imports from that directory (its FileImporter's JPaths).
-#   * The OAuth CLIENT is the Internal Desktop client the google-workspace-mcp plugin already
-#     uses, read from the login Keychain (GMAIL_OAUTH_CLIENT_ID / _SECRET) through
+#   * The OAuth CLIENT is the Internal Desktop client, read from the login Keychain (GMAIL_OAUTH_CLIENT_ID / _SECRET) through
 #     `secret exec`. gmailctl only reads a `credentials.json` file, so each run renders one
 #     into a private temp dir (umask 077) and deletes it on exit: the Keychain stays the one
 #     source of truth, and no copy outlives the run.
