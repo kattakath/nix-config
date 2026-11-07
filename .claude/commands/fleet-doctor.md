@@ -30,8 +30,8 @@ Examples:
 
 1. **Read** `.claude/skills/fleet-doctor/SKILL.md` and follow it (checklist A→F, including E2–E9).
 2. `git fetch origin`, record nix-config's `origin/<default>` SHA, and read the manifest
-   (`.claude/skills/fleet-doctor/fleet-repos.txt`) and every repo-declared fact (E5's
-   `nix eval`, E8's unit list) from that SHA, never from this checkout. Do not hardcode a repo
+   (`.claude/skills/fleet-doctor/fleet-repos.txt`) and every repo-declared fact (E8's
+   unit list) from that SHA, never from this checkout. Do not hardcode a repo
    list elsewhere.
 3. Apply the skill's **fix policy table** exactly — auto-fix only what it lists as auto-fix; everything else is a reported finding, confirmed with the user before acting.
 4. If nix-config itself is in scope: compose the **nix-hygiene** skill (same mode) rather than re-deriving its checks.
