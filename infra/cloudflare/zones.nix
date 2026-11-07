@@ -33,6 +33,9 @@
   # against a populated state is the exact shape that DELETES every record while
   # reporting success. Let it fail at eval instead.
   dnsRecords,
+  # The zone's one dynamic-redirect entrypoint, as infra/cloudflare/kattakath-redirects.nix
+  # builds it. Required for the same reason: a missing ruleset would plan a destroy.
+  zoneRedirects,
   ...
 }:
 let
@@ -58,6 +61,19 @@ let
     }
     // lib.optionalAttrs (r ? priority) { inherit (r) priority; }
     // lib.optionalAttrs (r ? comment) { inherit (r) comment; };
+
+  redirectRule = r: {
+    inherit (r) ref description;
+    expression = ''(http.host eq "${r.host}")'';
+    action = "redirect";
+    enabled = true;
+    action_parameters.from_value = {
+      status_code = 301;
+      preserve_query_string = r.preserveQueryString or false;
+      target_url =
+        if r ? targetExpression then { expression = r.targetExpression; } else { value = r.targetUrl; };
+    };
+  };
 in
 {
   # Version pinned exactly in ../provider-pins.nix (one place for every stack).
@@ -93,10 +109,25 @@ in
   # A record created out-of-band carries `importId` (zone_id/record_id), so it is
   # ADOPTED rather than created twice. OpenTofu skips an import block whose
   # address is already in state, so the entry is inert after the first apply.
-  import = map (r: {
-    to = "cloudflare_dns_record.${r.key}";
-    id = r.importId;
-  }) (builtins.filter (r: r ? importId) dnsRecords);
+  import =
+    map (r: {
+      to = "cloudflare_dns_record.${r.key}";
+      id = r.importId;
+    }) (builtins.filter (r: r ? importId) dnsRecords)
+    ++ [
+      {
+        to = "cloudflare_ruleset.redirects";
+        id = zoneRedirects.importId;
+      }
+    ];
+
+  resource.cloudflare_ruleset.redirects = {
+    zone_id = zoneId;
+    inherit (zoneRedirects) name;
+    kind = "zone";
+    phase = "http_request_dynamic_redirect";
+    rules = map redirectRule zoneRedirects.rules;
+  };
 
   # Surfaced so the apply wrapper can assert the render is the size it expects
   # before it touches anything.

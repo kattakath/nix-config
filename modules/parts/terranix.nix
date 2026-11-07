@@ -76,6 +76,7 @@ let
   # 2026-09-22, the error names `dnsRecords` rather than the cause). One consumer,
   # so an option bought nothing anyway.
   dnsRecords = import ../../infra/cloudflare/kattakath-dns.nix;
+  zoneRedirects = import ../../infra/cloudflare/kattakath-redirects.nix;
 
   # Per-system nixpkgs accessor (legacyPackages avoids a redundant eval). The
   # tofu builders below take a `system` rather than a `pkgs`, so they keep
@@ -542,7 +543,7 @@ let
         (tofuGcsBackend "cf-zones")
         {
           _module.args = {
-            inherit domainName dnsRecords;
+            inherit domainName dnsRecords zoneRedirects;
             accountId = cloudflareAccountId;
             zoneId = cloudflareZoneId;
           };
