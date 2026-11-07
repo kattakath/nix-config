@@ -27,7 +27,7 @@ AND="&""&"
 decide() {
   python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1" \
     | node "$H" 2>/dev/null \
-    | python3 -c 'import json,sys;print(json.load(sys.stdin).get("decision","?"))' 2>/dev/null
+    | python3 -c 'import json,sys;s=sys.stdin.read();d=json.loads(s) if s.strip() else {};print(d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision") or "none")' 2>/dev/null
 }
 ck() { # ck <want> <cmd>
   got="$(decide "$2")"
@@ -42,10 +42,10 @@ ck block "$NR github:kattakath/nix-config#cf-tunnel-destroy"
 ck block "secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- $NR .#cf-tunnel-destroy"
 
 echo "== must stay APPROVED (apply: the wrapper's own guards + a plan run first) =="
-ck approve "$NR .#cf-tunnel-apply"
-ck approve "$NR .#cf-tunnel-apply -- -parallelism=2 -auto-approve"
-ck approve "secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- $NR .#cf-tunnel-apply"
-ck approve "$NR github:kattakath/nix-config#cf-tunnel-apply"
+ck none "$NR .#cf-tunnel-apply"
+ck none "$NR .#cf-tunnel-apply -- -parallelism=2 -auto-approve"
+ck none "secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare.com:nixpi-tunnel -- $NR .#cf-tunnel-apply"
+ck none "$NR github:kattakath/nix-config#cf-tunnel-apply"
 
 echo "== an apply must not launder a destroy sitting next to it =="
 ck block "$NR .#cf-tunnel-apply $AND $NR .#cf-tunnel-destroy"
@@ -57,18 +57,18 @@ ck block "nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=cf:cloudflare
 ck block "$NR --refresh .#cf-tunnel-destroy"
 
 echo "== a MENTION is not a run (2026-11-02: these were hard-blocked by a whole-string match) =="
-ck approve "echo \"never run $NR .#cf-tunnel-destroy\""
-ck approve "grep -rn '$NR .#cf-tunnel-destroy' docs/"
-ck approve "git commit -m \"guard: $NR .#cf-tunnel-destroy stays blocked\""
-ck approve "printf '%s\\n' '$NR .#cf-tunnel-destroy' | wc -l"
+ck none "echo \"never run $NR .#cf-tunnel-destroy\""
+ck none "grep -rn '$NR .#cf-tunnel-destroy' docs/"
+ck none "git commit -m \"guard: $NR .#cf-tunnel-destroy stays blocked\""
+ck none "printf '%s\\n' '$NR .#cf-tunnel-destroy' | wc -l"
 
 echo "== read-only and unrelated apps are untouched by either half =="
-ck approve "$NR .#cf-tunnel-plan"
-ck approve "$NR .#nixvm"
+ck none "$NR .#cf-tunnel-plan"
+ck none "$NR .#nixvm"
 
 # ---- 2026-10-02: the apply rule covers every stack's apply -----------------
 # These cases cannot be written with `ck`. Widening the apply regex does not
-# change any DECISION — apply was and stays `approve` — so a decision-only
+# change any DECISION — apply was and stays no-decision — so a decision-only
 # assertion passes identically before and after the widening and proves nothing.
 # What changed is the NUDGE, so that is what gets asserted, in both directions.
 nudge() { # nudge <cmd> -> the systemMessage, or "" when there is none

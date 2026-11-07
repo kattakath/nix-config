@@ -12,7 +12,7 @@ raw() {
   python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1" \
     | node "$H" 2>/dev/null
 }
-decide() { raw "$1" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("decision","?"))' 2>/dev/null; }
+decide() { raw "$1" | python3 -c 'import json,sys;s=sys.stdin.read();d=json.loads(s) if s.strip() else {};print(d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision") or "none")' 2>/dev/null; }
 ck() { # ck <want> <cmd>
   got="$(decide "$2")"
   if [ "$got" = "$1" ]; then printf '  ok    %-8s %s\n' "$got" "$2"; pass=$((pass+1))
@@ -20,21 +20,24 @@ ck() { # ck <want> <cmd>
 }
 
 # A THROW is invisible in `decision` alone: the hook's catch-all emits
-# {"decision":"approve"} with a "pretooluse-bash-guard error (ignored)" message,
+# {"systemMessage":"pretooluse-bash-guard error (ignored): ..."} with no decision,
 # so a crashed guard looks like a healthy approval unless the systemMessage is
 # read (the 2026-09-15 silent disarm). Same assertion as rule1c's suite.
 nothrow() { # nothrow <label> <cmd>
   got="$(raw "$2" | python3 -c '
 import json, sys
+s = sys.stdin.read()
+if not s.strip():
+    print("none"); raise SystemExit  # silence = no objection, the healthy allow path
 try:
-    d = json.load(sys.stdin)
+    d = json.loads(s)
 except Exception:
     print("NO-JSON"); raise SystemExit
 msg = d.get("systemMessage") or ""
-print("THREW" if "error (ignored)" in msg else (d.get("decision") or "NO-DECISION"))
+print("THREW" if "error (ignored)" in msg else (d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision") or "none"))
 ' 2>/dev/null)"
   case "$got" in
-    approve | block) printf '  ok    %-8s %s\n' "$got" "$1"; pass=$((pass + 1)) ;;
+    none | block | ask) printf '  ok    %-8s %s\n' "$got" "$1"; pass=$((pass + 1)) ;;
     *) printf '  FAIL  %-8s %s\n' "$got" "$1"; fail=$((fail + 1)) ;;
   esac
 }
@@ -108,68 +111,68 @@ ck block '(env | grep LANG)'
 ck block '{ env; }'
 
 echo "== must APPROVE: reading ONE named variable =="
-ck approve 'printenv LANG'
-ck approve 'printenv LANG LC_ALL'
-ck approve 'printenv HOME | head -1'
-ck approve 'echo "$LANG"'
-ck approve 'locale'
-ck approve 'export -p LANG'      # measured: prints only the named one
-ck approve 'declare -p LANG'
-ck approve 'typeset -p PATH'
-ck approve '[ -n "${LANG+x}" ] && echo set'
+ck none 'printenv LANG'
+ck none 'printenv LANG LC_ALL'
+ck none 'printenv HOME | head -1'
+ck none 'echo "$LANG"'
+ck none 'locale'
+ck none 'export -p LANG'      # measured: prints only the named one
+ck none 'declare -p LANG'
+ck none 'typeset -p PATH'
+ck none '[ -n "${LANG+x}" ] && echo set'
 
 echo "== must APPROVE: running a command with a modified environment =="
-ck approve 'env FOO=bar make'
-ck approve 'env -i PATH=/usr/bin:/bin bash --norc -c true'
-ck approve 'env -i'               # an emptied env prints nothing (measured)
-ck approve 'env -i FOO=1'
-ck approve 'env - FOO=1'
-ck approve 'env --ignore-environment FOO=1'
-ck approve 'env -u FOO make'
-ck approve 'sudo env PATH=/usr/bin make'
-ck approve 'nix develop -c env FOO=1 make'
-ck approve '/usr/bin/env python3 -V'
-ck approve 'env --help'
-ck approve 'printenv --version'
+ck none 'env FOO=bar make'
+ck none 'env -i PATH=/usr/bin:/bin bash --norc -c true'
+ck none 'env -i'               # an emptied env prints nothing (measured)
+ck none 'env -i FOO=1'
+ck none 'env - FOO=1'
+ck none 'env --ignore-environment FOO=1'
+ck none 'env -u FOO make'
+ck none 'sudo env PATH=/usr/bin make'
+ck none 'nix develop -c env FOO=1 make'
+ck none '/usr/bin/env python3 -V'
+ck none 'env --help'
+ck none 'printenv --version'
 
 echo "== must APPROVE: shell options and declarations that print no values =="
-ck approve 'set -euo pipefail'
-ck approve 'set -x'
-ck approve 'set -o'
-ck approve 'set +o pipefail'
-ck approve 'set +'
-ck approve 'set --'
-ck approve 'export FOO=bar'
-ck approve 'export PATH="$HOME/bin:$PATH"'
-ck approve 'export -f myfn'
-ck approve 'declare -f'
-ck approve 'declare -F'
-ck approve 'typeset -f'
-ck approve 'declare -a arr=(1 2)'
-ck approve 'readonly'
-ck approve 'secret ls --long'
+ck none 'set -euo pipefail'
+ck none 'set -x'
+ck none 'set -o'
+ck none 'set +o pipefail'
+ck none 'set +'
+ck none 'set --'
+ck none 'export FOO=bar'
+ck none 'export PATH="$HOME/bin:$PATH"'
+ck none 'export -f myfn'
+ck none 'declare -f'
+ck none 'declare -F'
+ck none 'typeset -f'
+ck none 'declare -a arr=(1 2)'
+ck none 'readonly'
+ck none 'secret ls --long'
 
 echo "== must APPROVE: the shape MENTIONED as data =="
 # A pattern or a message is text, never a command. This is the class that blocked
 # Rule 1c's own carrier commit twice; this rule must not repeat it.
-ck approve 'git commit -m "claude: block env dumps (env, printenv, set, export -p)"'
-ck approve "git commit -m 'env | grep matched LANGCHAIN_API_KEY'"
-ck approve 'grep -rn printenv .'
-ck approve "grep -rn 'env | grep' docs/"
-ck approve "rg -n 'declare -x|typeset -x' ."
-ck approve 'git grep -n -e "printenv" -e "export -p"'
-ck approve 'git ls-files | xargs grep -n "env"'
-ck approve 'echo env'
-ck approve 'echo "run env to see it"'
-ck approve 'command -v env'
-ck approve 'command -V printenv'
-ck approve 'type printenv'
-ck approve 'which env'
-ck approve 'man env'
-ck approve 'sed -n "1,40p" .claude/hooks/tests/rule1e-env-dump.sh'
+ck none 'git commit -m "claude: block env dumps (env, printenv, set, export -p)"'
+ck none "git commit -m 'env | grep matched LANGCHAIN_API_KEY'"
+ck none 'grep -rn printenv .'
+ck none "grep -rn 'env | grep' docs/"
+ck none "rg -n 'declare -x|typeset -x' ."
+ck none 'git grep -n -e "printenv" -e "export -p"'
+ck none 'git ls-files | xargs grep -n "env"'
+ck none 'echo env'
+ck none 'echo "run env to see it"'
+ck none 'command -v env'
+ck none 'command -V printenv'
+ck none 'type printenv'
+ck none 'which env'
+ck none 'man env'
+ck none 'sed -n "1,40p" .claude/hooks/tests/rule1e-env-dump.sh'
 # The heredoc commit shape Claude Code itself writes. The body sits inside the
 # outer double quotes, so splitTopLevel keeps it ONE segment whose argv0 is git.
-ck approve "$(printf '%s\n' 'git commit -m "$(cat <<'"'"'EOF'"'"'' \
+ck none "$(printf '%s\n' 'git commit -m "$(cat <<'"'"'EOF'"'"'' \
   'claude: Rule 1e blocks environment dumps' '' \
   'env | grep -E LANG matched LANGCHAIN_API_KEY.' 'printenv' 'export -p' 'EOF' ')"')"
 

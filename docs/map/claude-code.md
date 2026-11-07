@@ -183,20 +183,27 @@ and, above it on `macos`, root-owned managed scope in
   the 2026-10-21 self-cut). Rule 1b — which
   blocked `deploy` and public-`#macos` activation while a private layer existed — was
   RETIRED 2026-09-15 with that layer.
+  **No objection is SILENCE, never `approve` (2026-11-07).** The allow path (`noObjection()`)
+  prints nothing; a nudge is a bare `systemMessage`. On `PreToolUse`, `approve` = `allow`,
+  which SKIPS the permission prompt for any command no rule matches (measured on 2.1.300; a
+  `permissions.ask` rule was NOT bypassed). Evidence: the `noObjection()` comment; contract:
+  `tests/guard-no-blanket-approve.sh`. `stop-gate.js` keeps `approve` (its header says why).
 - **`.claude/hooks/tests/*.sh`** — the case suites for every gate and the SessionStart
   digests (the directory is the list), **gated by
   `claude-config-lint.yml`**, a job the required `gate` needs (`cclint / Lint .claude
   config`) — it BLOCKS a merge, it does not merely run. Each asserts BOTH
-  halves — the shapes that must block and the shapes that must stay approved — and that the
-  hook does not throw. That last assertion is the load-bearing one: `superhook` and the
-  script's own `catch` both fail OPEN, so a crash silently disarms every rule at once. Measured
+  halves — the shapes that must block and the shapes that must stay un-objected (no decision) —
+  and that the hook does not throw. That last assertion is the load-bearing one: `superhook` and the
+  script's own `catch` both fail OPEN (to no decision), so a crash silently disarms every rule at once. Measured
   2026-09-15: retiring Rule 1b removed its constants but left the code referencing them, and
   the guard threw `ReferenceError` on every Bash call — approving everything, including the
   secret-egress and Cloudflare blocks — until these suites were wired into CI. Cases live in a
   FILE rather than an argv because they are execution-shaped by construction and would
   otherwise trip the very rule under test.
 - The Stop and Bash gates are wrapped by **`superhook`** (crash-safety + loop-breaking +
-  logging); `pretooluse-write-target.js` is not (it fails open on its own). It structurally CANNOT wrap `type: "prompt"`
+  logging). Since **1.1.0** (kattakath/skills#192) a crash or empty output yields NO decision
+  (before: a synthesized `approve`), and every `PreToolUse` block is KEPT — a repeated deny is
+  only logged `loop-detected`; loop-breaking is Stop-only; `pretooluse-write-target.js` is not (it fails open on its own). It structurally CANNOT wrap `type: "prompt"`
   hooks, which is why the remaining `Write|Edit` secret-detection gate in
   `.claude/settings.json` stays unsupervised prompt-based — that one is a genuine semantic
   judgment call, unlike the Bash gate's mostly-syntactic rules. Since 2026-11-02 it judges
