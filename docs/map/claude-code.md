@@ -192,9 +192,8 @@ and, above it on `macos`, root-owned managed scope in
   `strict` against JSDoc typedefs from `@anthropic-ai/claude-agent-sdk`. Types only: no runtime
   dependency. The SDK pin follows the `claude-code` pin — **bump both together** (pins and
   why: `packages/hook-types-node-modules.nix`). The editor's TypeScript LSP sees the SAME
-  tree through a gitignored, GC-rooted `.claude/hooks/node_modules` link, which `nix develop`
-  creates and refreshes; a session that never enters it runs `nix run .#link-hook-types` once
-  per checkout (and again after a pin bump, or the link shows the old types).
+  tree through a gitignored, GC-rooted `.claude/hooks/node_modules` link (`nix develop`, or
+  `nix run .#link-hook-types`; re-run after a pin bump).
 - **`.claude/hooks/tests/*.sh`** — the case suites for every gate and the SessionStart
   digests (the directory is the list), **gated by
   `claude-config-lint.yml`**, a job the required `gate` needs (`cclint / Lint .claude
@@ -300,7 +299,7 @@ Placed at `~/.claude/skills/<name>/` declaratively by `programs.claude-code.skil
 (`modules/home/default.nix`, darwin-gated) on `darwin-rebuild switch`. Since 2026-11-07 only the
 skills no plugin can serve remain here — unlicensed, or whose upstream plugin fails to load
 (PINNED `flake = false` inputs; each entry's comment there says which and why). Every other
-one moved to a plugin (Nix registers the marketplace, the plugin is enabled at runtime). anthropics/skills (`mcp-builder`,
+one moved to a plugin. anthropics/skills (`mcp-builder`,
 `webapp-testing`, `pdf`/`docx`/`pptx`/`xlsx`) is NOT an input any more, and its marketplace
 registration was dropped 2026-11-02 (it enabled no plugin); those skills reach sessions through
 the claude.ai account.
