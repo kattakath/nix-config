@@ -528,11 +528,7 @@ in
       "gnupg"
       "go"
       "graphviz"
-      # link = false → don't symlink into the brew prefix.
-      {
-        name = "hf";
-        link = false;
-      }
+      "hf"
       "imagemagick"
       "img2pdf"
       "kubernetes-cli"
