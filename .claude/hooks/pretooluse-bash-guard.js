@@ -23,7 +23,7 @@
  * FIX: port the same 4 rules to plain string/regex parsing (deterministic, near
  * -instant, fully unit-testable) and route through superhook.js — which already
  * lists "PreToolUse" in its DECISION_EVENTS set and already knows how to parse a
- * `{"decision":"block"|"approve"}` payload from an inner command hook (proven
+ * `{"decision":"block"}` payload from an inner command hook (proven
  * today by the Stop -> stop-gate.js wiring) — so a mis-firing/looping guard here
  * gets the exact same crash-safety and 3-strikes loop-breaker Stop already has,
  * which the old prompt hook structurally could never get.
@@ -36,8 +36,8 @@
  * nixpi), Rule 1e (dumping the environment, which holds the ambient Keychain
  * secrets), Rule 1f (a decrypted-secret PATH in any command's words), Rule 1g
  * (a nudge: deploying nixpi over the tunnel without `--hostname`), Rule 2
- * (Cloudflare docs fetches) and Rule 4 (default approve, plus any
- * accumulated nudges). Rule 3 was REMOVED 2026-10-07 (see below); its number
+ * (Cloudflare docs fetches) and Rule 4 (no objection — NO decision, plus any
+ * accumulated nudges as a bare `systemMessage`). Rule 3 was REMOVED 2026-10-07 (see below); its number
  * is left unused so the removal stays legible. Rule 1b was added after
  * the port and retired 2026-09-15 (see below). Numbers and letters are frozen
  * once assigned — a retired one is never reused — so every rule keeps the name
@@ -144,9 +144,11 @@
  *
  * THIS HOOK IS NOT THE ONLY LAYER, AND MUST NOT BE (2026-09-06 audit). It runs
  * wrapped by superhook.js, whose FIRST job is crash safety: if this script
- * throws, times out, or exits non-zero, superhook emits `{"decision":"approve"}`
- * so the session is never wedged. That is right for a guard whose job is mostly
- * nudges, and it is exactly why a crash is a SILENT DISARM of every rule at once.
+ * throws, times out, or exits non-zero, superhook (1.1.0+, kattakath/skills#192)
+ * emits NO decision, so the call falls back to the normal permission flow and the
+ * session is never wedged. (Before 1.1.0 it synthesized `{"decision":"approve"}`,
+ * which on PreToolUse is an allow.) Either way a crash is a SILENT DISARM of
+ * every rule here at once.
  * Measured 2026-09-15: retiring Rule 1b removed its constants but left the code
  * referencing them, and this file threw ReferenceError on EVERY Bash call —
  * approving everything, including the secret-egress block — with no gate noticing.
@@ -155,14 +157,17 @@
  * does not throw. Add a case there with every rule change.
  *
  * Contract (superhook.js, NOT the raw Claude Code hook protocol, since this
- * always runs wrapped): always exit 0; stdout is ONE of three shapes:
- *   `{"decision":"approve"}` (optionally with a `systemMessage` nudge),
+ * always runs wrapped): always exit 0; stdout is ONE of four shapes:
+ *   EMPTY — no objection (noObjection below); the permission flow decides,
+ *   `{"systemMessage":"..."}` — no objection plus a nudge, still NO decision,
  *   `{"decision":"block","reason":"...","systemMessage":"..."}`, or
  *   `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask",
  *     "permissionDecisionReason":"..."}}` (emitAsk below).
- * superhook.js re-emits approve/block (or loop-breaks a repeated block) for the
- * harness, and passes the ask shape through unchanged — its loop breaker counts
- * only blocks, so an ask never trips it.
+ * It NEVER emits `approve`/`allow`: that would skip the permission prompt for
+ * every command no rule matched (measured — see noObjection). superhook 1.1.0
+ * passes every shape through unchanged and keeps every PreToolUse block (a
+ * repeated identical block is only logged as `loop-detected`; loop-breaking is
+ * Stop-only), and an empty output stays empty.
  *
  * Input: hook JSON on stdin — tool_input.command.
  */
@@ -201,7 +206,7 @@ const RULE1_TERRANIX_APPLY_BLOCKING = false; // see 2026-09-22 POLICY CHANGE abo
 // this enforces — "ALWAYS *-plan first — every stack has one".
 //
 // Over-match is bounded: the name must END at `-apply` (`.#x-apply-foo` does not
-// match), the segment must RUN `nix run`, and a match only nudges (approve).
+// match), the segment must RUN `nix run`, and a match only nudges (no decision).
 // A future non-terranix `*-apply` app would get the generic nudge, no worst case.
 //
 // Every wrapper has a REFUSING guard, so the nudge's claim holds for all of them;
@@ -736,8 +741,25 @@ const isCloudflareApiHost = (h) => /^(api\.cloudflare\.com|[^.]+\.[^.]*\bapi\.cl
 const isCloudflareDocsHost = (h) => /(^|\.)developers\.cloudflare\.com$/i.test(h);
 
 function emit(decision, reason, systemMessage) {
-  const payload = decision === "block" ? { decision, reason, systemMessage: systemMessage || reason } : { decision };
-  process.stdout.write(JSON.stringify(payload));
+  if (decision !== "block") throw new Error(`emit() only blocks; got ${decision} (use noObjection)`);
+  process.stdout.write(JSON.stringify({ decision, reason, systemMessage: systemMessage || reason }));
+  process.exit(0);
+}
+
+// NO OBJECTION is SILENCE, never `approve` (2026-11-07). On PreToolUse the
+// deprecated `decision: "approve"` maps to `permissionDecision: "allow"`, and an
+// allow SKIPS the permission prompt (https://code.claude.com/docs/en/hooks —
+// PreToolUse decision control). Exit 0 with no output "has no decision to report,
+// so the tool call continues through the normal permission flow" (same page). So
+// a guard that only ever objects must say nothing when it has no objection, or it
+// grants permission for every command no rule matched. Measured 2026-11-07 on
+// 2.1.300 (`claude -p`, default mode, a scratch project with no allow rule):
+// `touch` with a silent hook was DENIED (no one to answer the prompt); with
+// `{"decision":"approve"}` it RAN. An ask rule was NOT bypassed by either approve
+// or allow (both denied, as the docs say ask/deny rules are evaluated regardless).
+// A nudge is `systemMessage` alone: measured, it grants nothing (denied likewise).
+function noObjection(systemMessage) {
+  if (systemMessage) process.stdout.write(JSON.stringify({ systemMessage }));
   process.exit(0);
 }
 
@@ -925,7 +947,7 @@ function unwrap(segment) {
   // Every branch below strictly SHORTENS s, so this terminates on its own. The
   // explicit bound is belt-and-braces against a future branch that consumes
   // nothing: a hang here is worse than a throw, since a throw at least fails
-  // OPEN immediately (superhook re-emits approve) instead of stalling the turn.
+  // OPEN immediately (to the normal permission flow) instead of stalling the turn.
   // 256 is far past any real command and costs nothing (measured: a 200k-char
   // argument decides in well under a second). A wrapper stack DEEPER than that
   // is not peeled — and is also not the failure this rule is for, which is "a
@@ -1002,10 +1024,10 @@ function main() {
   try {
     payload = JSON.parse(stdin);
   } catch {
-    emit("approve");
+    noObjection();
   }
   const cmd = String((payload.tool_input && payload.tool_input.command) || "");
-  if (!cmd.trim()) emit("approve");
+  if (!cmd.trim()) noObjection();
 
   // Computed once for the wrangler check (Rule 1) — argv0() strips path prefixes, so
   // `/opt/homebrew/bin/wrangler` and `./wrangler` are caught the same as a
@@ -1213,12 +1235,9 @@ function main() {
   // Do not re-add a nudge toward an MCP file/process tool from here. Going through
   // one bypasses this hook, and the rule numbering keeps the gap visible on purpose.
 
-  // ---- Rule 4: default approve (with any accumulated non-blocking nudges) ----
-  if (nudges.length) {
-    process.stdout.write(JSON.stringify({ decision: "approve", systemMessage: nudges.join(" | ") }));
-    process.exit(0);
-  }
-  emit("approve");
+  // ---- Rule 4: no objection — silence, plus any accumulated nudges ----
+  // NOT an approve: see noObjection(). The normal permission flow decides.
+  noObjection(nudges.length ? nudges.join(" | ") : undefined);
 }
 
 // Test seam: print the parsed path lists, so the suite asserts the parse against
@@ -1233,6 +1252,7 @@ try {
 } catch (e) {
   // Never let a bug here wedge the session — superhook.js also crash-safes this,
   // but fail open locally too.
-  process.stdout.write(JSON.stringify({ decision: "approve", systemMessage: `pretooluse-bash-guard error (ignored): ${String(e && e.message)}` }));
+  // No decision: a crash falls back to the normal permission flow, never to allow.
+  process.stdout.write(JSON.stringify({ systemMessage: `pretooluse-bash-guard error (ignored): ${String(e && e.message)}` }));
   process.exit(0);
 }

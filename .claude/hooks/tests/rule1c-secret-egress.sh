@@ -10,7 +10,7 @@ raw() {
   python3 -c 'import json,sys;print(json.dumps({"tool_input":{"command":sys.argv[1]}}))' "$1" \
     | node "$H" 2>/dev/null
 }
-decide() { raw "$1" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("decision","?"))' 2>/dev/null; }
+decide() { raw "$1" | python3 -c 'import json,sys;s=sys.stdin.read();d=json.loads(s) if s.strip() else {};print(d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision") or "none")' 2>/dev/null; }
 ck() { # ck <want> <cmd>
   got="$(decide "$2")"
   if [ "$got" = "$1" ]; then printf '  ok    %-8s %s\n' "$got" "$2"; pass=$((pass+1))
@@ -18,7 +18,7 @@ ck() { # ck <want> <cmd>
 }
 
 # A THROW is not visible in `decision` alone: the file's own catch-all emits
-# {"decision":"approve"} with a "pretooluse-bash-guard error (ignored)" message,
+# {"systemMessage":"pretooluse-bash-guard error (ignored): ..."} with no decision,
 # so a crashed guard is indistinguishable from a healthy approval unless the
 # systemMessage is read. That exact silent disarm happened on 2026-09-15. So
 # nothrow() asserts a real decision AND the absence of that marker — the shape
@@ -26,15 +26,18 @@ ck() { # ck <want> <cmd>
 nothrow() { # nothrow <label> <cmd>
   got="$(raw "$2" | python3 -c '
 import json, sys
+s = sys.stdin.read()
+if not s.strip():
+    print("none"); raise SystemExit  # silence = no objection, the healthy allow path
 try:
-    d = json.load(sys.stdin)
+    d = json.loads(s)
 except Exception:
     print("NO-JSON"); raise SystemExit
 msg = d.get("systemMessage") or ""
-print("THREW" if "error (ignored)" in msg else (d.get("decision") or "NO-DECISION"))
+print("THREW" if "error (ignored)" in msg else (d.get("decision") or d.get("hookSpecificOutput",{}).get("permissionDecision") or "none"))
 ' 2>/dev/null)"
   case "$got" in
-    approve | block) printf '  ok    %-8s %s\n' "$got" "$1"; pass=$((pass + 1)) ;;
+    none | block | ask) printf '  ok    %-8s %s\n' "$got" "$1"; pass=$((pass + 1)) ;;
     *) printf '  FAIL  %-8s %s\n' "$got" "$1"; fail=$((fail + 1)) ;;
   esac
 }
@@ -107,19 +110,19 @@ ck block 'sh -c "security find-generic-password -s K -w"'
 
 echo "== must APPROVE: an ESCAPED pipe is a regex alternation, not a pipe =="
 # A grep alternation blocked a search for this rule's own call sites.
-ck approve "grep -rn 'secret get \|secret reveal ' ."
-ck approve "rg 'foo\|secret reveal' docs/"
+ck none "grep -rn 'secret get \|secret reveal ' ."
+ck none "rg 'foo\|secret reveal' docs/"
 
 echo "== must APPROVE (text about it, or a non-printing verb) =="
-ck approve 'git commit -m "secret reveal is the printing verb"'
-ck approve "grep -rn 'secret reveal' docs/"
-ck approve 'echo "use secret reveal only as a last resort"'
-ck approve 'secret copy K'
-ck approve 'secret fp K'
-ck approve 'secret exec K -- glab auth status'
-ck approve 'secret ls --long'
-ck approve 'pbpaste | secret set K'
-ck approve 'security find-generic-password -s K'
+ck none 'git commit -m "secret reveal is the printing verb"'
+ck none "grep -rn 'secret reveal' docs/"
+ck none 'echo "use secret reveal only as a last resort"'
+ck none 'secret copy K'
+ck none 'secret fp K'
+ck none 'secret exec K -- glab auth status'
+ck none 'secret ls --long'
+ck none 'pbpaste | secret set K'
+ck none 'security find-generic-password -s K'
 
 echo "== must APPROVE: a SEARCH whose own pattern names this rule =="
 # The exact class that broke this rule twice — it blocked its own commit, then
@@ -129,35 +132,35 @@ echo "== must APPROVE: a SEARCH whose own pattern names this rule =="
 # its argument. `git ls-files | xargs grep` is the shape this repo actually
 # writes, because a bare `grep -r` triples counts here (.claude/worktrees/ holds
 # full file copies).
-ck approve 'grep -rn "secret reveal" .claude/hooks/pretooluse-bash-guard.js'
-ck approve 'git grep -n "secret reveal"'
-ck approve 'git ls-files | xargs grep -n "secret reveal"'
-ck approve 'git ls-files | xargs rg "security find-generic-password"'
-ck approve 'xargs -n 1 grep -l "secret reveal"'
+ck none 'grep -rn "secret reveal" .claude/hooks/pretooluse-bash-guard.js'
+ck none 'git grep -n "secret reveal"'
+ck none 'git ls-files | xargs grep -n "secret reveal"'
+ck none 'git ls-files | xargs rg "security find-generic-password"'
+ck none 'xargs -n 1 grep -l "secret reveal"'
 # Editing, staging and committing the hook itself, and reading the rule's lines.
-ck approve 'git add .claude/hooks/pretooluse-bash-guard.js'
-ck approve 'git commit -m "claude: make secret reveal detection survive a wrapper prefix"'
-ck approve 'sed -n "250,300p" .claude/hooks/pretooluse-bash-guard.js'
+ck none 'git add .claude/hooks/pretooluse-bash-guard.js'
+ck none 'git commit -m "claude: make secret reveal detection survive a wrapper prefix"'
+ck none 'sed -n "250,300p" .claude/hooks/pretooluse-bash-guard.js'
 
 echo "== must APPROVE: a \`secret\` subcommand that prints NO value =="
 # `secret copy` is the SANCTIONED handover shape — it hands the value to the
 # human via a concealed pasteboard, and the block message recommends it by name.
 # Blocking it would break the approved workflow, so a wrapper in front of a
 # non-printing verb must not promote it either.
-ck approve 'secret set K'
-ck approve 'secret ls'
-ck approve 'secret rm K'
-ck approve 'secret bind K'
-ck approve 'secret unbind K'
-ck approve 'sudo secret set K'
-ck approve 'timeout 5 secret copy K'
-ck approve 'xargs secret copy'
-ck approve 'command -v secret'
+ck none 'secret set K'
+ck none 'secret ls'
+ck none 'secret rm K'
+ck none 'secret bind K'
+ck none 'secret unbind K'
+ck none 'sudo secret set K'
+ck none 'timeout 5 secret copy K'
+ck none 'xargs secret copy'
+ck none 'command -v secret'
 
 echo "== must APPROVE: security(1) WITHOUT -w/-g prints attributes, not the value =="
-ck approve 'sudo security find-generic-password -a x -s K'
-ck approve 'security find-internet-password -s example.com'
-ck approve 'security list-keychains'
+ck none 'sudo security find-generic-password -a x -s K'
+ck none 'security find-internet-password -s example.com'
+ck none 'security list-keychains'
 
 echo "== malformed input must still DECIDE, and must not THROW (a throw fails OPEN) =="
 # The peel loop and the payload unwrap are new parsing, and parsing is where a
