@@ -646,12 +646,16 @@ in
       # INSTALLED record) then `brew untap` the old tap, and let the next
       # activation reinstall from the new tap. Nothing declarative can do this; brew's
       # `cleanup` untaps only AFTER the install that was already aborting.
-      # After a reinstall/upgrade, Auto Discover says "No connectable devices found" and QR
-      # pairing spins forever. Escrcpy's discovery is in-app mDNS (bonjour-service in its
-      # renderer), so macOS Local Network privacy gates it, and that grant is keyed to the
-      # adhoc signature, which every reinstall replaces, while Settings still shows it ON
-      # (measured 2026-10-25: Dock launch found nothing, terminal launch found the phone).
-      # Fix: Privacy & Security > Local Network > Escrcpy OFF then ON, then relaunch.
+      # Auto Discover ("No connectable devices found") and QR pairing (spins forever) FAIL
+      # when Escrcpy is opened from the Dock/Spotlight, and WORK when its binary is run from
+      # a terminal. Its discovery is in-app mDNS (bonjour-service in the renderer), not adb.
+      # Measured 2026-11-07 on a pristine reinstall: the phone's announcements reach en0
+      # (tcpdump) and the renderer holds UDP 5353, yet it receives nothing — macOS drops the
+      # multicast per process, with no prompt, no logged denial, and NO Escrcpy entry under
+      # Privacy & Security > Local Network (so there is no toggle to flip). Re-signing per
+      # viarotel-org/escrcpy#642 and adding NSLocalNetworkUsageDescription/NSBonjourServices
+      # did not change it. Workarounds: pair with the 6-digit code (Escrcpy runs `adb pair`,
+      # no mDNS), or `android-phone pair`, or launch the binary from a terminal.
       {
         name = "viarotel-org/escrcpy/escrcpy";
         postinstall = "/usr/bin/xattr -dr com.apple.quarantine /Applications/Escrcpy.app";
