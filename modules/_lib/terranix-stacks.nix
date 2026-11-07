@@ -22,7 +22,6 @@ let
     "hc-checks"
     "grafana"
     "github"
-    "gcp-workspace-mcp"
   ];
 in
 {
