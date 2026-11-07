@@ -220,8 +220,7 @@ Declares `nixpi`'s **remotely-managed** Cloudflare Tunnel itself (the file is th
   is not tidiness: that object **vanished once, on 2026-08-20**, and took `ssh` plus both deploy
   legs down with it. Declared, a rebuild restores the gate instead of a dashboard click.
 
-Zones with no terranix module here (aloshy.ai, etuper.com, a client zone) are
-still configured out-of-band, so none of the above applies to them.
+What stays out-of-band, and why: [ADR-005 §10](../iac-coverage-adr.md).
 
 A pure function of its `hostedSites`/`domainName`/`accountId`/`zoneId` module args (same
 shape/default as `mkNixos`); `cf-tunnel-plan`/`cf-tunnel-apply` pass the fleet's real

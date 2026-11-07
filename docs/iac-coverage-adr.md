@@ -380,3 +380,18 @@ removed it — the exception that shows this generalises, and the first half of 
 - It does not automate Workspace. That is 3.3, and it is a decision, not a gap.
 - It does not touch the Access/tunnel/MCP objects — those are **already** fully declarative, and
   the cheapest way to break working IaC is to re-import it.
+
+## 10. What stays out of IaC, by design (census 2026-11-07)
+
+A full live census of both Cloudflare accounts and the `kattakath-family` GCP project, taken
+after the day's rollbacks and adoptions. Every object a live system uses is now declared,
+except these. A future census that finds one of them is **not** drift.
+
+| Object | Why it stays out |
+|---|---|
+| Every zone except `kattakath.com` | §3.1: ownership. Deliberately not listed here, for the same reason |
+| Cloudflare App Launcher, the default Gateway DNS location, the two default Gateway rules, the default device profile | Cloudflare-owned defaults. The default location cannot be deleted (API error 1217) and nothing resolves through it |
+| GCP OAuth clients and the consent screen | No Terraform resource exists |
+| GCP baseline APIs and log buckets, the operator's `owner` / `billing.admin` grants | Google defaults; managing the operator's own grants risks a self-lockout |
+| Secret Manager `fleet-*` secrets | Owned by keychain-secrets `secrets-push` (ADR-004) |
+| Workspace domain-wide delegation | §3.3: Admin console only |
