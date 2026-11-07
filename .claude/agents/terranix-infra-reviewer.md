@@ -95,9 +95,9 @@ renders the same set, gated by `checks.<system>.hosts-documented`). Every stack 
   already gone" (measured 2026-10-02, twice). `nix eval` throws instead of lying. Never read an
   exit code through a pipe (`cmd | tail` reports `tail`'s status).
 - **Only `cf-tunnel` has a `-destroy` app.** `cf-zones` has none because teardown deletes every
-  record, mail included. `cf-access-org` has none for the opposite reason: the provider's Delete
-  is an empty function, so `tofu destroy` only DETACHES state — the safest move when an apply
-  looks wrong. `hc-checks` has none because it would silence every alarm at once.
+  record, mail included. `cf-access-org` has none either: the organisation's Delete is an empty
+  function (a destroy only DETACHES it), but the Google IdP's is a REAL delete that ends every
+  Access login — it carries `prevent_destroy`, so a destroy or replace fails at plan. `hc-checks` has none because it would silence every alarm at once.
 - **Imports:** `cf-tunnel-import` (run FIRST when adopting the Access policy) and
   `cf-access-org-import`. The grafana and github stacks adopt through `import` blocks instead.
 - **Planning by hand in a state dir is forbidden** — that wrong-CWD pattern lost this fleet's
