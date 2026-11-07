@@ -440,15 +440,7 @@ let
       }
       {
         source = "github";
-        repo = "cloudflare/*";
-      }
-      {
-        source = "github";
         repo = "trailofbits/*";
-      }
-      {
-        source = "github";
-        repo = "apify/*";
       }
 
       # Every git-source marketplace modules/home/default.nix declares, spelled

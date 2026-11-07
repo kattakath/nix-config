@@ -663,8 +663,8 @@ in
 
               fieldList = f: lib.concatStringsSep ", " f;
 
-              # `alwaysOnNames` in modules/home/claude-plugins.nix, as the ids it resolves
-              # to (sorted, so `==` against `attrNames` is a set comparison). Written out
+              # `alwaysOnIds` in modules/home/claude-plugins.nix (sorted, so `==`
+              # against `attrNames` is a set comparison). Written out
               # rather than read back: the check pins what a consumer MUST get, and a
               # change to the floor should have to change this line on purpose.
               consumerPluginFloor = [
