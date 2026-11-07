@@ -859,12 +859,6 @@ in
         "harvest"
         # Remove a literal that must not be public from a public repo's history (kattakath/skills#101).
         "history-scrub"
-        # GTD on eight Google Workspace apps — Tasks + Calendar, daily shutdown, drafted
-        # Friday review, employer as a free/busy adapter, no alarms (kattakath/skills#102).
-        "workspace-gtd"
-        # Its dependency: the Google Workspace MCP server (Tasks + Chat here), auto-installed
-        # with workspace-gtd and declared below so its settings have a home.
-        "google-workspace-mcp"
         "jsonresume-tailor"
         # Render PDFs whose text layer ATS parsers read in order: Typst + PDF/UA-1, one column,
         # a multi-reader check (kattakath/skills#167).
@@ -1056,12 +1050,6 @@ in
     # Harvested 2026-10-26 after the third public-history scrub in a week; declared
     # here so it is LOADED, not just catalogued — the failure the block above records.
     "history-scrub@kattakath" = true;
-
-    # The operator's work-life system (2026-10-27). Declared, not clicked, because it
-    # is life-wide: every session in every repo must load it, and a fresh Mac must too.
-    # It moved here from agentic-nomad, whose rules only load inside that repo.
-    "workspace-gtd@kattakath" = true;
-    "google-workspace-mcp@kattakath" = true;
 
     # desktop-commander: the OFFICIAL plugin since 2026-11-01 (operator: official only, risk
     # accepted — upstream runs it unpinned `@latest`, with no Seatbelt fence and no guard hook,
@@ -1477,19 +1465,6 @@ in
       # NOTE: editing any of these in the Claude UI won't persist — a rebuild
       # reverts them; change them HERE instead.
       settings = {
-        # google-workspace-mcp's settings, declared (they lived in the operator's private overlay
-        # repo until it was deleted 2026-11-01: the fleet keeps only public repos). Nothing here
-        # is a secret: `credential_command` reads the OAuth client from the login Keychain at
-        # launch, and the account is the fleet's own Workspace identity.
-        pluginConfigs."google-workspace-mcp@kattakath".options = lib.mkIf isMacosHost {
-          tools = "tasks,chat";
-          email = derivedNames.googleAccount {
-            loginName = config.home.username;
-            inherit domainName;
-          };
-          credential_command = "secret exec GOOGLE_OAUTH_CLIENT_ID=GMAIL_OAUTH_CLIENT_ID GOOGLE_OAUTH_CLIENT_SECRET=GMAIL_OAUTH_CLIENT_SECRET --";
-        };
-
         # ONE owner per stdio MCP server (2026-11-01). Claude Code never dedups stdio servers,
         # so two plugins naming the same server both spawn it. A NAME deny drops just that
         # server: the plugin's skills and hooks still load, and the name survives the plugin's
