@@ -107,8 +107,9 @@ only the operator's PRs.
 
 - **Darwin is out of the queue.** `gate` does not need the darwin leg; it runs advisory on PRs
   only, with no post-merge belt (operator decision).
-- **No `push: main` CI.** The merge-group commit is the commit `main` gets, so it is validated
-  before the merge rather than after.
+- **`push: main` CI too, since 2026-11-07.** The operator's changes land by direct push, so
+  nix-ci also runs on every push to `main` and reports after it lands. A queued PR's
+  merge-group commit is still validated before the merge, then once more on the push.
 - **No environment-scoped Cachix token, on purpose.** A fork PR that edits workflow YAML which
   then runs with secrets in `merge_group` is the same exposure as merging that PR, since the
   merged YAML would run with secrets on push anyway — the maintainer's review before enqueue is
@@ -280,7 +281,8 @@ gh api repos/kattakath/<repo>/rulesets/<id> --jq '{bypass: .bypass_actors, pr: (
 
 ## Cost today
 
-**One heavy CI run per PR, in the queue.** The PR itself runs `gate` (seconds) and the
+**One heavy CI run per direct push to `main`, and two per bot or fork PR** (one in the queue,
+one on the push it lands as). The PR itself runs `gate` (seconds) and the
 advisory darwin leg; the measured numbers are in §3. `build-installers.yml` remains
 deliberately **not** gated — its non-cancellable runs have no business gating a merge.
 
