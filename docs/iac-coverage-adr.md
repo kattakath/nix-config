@@ -394,6 +394,8 @@ finds one is **not** drift.
 |---|---|
 | Every zone except `kattakath.com` | §3.1: ownership. Deliberately not listed, for the same reason |
 | GCP OAuth clients and the consent screen | No Terraform resource exists |
-| The `_Required` log bucket | Google-locked |
 | Secret Manager `fleet-*` secrets | Their source of truth is the login Keychain; `secrets-push` owns the copy (ADR-004) |
 | Workspace domain-wide delegation | §3.3: Admin console only, no maintained provider |
+
+Not a gap: the `_Required` log bucket. Google creates it, locked, in every project, so a
+rebuilt project has it with no declaration.
