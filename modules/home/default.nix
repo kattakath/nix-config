@@ -617,8 +617,8 @@ in
     # WHY NOT THE flake.lock PIN it used until 2026-09-23. A store path is a
     # `directory` marketplace, which Claude Code never refreshes, so every plugin
     # edit needed a pin bump here plus an activation. Plugins are runtime-owned
-    # content (ADR-003 §1.4); this repo declares WHICH marketplace and WHICH
-    # plugins, the remote decides what they contain. ADR-003 §10 records that
+    # content (ADR-003 §1.4); this repo declares WHICH marketplace;
+    # the remote decides what it contains. ADR-003 §10 records that
     # this moves the version decision out of flake.lock for plugins.
     #
     # The `kattakath-skills` flake input still exists, for ONE PATH package built
@@ -634,10 +634,10 @@ in
       autoUpdate = true;
     };
 
-    # ---- UPSTREAM marketplaces (some of their repos are also pinned as skill inputs)
+    # ---- UPSTREAM marketplaces
     # (added 2026-09-30, kattakath/nix-config#650) -----------------------------
     #
-    # These upstream repos (some of them also pinned as `agent-skills-*` inputs) publish their
+    # These upstream repos publish their
     # OWN .claude-plugin/marketplace.json. Declaring those marketplaces is the
     # off-the-shelf route to the same content: the upstream owns the packaging, the
     # skill set, and the release discipline, and this repo stops cherry-picking
@@ -674,10 +674,10 @@ in
       source = lib.mkDefault "https://github.com/trailofbits/skills.git";
     };
 
-    # Upstream marketplaces that replace cherry-picked `agent-skills-*` skills (2026-11-07,
-    # operator: Nix registers, the plugin is enabled at runtime). Both MIT. Accepted cost:
-    # each plugin is the WHOLE bundle — fullstack-dev-skills ships 67 skills (we used
-    # postgres-pro), automating-mac-apps 16 skills + 9 agents + 10 commands.
+    # Upstream marketplace that replaces a cherry-picked `agent-skills-*` skill (2026-11-07,
+    # operator: Nix registers, the plugin is enabled at runtime). MIT. Accepted cost:
+    # the plugin is the WHOLE bundle — fullstack-dev-skills ships 67 skills (we used
+    # postgres-pro).
     fullstack-dev-skills = {
       source = lib.mkDefault "https://github.com/Jeffallan/claude-skills.git";
     };
@@ -1147,10 +1147,11 @@ in
       # them — nothing vendored. (Repo-SPECIFIC skills stay in .claude/skills/ and
       # activate only when working in this repo.)
       skills = {
-        # ONLY the two skills whose upstream ships NO licence, so neither a marketplace nor
-        # kattakath/skills can carry them (2026-11-07). Every other skill comes from a plugin:
+        # ONLY skills no plugin can serve: unlicensed, so neither a marketplace nor
+        # kattakath/skills can carry them (2026-11-07), or whose plugin fails to load (each
+        # entry says which). Every other skill comes from a plugin:
         # superpowers@synced (systematic-debugging, verification-before-completion),
-        # fullstack-dev-skills (postgres-pro), automating-mac-apps, and kattakath's job-search
+        # fullstack-dev-skills (postgres-pro), and kattakath's job-search
         # and vercel-workflow. find-skills was dropped: capability-broker covers discovery.
         # NO plugin-dev / hookify entries either: those ship as claude.ai-synced plugins.
         #
