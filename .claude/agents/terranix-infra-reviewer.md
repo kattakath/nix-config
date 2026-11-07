@@ -4,7 +4,7 @@ description: >-
   Review and PLAN (never apply) changes under infra/ — the terranix
   (Nix → OpenTofu/Terraform JSON) stacks that manage this fleet's Cloudflare
   Tunnel + ingress, kattakath.com DNS (mail included), the Zero Trust
-  organisation, the GCP foundation + billing budget + workspace-mcp Cloud Run service, the healthchecks.io
+  organisation, the GCP foundation + billing budget, the healthchecks.io
   heartbeat checks, the Grafana Cloud stack and the fleet repos' GitHub rulesets
   and Actions variables. (A former stack,
   `mcp-public`, was destroyed and deleted 2026-10-02 with the MCP gateway.) Use

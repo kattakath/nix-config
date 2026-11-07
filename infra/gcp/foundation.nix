@@ -62,21 +62,6 @@ let
     "searchconsole.googleapis.com" =
       "kattakath.com search analytics, URL inspection and sitemap submit, called with operator ADC";
     "pagespeedonline.googleapis.com" = "PageSpeed Insights / Core Web Vitals checks for kattakath.com";
-    "siteverification.googleapis.com" =
-      "kattakath.com domain ownership, declared in infra/gcp/workspace-mcp.nix";
-    "run.googleapis.com" = "the workspace-mcp Cloud Run service (infra/gcp/workspace-mcp.nix)";
-    "artifactregistry.googleapis.com" =
-      "the ghcr.io pull-through repo workspace-mcp's image comes from";
-    "tasks.googleapis.com" = "Google Tasks, which workspace-mcp's tools call";
-    "chat.googleapis.com" = "Google Chat, which workspace-mcp's tools call";
-    "gmail.googleapis.com" = "Gmail, via workspace-mcp (replaces the official connector)";
-    "drive.googleapis.com" = "Drive, via workspace-mcp";
-    "calendar-json.googleapis.com" = "Calendar, via workspace-mcp";
-    "docs.googleapis.com" = "Docs, via workspace-mcp";
-    "slides.googleapis.com" = "Slides, via workspace-mcp";
-    "forms.googleapis.com" = "Forms, via workspace-mcp";
-    "people.googleapis.com" = "Contacts (People API), via workspace-mcp";
-    "script.googleapis.com" = "Apps Script, via workspace-mcp";
   };
 in
 {
@@ -119,8 +104,8 @@ in
 
   # ---- Default service accounts: no Editor ----------------------------------
   # Google grants the default compute SA roles/editor on the whole project. Nothing
-  # here uses it (Compute, Cloud Build, App Engine and Functions are all off;
-  # workspace-mcp runs as its own SA), so it was project-wide write power held by an
+  # here uses it (Compute, Cloud Build, App Engine and Functions are all off), so
+  # it was project-wide write power held by an
   # identity no workload needs. NOT `google_project_default_service_accounts`
   # (DEPRIVILEGE): it finds default SAs by DISPLAY NAME ("compute engine default
   # service account", pdsa.go), and this one is named "Default compute service
