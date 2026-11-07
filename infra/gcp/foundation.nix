@@ -59,6 +59,9 @@ let
       "Workload Identity Federation token exchange for the Grafana rollup (ADR-011 step 11)";
     "sheets.googleapis.com" =
       "the rollup writes, and Grafana reads, the history Sheet (ADR-011 step 11)";
+    "searchconsole.googleapis.com" =
+      "kattakath.com search analytics, URL inspection and sitemap submit, called with operator ADC";
+    "pagespeedonline.googleapis.com" = "PageSpeed Insights / Core Web Vitals checks for kattakath.com";
   };
 in
 {
