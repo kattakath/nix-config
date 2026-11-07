@@ -135,8 +135,9 @@ and ast-grep structural-lint gates). Run it before declaring any change done —
 evaluates on one system can still break the other.
 
 - Two-system coverage is mandatory for LOCAL verification: `aarch64-darwin` and `aarch64-linux`.
-- CI (`nix-ci.yml`) gates LINUX only, in the merge queue; darwin is ADVISORY on
-  PRs (runs, never gates). Details: [`docs/map/ci.md`](docs/map/ci.md).
+- CI (`nix-ci.yml`) runs the LINUX suite on every push to `main` (the default lane) and in
+  the merge queue (bot PRs); darwin runs only on PRs, so `activate` is the darwin check.
+  Details: [`docs/map/ci.md`](docs/map/ci.md).
 - **Never report a config as passing on a system only CI evaluated.** If `nix` is unavailable
   locally, validate syntax with `nix-instantiate --parse` and say the rest is CI-deferred. The
   SessionStart hook reports which mode you're in.
@@ -193,10 +194,10 @@ copy self-updates). Why:
 
 **Rules** (`.claude/rules/`; `pr-title` + `landing-changes` are unscoped, the rest load by `paths:`):
 [`git-purity`](.claude/rules/git-purity.md) (stage `.nix` before eval),
-[`pr-title`](.claude/rules/pr-title.md) (title = comma-separated touched components; one PR per
-change, off `main` or its unmerged parent PR),
-[`landing-changes`](.claude/rules/landing-changes.md) (watch CI in the BACKGROUND, never
-in-turn; docs/`.claude`-only changes may push to `main` after the local gate),
+[`pr-title`](.claude/rules/pr-title.md) (commit subject = comma-separated touched components;
+one commit per change; a PR only for bots, forks or on request),
+[`landing-changes`](.claude/rules/landing-changes.md) (direct push to `main` after the leak
+gates; the `ci-watch` plugin reports only failures; this repo's local checks and traps),
 [`launchd-naming`](.claude/rules/launchd-naming.md) (every launchd unit exposes a `nix-<kebab>`
 `arg0` — never a bare `sh`/`python3`),
 [`upstream-first`](.claude/rules/upstream-first.md) (grep the **pinned** input's option surface

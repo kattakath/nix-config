@@ -272,7 +272,7 @@ If `nix` unavailable: `nix-instantiate --parse` on changed `.nix` + state CI-def
 | Delete dead code and experiment comments | Drive-by renames across the monorepo |
 | Gate host-only agents with `isMacosHost` | Add options "for later" |
 | Update runbook + skill together | Leave CLAUDE.md lists stale |
-| One logical commit, one PR per change | Silent behavior change without note |
+| One logical commit per change (pushed to `main`) | Silent behavior change without note |
 
 **Breaking host behavior** (e.g. removing an agent): say so in the report; prefer `mkIf` off over surprise removal.
 

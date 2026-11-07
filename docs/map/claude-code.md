@@ -129,10 +129,10 @@ file's `paths:` frontmatter is the source of truth.
   or a top-level dot-folder with its dot stripped). Also states the default shape: **one PR per
   change, branched off `main`**. A DEPENDENT change branches off
   its unmerged parent as a DRAFT, or folds into the parent's PR — it never waits for the merge.
-- [`landing-changes.md`](../../.claude/rules/landing-changes.md) — how a change LANDS. Never poll
-  CI inside a turn: one background watch, reporting only RED or "merged, needs activate". And
-  the direct-push lane: a docs/`.claude`-only change may go straight to `main` after a local
-  gate — which paths qualify and the gate are in its § 2. Evidence:
+- [`landing-changes.md`](../../.claude/rules/landing-changes.md) — how a change LANDS: a
+  direct push to `main` after the leak gates, with the `ci-watch` plugin reporting only
+  failures. Holds this repo's local checks and traps. The procedure itself is in the global
+  `claude/CLAUDE.md` § Landing on the fleet. Evidence:
   [`pr-wait-research.md`](../pr-wait-research.md).
 - [`launchd-naming.md`](../../.claude/rules/launchd-naming.md) — every launchd unit this repo
   authors must expose a `nix-<kebab>` `arg0` basename (never a bare `sh`/`python3`); documents
