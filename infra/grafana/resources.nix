@@ -176,6 +176,9 @@ let
         {
           datasource_uid = datasource;
           model = builtins.toJSON (model // { refId = "A"; });
+          # Grafana copies the model's queryType onto the query; undeclared, every plan
+          # shows `query_type = "promQL" -> null` (measured 2026-11-07). null = unset.
+          query_type = model.queryType or null;
           ref_id = "A";
           relative_time_range = [
             {
