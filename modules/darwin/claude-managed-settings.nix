@@ -469,15 +469,7 @@ let
       }
       {
         source = "git";
-        url = "https://github.com/cloudflare/skills.git";
-      }
-      {
-        source = "git";
         url = "https://github.com/trailofbits/skills.git";
-      }
-      {
-        source = "git";
-        url = "https://github.com/apify/apify-claude-code-plugin.git";
       }
 
       # The store-path marketplace, and the ~/.claude/skills/ auto-load.

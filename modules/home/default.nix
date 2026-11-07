@@ -961,18 +961,7 @@ in
     # .claude-plugin/marketplace.json, fetched and read 2026-09-30 — NOT the repo or
     # org name. `idsOf` in ./claude-plugins.nix derives the plugin id as
     # "<plugin>@<key>", so a guessed key silently resolves nothing.
-    #   cloudflare/skills     -> "cloudflare"                 (1 plugin)
     #   trailofbits/skills    -> "trailofbits"                (44 plugins)
-
-    # OFFICIAL Cloudflare (Apache-2.0). One plugin, `cloudflare`, carrying the whole product
-    # reference (incl. `cloudflare`, `cloudflare-one`). Catalogued, declared, seen in a
-    # session, and its former skills-only flake input removed (2026-11-01). It was live before as `cloudflare@synced`
-    # (claude.ai account sync); a same-named plugin from a declared marketplace SHADOWS the
-    # synced copy rather than doubling it (`claude plugin list`).
-    cloudflare = {
-      source = lib.mkDefault "https://github.com/cloudflare/skills.git";
-      plugins = [ "cloudflare" ];
-    };
 
     # Trail of Bits (CC-BY-SA-4.0), no flake input. 44 plugins. See the licence note above — share-alike is a
     # positive reason to consume this as a marketplace rather than vendor it.
@@ -1012,11 +1001,6 @@ in
     # #753 added the name to the catalogue and enabled NOTHING. This line is what
     # #753 meant.
     "silent-instruments@kattakath" = true;
-
-    # Same-named as the claude.ai-synced copy, which this one hides rather than doubles
-    # (the declared copy takes precedence over the `@synced` one — `claude plugin list`'s
-    # shadow note, measured 2026-11-01).
-    "cloudflare@cloudflare" = true;
 
     # Clicked toggles do not survive a fresh Mac; these four were absent or click-only (2026-10-02).
     "prior-art-recon@kattakath" = true;
@@ -1610,8 +1594,7 @@ in
         # ---- Tool-driver skills: each pairs with an MCP server / connector this
         # fleet already runs (see flake.nix `agent-skills-*` inputs). Additive,
         # git-pinned, bumped via `nix flake update`. ----
-        # Cloudflare's skills come from the declared `cloudflare@cloudflare` plugin (the
-        # `cloudflare` marketplace above), not a flake input: one upstream.
+        # Cloudflare's skills come from the claude.ai-synced `cloudflare` plugin, not a flake input.
         # The Anthropic skills (mcp-builder, webapp-testing, pdf/docx/pptx/xlsx) are NOT
         # here. Their heavy runtime deps still live in this repo: pandoc + poppler from nixpkgs
         # (home.packages above), LibreOffice/soffice from the macos-only Homebrew cask
