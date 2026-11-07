@@ -189,6 +189,7 @@ let
             inherit domainName hostedSites;
             accountId = cloudflareAccountId;
             zoneId = cloudflareZoneId;
+            accessIdpId = accessOrg.googleIdp.id;
             # The operator's Workspace account, as the DELIVERY ADDRESS for this
             # stack's incoming `cloudflare_notification_policy`
             # (alert_type = "tunnel_health_event"). A notification policy carries
@@ -559,7 +560,8 @@ let
         {
           _module.args = {
             accountId = cloudflareAccountId;
-            inherit (accessOrg) authDomain loginDesign;
+            inherit (accessOrg) authDomain loginDesign googleIdp;
+            inherit domainName;
             orgName = accessOrg.name;
           };
         }
