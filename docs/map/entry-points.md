@@ -227,7 +227,7 @@ Two things the check does that a naive `ast-grep scan` would not:
   per rule, so a typo'd pattern fails loudly instead of passing vacuously.
 
 **Honest limits.** ast-grep parses the Nix AST, so it *cannot* lint shell embedded in a
-`writeShellScriptBin` / `runCommand` string body (25 `.nix` files) — only the Nix around it.
+`writeShellScriptBin` / `runCommand` / `writeShellApplication` string body — only the Nix around it.
 Workflow-YAML security lint is also deliberately out of scope: treefmt-nix already ships
 `programs.zizmor` for exactly that, and reinventing it as hand-written ast-grep patterns would
 be strictly worse.

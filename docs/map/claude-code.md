@@ -124,11 +124,11 @@ Subagents routes to it.
 file's `paths:` frontmatter is the source of truth.
 
 - [`git-purity.md`](../../.claude/rules/git-purity.md) — stage `.nix` files before eval.
-- [`pr-title.md`](../../.claude/rules/pr-title.md) — a PR title is the comma-separated list of the
-  components the change touches (first-level `nix flake show` output category for flake outputs,
-  or a top-level dot-folder with its dot stripped). Also states the default shape: **one PR per
-  change, branched off `main`**. A DEPENDENT change branches off
-  its unmerged parent as a DRAFT, or folds into the parent's PR — it never waits for the merge.
+- [`pr-title.md`](../../.claude/rules/pr-title.md) — a commit subject (and the rare PR title) is
+  the comma-separated list of the components the change touches (first-level `nix flake show`
+  output category for flake outputs, or a top-level dot-folder with its dot stripped). Also
+  states the default shape: **one commit per change, pushed to `main`**; a PR only for bots,
+  forks, on request, or a change that needs `build-darwin` first.
 - [`landing-changes.md`](../../.claude/rules/landing-changes.md) — how a change LANDS: a
   direct push to `main` after the leak gates, with the `ci-watch` plugin reporting only
   failures. Holds this repo's local checks and traps. The procedure itself is in the global

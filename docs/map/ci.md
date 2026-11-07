@@ -43,7 +43,7 @@ is [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md)):
 
 | Job | Gated by `gate`? | Runs on | Hosts evaluated |
 |---|---|---|---|
-| `legs`, `build (aarch64-linux)`, `gitleaks`, `cclint` | yes — the HEAVY jobs | merge queue + fork PRs + dispatch (own PRs too while `QUEUE_ENABLED` is off) | linux: **every** host, macos included |
+| `legs`, `build (aarch64-linux)`, `gitleaks`, `cclint` | yes — the HEAVY jobs | push to `main` + merge queue + fork PRs + dispatch (own PRs too while `QUEUE_ENABLED` is off) | linux: **every** host, macos included |
 | `build (aarch64-darwin, advisory)` | never — nothing `needs` it | PRs only | macos |
 
 - **`gate` asserts each needed job ended EXACTLY as the event expects** — `success` where it

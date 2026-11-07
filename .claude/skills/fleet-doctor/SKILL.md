@@ -149,8 +149,9 @@ gh pr list --repo <owner>/<repo> --state open   # ${repo#github.com/} of a manif
   --json number,title,isDraft,mergeStateStatus,statusCheckRollup,autoMergeRequest
 ```
 
-Multiple open PRs are **normal** — each change gets its own PR, and the merge queue lands them
-([`auto-merge-and-merge-queue.md`](../../../docs/auto-merge-and-merge-queue.md) §3).
+Operator changes land by direct push (global `claude/CLAUDE.md` § Landing on the fleet), so an
+open PR is a bot's, a fork's, or one the operator asked for. Several at once are still normal:
+the merge queue lands them ([`auto-merge-and-merge-queue.md`](../../../docs/auto-merge-and-merge-queue.md) §3).
 
 Findings are: a PR whose title doesn't follow
 [`pr-title.md`](../../rules/pr-title.md), a stale PR with no activity, one

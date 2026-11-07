@@ -217,7 +217,8 @@ Smaller, single-purpose CLIs:
   both in [`modules-darwin.md`](modules-darwin.md); and `doctor-report.nix` (the doctors'
   output validator, and with `weekly` the weekly Desktop task's entry point, [`engine.md`](engine.md) § `doctors.nix`;
   the decisions are ADR-013 § 6 and § 13); and `link-hook-types.nix` (the `link-hook-types`
-  app that gives editors the hook-types check's `node_modules`, [`claude-code.md`](claude-code.md)).
+  app that gives editors the hook-types check's `node_modules`) and `hook-types-node-modules.nix`
+  (that one `node_modules` tree, shared by the check and the app), both in [`claude-code.md`](claude-code.md).
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
 

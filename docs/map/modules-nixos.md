@@ -354,7 +354,8 @@ flake, and never imported by path from the host.
 
 Uses upstream `services.caddy.virtualHosts` directly (in `hosts/nixpi.nix`), **no wrapper
 module**: one `http://<domain>` vhost per `mkNixos`'s `hostedSites` parameter, each
-`file_server`ing its `root`. `hostedSites` still defaults to `[ ]` (the parameter stays generic),
+`file_server`ing its `root` — a directory under `sites/` (a path literal, so the whole tree lands
+in the LIVE closure; `.claude/rules/store-copied-trees.md`). `hostedSites` still defaults to `[ ]` (the parameter stays generic),
 but `modules/parts/hosts.nix`'s own `nixpi` call passes the real list directly
 (`config.fleet.hostedSites`, `modules/parts/identity.nix`) since the private [redacted] flake
 that used to supply it was retired 2026-09-15. It is **one site** today — `snoringirl.com` —

@@ -2,9 +2,9 @@
 
 > One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, two NixOS VMs, and a prebuilt devcontainer.
 
-<!-- CI. nix-ci runs only on PRs and in the merge queue (not on push to main), so its badge
-     follows merge_group runs; GitHub's own badge would freeze at the last push-to-main run. -->
-[![nix-ci merge queue](https://img.shields.io/github/actions/workflow/status/kattakath/nix-config/nix-ci.yml?event=merge_group&label=nix-ci%20merge%20queue)](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml?query=event%3Amerge_group)
+<!-- CI. nix-ci runs on every push to main (the default landing lane), so its badge follows
+     push runs on main. -->
+[![nix-ci](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml/badge.svg?branch=main&event=push)](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml?query=branch%3Amain+event%3Apush)
 [![gitleaks](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml)
 [![warm-nixpi-cache](https://github.com/kattakath/nix-config/actions/workflows/warm-nixpi-cache.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/warm-nixpi-cache.yml)
 [![build-devcontainer](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml/badge.svg)](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml)
@@ -207,7 +207,7 @@ CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)): 
 - [`build-devcontainer`](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch (arm64 + amd64) devcontainer image to GHCR as a manifest list.
 - [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixpi` SD image to a rolling pre-release.
 - [`warm-nixpi-cache`](https://github.com/kattakath/nix-config/actions/workflows/warm-nixpi-cache.yml) builds the `nixpi` toplevel on a native arm runner and pushes it to Cachix on every change to its closure, so the Pi only ever downloads and never builds.
-- [`gitleaks`](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml) scans the full history for leaked secrets as `nix-ci`'s `gitleaks` job, which `gate` requires — so on every merge-queue entry and every fork PR (an in-repo PR is scanned when it enters the queue) — plus weekly and on dispatch. It no longer runs on push to `main` (since #1036). The **gitleaks badge** above shows only the weekly scheduled run; the gating runs report under `nix-ci`.
+- [`gitleaks`](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml) scans the full history for leaked secrets as `nix-ci`'s `gitleaks` job, which `gate` requires — so on every push to `main`, every merge-queue entry and every fork PR — plus weekly and on dispatch. The **gitleaks badge** above shows only the weekly scheduled run; the gating runs report under `nix-ci`.
 - [`flakehub-publish`](https://github.com/kattakath/nix-config/actions/workflows/flakehub-publish.yml) publishes each push to `main` as a rolling release to [FlakeHub](https://flakehub.com/flake/kattakath/nix-config) via [`flakehub-push`](https://github.com/DeterminateSystems/flakehub-push). Auth is OIDC (`id-token: write`) — no long-lived token. Per FlakeHub's [trusted-platform model](https://docs.determinate.systems/flakehub/publishing/), flakes publish only from CI, never ad-hoc from a laptop.
 
 ## Monitoring
