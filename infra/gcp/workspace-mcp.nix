@@ -67,11 +67,13 @@ let
       "http://localhost:*/callback"
     ];
     # Every Google service upstream ships, replacing the official claude.ai Google
-    # connectors. `extended` = 87 tools (measured from upstream tool_tiers.yaml at
-    # 2.3.0): the official connectors' feature set without the batch/admin extras
-    # `complete` adds (119), which every routine would otherwise load.
+    # connectors (`search` is out: Custom Search JSON API is closed to new
+    # customers). `complete` = 119 tools, NOT `extended` (87): Tasks has no extended
+    # tools, so `extended` drops list_task_lists/get_task_list/manage_task_list
+    # (measured: a routine could not list task lists). The tier is global, and
+    # routines load tools on demand via ToolSearch, so the extra 32 cost little.
     TOOLS = "gmail drive calendar docs sheets slides forms chat tasks contacts appscript";
-    WORKSPACE_MCP_TOOL_TIER = "extended";
+    WORKSPACE_MCP_TOOL_TIER = "complete";
   };
 
   # Env var -> Secret Manager secret id. Values are added out of band (clipboard ->
