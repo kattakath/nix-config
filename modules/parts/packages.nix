@@ -90,6 +90,13 @@ in
           # flake.nix `kattakath-skills`.
           pageLabSrc = "${inputs.kattakath-skills}/plugins/page-lab";
         };
+
+        # The hook scripts' type-check tree, and the link that shows it to an editor.
+        # ONE tree: checks.<system>.hook-types and the devShell read these same two.
+        hook-types-node-modules = pkgs.callPackage ../../packages/hook-types-node-modules.nix { };
+        link-hook-types = pkgs.callPackage ../../packages/link-hook-types.nix {
+          hookTypesNodeModules = config.packages.hook-types-node-modules;
+        };
       }
       // lib.optionalAttrs (system == "aarch64-linux") {
         # The LIVE nixpi SD image (not a separate installer): prebuilt in CI
@@ -255,7 +262,16 @@ in
         }
       );
 
-      apps = lib.optionalAttrs isDarwin {
+      apps = {
+        # `nix run .#link-hook-types` — for a session that never enters `nix develop`
+        # (whose shellHook runs the same binary). Every system: the devShell is.
+        link-hook-types = {
+          type = "app";
+          program = "${config.packages.link-hook-types}/bin/link-hook-types";
+          meta.description = "Link .claude/hooks/node_modules (GC-rooted) to the store tree checks.<system>.hook-types uses, so the editor's TypeScript LSP sees CI's types";
+        };
+      }
+      // lib.optionalAttrs isDarwin {
         # `nix run .#nixvm` — build the build-vm variant and boot it in a native
         # macOS QEMU window: an UNPROVISIONED, HEADLESS dev VM (no installed disk,
         # no partitioning) whose Nix STORE is rebuilt per boot but whose ROOT — so

@@ -191,7 +191,10 @@ and, above it on `macos`, root-owned managed scope in
 - **`.claude/hooks/tsconfig.json`** — `checks.<system>.hook-types` type-checks every hook
   `strict` against JSDoc typedefs from `@anthropic-ai/claude-agent-sdk`. Types only: no runtime
   dependency. The SDK pin follows the `claude-code` pin — **bump both together** (pins and
-  why: the check's header).
+  why: `packages/hook-types-node-modules.nix`). The editor's TypeScript LSP sees the SAME
+  tree through a gitignored, GC-rooted `.claude/hooks/node_modules` link, which `nix develop`
+  creates and refreshes; a session that never enters it runs `nix run .#link-hook-types` once
+  per checkout (and again after a pin bump, or the link shows the old types).
 - **`.claude/hooks/tests/*.sh`** — the case suites for every gate and the SessionStart
   digests (the directory is the list), **gated by
   `claude-config-lint.yml`**, a job the required `gate` needs (`cclint / Lint .claude

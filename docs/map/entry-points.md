@@ -100,6 +100,7 @@ CLAUDE.md § Overview and [`hosts.md`](hosts.md).
 | `jobspy` | yes |  |
 | `jsonresume` | yes |  |
 | `launchd-doctor` | yes |  |
+| `link-hook-types` | yes | yes |
 | `macos` | yes |  |
 | `nixos-vm` | yes |  |
 | `nixpi-flash` | yes |  |

@@ -14,6 +14,10 @@
 # file — keep it ignored so `git add -A` can never sweep it into history.
 .claude/hooks/pretooluse.log
 
+# The hook type-check tree's GC-rooted link (packages/link-hook-types.nix) — a
+# /nix/store symlink for the editor's TypeScript LSP, never source.
+.claude/hooks/node_modules
+
 # routing-review.md state (events themselves live outside the repo, under
 # ~/.local/state/claude-otel/ — see modules/home/claude-otel.nix)
 .claude/hooks/.routing-review-state.json
