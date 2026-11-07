@@ -234,6 +234,14 @@ in
           shellHook = ''
             echo "nix-config devShell ready on ${system} — run 'nix fmt' before committing (pre-commit auto-install disabled: .git is shared with a Nix-less host; CI enforces the gate)"
 
+            # ---- the editor's view of the hook types -----------------------------
+            # Links .claude/hooks/node_modules (gitignored, GC-rooted) to the store tree
+            # checks.<system>.hook-types type-checks against, so the TypeScript LSP
+            # reports what CI reports. Idempotent; refreshes on a pin bump. Not a git
+            # hook, so the no-installed-hooks rule below is untouched. Non-fatal: a
+            # failure here must never stop the shell. See packages/link-hook-types.nix.
+            ${lib.getExe config.packages.link-hook-types} || true
+
             # ---- gcloud: scope THIS repo to its own account + project -----------
             # CLOUDSDK_CONFIG, deliberately NOT CLOUDSDK_ACTIVE_CONFIG_NAME.
             #
