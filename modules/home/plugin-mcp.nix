@@ -4,8 +4,8 @@
 # (modules/shared/mcp.nix, deleted 2026-10-02). Most of its servers had a plugin owner already and
 # went home with it; three CREDENTIALED ones did not, and the operator chose to keep the
 # capability rather than let it go dark. The third, `apify`, left on 2026-10-26 for Apify's
-# OFFICIAL plugin — hosted mcp.apify.com with in-client OAuth, so it needs no launcher (see
-# the `apify` marketplace in modules/home/default.nix). The two that remain:
+# OFFICIAL plugin — hosted mcp.apify.com with in-client OAuth, so it needs no launcher (installed
+# from claude.ai and account-synced since 2026-11-07, not declared here). The two that remain:
 #
 #   wordpress   site administration over the WP REST API against the operator's PROD site
 #   postgres    the LOCAL pgvector RAG store (NOT a hosted Postgres; the Neon connector
