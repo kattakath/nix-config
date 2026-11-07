@@ -391,8 +391,8 @@ any file in any flake. Today the source is the https URL, so neither trap applie
 
 `modules/home/claude-plugins.nix` contributes only the **declaration** for this marketplace:
 its `extraKnownMarketplaces` entry (`{ source = "git"; url = …; autoUpdate = true; }`) and the
-`<plugin>@kattakath` keys of `enabledPlugins` — only for the always-on set and the ids
-`local.claudePlugins.declared` names, never one per catalogue entry (the `enabledPlugins`
+`<plugin>@kattakath` keys of `enabledPlugins` — only for the always-on set, never one per
+catalogue entry (the `enabledPlugins`
 comment in that file says why). It does **not** register or install them — the
 `home.activation.claudeCodePlugins` script skips every https marketplace and serves exactly ONE
 today (`xai-grok-build`); Claude Code clones and downloads this one itself at session start.
@@ -476,9 +476,8 @@ The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`.
 Adding one = a `plugins/<name>/` tree
 and a `marketplace.json` entry **in that repo**, then its bare name in
 `local.claudePlugins.marketplaces.kattakath.plugins` here. That list is a **catalogue** and
-enables nothing (the #751 trap): turning the plugin on takes `"<name>@kattakath" = true` in
-`local.claudePlugins.declared` ([`ADR-008`](../declarative-plugin-floor-adr.md) §9a), or a
-`/plugin` toggle. **No pin bump:** a change to an
+enables nothing (the #751 trap): turning the plugin on is a
+`/plugin` toggle (runtime state; ADR-008's `declared` lane was retired 2026-11-07). **No pin bump:** a change to an
 already-enabled plugin ships from a merge there. Validate with `claude plugin validate .`.
 
 **A SECOND source costs one input and its own entries — no new mechanism.**

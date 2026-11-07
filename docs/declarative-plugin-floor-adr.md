@@ -1,7 +1,8 @@
 # ADR-008 — A declarative plugin floor: `enabledPlugins` in VCS, ad-hoc on top
 
-**Status:** **Partially accepted, 2026-10-02.** The `declared` lane of §6 is **IMPLEMENTED**
-(`local.claudePlugins.declared`); the `assured` lane is **still proposed and unmeasured**. The
+**Status:** **`declared` lane RETIRED 2026-11-07** (operator: Nix registers marketplaces; plugin
+state is runtime, set in `/plugin` or on claude.ai). It was **IMPLEMENTED** 2026-10-02 as
+(`local.claudePlugins.declared`) and removed with its 27 ids; the `assured` lane is **still proposed and unmeasured**. The
 document was written to be approved before any Nix, at the operator's instruction, and §9a
 records which of §7's open questions the implemented half had to answer and which it sidesteps
 by not touching managed settings at all.
