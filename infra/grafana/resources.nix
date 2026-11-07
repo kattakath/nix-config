@@ -47,6 +47,100 @@ let
     )
   );
 
+  # ---- Google Maps Platform usage, read on demand from Cloud Monitoring ----
+  # Datasource `gcp-monitoring` (stock `stackdriver` plugin) queries the project's Cloud
+  # Monitoring with PromQL, so none of this costs a Grafana series. Every Maps Platform API
+  # reports `serviceruntime.googleapis.com/api/request_count` on the `consumed_api` resource;
+  # the `*-backend` services are the legacy Maps web services (geocoding-, places-,
+  # directions-, distance-matrix-, elevation-, timezone-, maps-, static-maps-backend), the
+  # rest are the newer Maps APIs. Windows are FIXED ([10m], [1d], [30d]): `$__interval`
+  # does not reach alert evaluation, which runs in the backend.
+  mapsDatasource = "gcp-monitoring";
+  mapsServiceRe = builtins.concatStringsSep "|" [
+    ".*-backend\\\\.googleapis\\\\.com"
+    "places\\\\.googleapis\\\\.com"
+    "routes\\\\.googleapis\\\\.com"
+    "addressvalidation\\\\.googleapis\\\\.com"
+    "geolocation\\\\.googleapis\\\\.com"
+    "roads\\\\.googleapis\\\\.com"
+  ];
+  mapsReq =
+    extra:
+    ''serviceruntime_googleapis_com:api_request_count{monitored_resource="consumed_api",service=~"${mapsServiceRe}"${extra}}'';
+  geocodeSel = ''monitored_resource="consumed_api",service="geocoding-backend.googleapis.com"'';
+  # quota_limit is written sparsely, so a bare selector is stale (empty) most of the time
+  # (measured 2026-11-07); last_over_time over a day always finds the latest value.
+  geocodeDailyLimit = ''max(last_over_time(serviceruntime_googleapis_com:quota_limit{monitored_resource="consumer_quota",service="geocoding-backend.googleapis.com",limit_name="BillableDefaultPerDayPerProject"}[1d]))'';
+  # Geocoding is an Essentials SKU: 10,000 free calls a month, then 5 USD per 1,000
+  # (https://developers.google.com/maps/billing-and-pricing/pricing, since 2025-03-01).
+  # The 300/day quota in infra/gcp/foundation.nix keeps a 31-day month at 9,300.
+  geocodeFreePerMonth = 10000;
+  geocodeUsdPerCall = 0.005;
+  mapsQuery = expr: {
+    queryType = "promQL";
+    promQLQuery = {
+      projectName = gcpProjectId;
+      inherit expr;
+      step = "60s";
+    };
+  };
+  mapsTarget =
+    refId: expr:
+    (mapsQuery expr)
+    // {
+      datasource = {
+        type = "stackdriver";
+        uid = mapsDatasource;
+      };
+      inherit refId;
+    };
+  mapsPanel =
+    {
+      title,
+      type,
+      description,
+      gridPos,
+      targets,
+      unit ? "none",
+      thresholds ? null,
+      extraDefaults ? { },
+      options ? { },
+    }:
+    {
+      datasource = {
+        type = "stackdriver";
+        uid = mapsDatasource;
+      };
+      inherit
+        title
+        type
+        description
+        gridPos
+        targets
+        options
+        ;
+      fieldConfig = {
+        defaults = {
+          inherit unit;
+          min = 0;
+        }
+        // extraDefaults
+        // (
+          if thresholds == null then
+            { }
+          else
+            {
+              color.mode = "thresholds";
+              thresholds = {
+                mode = "absolute";
+                steps = thresholds;
+              };
+            }
+        );
+        overrides = [ ];
+      };
+    };
+
   # One Grafana-managed rule in the generated rules' exact shape (query A, threshold C),
   # so a new rule is its distinct fields only. Explicit uids keep the plan free of churn.
   mkRule =
@@ -55,7 +149,7 @@ let
       name,
       summary,
       description,
-      expr,
+      expr ? null,
       op,
       threshold,
       for,
@@ -63,18 +157,25 @@ let
       rangeSeconds ? 86400,
       datasource ? "grafanacloud-prom",
       repeat ? "1d",
+      # The query model; a non-Prometheus datasource passes its own shape here.
+      model ? {
+        inherit expr;
+        instant = true;
+      },
+      # Insert a reduce node B (last value) between A and the threshold. Needed by a
+      # datasource whose backend only answers range queries: the stackdriver plugin calls
+      # query_range alone, and Grafana refuses to alert on a series that is not reduced.
+      reduce ? false,
     }:
+    # The default model with no expr would render `"expr": null` and evaluate nothing.
+    assert (model.expr or "") != null;
     {
       annotations = { inherit description summary; };
       condition = "C";
       data = [
         {
           datasource_uid = datasource;
-          model = builtins.toJSON {
-            inherit expr;
-            instant = true;
-            refId = "A";
-          };
+          model = builtins.toJSON (model // { refId = "A"; });
           ref_id = "A";
           relative_time_range = [
             {
@@ -83,6 +184,27 @@ let
             }
           ];
         }
+      ]
+      ++ builtins.filter (_: reduce) [
+        {
+          datasource_uid = "__expr__";
+          model = builtins.toJSON {
+            expression = "A";
+            reducer = "last";
+            refId = "B";
+            settings.mode = "dropNN";
+            type = "reduce";
+          };
+          ref_id = "B";
+          relative_time_range = [
+            {
+              from = 0;
+              to = 0;
+            }
+          ];
+        }
+      ]
+      ++ [
         {
           datasource_uid = "__expr__";
           model = builtins.toJSON {
@@ -94,7 +216,7 @@ let
                 };
               }
             ];
-            expression = "A";
+            expression = if reduce then "B" else "A";
             refId = "C";
             type = "threshold";
           };
@@ -543,8 +665,214 @@ in
       message = null;
       overwrite = null;
     };
+    maps_platform = {
+      config_json = builtins.toJSON {
+        editable = true;
+        graphTooltip = 1;
+        links = [ ];
+        panels = [
+          {
+            gridPos = {
+              h = 3;
+              w = 24;
+              x = 0;
+              y = 0;
+            };
+            options = {
+              content = "Google Maps Platform calls in GCP project **${gcpProjectId}**, read live from Cloud Monitoring (`serviceruntime.googleapis.com/api/request_count` on `consumed_api`) by the `gcp-monitoring` datasource: no Grafana series are stored. Geocoding is capped at its daily quota (infra/gcp/foundation.nix), which keeps a month under the 10,000 free calls, so the cost panel should read 0. Rolling 24 h windows do not line up with the quota's reset at midnight Pacific time.";
+              mode = "markdown";
+            };
+            title = "About";
+            type = "text";
+          }
+          (mapsPanel {
+            title = "Geocoding: last 24 h vs daily quota";
+            type = "gauge";
+            description = "Rolling 24 h geocoding requests as a share of the BillableDefaultPerDayPerProject quota limit, read live from Cloud Monitoring.";
+            gridPos = {
+              h = 6;
+              w = 6;
+              x = 0;
+              y = 3;
+            };
+            unit = "percentunit";
+            extraDefaults.max = 1;
+            thresholds = [
+              {
+                color = "green";
+                value = null;
+              }
+              {
+                color = "orange";
+                value = 0.8;
+              }
+              {
+                color = "red";
+                value = 0.95;
+              }
+            ];
+            targets = [
+              (mapsTarget "A" "sum(increase(serviceruntime_googleapis_com:api_request_count{${geocodeSel}}[1d])) / ${geocodeDailyLimit}")
+            ];
+            options.reduceOptions.calcs = [ "lastNotNull" ];
+          })
+          (mapsPanel {
+            title = "Maps requests, last 24 h";
+            type = "stat";
+            description = "All Maps Platform APIs, rolling 24 h.";
+            gridPos = {
+              h = 6;
+              w = 6;
+              x = 6;
+              y = 3;
+            };
+            targets = [ (mapsTarget "A" "sum(increase(${mapsReq ""}[1d]))") ];
+            options.reduceOptions.calcs = [ "lastNotNull" ];
+          })
+          (mapsPanel {
+            title = "Geocoding, last 30 days vs free tier";
+            type = "gauge";
+            description = "Rolling 30 days approximates the billing month. ${toString geocodeFreePerMonth} Essentials calls a month are free.";
+            gridPos = {
+              h = 6;
+              w = 6;
+              x = 12;
+              y = 3;
+            };
+            extraDefaults.max = geocodeFreePerMonth;
+            thresholds = [
+              {
+                color = "green";
+                value = null;
+              }
+              {
+                color = "orange";
+                value = geocodeFreePerMonth * 0.8;
+              }
+              {
+                color = "red";
+                value = geocodeFreePerMonth;
+              }
+            ];
+            targets = [
+              (mapsTarget "A" "sum(increase(serviceruntime_googleapis_com:api_request_count{${geocodeSel}}[30d]))")
+            ];
+            options.reduceOptions.calcs = [ "lastNotNull" ];
+          })
+          (mapsPanel {
+            title = "Geocoding: estimated cost, last 30 days";
+            type = "stat";
+            description = "max(0, calls - ${toString geocodeFreePerMonth}) x ${toString geocodeUsdPerCall} USD. An estimate from request counts, not the bill; the 5 CAD budget (infra/gcp/budget.nix) is the billing-side alert.";
+            gridPos = {
+              h = 6;
+              w = 6;
+              x = 18;
+              y = 3;
+            };
+            unit = "currencyUSD";
+            thresholds = [
+              {
+                color = "green";
+                value = null;
+              }
+              {
+                color = "red";
+                value = 0.01;
+              }
+            ];
+            targets = [
+              (mapsTarget "A" "clamp_min(sum(increase(serviceruntime_googleapis_com:api_request_count{${geocodeSel}}[30d])) - ${toString geocodeFreePerMonth}, 0) * ${toString geocodeUsdPerCall}")
+            ];
+            options.reduceOptions.calcs = [ "lastNotNull" ];
+          })
+          (mapsPanel {
+            title = "Requests per minute by API, method and response class";
+            type = "timeseries";
+            description = "rate over 10 m, x 60.";
+            gridPos = {
+              h = 9;
+              w = 24;
+              x = 0;
+              y = 9;
+            };
+            unit = "reqpm";
+            targets = [
+              (mapsTarget "A" "sum by (service, method, response_code_class) (rate(${mapsReq ""}[10m])) * 60")
+            ];
+          })
+          (mapsPanel {
+            title = "Error ratio (non-2xx) by API";
+            type = "timeseries";
+            description = "Share of calls that did not return 2xx, over 1 h. A 429 here usually means the daily quota cap was hit.";
+            gridPos = {
+              h = 8;
+              w = 12;
+              x = 0;
+              y = 18;
+            };
+            unit = "percentunit";
+            targets = [
+              (mapsTarget "A" "sum by (service) (increase(${mapsReq '',response_code_class!="2xx"''}[1h])) / sum by (service) (increase(${mapsReq ""}[1h]))")
+            ];
+          })
+          (mapsPanel {
+            title = "Latency p50 / p95 by API";
+            type = "timeseries";
+            description = "serviceruntime request_latencies, as seen by Google's front end.";
+            gridPos = {
+              h = 8;
+              w = 12;
+              x = 12;
+              y = 18;
+            };
+            unit = "s";
+            targets = [
+              (mapsTarget "A" ''histogram_quantile(0.5, sum by (service, le) (rate(serviceruntime_googleapis_com:api_request_latencies_bucket{monitored_resource="consumed_api",service=~"${mapsServiceRe}"}[1h])))'')
+              (mapsTarget "B" ''histogram_quantile(0.95, sum by (service, le) (rate(serviceruntime_googleapis_com:api_request_latencies_bucket{monitored_resource="consumed_api",service=~"${mapsServiceRe}"}[1h])))'')
+            ];
+          })
+        ];
+        refresh = "";
+        schemaVersion = 42;
+        tags = [
+          "gcp"
+          "maps"
+        ];
+        templating.list = [ ];
+        time = {
+          from = "now-2d";
+          to = "now";
+        };
+        timezone = "browser";
+        title = "Google Maps Platform usage";
+        uid = "maps-platform";
+      };
+      folder = "fleet";
+      message = null;
+      overwrite = null;
+    };
   };
   grafana_data_source = {
+    # Cloud Monitoring, read-only, through the grafana-monitoring-reader service account
+    # (infra/gcp/foundation.nix). Its key exists only here, like fleet_history's.
+    gcp_monitoring = {
+      access_mode = "proxy";
+      basic_auth_enabled = false;
+      http_headers = null;
+      is_default = false;
+      json_data_encoded = builtins.toJSON {
+        authenticationType = "jwt";
+        clientEmail = "grafana-monitoring-reader@${gcpProjectId}.iam.gserviceaccount.com";
+        defaultProject = gcpProjectId;
+        tokenUri = "https://oauth2.googleapis.com/token";
+        universeDomain = "googleapis.com";
+      };
+      name = "Google Cloud Monitoring";
+      private_data_source_connect_network_id = null;
+      secure_json_data_encoded = null;
+      type = "stackdriver";
+      uid = mapsDatasource;
+    };
     fleet_history = {
       access_mode = "proxy";
       basic_auth_enabled = false;
@@ -604,6 +932,51 @@ in
     };
   };
   grafana_rule_group = {
+    maps_platform = {
+      disable_provenance = true;
+      folder_uid = "fleet";
+      interval_seconds = 60;
+      name = "maps-platform";
+      # The datasource is referenced by a uid string, which gives no implicit ordering.
+      depends_on = [ "grafana_data_source.gcp_monitoring" ];
+      rule = [
+        (mkRule {
+          uid = "maps-geocode-quota";
+          name = "Maps: geocoding near its daily quota";
+          summary = "Geocoding used {{ humanizePercentage $values.B.Value }} of its daily quota in the last 24 h";
+          description = "Rolling 24 h of geocoding-backend requests over the BillableDefaultPerDayPerProject limit (infra/gcp/foundation.nix). At 100% Google answers 429 until midnight Pacific; it cannot bill. Dashboard: maps-platform.";
+          datasource = mapsDatasource;
+          reduce = true;
+          model = mapsQuery "sum(increase(serviceruntime_googleapis_com:api_request_count{${geocodeSel}}[1d])) / ${geocodeDailyLimit}";
+          # The lookbacks live in the expression; the range only has to cover one step.
+          rangeSeconds = 300;
+          op = "gt";
+          threshold = 0.8;
+          for = "15m";
+          labels = {
+            domain = "gcp";
+            severity = "warning";
+          };
+        })
+        (mkRule {
+          uid = "maps-error-ratio";
+          name = "Maps: error ratio above 10%";
+          summary = "{{ humanizePercentage $values.B.Value }} of Maps Platform calls in the last hour were not 2xx";
+          description = "Non-2xx over all Maps Platform calls, 1 h window, only when there were at least 10 calls. 429 = quota cap hit, 403 = key restriction or API disabled. Dashboard: maps-platform.";
+          datasource = mapsDatasource;
+          reduce = true;
+          model = mapsQuery "(sum(increase(${mapsReq '',response_code_class!="2xx"''}[1h])) / sum(increase(${mapsReq ""}[1h]))) and on() (sum(increase(${mapsReq ""}[1h])) >= 10)";
+          rangeSeconds = 300;
+          op = "gt";
+          threshold = 0.1;
+          for = "10m";
+          labels = {
+            domain = "gcp";
+            severity = "warning";
+          };
+        })
+      ];
+    };
     career = {
       disable_provenance = true;
       folder_uid = "fleet";
