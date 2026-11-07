@@ -232,7 +232,6 @@ const TERRANIX_APPLY_WORST_CASE = {
   "hc-checks": "a render dropping a check DELETES its dead-man alarm, and silence reads as healthy",
   grafana: "a render dropping an object DELETES it in Grafana Cloud (alert rules, the contact point, a datasource whose key exists nowhere else)",
   github: "a dropped ruleset DELETES a fleet repo's branch protection, and a stale template pin rolls every ruleset back",
-  "gcp-workspace-mcp": "a dropped bucket or service DELETES every connected account's tokens and the claude.ai connector's backend",
 };
 
 // The DESTROY half of that family, split out 2026-09-22 so `apply` can relax

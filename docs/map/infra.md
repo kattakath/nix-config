@@ -11,7 +11,6 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `cf-access-org` | GCS `cf-access-org/` | `CLOUDFLARE_API_TOKEN` | **every Access app at once** (`auth_domain`) |
 | `gcp-budget` | GCS `gcp-budget/` | ADC | the spend ALERT (an alert, never a cap) |
 | `gcp-foundation` | **local** (still encrypted) | ADC | the bucket the others live in |
-| `gcp-workspace-mcp` | GCS `gcp-workspace-mcp/` | ADC | `workspace.kattakath.com` MCP + domain verification |
 | `hc-checks` | GCS `hc-checks/` | `HEALTHCHECKSIO_API_KEY` | the dead-man's-switch ALARMS; a quiet one reads as a healthy host |
 | `grafana` | GCS `grafana/` | `GRAFANA_AUTH` + `GRAFANA_SM_ACCESS_TOKEN` | Grafana alerting, datasources, dashboard, probe (ADR-011). A dropped datasource takes its key with it |
 | `github` | GCS `github/` | `GITHUB_TOKEN` | fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |
@@ -21,8 +20,9 @@ a `*-plan`). **Credentials:** a token is an env var `secret exec` fills from the
 without it prints the exact `nix develop -c secret exec …` line. ADC is
 `gcloud auth application-default login`, scoped by `nix develop`.
 
-> **`mcp-public` was DESTROYED 2026-10-02 — do not re-add a stack to publish MCP**: see
-> [`claude-code.md`](claude-code.md) § MCP after the gateway, and § The `mcp-public` teardown below.
+> **A FORMER stack, `mcp-public`, was DESTROYED AND DELETED on 2026-10-02** (65 objects, its
+> apps and state with it). **Do not re-add a stack to publish MCP** — [`claude-code.md`](claude-code.md)
+> § MCP after the gateway says what replaced it; § The `mcp-public` teardown below has the record.
 
 Every provider VERSION is pinned exactly in one file, `infra/provider-pins.nix`; each stack keeps
 its own `source` address (changing a source is a `tofu state replace-provider`, not a bump). Its

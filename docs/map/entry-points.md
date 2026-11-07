@@ -90,8 +90,6 @@ CLAUDE.md § Overview and [`hosts.md`](hosts.md).
 | `gcp-budget-plan` | yes | yes |
 | `gcp-foundation-apply` | yes | yes |
 | `gcp-foundation-plan` | yes | yes |
-| `gcp-workspace-mcp-apply` | yes | yes |
-| `gcp-workspace-mcp-plan` | yes | yes |
 | `github-apply` | yes | yes |
 | `github-plan` | yes | yes |
 | `gmail-filters` | yes |  |

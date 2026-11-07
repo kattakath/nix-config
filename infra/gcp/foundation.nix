@@ -62,13 +62,6 @@ let
     "searchconsole.googleapis.com" =
       "kattakath.com search analytics, URL inspection and sitemap submit, called with operator ADC";
     "pagespeedonline.googleapis.com" = "PageSpeed Insights / Core Web Vitals checks for kattakath.com";
-    "siteverification.googleapis.com" =
-      "kattakath.com domain ownership, declared in infra/gcp/workspace-mcp.nix";
-    "run.googleapis.com" = "the workspace-mcp Cloud Run service (infra/gcp/workspace-mcp.nix)";
-    "artifactregistry.googleapis.com" =
-      "the ghcr.io pull-through repo workspace-mcp's image comes from";
-    "tasks.googleapis.com" = "Google Tasks, which workspace-mcp's tools call";
-    "chat.googleapis.com" = "Google Chat, which workspace-mcp's tools call";
   };
 in
 {
