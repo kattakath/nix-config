@@ -180,7 +180,7 @@ belongs where:
 |---|---|---|
 | `cf-tunnel` | nixpi's tunnel, ingress, hosted-site DNS + zone settings | Breaking it takes the Pi offline |
 | ~~`mcp-public`~~ | ~~the published MCP gateway, portal, Access, service token~~ | **DELETED 2026-10-02** — destroyed, not merely unmanaged. Do not re-add a stack to publish MCP |
-| `cf-zones` **(new)** | `kattakath.com` DNS records not owned above, the `mta-sts` Worker | Breaking it takes **mail** down |
+| `cf-zones` **(new)** | `kattakath.com` DNS records not owned above (the `mta-sts` Worker it once planned to own was deleted 2026-11-07) | Breaking it takes **mail** down |
 | `cf-access-org` **(added 2026-09-22)** | the Zero Trust organisation: `auth_domain` + the login page's branding | Breaking it locks **every** Access application at once |
 
 Mail is the argument for the third stack. `MX`, DKIM, DMARC and MTA-STS records are the highest
