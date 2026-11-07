@@ -804,6 +804,14 @@ in
       # uv: the same PREREQUISITE shape, for an enabled plugin whose `.mcp.json`
       # names bare `uvx`.
       uv # `uv`/`uvx` — ephemeral Python tool runner; on PATH for an enabled plugin whose `.mcp.json` names bare `uvx`
+      #
+      # Language servers: the same PREREQUISITE shape, for LSP plugins whose `.lsp.json`
+      # names a bare command (pyright-lsp / typescript-lsp from the official marketplace,
+      # nixd from kattakath/skills). Enabling those plugins is runtime state, not Nix.
+      # nixd was devShell-only before (modules/parts/devshell.nix), so no LSP outside it.
+      pyright # `pyright-langserver --stdio` — Python LSP
+      typescript-language-server # `typescript-language-server --stdio`; nixpkgs' wrapper pins typescript_5's tsserver, so no project-local `typescript` is needed
+      nixd # `nixd` — eval-aware Nix LSP (stdio by default, no flag)
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       gitTidy # `git-tidy` — switch to the default branch, fast-forward, delete branches whose GitHub PR merged (gh-poi, so squash merges count) (packages/git-tidy.nix)
     ]
