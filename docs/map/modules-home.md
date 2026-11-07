@@ -90,7 +90,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
 
     `desktop-commander` used this lane, Seatbelt-fenced, from 2026-10-07 (#811) until
     2026-11-01, when the operator switched to the official, unfenced
-    `desktop-commander@claude-plugins-official`; only its config.json is still planted here.
+    the claude.ai-synced `desktop-commander` plugin (since 2026-11-07); only its config.json is still planted here.
   - Secret handles (NAMES only; values stay in the login Keychain):
     `mcp:wordpress:wp_url` / `:wp_user` / `:wp_app_password` (host-free names since 2026-10-20). `postgres` needs none — its
     `DATABASE_URI` is the local-rag capsule's `local.rag.pgvector.databaseUri`, loopback `trust`
