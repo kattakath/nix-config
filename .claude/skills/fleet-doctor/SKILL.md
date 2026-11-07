@@ -301,7 +301,7 @@ Non-zero means a deny no longer matches, so read `claude mcp list` and update th
 ### E5. (retired 2026-11-07)
 
 Plugin enablement is runtime state now, not a repo-declared fact: Nix only registers
-marketplaces and the always-on three. A plugin enabled by click is expected, so there is
+marketplaces and the always-on set (`alwaysOnIds`). A plugin enabled by click is expected, so there is
 nothing to diff. Section number kept so E6+ stay stable.
 
 ### E6. Terranix drift (macos) — `FD-E6-*`

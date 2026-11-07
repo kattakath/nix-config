@@ -53,13 +53,14 @@
 let
   cfg = config.local.claudePlugins;
 
-  # The three plugins #648 decided Nix must assert, as full "<plugin>@<marketplace>"
+  # The plugins Nix must assert (#648's rule, below), as full "<plugin>@<marketplace>"
   # ids (the shape `settings.enabledPlugins` keys on). Written literally since
   # 2026-11-07: marketplaces carry no plugin list any more (Nix registers stores only).
   alwaysOnIds = [
     "nix-flake-kit@kattakath"
     "superhook@kattakath"
     "brain-signals@kattakath"
+    "ci-watch@kattakath"
   ];
 
   # ONE predicate for "this marketplace is a store path", shared by the three
@@ -211,7 +212,7 @@ in
       // lib.optionalAttrs mp.autoUpdate { autoUpdate = true; }
     ) cfg.marketplaces;
 
-    # A CURATED ALWAYS-ON SET OF THREE — not every declared plugin (#648).
+    # A CURATED ALWAYS-ON SET — not every declared plugin (#648).
     #
     # This was `lib.genAttrs allIds (_: true)`, which force-enabled every plugin in
     # every declared marketplace and made a UI toggle non-durable: a rebuild reverted
@@ -232,16 +233,19 @@ in
     #                    and #673 merged, so it is now unconditional.
     #   brain-signals    `claude-brain.nix`'s `outputStyle` declares a style that only this
     #                    plugin supplies. Dropping it was considered and declined.
+    #   ci-watch         the fleet lands changes by direct push to main (global CLAUDE.md),
+    #                    and this plugin's asyncRewake hook is the ONLY check that lane gets
+    #                    reported. Without it a red push is silent (2026-11-07).
     #
     # Everything else is the operator's to toggle, and the toggle now PERSISTS. A
-    # fresh machine starts with these three and nothing more; the rest come back on
+    # fresh machine starts with this set and nothing more; the rest come back on
     # demand because their marketplace is declared.
     #
     # NO SECOND LANE since 2026-11-07. ADR-008's `local.claudePlugins.declared` (an
     # operator-written map re-asserted every activation) was RETIRED by the operator's
     # model: Nix REGISTERS marketplaces, plugin state is a runtime choice made in
     # `/plugin` or on claude.ai (`@synced`). The invariant #648 bought holds trivially:
-    # Nix writes an `enabledPlugins` key only for the three ids above, so every other
+    # Nix writes an `enabledPlugins` key only for the ids above, so every other
     # id keeps whatever the UI wrote, `false` included.
     programs.claude-code.settings.enabledPlugins = lib.genAttrs alwaysOnIds (_: true);
 
