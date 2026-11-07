@@ -336,11 +336,9 @@ only ever consumed by the `cachix` CLI at push time.
   `GRAFANA_SM_ACCESS_TOKEN`, through `secret exec`. The Sheet id is the `ROLLUP_SHEET_ID`
   repository variable, read at run time.
 - **Datasource secrets are never Terraform's:** `secure_json_data_encoded` is ignored, so the
-  GitHub App key, the Sheets reader key and the Cloud Monitoring reader key stay only in
-  Grafana and never enter state.
-- **Maps Platform usage** (2026-11-07): datasource `gcp-monitoring` (stock `stackdriver`,
-  SA `grafana-monitoring-reader`, `roles/monitoring.viewer` only), dashboard `maps-platform`
-  and rule group `maps-platform`. Queried live with PromQL, so it costs no Grafana series.
+  GitHub App, Sheets reader and Cloud Monitoring reader keys stay only in Grafana, never state.
+- **Maps usage:** datasource `gcp-monitoring` (SA `grafana-monitoring-reader`, viewer-only),
+  dashboard + rule group `maps-platform`. Queried live, so it costs no Grafana series.
 - **Guards** (the same set as the github stack's): an empty-state guard (with no state, every
   resource must have an import block — `GRAFANA_ALLOW_CREATE`), a drop guard (a render that
   loses an object state holds refuses — `GRAFANA_ALLOW_DROPS`) and no `-auto-approve`.
