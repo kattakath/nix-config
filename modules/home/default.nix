@@ -36,6 +36,7 @@
   # Source-only flake inputs holding Claude Code skills (see programs.claude-code
   # below). flake.nix pins them; nothing is vendored into this repo.
   agent-skills-excalidraw,
+  agent-skills-mac-automation,
   agent-skills-vercel-agent,
   grok-build-plugin-cc,
   # The ABSORBED local-rag capsule (local.rag.ollama +
@@ -666,7 +667,6 @@ in
     # "<plugin>@<key>", so a guessed key silently resolves nothing.
     #   trailofbits/skills    -> "trailofbits"                (44 plugins)
     #   Jeffallan/claude-skills -> "fullstack-dev-skills"     (1 plugin, 2026-11-07)
-    #   SpillwaveSolutions/automating-mac-apps-plugin -> "automating-mac-apps-plugin" (1 plugin, 2026-11-07)
 
     # Trail of Bits (CC-BY-SA-4.0), no flake input. 44 plugins. See the licence note above — share-alike is a
     # positive reason to consume this as a marketplace rather than vendor it.
@@ -680,9 +680,6 @@ in
     # postgres-pro), automating-mac-apps 16 skills + 9 agents + 10 commands.
     fullstack-dev-skills = {
       source = lib.mkDefault "https://github.com/Jeffallan/claude-skills.git";
-    };
-    automating-mac-apps-plugin = {
-      source = lib.mkDefault "https://github.com/SpillwaveSolutions/automating-mac-apps-plugin.git";
     };
   };
 
@@ -1152,6 +1149,11 @@ in
         # OFFICIAL Vercel Labs (vercel-labs/agent-skills): drives the `vercel` CLI
         # (hosts/macos.nix Homebrew cask `vercel`) for non-interactive / token auth.
         vercel-cli-with-tokens = "${agent-skills-vercel-agent}/skills/vercel-cli-with-tokens";
+        # Community (MIT): AppleScript/JXA foundation — pairs with the `macos-automator` MCP server.
+        # Back in Nix 2026-11-07: upstream's marketplace plugin FAILS TO LOAD ("conflicting
+        # manifests: both plugin.json and marketplace entry specify components" — its entry is
+        # strict:false AND plugin.json lists components). Retry the plugin when upstream fixes that.
+        automating-mac-apps = "${agent-skills-mac-automation}/plugins/automating-mac-apps-plugin/skills/automating-mac-apps";
       };
     };
 

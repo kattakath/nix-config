@@ -36,6 +36,22 @@
         "type": "github"
       }
     },
+    "agent-skills-mac-automation": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787358320,
+        "narHash": "sha256-zN89p/l9xTKxjSSoN/8J3PZNJeQaiz2N8ztdta/p7Yo=",
+        "owner": "SpillwaveSolutions",
+        "repo": "automating-mac-apps-plugin",
+        "rev": "5f37bd4ecb1746fc86f3d618e8aa81fc6a61c486",
+        "type": "github"
+      },
+      "original": {
+        "owner": "SpillwaveSolutions",
+        "repo": "automating-mac-apps-plugin",
+        "type": "github"
+      }
+    },
     "agent-skills-vercel-agent": {
       "flake": false,
       "locked": {
@@ -570,6 +586,7 @@
       "inputs": {
         "agenix": "agenix",
         "agent-skills-excalidraw": "agent-skills-excalidraw",
+        "agent-skills-mac-automation": "agent-skills-mac-automation",
         "agent-skills-vercel-agent": "agent-skills-vercel-agent",
         "deploy-rs": "deploy-rs",
         "determinate": "determinate",
