@@ -47,7 +47,7 @@ let
   # Plain env. The upstream image is built WITHOUT the `gcs` extra, so the GCS
   # credential backend crashes at startup (`cannot import name 'storage'`). The
   # bucket is mounted at /data instead, and both stores are directories on it; the
-  # OAuth proxy store is Fernet-encrypted with a key derived from the client secret.
+  # OAuth proxy store is Fernet-encrypted with a key derived from the signing key.
   env = {
     MCP_ENABLE_OAUTH21 = "true";
     GOOGLE_OAUTH_CLIENT_ID = oauthClientId;
@@ -68,14 +68,9 @@ let
 
   # Env var -> Secret Manager secret id. Values are added out of band (clipboard ->
   # `gcloud secrets versions add`), never through this stack.
-  # ONE secret on purpose. Without FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY the
-  # server derives the JWT and storage keys from the client secret
-  # (validate_and_derive_jwt_key in upstream core/server.py; a separate key is
-  # required only for a public client). A second secret was the 7th active version
-  # on the billing account, past the free 6 (the keychain-secrets backend's cap).
-  # The cost: rotating the client secret invalidates every stored session.
   secrets = {
     GOOGLE_OAUTH_CLIENT_SECRET = "workspace-mcp-oauth-client-secret";
+    FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY = "workspace-mcp-jwt-signing-key";
   };
 
   tfName = lib.replaceStrings [ "-" ] [ "_" ];
