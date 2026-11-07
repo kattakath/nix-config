@@ -895,8 +895,9 @@ in
               ) userDeny;
               # Today's count, pinned. Raise it deliberately when the family grows;
               # a DROP means either a real retraction or a reworded rule the pattern
-              # above no longer sees, and both deserve a human. Equals the whole user
-              # deny list today: every rule there is secret egress.
+              # above no longer sees, and both deserve a human. Not the whole user deny
+              # list: the page-lab profile-dir Read deny is user-tier only on purpose
+              # (modules/home/claude-guardrails.nix, beside the Read globs).
               minSecretRules = 31;
               # The SECOND hand-kept duplicate in that file: strictKnownMarketplaces'
               # exact `git` entries restate every non-store marketplace source the

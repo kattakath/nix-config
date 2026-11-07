@@ -210,6 +210,13 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # still load-bearing — the rule only dies when the FILE cannot exist. Delete
     # it after deleting the directory, in that order, never the reverse.
     #
+    # `~/.local/state/page-lab` holds page-lab's DEDICATED browser profiles. They
+    # launch with `--use-mock-keychain`, so their session cookies are effectively
+    # plaintext at rest (skills docs/page-lab-vnext-design.md § 8). The deny binds the
+    # agent's tools, not page-lab's launcher process. The MANAGED tier deliberately
+    # does NOT carry it until it is proven not to bite that launcher (same § 8). So
+    # the `claude-managed-settings` check's classifier must not match it.
+    #
     # The `Read(...)` path globs render from modules/_lib/secret-read-paths.nix (shared
     # with grok's sandbox); the `assertions` above make an empty render a build error.
   ]
