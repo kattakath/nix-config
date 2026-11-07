@@ -76,10 +76,16 @@ on:
   pull_request:
   merge_group:
     types: [checks_requested]
+  # The operator's own changes land by direct push (admin bypass), not via a PR, so this
+  # is the only check they get. The kattakath/skills `ci-watch` plugin waits on it.
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
-  group: nix-ci-${{ github.ref }}
+  # A push is keyed on its SHA: per ref, a newer push would CANCEL the older one's pending
+  # run (one pending slot per group), and a cancelled run reads as red to the watcher.
+  group: nix-ci-${{ github.event_name == 'push' && github.sha || github.ref }}
   # Keyed on the EVENT, not the ref: only a superseded PR run cancels. A queue run
   # lives on its own gh-readonly-queue/* ref, and a cancelled queue run EJECTS the
   # PR. (The earlier `ref != main` form made every queue run cancellable.)
