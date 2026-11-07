@@ -256,8 +256,7 @@ let
   jobspy = pkgs.callPackage ../../packages/jobspy.nix { };
 
   # `resend` — the official Resend CLI, injecting RESEND_API_KEY from the login Keychain
-  # at run time (non-interactive, no browser OAuth). Pairs with the
-  # resend@claude-plugins-official plugin (local.claudePlugins.marketplaces below). See packages/resend-cli.nix.
+  # at run time (non-interactive, no browser OAuth). See packages/resend-cli.nix.
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
   # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
@@ -570,172 +569,21 @@ in
       plugins = [ "grok-build" ];
     };
 
-    # Anthropic's official marketplace. HTTPS, not a directory pin: the reserved
-    # name rejects directory sources as untrusted, and an SSH clone fails
-    # non-interactively during activation.
-    claude-plugins-official = {
-      source = lib.mkDefault "https://github.com/anthropics/claude-plugins-official.git";
-      plugins = [
-        # Anthropic first-party security-review plugin (hook-driven): PostToolUse
-        # secret/injection warnings + a Stop-hook LLM diff review. The plugin's code is
-        # in-repo to the marketplace (source "./plugins/security-guidance"), so it is
-        # fully pinned.
-        "security-guidance"
-        # Neon DB: skills only; server denied in favour of the claude.ai connector
-        # (deniedMcpServers). Needs neonctl on PATH (macos brew).
-        "neon"
-        # Stripe OFFICIAL plugin (git-subdir of stripe/ai providers/claude/plugin, pinned by
-        # the marketplace sha): the full Stripe agent kit in one unit — its skills, the company-researcher agent,
-        # /explain-error + /test-cards commands, AND the hosted mcp.stripe.com MCP server
-        # (type=http; one-time in-client OAuth — no API key handled here, and nothing for
-        # this fleet to host or launch, since the server is Stripe-remote). Pairs with the nixpkgs
-        # `stripe-cli` in home.packages below.
-        "stripe"
-        # Anthropic first-party frontend-design skill/plugin (UI/UX generation guidance).
-        "frontend-design"
-        # Resend's OFFICIAL plugin (resend.com/mcp / resend.com/docs/mcp-server): bundles the
-        # resend-cli skill + the hosted mcp.resend.com MCP server (Streamable HTTP, one-time
-        # in-client OAuth via `/mcp` -> select resend — same shape as the stripe entry above;
-        # no API key handled by this plugin). Pairs with the `resend` CLI package
-        # (home.packages below), which instead authenticates non-interactively via
-        # RESEND_API_KEY from the Keychain — the two are independent auth paths to the same
-        # Resend account (used by dontsell-ai/app's outbound/inbound email).
-        "resend"
-        # AWS's OFFICIAL plugins (git-subdir of aws/agent-toolkit-for-aws and
-        # awslabs/agent-plugins, pinned by the marketplace sha). Read at those shas
-        # 2026-10-16, not from the descriptions:
-        #   aws-core          17 AWS skills + a secret-safety PreToolUse hook + `aws-mcp`,
-        #                     the AWS MCP Server proxy pinned at ==1.7.0 but run with
-        #                     --skip-auth: docs/skill tools work, AWS API calls are
-        #                     UNSIGNED, so its server is denied below; the signed path
-        #                     is the official claude.ai AWS connector.
-        #   aws-serverless    7 Lambda/SAM/Step Functions skills + a SAM-validate
-        #                     PostToolUse hook + `awslabs.aws-serverless-mcp-server@latest
-        #                     --allow-write`. UNPINNED (PyPI @latest at every spawn) and
-        #                     write-enabled; enabled at the operator's call 2026-10-16.
-        #                     It uses the default credential chain, and ~/.aws/config has
-        #                     no default profile, so its AWS calls are unauthenticated.
-        #   databases-on-aws  one skill (Aurora DSQL only), the public awsknowledge docs
-        #                     server, and two servers shipped `disabled: true` that Claude
-        #                     Code starts anyway. Catalogued but declared OFF (see
-        #                     `declared` below).
-        "aws-core"
-        "aws-serverless"
-        "databases-on-aws"
-        # Slack: skills only; server denied in favour of the claude.ai connector
-        # (deniedMcpServers).
-        "slack"
-        "swift-lsp"
-        "desktop-commander"
-        # Anthropic first-party skill-creator: drafts a skill, runs with/without-skill evals
-        # and optimizes its description so it triggers. kattakath/skills' `harvest` hands its
-        # drafting and testing step to it (kattakath/skills#10) and keeps triage, stripping
-        # and landing. In-repo to the marketplace (source "./plugins/skill-creator").
-        "skill-creator"
-        # ---- The Claude-Code-MAINTENANCE set (added 2026-09-29) ----------------
-        # Everything below is Anthropic first-party and IN-REPO to the marketplace
-        # (source "./plugins/<name>"), so the marketplace sha pins the bytes — same
-        # guarantee as security-guidance/skill-creator above, no external subdir.
-        #
-        # WHY AS PLUGINS, when this repo ALREADY shipped eight of these skills: the
-        # `skills` attrset below (search "Flake-managed GLOBAL skills") used to map
-        # seven plugin-dev skills plus hookify's `writing-rules` out of the
-        # `agent-skills-anthropic` input (= anthropics/claude-code) into
-        # ~/.claude/skills/<name>/. Those entries were removed on 2026-09-29, and the
-        # reason is the point of this note.
-        #
-        # A `skills` entry maps ONE SKILL DIRECTORY. It structurally cannot carry the
-        # rest of a plugin, and the rest is most of the value here: plugin-dev's three
-        # agents (plugin-validator, skill-reviewer, agent-creator) and /create-plugin;
-        # hookify's four commands, its conversation-analyzer agent and its four hook
-        # scripts. Vendoring the skill folders got the prose and dropped the tools.
-        #
-        # Keeping BOTH was the real hazard, and it is why the dedup is not cosmetic:
-        # the same eight skill names would be served twice from two DIFFERENT upstreams
-        # on two DIFFERENT pins — anthropics/claude-code via flake.lock, and
-        # anthropics/claude-plugins-official via the marketplace sha. Nothing keeps
-        # those in step, so the copies drift and a session sees whichever it resolves
-        # first. Measured 2026-09-29: flake.lock at 7779afb12e36, marketplace cache at
-        # 2a8ad9f74633 — already two different trees.
-        #
-        # `find-skills` STAYS in that attrset: it comes from vercel-labs/skills and no
-        # plugin here provides it, so it is not a duplicate.
+    # Anthropic's official marketplace (`claude-plugins-official`) is NOT declared here
+    # since 2026-11-07: its plugins are installed from claude.ai and arrive as `<name>@synced`
+    # (account sync), one source instead of a second Nix-declared copy that shadows them.
+    # Decisions that outlive the move, re-check them when adding a plugin there:
+    #   - neon/slack/aws-core/aws-serverless servers stay denied (deniedMcpServers, matched by
+    #     `plugin:<name>:<server>`, so the synced copy is covered); the connectors win.
+    #   - NOT installed: code-simplifier (strict subset of pr-review-toolkit), code-review
+    #     (shadows the more capable built-in /code-review), databases-on-aws (ships servers
+    #     marked `disabled` that start anyway), the context7 copy (server only; see below).
+    #   - commit-commands bakes in no AI-attribution trailer (grepped 2026-09-29); re-grep on
+    #     an upstream bump. hookify runs Python hooks on every tool call and prompt.
+    #   - plugin-dev/hookify skills are NOT in the `skills` attrset below, to avoid a second
+    #     copy from a different pin.
 
-        # plugin-dev — the authoring toolkit for THIS repo's own Claude Code artifacts:
-        # 7 skills (plugin structure/settings, skills, agents, commands, hooks, MCP
-        # integration), /create-plugin, and three agents the synced skills do NOT carry:
-        # plugin-validator, skill-reviewer, agent-creator. Pairs with kattakath/skills
-        # (this fleet publishes a marketplace, so plugin authoring is a standing need,
-        # not a one-off) and with `harvest`, which lands new skills into that repo.
-        "plugin-dev"
-        # claude-md-management — /revise-claude-md + the claude-md-improver skill: audits
-        # a CLAUDE.md for quality and folds session learnings back into it. Directly
-        # relevant to a fleet whose behaviour is steered by ~/.claude/CLAUDE.md plus
-        # per-project files; the alternative is hand-auditing prose, which has no check.
-        "claude-md-management"
-        # claude-code-setup — the claude-automation-recommender skill: reads a codebase
-        # and proposes the hooks / skills / MCP servers / subagents it actually warrants.
-        # Was reachable ONLY through claude.ai sync (loaded as claude-code-setup@synced);
-        # declaring it removes that dependency.
-        "claude-code-setup"
-        # mcp-server-dev — build-mcp-server / build-mcp-app / build-mcpb skills: deployment
-        # model, tool design and packaging for MCP servers. SKILLS ONLY — it registers no
-        # MCP server of its own, so it claims no tool namespace and cannot collide with
-        # another plugin's servers. Complements mcp-builder (kattakath) rather than
-        # replacing it: this one is Anthropic's own house guidance.
-        "mcp-server-dev"
-        # agent-sdk-dev — /new-sdk-app plus agent-sdk-verifier-{py,ts}: scaffolds and then
-        # VERIFIES Claude Agent SDK apps against the current SDK surface. The verifier is
-        # the value; hand-checking SDK drift against a knowledge cutoff is exactly the
-        # failure mode the claude-api skill exists to prevent.
-        "agent-sdk-dev"
-        # pr-review-toolkit — six review agents (code-reviewer, silent-failure-hunter,
-        # code-simplifier, comment-analyzer, pr-test-analyzer, type-design-analyzer) and
-        # /review-pr.
-        #
-        # TWO SIBLINGS DELIBERATELY REJECTED, both measured in the cached marketplace:
-        #   - `code-simplifier` is a STRICT SUBSET — its agents/code-simplifier.md is the
-        #     same file this plugin already ships. Installing both duplicates one agent.
-        #   - `code-review` ships a single commands/code-review.md, which would sit on top
-        #     of Claude Code's BUILT-IN /code-review skill (levels low..max, `ultra` cloud
-        #     multi-agent, --fix, --comment). Shadowing a strictly more capable built-in
-        #     with a markdown command is a downgrade, so it stays out.
-        "pr-review-toolkit"
-        # commit-commands — /commit, /commit-push-pr, /clean_gone.
-        # CHECKED BEFORE ADDING, because ~/.claude/CLAUDE.md forbids AI attribution on git
-        # artifacts: grepped the plugin for co-authored-by / "generated with" / the robot
-        # emoji / claude.ai-code links — ZERO hits, so it bakes in no trailer to strip.
-        # Re-grep on a marketplace bump rather than trusting this line.
-        "commit-commands"
-        # claude-security — in-session vulnerability scanning of first-party code at a chosen
-        # effort level. Distinct from security-guidance above, which is HOOK-driven and
-        # reactive (PostToolUse pattern warnings + a Stop-hook diff review); this one is an
-        # on-demand deep sweep. Kept as a pair, not a replacement.
-        "claude-security"
-        # hookify — /hookify, /configure, /list, /help, a conversation-analyzer agent, and
-        # the `writing-rules` skill (the synced copy was skill-only, renamed
-        # writing-hookify-rules).
-        #
-        # COST STATED PLAINLY: unlike every other entry here, this plugin ships ACTIVE hooks
-        # — hooks/hooks.json wiring pretooluse.py, posttooluse.py, stop.py and
-        # userpromptsubmit.py, i.e. Python on every tool call and every prompt. At the time
-        # of adding, ~/.claude/settings.json declared NO hooks at all, so these are the
-        # first; security-guidance's own hooks are plugin-level and likewise invisible there.
-        # Watch for interaction with `superhook` (the kattakath hook supervisor, a plugin
-        # hook since 2026-09-30) and pull this entry first if tool-call latency or hook
-        # noise regresses.
-        "hookify"
-        # feature-dev — agents for codebase exploration, architecture design and staged
-        # implementation of a feature. Broader than plugin maintenance; kept because the
-        # exploration/architecture agents are reusable on any repo in this fleet.
-        "feature-dev"
-        # code-modernization — not declared; adding it is the operator's call. Run
-        # `claude plugin validate` on it before declaring it.
-      ];
-    };
-
-    # Upstash's OWN marketplace (github:upstash/context7), HTTPS like
-    # claude-plugins-official above — the KEY must be the name upstream declares
+    # Upstash's OWN marketplace (github:upstash/context7), HTTPS — the KEY must be the name upstream declares
     # in its .claude-plugin/marketplace.json ("context7-marketplace"), because
     # `idsOf` in ./claude-plugins.nix derives the plugin id as "<plugin>@<key>".
     #
@@ -768,8 +616,7 @@ in
     };
 
     # This operator's OWN published marketplace, github:kattakath/skills, as a
-    # GIT source with auto-update — the same shape as claude-plugins-official
-    # above, not a pinned store path. Content ships from that repo alone: its
+    # GIT source with auto-update, not a pinned store path. Content ships from that repo alone: its
     # plugins carry no `version`, so every commit on its `main` is a new version,
     # and Claude Code's background refresh delivers it with the "updated" notice.
     # The gate is that repo's own CI (`claude plugin validate`, script checks).
@@ -943,8 +790,7 @@ in
     # skills-only input only after its plugin is enabled AND seen in a session.
     #
     # `autoUpdate` is left at its `false` default on every entry here, matching every other
-    # third-party marketplace in this attrset (`claude-plugins-official`,
-    # `context7-marketplace`) — only `kattakath` (the operator's own repo) is `true`.
+    # third-party marketplace in this attrset (`context7-marketplace`) — only `kattakath` (the operator's own repo) is `true`.
     # These are other people's repos, and autoUpdate means whatever lands on their
     # `main` reaches this Mac on a background refresh with no review. Revisit it
     # per-marketplace when enabling one.
@@ -1011,12 +857,6 @@ in
     # here so it is LOADED, not just catalogued — the failure the block above records.
     "history-scrub@kattakath" = true;
 
-    # desktop-commander: the OFFICIAL plugin since 2026-11-01 (operator: official only, risk
-    # accepted — upstream runs it unpinned `@latest`, with no Seatbelt fence and no guard hook,
-    # so its shell routes around every Bash-text deny in ./claude-guardrails.nix). Its
-    # config.json (telemetry off, onboarding keys) is still planted by ./plugin-mcp.nix.
-    "desktop-commander@claude-plugins-official" = true;
-
     # gif-meme (kattakath/skills#72): the recurring short-video → looping-GIF →
     # Tenor/GIPHY flow, harvested 2026-10-07. Declared here rather than clicked so a
     # fresh machine gets it with `media-gif` (media-cli capsule, #818) — the skill
@@ -1036,20 +876,6 @@ in
     "statement-extract@kattakath" = true;
     "beancount@kattakath" = true;
     "plaid-pfc@kattakath" = true;
-
-    # AWS: the official plugins bring the skills (catalogue entries above say what each
-    # one really ships). Declared, not clicked, for the reason the block above records:
-    # a clicked toggle does not survive a fresh machine. Client-account sign-ins are the
-    # official claude.ai connectors (account-level), never named in this file.
-    "aws-core@claude-plugins-official" = true;
-    "aws-serverless@claude-plugins-official" = true;
-    # OFF, 2026-10-16, the same day it went on. Its `.mcp.json` ships `aurora-dsql` and
-    # `cloudwatch` as `"disabled": true`, and Claude Code IGNORES that key: `claude mcp
-    # list` showed both Connected, i.e. two more unpinned `@latest` PyPI servers per
-    # session, `cloudwatch` with a literal placeholder AWS_PROFILE. Its one skill is
-    # Aurora DSQL, which nothing here uses. `false`, not a deleted line, so a session
-    # that turns it back on is undone at the next activation.
-    "databases-on-aws@claude-plugins-official" = false;
 
     # OFF since 2026-10-06, at the operator's judgement that the plugin was
     # inefficient in use. It was the one id here that changed EVERY session on this
@@ -1080,9 +906,6 @@ in
 
     # Live-off by the operator's toggle; declared `false` (the `empire` reason above) so a
     # fresh Mac reproduces the same state instead of leaving them unset.
-    "resend@claude-plugins-official" = false;
-    "claude-security@claude-plugins-official" = false;
-    "mcp-server-dev@claude-plugins-official" = false;
     "llmstxt@kattakath" = false;
     "jsonresume-tailor@kattakath" = false;
     "logo-construction-geometry@kattakath" = false;
@@ -1108,21 +931,6 @@ in
     "github-release-gate@kattakath" = true;
     "skill-curator@kattakath" = true;
     "session-relay@kattakath" = true;
-    "slack@claude-plugins-official" = true;
-    "stripe@claude-plugins-official" = true;
-    "neon@claude-plugins-official" = true;
-    "frontend-design@claude-plugins-official" = true;
-    "security-guidance@claude-plugins-official" = true;
-    "skill-creator@claude-plugins-official" = true;
-    "agent-sdk-dev@claude-plugins-official" = true;
-    "claude-code-setup@claude-plugins-official" = true;
-    "claude-md-management@claude-plugins-official" = true;
-    "commit-commands@claude-plugins-official" = true;
-    "feature-dev@claude-plugins-official" = true;
-    "hookify@claude-plugins-official" = true;
-    "plugin-dev@claude-plugins-official" = true;
-    "pr-review-toolkit@claude-plugins-official" = true;
-    "swift-lsp@claude-plugins-official" = true;
     "context7@context7-marketplace" = true;
     # OFF since 2026-11-02 (operator: "neither ask nor block"). Its PreToolUse hooks
     # DENY WebFetch/curl of GitHub and its PATH shim refuses `gh api …/contents` and
@@ -1258,7 +1066,7 @@ in
     ]
     ++ lib.optionals isMacosHost [
       inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
-      stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker). Pairs with the stripe@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
+      stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker).
       wp-cli # WordPress CLI (`wp`) — manage WordPress installs/plugins/themes/db from the shell; nixpkgs-native (bundles its own PHP), so no Homebrew `wp-cli` formula or `curl … wp-cli.phar` install (single source per the reuse/declarative convention)
     ]
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
@@ -1283,7 +1091,7 @@ in
       # DB location is pinned by $BUKU_DEFAULT_DBDIR (home.sessionVariables below).
       buku
       jobspy # `jobspy --search … --location …` — scrape jobs (LinkedIn/Indeed/…) into CSV/JSON via python-jobspy in an ephemeral uv env (packages/jobspy.nix)
-      resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix). Pairs with the resend@claude-plugins-official plugin (local.claudePlugins.marketplaces above)
+      resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix).
     ]
   # The media stack itself is NOT listed here any more — `local.mediaCli`
   # above installs it, along with exiftool/auge/rclipCli via that module's
@@ -1588,8 +1396,8 @@ in
         # Skill discovery from skills.sh (vercel-labs/skills).
         find-skills = "${agent-skills-vercel}/skills/find-skills";
         # NO plugin-dev / hookify SKILL ENTRIES HERE, deliberately: those ship as
-        # plugins now. The why is the "Claude-Code-MAINTENANCE set" note on the
-        # claude-plugins-official marketplace entry above — read it before re-adding.
+        # claude.ai-synced plugins, which carry the agents/commands/hooks a skill entry
+        # cannot. See the claude-plugins-official note above before re-adding.
 
         # ---- Tool-driver skills: each pairs with an MCP server / connector this
         # fleet already runs (see flake.nix `agent-skills-*` inputs). Additive,

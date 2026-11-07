@@ -24,8 +24,10 @@
 # in Nix. Secret NAMES live here; no secret VALUE ever reaches the store or argv.
 #
 # desktop-commander's Seatbelt-fenced launcher was RETIRED 2026-11-01 (operator: the official
-# `desktop-commander@claude-plugins-official` plugin only, risk accepted). Only its config.json
-# is still planted below, because the official server reads the same file.
+# plugin only, risk accepted — upstream runs it unpinned `@latest`, with no Seatbelt fence and
+# no guard hook, so its shell routes around every Bash-text deny in ./claude-guardrails.nix).
+# Since 2026-11-07 it is the claude.ai-synced copy. Only its config.json is still planted
+# below, because that server reads the same file.
 #
 # This is NOT the gateway returning: no long-lived process, no listening socket, no
 # tunnel, no portal. Desktop CHAT runs no plugin stdio server (its Code tab does), so none of
@@ -34,6 +36,7 @@
   config,
   lib,
   pkgs,
+  osConfig ? { },
   ...
 }:
 let
@@ -234,7 +237,7 @@ in
       # the counters cannot accrue into a read-only file, and dropping
       # the `clientId` is the point of `telemetryEnabled = false`.
       home.file.".claude-server-commander/config.json" =
-        lib.mkIf (config.local.claudePlugins.declared."desktop-commander@claude-plugins-official" or false)
+        lib.mkIf (import ../_lib/is-macos-host.nix osConfig)
           {
             source = desktopCommanderConfig;
             force = true;
