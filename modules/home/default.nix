@@ -326,6 +326,7 @@ in
     ./terminal-app.nix # Terminal.app type + colours (all darwin)
     ./fleet-gauges.nix # hourly credential-expiry / security-alert / backup gauges (macos only)
     ./terranix-drift.nix # daily drift check over every terranix stack (macos only)
+    ./page-lab.nix # page-lab's pinned dedicated-mode browser + profiles overlay (macos only)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     # Makes ~/.claude/settings.json LAYERED — a real writable file the app and
     # the operator can edit, with Nix's own keys (the permissions.deny floor,
@@ -488,6 +489,10 @@ in
   # the External Extensions + NativeMessagingHosts files that make the sideloaded
   # iCloud Passwords extension talk to macOS Passwords.app; see chromium.nix.
   local.ungoogledChromium.enable = isMacosHost;
+
+  # page-lab's DEDICATED browser (Chrome for Testing from nixpkgs), never the daily
+  # Chromium above. Operator Mac only: the closure is ~370 MiB. See page-lab.nix.
+  local.pageLab.enable = isMacosHost;
 
   # Google Chrome owns http/https; Chromium stays the DEBUGGING browser, not the daily
   # one. The claim itself is browser-agnostic and lives in ./default-browser.nix — the
