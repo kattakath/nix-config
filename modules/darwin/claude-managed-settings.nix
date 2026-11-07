@@ -461,10 +461,6 @@ let
       }
       {
         source = "git";
-        url = "https://github.com/anthropics/claude-plugins-official.git";
-      }
-      {
-        source = "git";
         url = "https://github.com/upstash/context7.git";
       }
       {
