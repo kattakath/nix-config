@@ -2186,24 +2186,17 @@ in
             mkHostContract {
               inherit pkgs;
               name = "nixpi-initrd-posture";
-              subject = "nixpi: the scripted initrd is still offered AND still selected";
+              subject = "nixpi: stage-1 is systemd (the scripted initrd is gone in 26.11)";
               expect = [
                 {
-                  name = "boot.initrd.systemd.enable still EXISTS — the scripted path has not been removed upstream";
-                  ok = sd ? enable;
-                }
-                {
-                  name = "it resolves to false on nixpi — stage-1 is still the scripted one";
-                  ok = (sd.enable or null) == false;
+                  name = "boot.initrd.systemd.enable resolves to true on nixpi";
+                  ok = (sd.enable or null) == true;
                 }
               ];
               advice = [
-                "nixpkgs scheduled the scripted initrd for removal in 26.11 — rl-2605.section.md:7."
-                "hosts/nixpi.nix forces it off because systemd stage-1 hangs on the linux-rpi kernel."
-                "Do NOT make this green by deleting that mkForce: the Pi stops booting, and the only"
-                "recovery is hands on the hardware plus a reflash of roughly 40 minutes."
-                "Either hold nixpi on a nixpkgs revision that still ships the scripted path, or migrate"
-                "stage-1 ON the hardware and confirm a real boot before changing anything here."
+                "nixpi moved to systemd stage-1 on 2026-11-07 (6.18 kernel, U-Boot + extlinux)."
+                "The scripted initrd is removed in nixpkgs 26.11 (rl-2605.section.md), so it cannot go back."
+                "If a boot hangs in stage-1, pick the previous extlinux entry at the U-Boot menu (HDMI/serial)."
               ];
             };
 
