@@ -73,7 +73,7 @@ In rough order of preference:
 ## 2. Vet
 
 Reject or escalate to the user when any of these is weak. Record findings in
-the PR body.
+the commit message.
 
 - **Provenance**: org/author reputation, repo linked from the npm/PyPI page,
   stars/activity, no unscoped-package ambiguity (precedent: `macos-automator`'s unscoped
@@ -189,7 +189,7 @@ nix fmt
 nix flake check
 ```
 
-PR per [pr-title](../../rules/pr-title.md); activation is the operator's move — `activate`, from
+Land it per [pr-title](../../rules/pr-title.md) (a direct push to `main`); activation is the operator's move — `activate`, from
 any directory. **A green `nix flake check` says little about the server**: its one MCP leg
 (`checks.*.mcp-launcher-parity`) only reads, per server `macos` declares, the pinned plugin seeded
 with its launcher.
@@ -217,5 +217,5 @@ it), and `mobile-mcp mobile_list_available_devices → {"devices":[]}` is correc
 attached — what mattered there was the **absence** of an `adb`/`ANDROID_HOME` error, which proved
 the plugin child inherits the session environment.
 
-**Say what Claude Desktop lost** in the PR body, if this replaces anything Desktop could
+**Say what Claude Desktop lost** in the commit message, if this replaces anything Desktop could
 previously reach. Nothing detects it.

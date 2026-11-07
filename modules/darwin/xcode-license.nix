@@ -103,7 +103,8 @@ in
       echo >&2 "Xcode: ensuring app + license before Homebrew bundle..."
 
 
-      # Prefer full Xcode.app developer dir when present.
+      # The license accept below needs the FULL Xcode developer dir; with only the Command
+      # Line Tools selected, xcodebuild has no license to accept.
       if [ -d /Applications/Xcode.app/Contents/Developer ]; then
         /usr/bin/xcode-select -s /Applications/Xcode.app/Contents/Developer 2>/dev/null || true
       fi

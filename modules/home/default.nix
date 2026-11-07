@@ -1271,7 +1271,9 @@ in
         # This path ALSO needs a Cloudflare Zero Trust *Access Application* for the
         # hostname — declared in infra/cloudflare/nixpi-tunnel.nix (`nixpi_ssh`) since
         # it silently vanished once (2026-08-20). Symptom + fix: docs/private-home-modules.md.
-        ${derivedNames.nixpiSshHostname domainName} = {
+        # OPERATOR-ONLY — the nixpi tunnel exists only in the operator's fleet, so a template
+        # consumer's Mac gets the generic "*" defaults above and no entry (or cloudflared) for it.
+        ${derivedNames.nixpiSshHostname domainName} = lib.mkIf isMacosHost {
           User = config.home.username;
           ProxyCommand = "${lib.getExe pkgs.cloudflared} access ssh --hostname %h";
           # A fresh SD flash reuses the hostname with a BRAND-NEW host key, so a
@@ -1795,7 +1797,9 @@ in
     # resume.json over the network and self-skips (keeping any existing artifact) when
     # offline, and `|| true` ensures a failed fetch never aborts a switch — it self-heals on
     # the next activation. Same "let the tool own its fetched, mutable state" pattern as
-    # claudeCodePlugins.
+    # claudeCodePlugins. Custom on purpose: pinned home-manager's accounts/email.nix `signature.*`
+    # options only configure a signature INSIDE a mail client (htmlFormat is Thunderbird-only);
+    # nothing renders a standalone, paste-ready HTML file.
     emailSignature = lib.mkIf isMacosHost (
       lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         run ${email-signature}/bin/email-signature || true
