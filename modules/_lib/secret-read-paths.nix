@@ -6,9 +6,9 @@
 # reword the way a match-based derivation can; an EMPTY list is still caught by
 # claude-guardrails.nix's assertion and the Bash guard hook's "Rule 1f DISARMED".
 #
-# WHAT BELONGS HERE: only paths whose CONTENT is a decrypted secret. NOT a
-# command shape (`agenix -d`, `secret reveal`, `security find-generic-password
-# -w`) — those are Bash-text rules with no path to render, and they stay as
+# WHAT BELONGS HERE: only paths whose CONTENT is a decrypted (or never-encrypted)
+# secret. NOT a command shape (`agenix -d`, `secret reveal`, `security
+# find-generic-password -w`) — those are Bash-text rules with no path to render, and they stay as
 # literals in claude-guardrails.nix. The per-path rationale lives there too; this
 # file holds the coordinates, not the argument.
 #
@@ -39,6 +39,9 @@
     ".local/state/nix-config-cf-tunnel"
     ".local/state/nix-config-mcp-public"
     ".aws/sso/cache"
+    # page-lab's dedicated browser profiles: session cookies under a mock keychain,
+    # so effectively plaintext. Why, and why the managed tier omits it: claude-guardrails.nix.
+    ".local/state/page-lab"
   ];
 
   # ── The WIDER credential inventory — grok's sandbox only ──────────────────
