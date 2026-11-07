@@ -228,9 +228,9 @@
     # re-pointed at `l~nix~case~hack~1/linux` — that path is an artefact of THIS
     # filesystem and would not exist on a case-sensitive store.
     #
-    # GUARDED on systemd stage-1 because only that initrd reads `contents`: nixpi
-    # forces the SCRIPTED initrd (hosts/nixpi.nix), so there the guard is false and
-    # its value stays upstream's `true` — a no-op either way, but an honest one.
+    # GUARDED on systemd stage-1 because only that initrd reads `contents`; every
+    # fleet NixOS host now runs it (nixpi since 2026-11-07), so the guard only
+    # matters to a downstream consumer still on the scripted initrd.
     #
     # COST: the initrd console loses the `linux` terminfo entry. That matters only
     # to a full-screen program on the early-boot console; nothing here runs one.

@@ -106,18 +106,19 @@ in
       }) dnsRecords
     );
 
-  # A record created out-of-band carries `importId` (zone_id/record_id), so it is
-  # ADOPTED rather than created twice. OpenTofu skips an import block whose
+  # A record created out-of-band carries `recordId`, so it is ADOPTED rather than
+  # created twice; the import id `<zone_id>/<record_id>` is composed here from the
+  # `zoneId` arg, so the zone id lives only in modules/parts/identity.nix. OpenTofu skips an import block whose
   # address is already in state, so the entry is inert after the first apply.
   import =
     map (r: {
       to = "cloudflare_dns_record.${r.key}";
-      id = r.importId;
-    }) (builtins.filter (r: r ? importId) dnsRecords)
+      id = "${zoneId}/${r.recordId}";
+    }) (builtins.filter (r: r ? recordId) dnsRecords)
     ++ [
       {
         to = "cloudflare_ruleset.redirects";
-        id = zoneRedirects.importId;
+        id = "zones/${zoneId}/${zoneRedirects.rulesetId}";
       }
     ];
 
