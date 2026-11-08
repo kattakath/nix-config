@@ -49,44 +49,139 @@ let
 
   # ---- Google Maps Platform usage, read on demand from Cloud Monitoring ----
   # Datasource `gcp-monitoring` (stock `stackdriver` plugin) queries the project's Cloud
-  # Monitoring with PromQL, so none of this costs a Grafana series. Every Maps Platform API
-  # reports `serviceruntime.googleapis.com/api/request_count` on the `consumed_api` resource;
-  # the `*-backend` services are the legacy Maps web services (geocoding-, places-,
-  # directions-, distance-matrix-, elevation-, timezone-, maps-, static-maps-backend), the
-  # rest are the newer Maps APIs. Windows are FIXED ([10m], [1d], [30d]): `$__interval`
-  # does not reach alert evaluation, which runs in the backend.
+  # Monitoring with the timeSeriesList builder (the projects.timeSeries.list filter API), so
+  # none of this costs a Grafana series. Not PromQL: plugin 12.6.4 panics (nil pointer
+  # dereference) on EVERY PromQL query, even `up`, while timeSeriesList over the same data
+  # answers (measured 2026-11-08). Every Maps Platform API reports
+  # `serviceruntime.googleapis.com/api/request_count` on the `consumed_api` resource; the
+  # `*-backend` services are the legacy Maps web services (geocoding-, places-, directions-,
+  # distance-matrix-, elevation-, timezone-, maps-, static-maps-backend), the rest are the
+  # newer Maps APIs. Windows are FIXED alignment periods: Cloud Monitoring aligns buckets to
+  # the END of the range, so one period over an equal range is a rolling window ending now.
   mapsDatasource = "gcp-monitoring";
+  # One backslash reaches the filter's monitoring.regex.full_match (RE2).
   mapsServiceRe = builtins.concatStringsSep "|" [
-    ".*-backend\\\\.googleapis\\\\.com"
-    "places\\\\.googleapis\\\\.com"
-    "routes\\\\.googleapis\\\\.com"
-    "addressvalidation\\\\.googleapis\\\\.com"
-    "geolocation\\\\.googleapis\\\\.com"
-    "roads\\\\.googleapis\\\\.com"
+    ".*-backend\\.googleapis\\.com"
+    "places\\.googleapis\\.com"
+    "routes\\.googleapis\\.com"
+    "addressvalidation\\.googleapis\\.com"
+    "geolocation\\.googleapis\\.com"
+    "roads\\.googleapis\\.com"
   ];
-  mapsReq =
-    extra:
-    ''serviceruntime_googleapis_com:api_request_count{monitored_resource="consumed_api",service=~"${mapsServiceRe}"${extra}}'';
-  geocodeSel = ''monitored_resource="consumed_api",service="geocoding-backend.googleapis.com"'';
-  # quota_limit is written sparsely, so a bare selector is stale (empty) most of the time
-  # (measured 2026-11-07); last_over_time over a day always finds the latest value.
-  geocodeDailyLimit = ''max(last_over_time(serviceruntime_googleapis_com:quota_limit{monitored_resource="consumer_quota",service="geocoding-backend.googleapis.com",limit_name="BillableDefaultPerDayPerProject"}[1d]))'';
+  day = 86400;
+  geocodeService = "geocoding-backend.googleapis.com";
+  # The plugin's filter list: [ key op value "AND" key op value ... ].
+  requestFilter =
+    metric: service: extra:
+    [
+      "metric.type"
+      "="
+      "serviceruntime.googleapis.com/api/${metric}"
+      "AND"
+      "resource.type"
+      "="
+      "consumed_api"
+      "AND"
+      "resource.label.service"
+    ]
+    ++ (
+      if service == null then
+        [
+          "=~"
+          mapsServiceRe
+        ]
+      else
+        [
+          "="
+          service
+        ]
+    )
+    ++ extra;
+  non2xx = [
+    "AND"
+    "metric.label.response_code_class"
+    "!="
+    "2xx"
+  ];
+  mapsSeries =
+    {
+      filters,
+      period,
+      aligner ? "ALIGN_DELTA",
+      reducer ? "REDUCE_SUM",
+      groupBys ? [ ],
+    }:
+    {
+      queryType = "timeSeriesList";
+      timeSeriesList = {
+        projectName = gcpProjectId;
+        inherit filters groupBys;
+        crossSeriesReducer = reducer;
+        perSeriesAligner = aligner;
+        alignmentPeriod = "+${toString period}s";
+      };
+    };
+  # Request counts per alignment period, over every Maps API (service = null) or one.
+  requests =
+    {
+      period,
+      service ? null,
+      groupBys ? [ ],
+      extra ? [ ],
+      aligner ? "ALIGN_DELTA",
+    }:
+    mapsSeries {
+      filters = requestFilter "request_count" service extra;
+      inherit period groupBys aligner;
+    };
+  # quota/limit is written sparsely (measured 2026-11-07), so ALIGN_NEXT_OLDER over a week
+  # always finds the latest value.
+  geocodeQuota = mapsSeries {
+    filters = [
+      "metric.type"
+      "="
+      "serviceruntime.googleapis.com/quota/limit"
+      "AND"
+      "resource.type"
+      "="
+      "consumer_quota"
+      "AND"
+      "resource.label.service"
+      "="
+      geocodeService
+      "AND"
+      "metric.label.limit_name"
+      "="
+      "BillableDefaultPerDayPerProject"
+    ];
+    period = 7 * day;
+    aligner = "ALIGN_NEXT_OLDER";
+    reducer = "REDUCE_MAX";
+  };
   # Geocoding is an Essentials SKU: 10,000 free calls a month, then 5 USD per 1,000
   # (https://developers.google.com/maps/billing-and-pricing/pricing, since 2025-03-01).
   # The 300/day quota in infra/gcp/foundation.nix keeps a 31-day month at 9,300.
   geocodeFreePerMonth = 10000;
   geocodeUsdPerCall = 0.005;
-  mapsQuery = expr: {
-    queryType = "promQL";
-    promQLQuery = {
-      projectName = gcpProjectId;
-      inherit expr;
-      step = "60s";
-    };
+  # abs() only turns the -0 of `0 * negative` into 0; the product is never below zero.
+  geocodeCostExpr =
+    ref:
+    "abs((${ref} > ${toString geocodeFreePerMonth}) * (${ref} - ${toString geocodeFreePerMonth}) * ${toString geocodeUsdPerCall})";
+  # Grafana server-side expressions, shared by the panels and the rules. Reducing an ABSENT
+  # series yields nothing, so an expression over it is no data (the rules map that to OK).
+  reduceLast = expression: {
+    inherit expression;
+    reducer = "last";
+    settings.mode = "dropNN";
+    type = "reduce";
+  };
+  math = expression: {
+    inherit expression;
+    type = "math";
   };
   mapsTarget =
-    refId: expr:
-    (mapsQuery expr)
+    refId: query:
+    query
     // {
       datasource = {
         type = "stackdriver";
@@ -94,6 +189,18 @@ let
       };
       inherit refId;
     };
+  exprTarget =
+    refId: model:
+    model
+    // {
+      datasource = {
+        type = "__expr__";
+        uid = "__expr__";
+      };
+      inherit refId;
+    };
+  # An intermediate query or expression: computed, not drawn.
+  hidden = t: t // { hide = true; };
   mapsPanel =
     {
       title,
@@ -105,8 +212,12 @@ let
       thresholds ? null,
       extraDefaults ? { },
       options ? { },
+      # A fixed window for a rolling-total panel, independent of the dashboard's range.
+      timeFrom ? null,
+      hideTimeOverride ? false,
     }:
-    {
+    (if timeFrom == null then { } else { inherit timeFrom hideTimeOverride; })
+    // {
       datasource = {
         type = "stackdriver";
         uid = mapsDatasource;
@@ -141,6 +252,28 @@ let
       };
     };
 
+  # One extra rule data node for mkRule's extraData: a datasource query (pass its uid and
+  # its lookback in seconds) or, by default, a server-side expression.
+  ruleNode =
+    {
+      refId,
+      model,
+      datasource ? "__expr__",
+      rangeSeconds ? 0,
+    }:
+    {
+      datasource_uid = datasource;
+      model = builtins.toJSON (model // { inherit refId; });
+      ref_id = refId;
+      relative_time_range = [
+        {
+          from = rangeSeconds;
+          to = 0;
+        }
+      ];
+    }
+    // (if model ? queryType then { query_type = model.queryType; } else { });
+
   # One Grafana-managed rule in the generated rules' exact shape (query A, threshold C),
   # so a new rule is its distinct fields only. Explicit uids keep the plan free of churn.
   mkRule =
@@ -166,6 +299,10 @@ let
       # datasource whose backend only answers range queries: the stackdriver plugin calls
       # query_range alone, and Grafana refuses to alert on a series that is not reduced.
       reduce ? false,
+      # More nodes after A (and B), built with ruleNode: a second query, its reduce, the
+      # math that combines them. thresholdOn names the node C tests.
+      extraData ? [ ],
+      thresholdOn ? if reduce then "B" else "A",
     }:
     # The default model with no expr would render `"expr": null` and evaluate nothing.
     assert (model.expr or "") != null;
@@ -207,6 +344,7 @@ let
           ];
         }
       ]
+      ++ extraData
       ++ [
         {
           datasource_uid = "__expr__";
@@ -219,7 +357,7 @@ let
                 };
               }
             ];
-            expression = if reduce then "B" else "A";
+            expression = thresholdOn;
             refId = "C";
             type = "threshold";
           };
@@ -714,8 +852,21 @@ in
                 value = 0.95;
               }
             ];
+            # A week, so the sparse quota series is found; A's last daily bucket is the
+            # rolling 24 h. The override is hidden because the gauge shows 24 h, not 7 d.
+            timeFrom = "7d";
+            hideTimeOverride = true;
             targets = [
-              (mapsTarget "A" "sum(increase(serviceruntime_googleapis_com:api_request_count{${geocodeSel}}[1d])) / ${geocodeDailyLimit}")
+              (hidden (
+                mapsTarget "A" (requests {
+                  period = day;
+                  service = geocodeService;
+                })
+              ))
+              (hidden (mapsTarget "Q" geocodeQuota))
+              (hidden (exprTarget "RA" (reduceLast "A")))
+              (hidden (exprTarget "RQ" (reduceLast "Q")))
+              (exprTarget "B" (math "$RA / $RQ"))
             ];
             options.reduceOptions.calcs = [ "lastNotNull" ];
           })
@@ -729,7 +880,12 @@ in
               x = 6;
               y = 3;
             };
-            targets = [ (mapsTarget "A" "sum(increase(${mapsReq ""}[1d]))") ];
+            timeFrom = "24h";
+            targets = [
+              (mapsTarget "A" (requests {
+                period = day;
+              }))
+            ];
             options.reduceOptions.calcs = [ "lastNotNull" ];
           })
           (mapsPanel {
@@ -757,8 +913,12 @@ in
                 value = geocodeFreePerMonth;
               }
             ];
+            timeFrom = "30d";
             targets = [
-              (mapsTarget "A" "sum(increase(serviceruntime_googleapis_com:api_request_count{${geocodeSel}}[30d]))")
+              (mapsTarget "A" (requests {
+                period = 30 * day;
+                service = geocodeService;
+              }))
             ];
             options.reduceOptions.calcs = [ "lastNotNull" ];
           })
@@ -783,15 +943,23 @@ in
                 value = 0.01;
               }
             ];
+            timeFrom = "30d";
             targets = [
-              (mapsTarget "A" "clamp_min(sum(increase(serviceruntime_googleapis_com:api_request_count{${geocodeSel}}[30d])) - ${toString geocodeFreePerMonth}, 0) * ${toString geocodeUsdPerCall}")
+              (hidden (
+                mapsTarget "A" (requests {
+                  period = 30 * day;
+                  service = geocodeService;
+                })
+              ))
+              (hidden (exprTarget "RA" (reduceLast "A")))
+              (exprTarget "B" (math (geocodeCostExpr "$RA")))
             ];
             options.reduceOptions.calcs = [ "lastNotNull" ];
           })
           (mapsPanel {
             title = "Requests per minute by API, method and response class";
             type = "timeseries";
-            description = "rate over 10 m, x 60.";
+            description = "ALIGN_RATE over 10 m, x 60.";
             gridPos = {
               h = 9;
               w = 24;
@@ -800,13 +968,24 @@ in
             };
             unit = "reqpm";
             targets = [
-              (mapsTarget "A" "sum by (service, method, response_code_class) (rate(${mapsReq ""}[10m])) * 60")
+              (hidden (
+                mapsTarget "A" (requests {
+                  period = 600;
+                  aligner = "ALIGN_RATE";
+                  groupBys = [
+                    "resource.label.service"
+                    "resource.label.method"
+                    "metric.label.response_code_class"
+                  ];
+                })
+              ))
+              (exprTarget "B" (math "$A * 60"))
             ];
           })
           (mapsPanel {
             title = "Error ratio (non-2xx) by API";
             type = "timeseries";
-            description = "Share of calls that did not return 2xx, over 1 h. A 429 here usually means the daily quota cap was hit.";
+            description = "Share of calls that did not return 2xx, per 1 h bucket. A 429 here usually means the daily quota cap was hit. No data means no non-2xx call in the range.";
             gridPos = {
               h = 8;
               w = 12;
@@ -815,7 +994,20 @@ in
             };
             unit = "percentunit";
             targets = [
-              (mapsTarget "A" "sum by (service) (increase(${mapsReq '',response_code_class!="2xx"''}[1h])) / sum by (service) (increase(${mapsReq ""}[1h]))")
+              (hidden (
+                mapsTarget "E" (requests {
+                  period = 3600;
+                  groupBys = [ "resource.label.service" ];
+                  extra = non2xx;
+                })
+              ))
+              (hidden (
+                mapsTarget "T" (requests {
+                  period = 3600;
+                  groupBys = [ "resource.label.service" ];
+                })
+              ))
+              (exprTarget "A" (math "$E / $T"))
             ];
           })
           (mapsPanel {
@@ -829,10 +1021,30 @@ in
               y = 18;
             };
             unit = "s";
-            targets = [
-              (mapsTarget "A" ''histogram_quantile(0.5, sum by (service, le) (rate(serviceruntime_googleapis_com:api_request_latencies_bucket{monitored_resource="consumed_api",service=~"${mapsServiceRe}"}[1h])))'')
-              (mapsTarget "B" ''histogram_quantile(0.95, sum by (service, le) (rate(serviceruntime_googleapis_com:api_request_latencies_bucket{monitored_resource="consumed_api",service=~"${mapsServiceRe}"}[1h])))'')
-            ];
+            # REDUCE_PERCENTILE over ALIGN_DELTA merges every series' distribution first, so
+            # it is the percentile of all calls to the API. ALIGN_PERCENTILE_* would be a
+            # percentile per series (per key, location, method), which cannot be combined.
+            targets =
+              map
+                (
+                  { refId, p }:
+                  mapsTarget refId (mapsSeries {
+                    filters = requestFilter "request_latencies" null [ ];
+                    period = 3600;
+                    reducer = "REDUCE_PERCENTILE_${p}";
+                    groupBys = [ "resource.label.service" ];
+                  })
+                )
+                [
+                  {
+                    refId = "A";
+                    p = "50";
+                  }
+                  {
+                    refId = "B";
+                    p = "95";
+                  }
+                ];
           })
         ];
         refresh = "";
@@ -949,10 +1161,33 @@ in
           summary = "Geocoding used {{ humanizePercentage $values.B.Value }} of its daily quota in the last 24 h";
           description = "Rolling 24 h of geocoding-backend requests over the BillableDefaultPerDayPerProject limit (infra/gcp/foundation.nix). At 100% Google answers 429 until midnight Pacific; it cannot bill. Dashboard: maps-platform.";
           datasource = mapsDatasource;
-          reduce = true;
-          model = mapsQuery "sum(increase(serviceruntime_googleapis_com:api_request_count{${geocodeSel}}[1d])) / ${geocodeDailyLimit}";
-          # The lookbacks live in the expression; the range only has to cover one step.
-          rangeSeconds = 300;
+          # A = requests in ONE daily bucket over a one-day range: the rolling 24 h.
+          model = requests {
+            period = day;
+            service = geocodeService;
+          };
+          rangeSeconds = day;
+          extraData = [
+            (ruleNode {
+              refId = "Q";
+              model = geocodeQuota;
+              datasource = mapsDatasource;
+              rangeSeconds = 7 * day;
+            })
+            (ruleNode {
+              refId = "RA";
+              model = reduceLast "A";
+            })
+            (ruleNode {
+              refId = "RQ";
+              model = reduceLast "Q";
+            })
+            (ruleNode {
+              refId = "B";
+              model = math "$RA / $RQ";
+            })
+          ];
+          thresholdOn = "B";
           op = "gt";
           threshold = 0.8;
           for = "15m";
@@ -967,9 +1202,34 @@ in
           summary = "{{ humanizePercentage $values.B.Value }} of Maps Platform calls in the last hour were not 2xx";
           description = "Non-2xx over all Maps Platform calls, 1 h window, only when there were at least 10 calls. 429 = quota cap hit, 403 = key restriction or API disabled. Dashboard: maps-platform.";
           datasource = mapsDatasource;
-          reduce = true;
-          model = mapsQuery "(sum(increase(${mapsReq '',response_code_class!="2xx"''}[1h])) / sum(increase(${mapsReq ""}[1h]))) and on() (sum(increase(${mapsReq ""}[1h])) >= 10)";
-          rangeSeconds = 300;
+          # A = non-2xx calls, T = all calls, each one hourly bucket over a one-hour range.
+          # No non-2xx call means A is absent and B is no data, which evaluates to OK.
+          model = requests {
+            period = 3600;
+            extra = non2xx;
+          };
+          rangeSeconds = 3600;
+          extraData = [
+            (ruleNode {
+              refId = "T";
+              model = requests { period = 3600; };
+              datasource = mapsDatasource;
+              rangeSeconds = 3600;
+            })
+            (ruleNode {
+              refId = "RA";
+              model = reduceLast "A";
+            })
+            (ruleNode {
+              refId = "RT";
+              model = reduceLast "T";
+            })
+            (ruleNode {
+              refId = "B";
+              model = math "$RA / $RT * ($RT >= 10)";
+            })
+          ];
+          thresholdOn = "B";
           op = "gt";
           threshold = 0.1;
           for = "10m";
