@@ -39,6 +39,8 @@
   agent-skills-mac-automation,
   agent-skills-vercel-agent,
   grok-build-plugin-cc,
+  # Source-only nixpkgs checkout read for ONE package recipe (claudeCode below).
+  nixpkgs-claude-code,
   # The ABSORBED local-rag capsule (local.rag.ollama +
   # local.rag.pgvector — the loopback RAG stack) — a MODULE, not a flake,
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
@@ -109,7 +111,26 @@ let
   # build reduces to `installBin $src` (src is a fixed-output fetchurl, fetchable
   # in-sandbox) + wrapProgram — both network-free — so __noChroot is unnecessary.
   # Drop it too. No-op on linux (both attrs already false there → identical drv).
-  claudeCode = pkgs.claude-code.overrideAttrs (_: {
+  #
+  # Base package: on darwin, nixpkgs-unstable's OWN recipe (the `nixpkgs-claude-code` input),
+  # callPackage'd against our pkgs, while it is newer than the weekly pin's — the weekly lags
+  # upstream's near-daily bumps (2026-11-07: weekly 2.1.308 vs unstable 2.1.318). Calling the
+  # whole package.nix, not overriding version+src, keeps upstream's wrapper changes too
+  # (makeShellWrapper + CLAUDE_CODE_CERT_STORE, absent at the weekly pin). Self-retiring: once
+  # the weekly catches up, `versionOlder` picks pkgs.claude-code again — then drop the input.
+  # Linux keeps pkgs.claude-code, so nixpi's closure is untouched.
+  claudeCodeUnstable =
+    pkgs.callPackage "${nixpkgs-claude-code}/pkgs/by-name/cl/claude-code/package.nix"
+      { };
+  claudeCodeBase =
+    if
+      pkgs.stdenv.hostPlatform.isDarwin
+      && lib.versionOlder pkgs.claude-code.version claudeCodeUnstable.version
+    then
+      claudeCodeUnstable
+    else
+      pkgs.claude-code;
+  claudeCode = claudeCodeBase.overrideAttrs (_: {
     doInstallCheck = false;
     __noChroot = false;
   });
