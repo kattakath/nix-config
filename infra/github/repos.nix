@@ -21,7 +21,6 @@
     "agentic-jobseek".main = 26396994;
     "agentic-ledger".main = 26328556;
     "agentic-nomad".main = 26328557;
-    "ai".main = 26397002;
     "dotfiles".main = 26397000;
     # The one ruleset not built from the shared templates: release tags are immutable.
     "jsonresume-connect" = {
