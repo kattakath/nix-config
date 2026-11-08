@@ -493,8 +493,8 @@ already-enabled plugin ships from a merge there. Validate with `claude plugin va
 
 **A SECOND source costs one input and its own entries — no new mechanism.**
 `local.claudePlugins.marketplaces` is `attrsOf` and `programs.claude-code.skills` is a
-plain attrset, so both already take N. The operator's `ismailkattakath/ai` is
-deliberately NOT pinned here. Add it as one more entry, or scope it to a project instead. (The operator's private client overlay was deleted 2026-11-01 —
+plain attrset, so both already take N — but the operator's rule (2026-11-07) is ONE marketplace,
+`kattakath/skills`; `ismailkattakath/ai` was deleted. (The operator's private client overlay was deleted 2026-11-01 —
 [`agent-resource-externalization.md`](../agent-resource-externalization.md).)
 
 Everything in [`kattakath/skills`](https://github.com/kattakath/skills) is a plugin under
