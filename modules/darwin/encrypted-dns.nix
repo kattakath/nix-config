@@ -78,6 +78,8 @@
 # wildcard bind both clashes (EADDRINUSE across uids) and serves the whole LAN. So the
 # tart-vms capsule sets each guest's DNS itself (its packages/guest-dns.nix). Keep this
 # disabled on a host whose Tart lanes lack that step.
+# One job also failed AFTER the rollback (17839761748, host on DHCP DNS). Cause unproven,
+# likely stale vmnet forwarder state; the guest step makes it moot.
 #
 # IPv6-ONLY NETWORKS (a NAT64 phone hotspot): IPv4-only names need the carrier's DNS64,
 # and Quad9/Cloudflare do not synthesise AAAA records. Use the escape below there, as
