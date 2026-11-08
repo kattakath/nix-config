@@ -797,6 +797,12 @@ in
       }
       "proton-drive"
       "raspberry-pi-imager"
+      # Secretive — SSH keys in the Secure Enclave, each signature gated by Touch ID.
+      # Backs Touch ID-bound approvals (`ssh-keygen -Y sign`) in scrape-harness.
+      # Cask, not nixpkgs' `secretive`: same upstream signed zip, but nixpkgs lags
+      # (3.0.4 vs 4.0.0, 2026-11-07), and its SecretAgent login item wants a real
+      # /Applications bundle rather than the Nix Apps copy.
+      "secretive"
       "slack"
       # Slack's official CLI for building/deploying Slack apps (docs.slack.dev/tools/slack-cli).
       # Cask, not nixpkgs' same-named "slack-cli" — that's an unrelated, unmaintained
