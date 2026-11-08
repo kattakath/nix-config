@@ -1,107 +1,120 @@
-# System-wide encrypted DNS: every lookup goes to dnscrypt-proxy on 127.0.0.1 / ::1,
-# which forwards it as DoH (DNS over HTTPS) to Quad9, with Cloudflare as the fallback.
-# Nothing leaves the Mac as plaintext UDP/53 to the ISP's resolvers.
+# System-wide encrypted DNS through macOS's OWN resolver. A `com.apple.dnsSettings.managed`
+# configuration profile tells mDNSResponder to send every lookup as DoH (DNS over HTTPS)
+# to Quad9. There is no local proxy and no listener on port 53.
 #
-# UPSTREAM-FIRST. Three pinned nix-darwin options do all of the work:
-#   - services.dnscrypt-proxy.{enable,settings} (nix-darwin/modules/services/dnscrypt-proxy.nix):
-#     the package, the `_dnscrypt-proxy` system user, the TOML render and the launchd daemon.
-#   - networking.dns + networking.knownNetworkServices (nix-darwin/modules/networking/default.nix):
-#     activation runs `networksetup -setdnsservers <service> <dns…>` on each listed service
-#     (and `-setsearchdomains <service> empty`; no service here has any search domain).
-# Nothing custom beyond the settings and one override, below.
+# WHY NATIVE, NOT dnscrypt-proxy (which this module ran 2026-11-08, b3407417 → 5253fa47).
+# MEASURED that day: mDNSResponder ITSELF binds UDP/TCP :53 to serve the vmnet guests' DNS
+# (Tart CI VMs, any NAT VM), but only while a VM is up and the port is free. The kernel
+# log: `in_pcbbind … :53 … EADDRINUSE caused by … interface: lo0 … process: mDNSResponder`.
+# So a local proxy on 127.0.0.1:53 and the VM DNS proxy shut each other out:
+#   - proxy up first → guests had no DNS, and every GitLab job failed at `git clone`;
+#   - VM up first → dnscrypt-proxy crash-looped (EADDRINUSE) until the last VM stopped,
+#     and the HOST had no DNS for that whole time.
+# A managed DoH profile leaves port 53 to mDNSResponder, so there is nothing to collide.
+# (The tart-vms capsule's guest-DNS step stays: it keeps CI independent of how the host
+# resolves. Its packages/guest-dns.nix carries the dnscrypt measurements.)
 #
-# THE ONE OVERRIDE: the daemon starts as ROOT. Upstream runs the daemon as
-# `_dnscrypt-proxy`, which cannot listen on port 53: MEASURED 2026-11-08 on this Mac
-# (macOS 27.2), a non-root bind() to 127.0.0.1:53 and to ::1:53 fails with EACCES. (The
-# Mojave relaxation covers only the wildcard 0.0.0.0 / ::, which would turn this into a
-# resolver for the whole LAN.) So launchd starts it as root, and dnscrypt-proxy's own
-# `user_name` drops it to `_dnscrypt-proxy` right after the sockets are bound. Pinned source
-# dnscrypt-proxy 2.1.18 config.go, `ConfigLoad`: the privilege drop runs BEFORE
-# `loadSources`, so the network-facing code and the cache file only ever run as the
-# unprivileged user. `_dnscrypt-proxy` is a system service user (shell /usr/bin/false),
-# not a second login account.
+# UPSTREAM-FIRST. Grepped the pinned nix-darwin and home-manager modules for
+# mobileconfig / com.apple.dnsSettings / `profiles install`: no option exists, and a profile
+# cannot be installed silently without MDM. So this renders the profile with nixpkgs'
+# `lib.generators.toPlist`, puts it at /etc/encrypted-dns/quad9-doh.mobileconfig, and ships
+# `encrypted-dns-install` to open it. The operator then clicks Install ONCE:
+# System Settings → General → Device Management.
+# Payload keys are from Apple's schema, apple/device-management @ 9e7fdbe2,
+# mdm/profiles/com.apple.dnsSettings.managed.yaml:
+#   - DNSProtocol "HTTPS" plus ServerURL (required for HTTPS) plus ServerAddresses. The
+#     addresses mean no plaintext lookup of dns.quad9.net is needed to bootstrap.
+#   - ProhibitDisablement: "only available on supervised devices". This Mac is not, so
+#     it is omitted.
+#   - AllowFailover (macOS 26+): left at its default, false. The system does NOT fall back
+#     to the network's plaintext resolver.
+#   - The schema notes that a manually installed profile also applies to cellular.
+# The resolver is Quad9's filtered endpoint (malware blocklist, DNSSEC validated, no
+# logs): https://dns.quad9.net/dns-query, at 9.9.9.9, 149.112.112.112, 2620:fe::fe and
+# 2620:fe::9.
 #
-# LAUNCHD NAMING: this daemon is a boot-ordering exception (.claude/rules/launchd-naming.md).
-# Upstream emits it with `script =`, so arg0 is `/bin/sh -c '/bin/wait4path /nix/store &&
-# exec …'`. That is correct for a RunAtLoad daemon run from /nix: it must be up at boot,
-# because the system resolver points at it. It reads no TCC folder (only
-# /var/lib/dnscrypt-proxy), so only BTM legibility is lost.
+# REINSTALL UPDATES IN PLACE. Both PayloadIdentifier and PayloadUUID are fixed constants
+# here. Apple's TopLevel schema says the system "uses this string [PayloadIdentifier] to
+# determine whether to replace an existing profile or add it as a new profile". So
+# installing a changed profile replaces the old one; it does not stack a second.
 #
-# RESOLVERS — pinned BY NAME, from the minisign-signed public list:
-#   - Quad9, DoH, the filtered variant (malware blocklist, DNSSEC, no logs, no ECS):
-#     quad9-doh-ip4-port443-filter-pri, quad9-doh-ip6-port443-filter-pri
-#   - Cloudflare 1.1.1.1, DoH (DNSSEC, no logs, no filter): cloudflare, cloudflare-ipv6
-#   Every stamp in that list carries the server's IP address, so queries never need any
-#   other resolver. Why names and not literal `[static]` stamps: Quad9's stamps pin a TLS
-#   certificate hash. A copied stamp breaks silently when Quad9 rotates that certificate,
-#   but the signed list follows the rotation. The minisign key keeps the list
-#   tamper-proof.
+# NETWORK SERVICES: Wi-Fi and Thunderbolt Bridge (`networksetup -listallnetworkservices`).
+# `networking.knownNetworkServices` with an EMPTY `networking.dns` makes every activation
+# write `empty`, which is DHCP DNS. That is deliberate. It clears the 127.0.0.1 that the
+# dnscrypt version set, and it keeps activation from ever fighting the profile. The
+# profile, not the per-service DNS, makes queries encrypted. The WireGuard services
+# (MANILA … TORONTO) stay out, so a tunnel keeps the DNS it pushes.
 #
-# REQUIREMENTS: require_dnssec and require_nolog are ON. require_nofilter is OFF, because
-# the operator CHOSE Quad9's filtering. With it ON, both Quad9 entries are dropped.
-#
-# "PRIMARY / FALLBACK" is by latency. It is not a strict order. dnscrypt-proxy 2.1.18
-# has no priority strategy (lb_strategy is one of wp2|p2|ph|p<n>|first|random), and the
-# order of server_names means nothing. `p2` picks one of the two fastest live servers.
-# MEASURED 2026-11-08 on the home network: Quad9 v4/v6 31 ms, Cloudflare 69/79 ms, so the
-# two fastest are both Quad9. A dead server leaves the pool under any strategy, so
-# Cloudflare takes over when Quad9 is down. Rejected: `wp2` (the default), which picks from
-# two RANDOM candidates and so sends a share of the queries to Cloudflare while Quad9
-# is healthy. Weakest assumption: that Quad9 is faster on other networks too. The startup
-# "Sorted latencies" lines in the log show which one is faster on each network.
-#
-# BOOTSTRAP. `bootstrap_resolvers` is PLAINTEXT UDP/53 by design. dnscrypt-proxy uses it
-# for one job only: to resolve the hosts it downloads the resolver list from, when no
-# encrypted server is live yet. In practice that means the first start, before the
-# cache file exists. After that it resolves through itself. Queries are never sent there.
-# Upstream's example suggests a bootstrap operator other than the DoH operator. Ours is
-# deliberately the SAME two operators (9.9.9.9, 1.1.1.1). Every answer it gives is only
-# used to fetch a list that is then minisign-verified, so a lying bootstrap can block the
-# download but cannot inject a server. Using the same two operators means no third
-# party (the example's 8.8.8.8) ever sees a query. `ignore_system_dns = true` is
-# REQUIRED: the system resolver is this proxy, so falling back to it is a loop, and it
-# also means the ISP resolver is never asked.
-#
-# NETWORK SERVICES: the physical ones only, as `networksetup -listallnetworkservices`
-# printed them 2026-11-08: "Wi-Fi", "Thunderbolt Bridge". The seven WireGuard services
-# (MANILA … TORONTO) are left out ON PURPOSE. Activation would overwrite their DNS on
-# every switch. While a tunnel is up, it pushes its own DNS and that DNS wins: expected,
-# and the queries travel encrypted inside the tunnel anyway. `networkServices` applies even when `enable` is
-# off: with `networking.dns` empty, activation writes `empty` to each service, so turning
-# this off returns Wi-Fi to DHCP DNS instead of leaving it pointed at a dead 127.0.0.1.
-#
-# TART CI VMs DO NOT inherit this. Their DHCP resolver is the host's vmnet bridge
-# (192.168.64.1), and macOS forwards that to the host's resolver config. With the host
-# on a loopback-only resolver, that forwarding dies: MEASURED 2026-11-08, `dig
-# @192.168.64.1` timed out, nothing listens there, and every GitLab job failed at `git
-# clone`. A listener here cannot fix it. The bridge exists only while a VM runs, and a
-# wildcard bind both clashes (EADDRINUSE across uids) and serves the whole LAN. So the
-# tart-vms capsule sets each guest's DNS itself (its packages/guest-dns.nix). Keep this
-# disabled on a host whose Tart lanes lack that step.
-# One job also failed AFTER the rollback (17839761748, host on DHCP DNS). Cause unproven,
-# likely stale vmnet forwarder state; the guest step makes it moot.
-#
-# IPv6-ONLY NETWORKS (a NAT64 phone hotspot): IPv4-only names need the carrier's DNS64,
-# and Quad9/Cloudflare do not synthesise AAAA records. Use the escape below there, as
-# for a captive portal. (Upstream's `[captive_portals]` map was rejected: it only answers
-# the OS's probe names, and the portal's own login page still needs the network's DNS.)
-#
-# CAPTIVE-PORTAL ESCAPE (hotel/airport Wi-Fi): hand Wi-Fi back to the network's DHCP DNS:
-#   sudo networksetup -setdnsservers Wi-Fi empty
-# The next `activate` sets 127.0.0.1 / ::1 again, or run
-# `sudo networksetup -setdnsservers Wi-Fi 127.0.0.1 ::1` once you are logged in.
+# CAPTIVE-PORTAL ESCAPE (hotel/airport Wi-Fi), with failover off: remove the profile.
+#   sudo profiles remove -identifier com.kattakath.encrypted-dns
+# Since macOS 11, profiles(1) cannot INSTALL a profile, but its man page still documents
+# `remove -identifier`. Run `encrypted-dns-install` again once you are online.
+# (UNVERIFIED until the first install: whether macOS 27 also offers an on/off toggle for
+# DNS settings under Network → VPN & Filters.)
 {
   config,
   lib,
+  pkgs,
+  domainName,
   ...
 }:
 let
   cfg = config.local.encryptedDns;
-  stateDir = config.users.users._dnscrypt-proxy.home;
+
+  # Reverse-DNS from the fleet's one domain (kattakath.com → com.kattakath), so the
+  # identity lives once (modules/parts/identity.nix).
+  reverseDomain = lib.concatStringsSep "." (lib.reverseList (lib.splitString "." domainName));
+  profileId = "${reverseDomain}.encrypted-dns";
+
+  profile = pkgs.writeText "quad9-doh.mobileconfig" (
+    lib.generators.toPlist { escape = true; } {
+      PayloadType = "Configuration";
+      PayloadVersion = 1;
+      PayloadIdentifier = profileId;
+      # Fixed on purpose: a reinstall must REPLACE this profile (see the header).
+      PayloadUUID = "0F4A395C-9033-40F8-94D1-101A4DDB309E";
+      PayloadDisplayName = "Encrypted DNS (Quad9)";
+      PayloadDescription = "System-wide DNS over HTTPS to Quad9 (filtered, DNSSEC, no logs). Declared in nix-config, modules/darwin/encrypted-dns.nix.";
+      PayloadScope = "System";
+      PayloadContent = [
+        {
+          PayloadType = "com.apple.dnsSettings.managed";
+          PayloadVersion = 1;
+          PayloadIdentifier = "${profileId}.quad9";
+          PayloadUUID = "089E2E24-15D3-42DD-B5EB-979BBCCC8BA5";
+          PayloadDisplayName = "Quad9 DoH";
+          DNSSettings = {
+            DNSProtocol = "HTTPS";
+            ServerURL = "https://dns.quad9.net/dns-query";
+            ServerAddresses = [
+              "9.9.9.9"
+              "149.112.112.112"
+              "2620:fe::fe"
+              "2620:fe::9"
+            ];
+          };
+        }
+      ];
+    }
+  );
+
+  profilePath = "/etc/encrypted-dns/quad9-doh.mobileconfig";
+
+  install = pkgs.writeShellApplication {
+    name = "encrypted-dns-install";
+    text = ''
+      # Hands the profile to System Settings. macOS never installs a profile silently
+      # without MDM: the operator still clicks Install there.
+      /usr/bin/open ${lib.escapeShellArg profilePath}
+      echo "encrypted-dns-install: profile handed to System Settings." >&2
+      echo "  Next: System Settings → General → Device Management → \"Encrypted DNS (Quad9)\" → Install." >&2
+      echo "  Reinstalling replaces it in place (same PayloadIdentifier: ${profileId})." >&2
+    '';
+  };
 in
 {
   options.local.encryptedDns = {
-    enable = lib.mkEnableOption "system-wide encrypted DNS (dnscrypt-proxy DoH on 127.0.0.1 / ::1)";
+    enable = lib.mkEnableOption "system-wide encrypted DNS (a native macOS DoH profile for Quad9)";
     networkServices = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [
@@ -109,9 +122,10 @@ in
         "Thunderbolt Bridge"
       ];
       description = ''
-        Network services (as `networksetup -listallnetworkservices` prints them) whose DNS
-        this module owns. They point at the proxy when enabled and fall back to DHCP DNS when
-        disabled. Leave VPN services out, so they keep the DNS their tunnel pushes.
+        Network services (as `networksetup -listallnetworkservices` prints them) whose
+        per-service DNS activation resets to DHCP (`empty`). This way no static resolver,
+        such as the old 127.0.0.1, outranks the DoH profile. Leave VPN services out, so they
+        keep the DNS their tunnel pushes.
       '';
     };
   };
@@ -120,63 +134,8 @@ in
     { networking.knownNetworkServices = cfg.networkServices; }
 
     (lib.mkIf cfg.enable {
-      networking.dns = [
-        "127.0.0.1"
-        "::1"
-      ];
-
-      services.dnscrypt-proxy = {
-        enable = true;
-        settings = {
-          listen_addresses = [
-            "127.0.0.1:53"
-            "[::1]:53"
-          ];
-          user_name = "_dnscrypt-proxy";
-
-          server_names = [
-            "quad9-doh-ip4-port443-filter-pri"
-            "quad9-doh-ip6-port443-filter-pri"
-            "cloudflare"
-            "cloudflare-ipv6"
-          ];
-          ipv4_servers = true;
-          ipv6_servers = true;
-          doh_servers = true;
-          dnscrypt_servers = false;
-          require_dnssec = true;
-          require_nolog = true;
-          require_nofilter = false;
-          lb_strategy = "p2";
-
-          bootstrap_resolvers = [
-            "9.9.9.9:53"
-            "1.1.1.1:53"
-          ];
-          ignore_system_dns = true;
-
-          sources.public-resolvers = {
-            urls = [
-              "https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md"
-              "https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md"
-            ];
-            # ABSOLUTE on purpose. dnscrypt-proxy chdirs into the config file's directory
-            # (config.go `cdFileDir`), which is the read-only /nix/store. A relative
-            # cache_file there cannot be written, and the daemon would never start.
-            cache_file = "${stateDir}/public-resolvers.md";
-            # The resolver list's published minisign PUBLIC key (upstream example-dnscrypt-proxy.toml),
-            # not a secret, so it is gitleaks-allowed.
-            minisign_key = "RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3"; # gitleaks:allow
-            refresh_delay = 73;
-          };
-        };
-      };
-
-      # Root for the bind; `user_name` above does the drop (see the header).
-      launchd.daemons.dnscrypt-proxy.serviceConfig = {
-        UserName = lib.mkForce null;
-        GroupName = lib.mkForce null;
-      };
+      environment.etc."encrypted-dns/quad9-doh.mobileconfig".source = profile;
+      environment.systemPackages = [ install ];
     })
   ];
 }

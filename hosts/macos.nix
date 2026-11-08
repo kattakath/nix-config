@@ -88,9 +88,9 @@ in
   # Why and the measurements: modules/darwin/clat-guard.nix. 2026-10-16.
   local.clatGuard.enable = true;
 
-  # System-wide encrypted DNS: dnscrypt-proxy on 127.0.0.1 / ::1, DoH to Quad9 (filtered)
-  # with Cloudflare as fallback. Why, the measurements and the captive-portal escape:
-  # modules/darwin/encrypted-dns.nix. 2026-11-08.
+  # System-wide encrypted DNS: a native macOS DoH profile for Quad9 (filtered). It is
+  # installed once with `encrypted-dns-install` plus one click in System Settings. Why, the
+  # measurements and the captive-portal escape: modules/darwin/encrypted-dns.nix. 2026-11-08.
   local.encryptedDns.enable = true;
 
   # Machine-wide CLIs — the mechanism for "shared by every account". A
