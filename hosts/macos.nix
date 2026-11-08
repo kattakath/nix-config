@@ -91,7 +91,9 @@ in
   # System-wide encrypted DNS: dnscrypt-proxy on 127.0.0.1 / ::1, DoH to Quad9 (filtered)
   # with Cloudflare as fallback. Why, the measurements and the captive-portal escape:
   # modules/darwin/encrypted-dns.nix. 2026-11-08.
-  local.encryptedDns.enable = true;
+  # OFF since 2026-11-08: Tart CI VMs lost DNS (their vmnet bridge resolver cannot reach a
+  # loopback-only host resolver). Re-enable after the tart-vms guest-DNS fix lands.
+  local.encryptedDns.enable = false;
 
   # Machine-wide CLIs — the mechanism for "shared by every account". A
   # systemPackages entry is ONE store path on PATH for every user, so no
