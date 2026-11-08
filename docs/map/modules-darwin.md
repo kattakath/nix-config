@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/darwin/`
 
-`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,claude-managed-settings.nix,launchd-sources.nix,operator-host.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,encrypted-dns.nix,claude-managed-settings.nix,launchd-sources.nix,operator-host.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
@@ -251,6 +251,15 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   it. It copies the ollama metal guard's shape, so it is one of the boot-ordering `/bin/sh` rows in
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). The file header carries the diagnosis
   (no PREF64, no option 108, no `ipv4only.arpa` AAAA) and the upstream-first grep.
+- **`encrypted-dns.nix`** (macos only, `local.encryptedDns`, since 2026-11-08) — system-wide
+  encrypted DNS built from nix-darwin's own `services.dnscrypt-proxy`, `networking.dns` and
+  `networking.knownNetworkServices`. Wi-Fi and Thunderbolt Bridge point at `127.0.0.1` / `::1`.
+  The proxy sends DoH to Quad9 (the filtered variant) with Cloudflare as fallback, pinned by name
+  from the minisign-signed resolver list. The daemon starts as root, because a non-root bind to
+  `127.0.0.1:53` fails with EACCES (measured). dnscrypt-proxy's `user_name` then drops it to
+  `_dnscrypt-proxy`. Turning it off returns those services to DHCP DNS. The WireGuard services
+  are left out on purpose, so a tunnel keeps the DNS it pushes. The captive-portal escape is one
+  command, in the file header.
 - **`operator-host.nix`** (`local.operatorHost`, default false; set only in `hosts/macos.nix`) —
   the operator-only gate that `modules/_lib/is-macos-host.nix` reads. A flag rather than
   `hostName == "macos"` because a template consumer may legitimately name its Mac "macos";

@@ -44,6 +44,7 @@ in
     ../modules/darwin/logging.nix
     ../modules/darwin/ollama-daemon.nix
     ../modules/darwin/clat-guard.nix
+    ../modules/darwin/encrypted-dns.nix
   ];
 
   # The operator's own Mac: opens every operator-only gate
@@ -86,6 +87,11 @@ in
   # Undo macOS 27 turning on CLAT46 where no NAT64 exists (IPv4 dead, IPv6 fine).
   # Why and the measurements: modules/darwin/clat-guard.nix. 2026-10-16.
   local.clatGuard.enable = true;
+
+  # System-wide encrypted DNS: dnscrypt-proxy on 127.0.0.1 / ::1, DoH to Quad9 (filtered)
+  # with Cloudflare as fallback. Why, the measurements and the captive-portal escape:
+  # modules/darwin/encrypted-dns.nix. 2026-11-08.
+  local.encryptedDns.enable = true;
 
   # Machine-wide CLIs — the mechanism for "shared by every account". A
   # systemPackages entry is ONE store path on PATH for every user, so no
