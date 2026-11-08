@@ -267,6 +267,15 @@
       url = "github:xai-org/grok-build-plugin-cc";
       flake = false;
     };
+    # claude-code ONLY, from a newer nixpkgs than the weekly `nixpkgs` above — the weekly
+    # snapshot lags upstream's near-daily claude-code bumps (2026-11-07: weekly 2.1.308, the
+    # operator needed >= 2.1.318). flake = false: nothing here is EVALUATED as a second tree;
+    # modules/home/default.nix callPackages just pkgs/by-name/cl/claude-code/package.nix
+    # against OUR pkgs, darwin-gated, and only while it is newer than `pkgs.claude-code`.
+    nixpkgs-claude-code = {
+      url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+      flake = false;
+    };
     # ---- Third-party skills no plugin can serve — unlicensed, or whose plugin fails to load
     # (2026-11-07: every other one moved to a plugin). Wired into programs.claude-code.skills.
     agent-skills-mac-automation = {

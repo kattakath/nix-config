@@ -31,6 +31,7 @@ let
     agent-skills-mac-automation
     agent-skills-vercel-agent
     grok-build-plugin-cc
+    nixpkgs-claude-code
     ;
 
   # ABSORBED capsules (ADR-002 waves 3 and 4), reached through the flake's own
@@ -98,6 +99,7 @@ let
             agent-skills-mac-automation
             agent-skills-vercel-agent
             grok-build-plugin-cc
+            nixpkgs-claude-code
             # kattakath-skills is DELIBERATELY ABSENT from this seam (removed
             # 2026-10-02, when its last home-manager consumer died). The pin is still
             # load-bearing — modules/parts/packages.nix (page-lab-pick) and
