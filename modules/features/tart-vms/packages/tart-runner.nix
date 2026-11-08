@@ -62,6 +62,8 @@ let
   # The host-wide slot semaphore — SHARED with the GitLab executor shims
   # (packages/gitlab-tart.nix); packages/tart-slots.nix is the one protocol.
   slotsLib = import ./tart-slots.nix { inherit writeText; };
+  # Guest DNS, shared with packages/gitlab-tart.nix (packages/guest-dns.nix says why).
+  guestDns = import ./guest-dns.nix { inherit writeText; };
 
   # The ONE way anything here talks to api.github.com, so "no secret in argv"
   # is a property of the helper rather than of each call site.
@@ -470,7 +472,7 @@ let
       # --- GC: a digest bump renames the base clone (both it and the pin are
       # keyed by sha256(oci@digest)), so superseded tr-base-* would accumulate
       # at ~222 GB each (macos-runner:tahoe, measured 2026-09-06). TR_LIVE_BASES is the set EVERY enabled instance on
-      # this host still needs, computed in modules/github-runner.nix, so this
+      # this host still needs, computed in the capsule's github-runner.nix, so this
       # can never delete a sibling's base.
       #
       # ORDERING IS LOAD-BEARING: this runs ONLY from mark_ready(), i.e. only
@@ -698,6 +700,8 @@ let
         # Ephemeral=True and DisableUpdate=True server-side.
         {
           printf 'export ACTIONS_RUNNER_INPUT_JITCONFIG=%q RUNNER_DIR=%q\n' "$blob" "$TR_RUNNER_DIR"
+          # The guest's own DNS, before the runner reaches the network.
+          cat ${guestDns}
           cat <<'GUEST'
       set -euo pipefail
       export LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8

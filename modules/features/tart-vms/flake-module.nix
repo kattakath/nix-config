@@ -83,21 +83,6 @@
 #     NOT copied. Seven CI pipelines collapsing into one is the point of
 #     ADR-002; this repo has its own governance files and its own MIT LICENSE.
 #   README.md -> ./README.md, rehomed next to the code it describes.
-#
-# ---- ONE STALE `modules/…` REFERENCE IS LEFT ON PURPOSE ---------------------
-# The flattening above renamed `modules/slots.nix` -> `./slots.nix` and
-# `modules/gitlab-runner.nix` -> `./gitlab-runner.nix`. Every reference to the
-# old spelling was fixed EXCEPT one, which lives inside a `''…''` SHELL SCRIPT
-# BODY and therefore reaches the built derivation (gitlab-tart.nix's two were
-# fixed 2026-11-04, with slot-defaults.nix):
-#
-#   packages/tart-runner.nix   "computed in modules/github-runner.nix"
-#
-# Editing either changes the script text, hence the drv, hence the runner's
-# rendered config, hence `darwin-system` — and ADR-002's acceptance test is that this wave moves
-# code without moving a single host drv. A comment fix is not worth spending
-# that, so it is recorded here instead of silently rotting: fix it in the
-# next change that touches that script for a real reason.
 
 #
 # ---- ./darwin.nix (`local.tart.vms.*`) was RETIRED 2026-11-02 ---------------

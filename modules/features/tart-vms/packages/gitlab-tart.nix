@@ -69,6 +69,7 @@ let
   };
 
   slotsLib = import ./tart-slots.nix { inherit writeText; };
+  guestDns = import ./guest-dns.nix { inherit writeText; };
 
   exe = lib.getExe executor;
   tartBin = lib.getExe tart;
@@ -137,7 +138,13 @@ let
       exit "''${SYSTEM_FAILURE_EXIT_CODE:-1}"
     fi
     echo "nix-gitlab-tart-prepare: slot acquired" >&2
-    exec ${exe} prepare "$@"
+    ${exe} prepare "$@"
+    # The guest is up (prepare waits for its SSH), and the job's `git clone` runs
+    # in the LATER run stage. So this is the point to give the guest its own DNS
+    # (packages/guest-dns.nix says why). Bounded, and never fatal: a guest that could not
+    # be set keeps DHCP DNS.
+    timeout 60 tart exec "$vm" /bin/bash -c "$(cat ${guestDns})" ||
+      echo "nix-gitlab-tart-prepare: guest DNS step failed for $vm; guest keeps DHCP DNS" >&2
   '';
 
   run = mkShim "run" ''

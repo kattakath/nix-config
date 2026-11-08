@@ -66,10 +66,18 @@
 # printed them 2026-11-08: "Wi-Fi", "Thunderbolt Bridge". The seven WireGuard services
 # (MANILA … TORONTO) are left out ON PURPOSE. Activation would overwrite their DNS on
 # every switch. While a tunnel is up, it pushes its own DNS and that DNS wins: expected,
-# and the queries travel encrypted inside the tunnel anyway. Tart CI VMs set their own
-# public DNS per job and are unaffected. `networkServices` applies even when `enable` is
+# and the queries travel encrypted inside the tunnel anyway. `networkServices` applies even when `enable` is
 # off: with `networking.dns` empty, activation writes `empty` to each service, so turning
 # this off returns Wi-Fi to DHCP DNS instead of leaving it pointed at a dead 127.0.0.1.
+#
+# TART CI VMs DO NOT inherit this. Their DHCP resolver is the host's vmnet bridge
+# (192.168.64.1), and macOS forwards that to the host's resolver config. With the host
+# on a loopback-only resolver, that forwarding dies: MEASURED 2026-11-08, `dig
+# @192.168.64.1` timed out, nothing listens there, and every GitLab job failed at `git
+# clone`. A listener here cannot fix it. The bridge exists only while a VM runs, and a
+# wildcard bind both clashes (EADDRINUSE across uids) and serves the whole LAN. So the
+# tart-vms capsule sets each guest's DNS itself (its packages/guest-dns.nix). Keep this
+# disabled on a host whose Tart lanes lack that step.
 #
 # IPv6-ONLY NETWORKS (a NAT64 phone hotspot): IPv4-only names need the carrier's DNS64,
 # and Quad9/Cloudflare do not synthesise AAAA records. Use the escape below there, as
