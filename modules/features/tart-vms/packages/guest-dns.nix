@@ -3,9 +3,10 @@
 # inside the guest before the job reaches the network.
 #
 # WHY. A Tart guest on the default NAT network gets the host's vmnet bridge
-# (192.168.64.1) as its resolver, by DHCP. macOS forwards that bridge's DNS to the
-# HOST's resolver config. When the host points its resolver at a loopback-only proxy
-# (dnscrypt-proxy on 127.0.0.1, `local.encryptedDns`), that forwarding dies.
+# (192.168.64.1) as its resolver, by DHCP. The host's mDNSResponder serves that DNS by
+# binding :53 itself, but only while the port is free. When the host ran a proxy on
+# 127.0.0.1:53 (dnscrypt-proxy, `local.encryptedDns` before it became a native profile),
+# the guests had no DNS at all.
 # MEASURED 2026-11-08: nothing listens on 192.168.64.1:53 (`sudo lsof`), and
 # `dig @192.168.64.1 gitlab.com` timed out while `@127.0.0.1` answered. Every GitLab job
 # then failed at `git clone` with "Could not resolve host: gitlab.com" (jobs 17839694965
