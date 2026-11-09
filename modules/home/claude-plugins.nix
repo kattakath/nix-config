@@ -70,7 +70,13 @@ let
   #             claude/CLAUDE.md), and this plugin's asyncRewake hook is the ONLY report that
   #             lane gets. Without it a red push is silent (2026-11-07). The landing policy is
   #             the operator's, so it is not part of the floor a consumer inherits.
-  operatorIds = lib.optionals isMacosHost [ "ci-watch@kattakath" ];
+  #   slack-etiquette  the operator's sessions message his colleagues on Slack; the skill
+  #             carries when to post, group vs DM, one fact once and preview-free links
+  #             (2026-11-09). Workspace IDs stay in the hand-placed folder CLAUDE.md.
+  operatorIds = lib.optionals isMacosHost [
+    "ci-watch@kattakath"
+    "slack-etiquette@kattakath"
+  ];
 
   # ONE predicate for "this marketplace is a store path", shared by the three
   # places that must agree: the assertion, the settings-shape branch, and the
