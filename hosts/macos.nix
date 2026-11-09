@@ -100,11 +100,13 @@ in
   # grok and Antigravity were per-user `curl … | bash` installs until
   # 2026-09-15 and 2026-09-16 respectively. Both are nixpkgs' own builds
   # (`grok-build`, `antigravity-cli`), each measured to keep its vendor's
-  # signature (modules/parts/packages.nix). Per-user state remains in ~/.grok
-  # and ~/.antigravity.
+  # signature (modules/parts/packages.nix). Qwen Code is nixpkgs' `qwen-code`
+  # (Apache-2.0, built from source). Per-user state remains in ~/.grok,
+  # ~/.antigravity and ~/.qwen.
   environment.systemPackages = [
     pkgs.grok-build
     pkgs.antigravity-cli
+    pkgs.qwen-code
     # acpx — the headless ACP client that drives the fleet's agents (grok,
     # Antigravity, Claude Code) as PEERS
     # rather than as separate terminals. Machine-wide for the same reason they

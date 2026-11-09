@@ -207,6 +207,13 @@ in
           # below still expose them via `config.packages.<name>` and are
           # unchanged. DARWIN-ONLY either way: the Keychain is macOS-only.)
 
+          # Qwen Code (`qwen`) — nixpkgs' `qwen-code`, re-exported as `.#qwen` so
+          # the flake attr matches the binary. hosts/macos.nix shares it
+          # machine-wide. Apache-2.0, so no unfree predicate and no vendor
+          # signature to re-check (unlike grok and antigravity-cli). The
+          # version moves with the nixpkgs pin. Per-user state stays in ~/.qwen.
+          qwen = pkgs.qwen-code;
+
           # acpx — headless ACP (Agent Client Protocol) client. The one piece of
           # cross-agent interop worth installing: it drives `claude`, `grok` and
           # `agy` over the protocol all three already speak, with a real
