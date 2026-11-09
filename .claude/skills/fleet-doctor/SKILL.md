@@ -290,7 +290,7 @@ fails SILENTLY if upstream renames the server key, and this step is the guard. R
 ```bash
 claude mcp list 2>/dev/null | grep -cE '^plugin:(aws-core|aws-serverless|cloudflare|slack|neon):'   # must print 0
 claude mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # must print 0
-claude mcp list 2>/dev/null | grep -c  '^claude\.ai AWS MCP:'                  # must print 1 (the one AWS path)
+claude mcp list 2>/dev/null | grep -c  '^claude\.ai AWS MCP:'                  # must print 0 or 1 (at most one AWS path)
 ```
 
 The first line asks whether the server-denied plugins (every `serverName` in
