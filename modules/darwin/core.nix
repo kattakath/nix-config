@@ -206,9 +206,7 @@ in
         # Don't reorder Spaces by most-recent-use — a stable Mission Control
         # layout keeps keyboard space-switching predictable.
         mru-spaces = false;
-        # Minimize windows into their app's Dock icon (tidier Dock).
         minimize-to-application = true;
-        # The little dot under running apps.
         show-process-indicators = true;
         # Show ONLY running apps — the Dock rebuilds from the running set, so
         # nothing is pinned (launch via Spotlight instead).
