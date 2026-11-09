@@ -338,6 +338,8 @@ builder can't set permissions" and that would send you looking for a fix that do
 real ARM Linux runner and pushes it to Cachix, so the Mac substitutes and never runs that `cp`
 at all. Heavy multi-core builds (the Pi SD image) go to GitHub CI / Cachix for the same reason.
 
+A **full-tunnel VPN** (MTU 1420) blackholes its TLS 1.3 source fetches: disconnect, or `--target-host`.
+
 ### Two operator lanes the Access gate and Rule 1d leave open
 
 - **Deploy over the LAN when the Access login is in the way.** `deploy.nodes.nixpi.hostname`
@@ -354,8 +356,7 @@ at all. Heavy multi-core builds (the Pi SD image) go to GitHub CI / Cachix for t
   `aarch64-linux` package on the Mac and push the closure instead:
   `nix build --print-out-paths nixpkgs#legacyPackages.aarch64-linux.<pkg>`, then
   `nix copy --to ssh://<user>@nixpi.local <path>`, then call `<path>/bin/<tool>` on the Pi
-  (in a `systemd-run` unit if it outlives the ssh session). Used for the 2026-10-18 f3 test of
-  the `/mnt/storage` USB sticks.
+  (in a `systemd-run` unit if it outlives the ssh session).
 
 ### What magic rollback actually buys
 
