@@ -489,98 +489,27 @@
   ];
   fileSystems."/".options = [ "errors=remount-ro" ];
 
-  # ── Extra bulk storage ──────────────────────────────────────────────────────
-  # Two USB flash sticks combined into ONE ~18 GB btrfs volume (single data
-  # profile ⇒ usable capacity is the SUM of both devices; NO redundancy — either
-  # stick dying loses the whole volume). Mounted at /mnt/storage. Both sticks
-  # passed an f3 write/read of the whole volume on 2026-10-18 (17.78 GB OK, 0 lost)
-  # — checked because this host's SD card turned out counterfeit.
-  #
-  # SAFETY (nixpi is headless; its ingresses are the tunnel and the LAN sshd):
-  # `nofail` + a short device timeout mean a dead, corrupt, or unplugged stick can
-  # NEVER block boot. The Pi always comes up — and both ingresses with it — even if
-  # the volume is absent, so a failed USB mount can't cause a reflash-style lockout.
-  # The volume is referenced by btrfs LABEL / by-id, never by sdX node, because
-  # USB enumeration order is not stable across reboots (sda/sdb can swap).
-  #
-  # ONE-TIME format (wipes both drives), done out-of-band once after this deploys:
-  #   sudo mkfs.btrfs -f -L nixpi-storage -d single -m single \
-  #     /dev/disk/by-id/usb-SanDisk_Cruzer_Blade_2004452693051B00F0C6-0:0 \
-  #     /dev/disk/by-id/usb-SanDisk_Cruzer_Spark_4C530000040815117535-0:0
-  boot.supportedFilesystems = [ "btrfs" ];
-  environment.systemPackages = [ pkgs.btrfs-progs ];
-
-  fileSystems."/mnt/storage" = {
-    device = "/dev/disk/by-label/nixpi-storage";
-    fsType = "btrfs";
-    options = [
-      "nofail" # headless Pi: a missing/dead stick must never block boot
-      "x-systemd.device-timeout=10s" # fail fast instead of hanging on an absent device
-      "compress=zstd" # transparent compression — kinder to slow, low-endurance flash
-      "noatime" # fewer metadata writes (endurance) on cheap USB flash
-      # Name both members explicitly so btrfs assembles the multi-device volume
-      # regardless of which sdX node udev happened to label first.
-      "device=/dev/disk/by-id/usb-SanDisk_Cruzer_Blade_2004452693051B00F0C6-0:0"
-      "device=/dev/disk/by-id/usb-SanDisk_Cruzer_Spark_4C530000040815117535-0:0"
-    ];
-  };
-
   # ── Audiobookshelf (LAN only) ───────────────────────────────────────────────
-  # Upstream module, left at its defaults on purpose: it binds 127.0.0.1:8000 and
-  # keeps its DATABASE (CONFIG_PATH) in /var/lib/audiobookshelf — on the SD card's
-  # root partition (a genuine 256 GB SanDisk since 2026-11-09; the counterfeit
-  # card is gone). The books and the bulky, regenerable METADATA
-  # (covers, logs, cache, backups) live on the USB volume — see `environment` below.
+  # Upstream module at its defaults: it binds 127.0.0.1:8000 and keeps its database
+  # AND metadata (covers, logs, cache, backups) in /var/lib/audiobookshelf, on the
+  # SD card's root. Until 2026-11-09 the books, metadata and backups lived on a
+  # two-stick USB btrfs volume (/mnt/storage, no redundancy), with an ExecStart
+  # mkForce for `--metadata` plus BACKUP_PATH; that existed because the counterfeit
+  # card's root was capped at 14 GiB. The genuine 256 GB card made it pointless, so
+  # it was retired, mount and all (git history has the override and its whys).
   #
   # No new firewall port: Caddy's `http://nixpi.local` vhost below proxies to the
   # loopback listener over :80, which is already open. Phones away from home would
   # need a tunnel route behind Access (infra/), a separate change.
   services.audiobookshelf.enable = true;
 
-  # The library directory is created by the service itself, AFTER the mount, not
-  # by tmpfiles: /mnt/storage is `nofail`, so local-fs.target does not wait for it
-  # and a tmpfiles rule would race it and land on the SD card under the mount
-  # point. RequiresMountsFor also keeps the server down while the volume is
-  # missing, rather than letting an upload fill the SD card instead.
-  systemd.services.audiobookshelf =
-    let
-      metadata = "/mnt/storage/audiobookshelf/metadata";
-    in
-    {
-      unitConfig.RequiresMountsFor = "/mnt/storage";
-      # Parents are listed BEFORE their children: `install -d` creates missing parents
-      # as root 0755, which would lock the service out of adding its own siblings.
-      serviceConfig.ExecStartPre =
-        map (d: "+${pkgs.coreutils}/bin/install -d -m 2775 -o audiobookshelf -g audiobookshelf ${d}")
-          [
-            "/mnt/storage/audiobooks"
-            "/mnt/storage/audiobookshelf"
-            "${metadata}"
-            "${metadata}/backups"
-            "${metadata}/items"
-            "${metadata}/authors"
-            "${metadata}/logs"
-          ];
-      # The metadata root re-roots items/, authors/, logs/, cache/ and streams/ (index.js;
-      # every manager joins its dir onto global.MetadataPath). It MUST be the
-      # `--metadata` FLAG: nixpkgs' bin/audiobookshelf launcher sets
-      # `METADATA_PATH="$metadata"` itself (default `$(pwd)/metadata`), clobbering any
-      # unit Environment= — measured 2026-10-18, the env var reached the unit and the
-      # startup log still said /var/lib. The module has no extra-args option (its
-      # ExecStart passes only --host/--port), hence mkForce, rebuilt from its own cfg.
-      serviceConfig.ExecStart =
-        let
-          cfg = config.services.audiobookshelf;
-        in
-        lib.mkForce "${cfg.package}/bin/audiobookshelf --host ${cfg.host} --port ${toString cfg.port} --metadata ${metadata}";
-      # BACKUP_PATH stays an env var — the launcher passes it through untouched. It is
-      # needed on top of --metadata: first-run setup PERSISTS backupPath in the
-      # database, so a new metadata root alone leaves backups where they were; the env
-      # var overrides the stored value and locks the UI field (ServerSettings.js,
-      # `backupPathEnvSet`).
-      environment.BACKUP_PATH = "${metadata}/backups";
-    };
-  # Group membership so books can be copied in over SSH (`scp … nixpi.local:/mnt/storage/audiobooks/<Author>/<Title>/`;
+  # The books folder (add it as the library folder in the web UI). setgid +
+  # group-writable, so the login user (below) can copy books in over SSH and new
+  # files stay in the service's group. On root, so tmpfiles cannot race a mount.
+  systemd.tmpfiles.rules = [
+    "d /var/lib/audiobookshelf/audiobooks 2775 audiobookshelf audiobookshelf - -"
+  ];
+  # Group membership so books can be copied in over SSH (`scp … nixpi.local:/var/lib/audiobookshelf/audiobooks/<Author>/<Title>/`;
   # the Mac's /usr/bin/rsync is openrsync, which rejects `--mkpath`).
   users.users.${loginName}.extraGroups = [ "audiobookshelf" ];
 
