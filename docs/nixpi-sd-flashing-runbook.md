@@ -227,8 +227,8 @@ diskutil eject diskN                            # then PHYSICALLY pull the card 
   `iostat -d -w 5 diskN` in a second terminal: it prints the card's real throughput, and a
   sustained `0.00` MB/s while f3 is still running is a stall.
 - **A FAIL is not repairable.** No software fixes a fake or failing card; `f3fix` (Linux-only)
-  only shrinks the partition to the real size. Use a different card, or, if you must keep this
-  one, cap it below the bad region (§4c).
+  only shrinks the partition to the real size. Use a different card (capping one below its
+  bad region was done once and retired — §4c).
 
 ---
 
@@ -382,92 +382,23 @@ plant the token and reboot.
 
 ---
 
-## 4c. Reflashing the CAPPED card — redo the cap before first boot
+## 4c. Capping a fake card — RETIRED 2026-11-09
 
-nixpi's current card is the fake one from §3c, **kept in service by operator choice** with
-root capped below its bad region:
-
-| Partition | Start LBA | Sectors | Role |
-|---|---|---|---|
-| p1 `FIRMWARE` | 16,384 | 262,144 | from the image, untouched |
-| p2 `NIXOS_SD` | 278,528 | 29,081,600 | root, **ends at 14 GiB** — below the first bad LBA, 31,948,800 |
-| p3, type `0xda` | 29,360,128 | 36,175,872 | **fence** to the card's claimed end (65,536,000 sectors). Never format or mount it |
-
-**Every reflash undoes this.** `dd` writes the image's own MBR (p2 only as large as the image, then free
-space), and the next first boot grows root across the whole claimed 31 GiB, straight back into
-the bad region. So after §4 and §4b, **before the card goes back in the Pi**, rewrite sector 0.
-
-**Why a fence, not a config option.** The first-boot step (nixpkgs' `expand-root-partition`
-service; raspberry-pi-nix's `boot.postBootCommands` before it) runs
-`echo ",+," | sfdisk -N$partNum` to grow root into the free space after it, then
-`resize2fs`. With p3 right after p2 there is
-nothing to grow into: `sfdisk` exits 0 and changes nothing (tested on nixpi's own util-linux
-2.42.3, and observed on the Pi on 2026-10-17), and `resize2fs` fills the capped partition.
-**`sdImage.expandOnBoot = false` was unsafe under raspberry-pi-nix** — the same `mkIf` gated
-`nix-store --load-db`, so the store would be left unregistered and a later GC would treat all
-of it as garbage. nixpkgs' module splits that into its own `register-nix-paths` service, so
-the option is safe now; the fence stays because it also survives a reflash of this card with
-an older image.
-
-```bash
-diskutil unmountDisk /dev/diskN
-sudo /bin/dd if=/dev/rdiskN of=/tmp/mbr-old.bin bs=512 count=1   # sector 0 = the MBR
-
-# Build the capped MBR with nixpi's OWN sfdisk (an aarch64-linux build, which Determinate's
-# native Linux builder runs). Only sector 0 of the sparse file is ever used.
-cat > /tmp/mbr-cap.nix <<'EOF'
-{ flake, mbr }:
-let pkgs = (builtins.getFlake flake).nixosConfigurations.nixpi.pkgs; in
-pkgs.runCommand "nixpi-mbr-cap" { nativeBuildInputs = [ pkgs.util-linux ]; } ''
-  set -eu
-  truncate -s 33554432000 card.img
-  dd if=${mbr} of=card.img bs=512 count=1 conv=notrunc status=none
-  sfdisk -d card.img | grep -q 'card.img2 : start=      278528,'
-  echo ',29081600' | sfdisk -q -N2 --no-reread card.img
-  echo 'start=29360128, size=36175872, type=da' | sfdisk -q --append --no-reread card.img
-  sfdisk -d card.img > capped.txt
-  echo ',+,' | sfdisk -q -N2 --no-reread card.img
-  sfdisk -d card.img | cmp - capped.txt
-  mkdir "$out"; cp capped.txt "$out/"
-  dd if=card.img of="$out/mbr-new.bin" bs=512 count=1 status=none
-''
-EOF
-nix build --impure -o /tmp/mbr-cap -f /tmp/mbr-cap.nix --argstr flake "$PWD" --arg mbr /tmp/mbr-old.bin
-
-# Only partition entries 2 and 3 may differ: 0-based offsets inside 462-493. The disk
-# signature (440-443), entry 1 and the boot signature (510-511) must not appear.
-cmp -l /tmp/mbr-old.bin /tmp/mbr-cap/mbr-new.bin | awk '{print $1 - 1}' | tr '\n' ' '
-sudo /bin/dd if=/tmp/mbr-cap/mbr-new.bin of=/dev/rdiskN bs=512 count=1
-sudo /bin/dd if=/dev/rdiskN bs=512 count=1 2>/dev/null | cmp - /tmp/mbr-cap/mbr-new.bin && echo "MBR written"
-diskutil list /dev/diskN        # expect: Linux 14.9 GB, then 0xDA 18.5 GB
-```
-
-What the build asserts, so a wrong input fails it rather than producing a bad table: the
-card's p2 starts at the image's LBA 278,528 (an all-zero MBR is refused), and replaying the
-exact first-boot `sfdisk` leaves the capped table unchanged. Run it from the repo root
-(`$PWD` is the flake). Its output on 2026-10-17 was byte-identical to the MBR now live on the
-card.
-
-**After first boot**, confirm the cap held and the store registered:
-
-```bash
-ssh ismail@nixpi.local 'lsblk /dev/mmcblk0; df -h /; ls /nix-path-registration; nix-store -q --hash /run/current-system'
-# expect: p2 13.9G + p3 17.3G, / = 14G, "No such file" (first boot ran to completion), a sha256
-```
-
-The numbers above are **this card's**. A different fake card needs its own: take the edge from
-`f3read`'s `Data OK` (plus the ~40 MB of exFAT overhead in front of the data), cap at least
-1 GiB below it, and size p3 to the card's reported sector count.
+The fake card from §3c ran capped (root fenced below its bad region by a `0xda` partition) from
+2026-10-17 until 2026-11-09, when it was binned and nixpi moved to a genuine 256 GB SanDisk
+(CID `manfid 0x000003`, `oemid 0x5344`, `SK256`). A current card needs no cap: flash, plant,
+boot. The procedure, should a capped card ever be needed again, is in git history:
+`git log -S'mbr-cap' -- docs/nixpi-sd-flashing-runbook.md`.
 
 ## 5. First-boot expectations (don't mistake a slow-but-healthy boot for failure)
 
 Insert the card and power the Pi with an adequate supply (**5V / 3A** — see §6).
 
 - **First boot takes ~60-90s**, longer than steady-state reboots, because the
-  root filesystem auto-expands to fill the card (on the capped card, to the end of p2 —
-  §4c) and fresh SSH host keys are generated on first boot. Measured 2026-10-17 on the
-  capped card: tunnel serving within 2 min 15 s of the card leaving the Mac — an upper
-  bound, since it includes moving the card to the Pi.
+  root filesystem auto-expands to fill the card and fresh SSH host keys are generated on
+  first boot. Measured: tunnel serving within 2 min 15 s of the card leaving the Mac
+  (2026-10-17), and 130 s on the 256 GB card (2026-11-09: 235 G root) — upper bounds, since
+  both include moving the card to the Pi.
 - **The green ACT LED should stay active / blink through boot** (disk + kernel
   activity), not flicker once and die. A single flicker → dark is the
   truncated-write signature (§6).
