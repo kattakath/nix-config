@@ -548,9 +548,9 @@
       "shortDescription": "A server-denied plugin still starts an MCP server, or more than one AWS path exists",
       "statusOnFinding": "fail",
       "checkKey": "macos:mcp-twins",
-      "detect": "the three claude mcp list | grep -c lines in fleet-doctor § E4 (must print 0, 0, and 0 or 1)",
+      "detect": "the three mcp list | grep -c lines in fleet-doctor § E4, run once per profile (claude-personal, claude-work; must print 0, 0, and 0 or 1)",
       "evidence": ["the line and its count", "the server name that slipped the deny"],
-      "vacuousWhen": "claude mcp list printed zero servers"
+      "vacuousWhen": "a profile's mcp list printed zero servers (or the command is missing)"
     },
     {
       "id": "FD-E6-drift",

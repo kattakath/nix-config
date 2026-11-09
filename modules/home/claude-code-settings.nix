@@ -84,7 +84,7 @@ let
   emptyJson = pkgs.writeText "claude-settings-overlay-empty.json" "{}";
 
   # Every profile directory that gets the floor: ~/.claude, plus the work profile's
-  # own directory when it is enabled (claude-work-profile.nix). ONE rendered
+  # own directory when it is enabled (claude-profiles.nix). ONE rendered
   # nixSettings, N writable targets — each profile keeps its own UI edits.
   settingsDirs = [
     configDir

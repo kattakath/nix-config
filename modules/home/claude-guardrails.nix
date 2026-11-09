@@ -1,4 +1,9 @@
-{ pkgs, lib, ... }:
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
 # The GLOBAL guardrail floor for Claude Code — user-scope `permissions.deny` (secret
 # egress) and `permissions.ask` (recoverable actions the operator confirms), applied
 # in EVERY repo on this Mac, not just this one.
@@ -291,68 +296,73 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
   # `permissions.ask` match under bypass was refused headless, never silently run.
   # The SECRET families above stay deny on purpose (decision same day): printing a
   # secret value has no undo, and the managed tier mirrors them.
-  programs.claude-code.settings.permissions.ask = [
-    # ── Imperative MCP adoption (mcp-scout: "installation IS declaration") ──
-    # Servers arrive ONLY as Claude Code plugins (./plugin-mcp.nix).
-    # A runtime add lands in ~/.claude.json, outside flake.lock and every check that
-    # can see a declared server. MCP tool prefixes have changed three times without
-    # notice, so verify any MCP rule against a live session's tool names, never by reasoning.
-    "Bash(claude mcp add *)"
-    "Bash(claude mcp add-json *)"
-    "Bash(claude mcp add-from-claude-desktop *)"
-    "Edit(~/.claude.json)"
+  programs.claude-code.settings.permissions.ask =
+    lib.concatMap
+      (cli: [
+        "Bash(${cli} mcp add *)"
+        "Bash(${cli} mcp add-json *)"
+        "Bash(${cli} mcp add-from-claude-desktop *)"
+      ])
+      [
+        "claude"
+        "claude-personal"
+        "claude-work"
+      ]
+    ++ [
+      "Edit(~/.claude.json)"
+      "Edit(~/${lib.removePrefix "${config.home.homeDirectory}/" config.local.claudeWorkProfile.configDir}/.claude.json)"
 
-    # ── Login persistence and credential config (Edit covers Write too) ──
-    # Each of these runs code or grants access at the NEXT login, shell or git
-    # call — the persistence shape an injected instruction reaches for. And every
-    # one is declared: Home Manager owns ~/.zshrc, ~/.zshenv, ~/.ssh/config and
-    # ~/.config/git/config as store symlinks, and launchd agents come from
-    # `launchd.agents`. An agent write would swap a declared file for a mutable
-    # copy that the next `activate` refuses to clobber. The operator-hand-placed
-    # files beside them (`~/.config/git/local.inc`, `~/.config/git/allowed_signers`) are
-    # his by CLAUDE.md § Configuration. A change to any of them goes through Nix,
-    # or through the operator's own terminal.
-    #
-    # Added 2026-10-31 after the project Write|Edit validator (.claude/settings.json)
-    # was found approving "any file under HOME": that prompt is project-scoped
-    # and judged by a model, so it was never the floor for these paths.
-    "Edit(~/Library/LaunchAgents/**)"
-    "Edit(~/.ssh/**)"
-    "Edit(~/.zshrc)"
-    "Edit(~/.zshenv)"
-    "Edit(~/.zprofile)"
-    "Edit(~/.zlogin)"
-    "Edit(~/.bashrc)"
-    "Edit(~/.bash_profile)"
-    "Edit(~/.profile)"
-    "Edit(~/.gitconfig)"
-    "Edit(~/.config/git/**)"
+      # ── Login persistence and credential config (Edit covers Write too) ──
+      # Each of these runs code or grants access at the NEXT login, shell or git
+      # call — the persistence shape an injected instruction reaches for. And every
+      # one is declared: Home Manager owns ~/.zshrc, ~/.zshenv, ~/.ssh/config and
+      # ~/.config/git/config as store symlinks, and launchd agents come from
+      # `launchd.agents`. An agent write would swap a declared file for a mutable
+      # copy that the next `activate` refuses to clobber. The operator-hand-placed
+      # files beside them (`~/.config/git/local.inc`, `~/.config/git/allowed_signers`) are
+      # his by CLAUDE.md § Configuration. A change to any of them goes through Nix,
+      # or through the operator's own terminal.
+      #
+      # Added 2026-10-31 after the project Write|Edit validator (.claude/settings.json)
+      # was found approving "any file under HOME": that prompt is project-scoped
+      # and judged by a model, so it was never the floor for these paths.
+      "Edit(~/Library/LaunchAgents/**)"
+      "Edit(~/.ssh/**)"
+      "Edit(~/.zshrc)"
+      "Edit(~/.zshenv)"
+      "Edit(~/.zprofile)"
+      "Edit(~/.zlogin)"
+      "Edit(~/.bashrc)"
+      "Edit(~/.bash_profile)"
+      "Edit(~/.profile)"
+      "Edit(~/.gitconfig)"
+      "Edit(~/.config/git/**)"
 
-  ]
-  # ── OpenTofu state dirs not already denied above ──
-  # Tofu state is encrypted at rest but secrets-adjacent, so the operator confirms reads.
-  # DERIVED from modules/_lib/terranix-stacks.nix, the list every wrapper's state_dir is
-  # built from: the hand-kept copy that stood here missed the grafana and github stacks.
-  ++ tofuStateAsks
-  ++ [
-    # ── Secret Manager writes go through `secrets-push`, never raw gcloud ──
-    # secrets-push is the only writer that enforces the billable-version cap
-    # (keychain-secrets capsule, `backend.maxVersions`). Raw gcloud skips it, and the
-    # free tier is 6 versions per BILLING ACCOUNT: Oct 2026 sessions pushed 17 by habit.
-    "Bash(gcloud secrets create *)"
-    "Bash(gcloud secrets versions add *)"
-    "Bash(gcloud --quiet secrets create *)"
-    "Bash(gcloud --quiet secrets versions add *)"
+    ]
+    # ── OpenTofu state dirs not already denied above ──
+    # Tofu state is encrypted at rest but secrets-adjacent, so the operator confirms reads.
+    # DERIVED from modules/_lib/terranix-stacks.nix, the list every wrapper's state_dir is
+    # built from: the hand-kept copy that stood here missed the grafana and github stacks.
+    ++ tofuStateAsks
+    ++ [
+      # ── Secret Manager writes go through `secrets-push`, never raw gcloud ──
+      # secrets-push is the only writer that enforces the billable-version cap
+      # (keychain-secrets capsule, `backend.maxVersions`). Raw gcloud skips it, and the
+      # free tier is 6 versions per BILLING ACCOUNT: Oct 2026 sessions pushed 17 by habit.
+      "Bash(gcloud secrets create *)"
+      "Bash(gcloud secrets versions add *)"
+      "Bash(gcloud --quiet secrets create *)"
+      "Bash(gcloud --quiet secrets versions add *)"
 
-    # ── Remote history rewrites ──
-    # No `gh pr merge` rule, on purpose (operator, 2026-10-30): branch protection on the
-    # forge is the merge gate, and the GitHub MCP's merge tool bypassed a Bash rule anyway.
-    # Force-push, both flag positions. `--force-with-lease` stays allowed on purpose: it is
-    # the safe way to update an agent's own rebased PR branch, and protected
-    # branches are already force-push-proof server-side (GitHub rulesets).
-    "Bash(git push --force *)"
-    "Bash(git push -f *)"
-    "Bash(git push * --force)"
-    "Bash(git push * -f)"
-  ];
+      # ── Remote history rewrites ──
+      # No `gh pr merge` rule, on purpose (operator, 2026-10-30): branch protection on the
+      # forge is the merge gate, and the GitHub MCP's merge tool bypassed a Bash rule anyway.
+      # Force-push, both flag positions. `--force-with-lease` stays allowed on purpose: it is
+      # the safe way to update an agent's own rebased PR branch, and protected
+      # branches are already force-push-proof server-side (GitHub rulesets).
+      "Bash(git push --force *)"
+      "Bash(git push -f *)"
+      "Bash(git push * --force)"
+      "Bash(git push * -f)"
+    ];
 }

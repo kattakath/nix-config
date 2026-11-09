@@ -115,14 +115,9 @@ in
     # Node floor matters here — see packages/acpx.nix; it pins nodejs_22 itself so
     # acpx's >=22.13 floor never depends on the fleet default.
     (pkgs.callPackage ../packages/acpx.nix { })
-    # Claude Code — re-exposed from the HM module, not re-packaged: `finalPackage`
-    # is the binary programs.claude-code already builds, so this is the
-    # same store path HM installs, just ALSO linked into /run/current-system/sw/bin.
-    # Why: GUI agent hosts (Open Design) probe a hardcoded dir list that includes
-    # /run/current-system/sw/bin and ~/.nix-profile/bin but NOT
-    # /etc/profiles/per-user/<user>/bin, where HM's useUserPackages puts it — so
-    # grok/agy were detected and claude was not.
-    config.home-manager.users.${loginName}.programs.claude-code.finalPackage
+    # NO bare `claude` here: the fleet has none on darwin (modules/home/claude-profiles.nix).
+    # Open Design, which probes for `claude` by name, is pointed at the personal wrapper by
+    # CLAUDE_BIN below instead.
     # fal.ai — `fal` (the vendor's deploy CLI) and `fal-gen` (inference). Cloud
     # inference, unlike the rest of the media stack, which runs against the
     # local ollama daemon; it bills, and it needs FAL_KEY in the Keychain.
@@ -427,6 +422,10 @@ in
   # honors OD_UPDATE_ENABLED as a truthy/falsy kill-switch for both the 6h check
   # and the auto-download. Takes effect for apps launched after activation.
   launchd.user.envVariables.OD_UPDATE_ENABLED = "0";
+  # Open Design looks for an agent named `claude` (its daemon's AGENT_BIN_ENV_KEYS maps
+  # claude → CLAUDE_BIN, read from the process env by configuredExecutableOverride). There
+  # is no bare `claude` on this Mac, so point it at the personal profile's stable path.
+  launchd.user.envVariables.CLAUDE_BIN = "/etc/profiles/per-user/${loginName}/bin/claude-personal";
 
   # ---- Google Drive for desktop (cask below) ----------------------------------
   # Keys are Google's documented admin keys for the com.google.drivefs.settings

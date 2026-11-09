@@ -479,14 +479,18 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `extraServers` (empty in public since 2026-11-01) into Desktop's `claude_desktop_config.json`;
   Desktop chat's MCP now comes only from claude.ai connectors. Design record:
   [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md).
-- **`claude-work-profile.nix`** — `local.claudeWorkProfile` (on for `macos`): `claude-work`,
-  Claude Code under its own `CLAUDE_CONFIG_DIR` (`~/.claude-work`) for the work account —
-  Anthropic's documented multi-account mechanism. Separate login, transcripts, peer registry
-  and org policy cache; `CLAUDE.md`, `rules/`, `skills/` and `plugins/` are linked from
-  `~/.claude`, and `claude-code-settings.nix` merges the same settings floor into its own
-  `settings.json`. **Never `/login` the work account in plain `claude`**: its server-managed
-  policy then governs EVERY session (measured 2026-11-09). Replaced the setup-token
-  `packages/claude-work.nix` (no connectors, no Remote Control); why: the module header.
+- **`claude-profiles.nix`** — `claude-personal` (every host; `CLAUDE_CONFIG_DIR` UNSET →
+  `~/.claude`) and, on `macos` (`local.claudeWorkProfile`), `claude-work`
+  (`CLAUDE_CONFIG_DIR=~/.claude-work`). **No bare `claude` on darwin**
+  (`programs.claude-code.package = null`); zsh prints which one to use. Both exec ONE store
+  path, `local.claudeProfiles.package`. Separate login, transcripts, peer registry and org
+  policy cache; `CLAUDE.md`, `rules/`, `skills/` and `plugins/` are linked from `~/.claude`,
+  and `claude-code-settings.nix` merges the same settings floor into its own `settings.json`.
+  A shared status line names the profile and flags a personal session in a repo whose git
+  config sets `claude.profile = work`. Open Design finds Claude through `CLAUDE_BIN`
+  (`hosts/macos.nix`). **Never `/login` the work account in `claude-personal`**: its
+  server-managed policy then governs EVERY personal session. Why named-only, and the rejected
+  options with evidence: the module header.
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure

@@ -199,12 +199,12 @@ server** — its tool namespace was fixed at session start.
 
 1. **Confirm the plugin refresh landed:** `~/.claude/plugins/installed_plugins.json` →
    `gitCommitSha` vs `gh api repos/<o>/<r>/commits/main`.
-2. **Connect/fail per server:** `claude mcp list` in a **fresh** process. Plugin-owned servers
+2. **Connect/fail per server:** `claude-personal mcp list` (or `claude-work`) in a **fresh** process. Plugin-owned servers
    appear as `plugin:<plugin>:<server>`.
 3. **Actually invoke it** — a tool that loads is not a tool that answers:
 
    ```bash
-   claude -p 'Call <tool> once and reply with ONLY its raw result.' \
+   claude-personal -p 'Call <tool> once and reply with ONLY its raw result.' \
      --allowedTools 'mcp__plugin_<plugin>_<server>__<tool>'
    ```
 
