@@ -318,7 +318,7 @@ jq -r '"finished \(.finished | todate)", (.stacks[] | "\(.stack)\t\(.status)\t+\
 | `status` | Finding? | Remedy (report only) |
 |---|---|---|
 | `clean` | no | — |
-| `drift` | yes | name the stack and counts; the fix is a **reasoned** `nix run .#<stack>-plan` read by a human (or the `terranix-infra-reviewer` agent). **Never apply.** |
+| `drift` | yes | name the stack and counts; the fix is a **reasoned** `nix run .#<stack>-plan` read by a human (or the `terranix-infra-reviewer` agent). **Never apply.** A drift right after an infra commit, before `activate`, is the agent's stale render reading the new config backwards (`packages/terranix-drift.nix` header): a fresh plan saying "No changes" settles it. |
 | `reauth` | yes | a lapsed Google login — the run's own log ends with the re-login command; relay it |
 | `error` | yes | read that stack's `<stack>.log` beside the summary (0600, counts only in the summary) |
 

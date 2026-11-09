@@ -17,6 +17,11 @@
 # through runitor: success when every stack is clean, /fail otherwise. A run that never
 # happens alerts on its own (the monitor's grace).
 #
+# IT PLANS THE ACTIVATED GENERATION'S RENDER, not the checkout: after an infra commit and
+# before the next `activate`, the live (new) config reads as drift, BACKWARDS (2026-11-09:
+# grafana "~2" was `timeSeriesList -> promQL`, the old render). Confirm any drift with a
+# fresh `*-plan` from origin/main before acting, and never apply from the stale render.
+#
 # upstream-first: plan exit codes are tofu's own `-detailed-exitcode`. The pinger is
 # runitor, the healthchecks.io-recommended runner nixpi's service-heartbeat already uses.
 # No community tool owns "plan N encrypted-state stacks from a laptop on a timer"
