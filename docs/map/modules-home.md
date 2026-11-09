@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,page-lab.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
+`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,page-lab.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-work-profile.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -479,6 +479,14 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `extraServers` (empty in public since 2026-11-01) into Desktop's `claude_desktop_config.json`;
   Desktop chat's MCP now comes only from claude.ai connectors. Design record:
   [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md).
+- **`claude-work-profile.nix`** — `local.claudeWorkProfile` (on for `macos`): `claude-work`,
+  Claude Code under its own `CLAUDE_CONFIG_DIR` (`~/.claude-work`) for the work account —
+  Anthropic's documented multi-account mechanism. Separate login, transcripts, peer registry
+  and org policy cache; `CLAUDE.md`, `rules/`, `skills/` and `plugins/` are linked from
+  `~/.claude`, and `claude-code-settings.nix` merges the same settings floor into its own
+  `settings.json`. **Never `/login` the work account in plain `claude`**: its server-managed
+  policy then governs EVERY session (measured 2026-11-09). Replaced the setup-token
+  `packages/claude-work.nix` (no connectors, no Remote Control); why: the module header.
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure

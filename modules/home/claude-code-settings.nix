@@ -83,11 +83,19 @@ let
   overlayPath = "${config.xdg.configHome}/nix-config/claude-settings.overlay.json";
   emptyJson = pkgs.writeText "claude-settings-overlay-empty.json" "{}";
 
+  # Every profile directory that gets the floor: ~/.claude, plus the work profile's
+  # own directory when it is enabled (claude-work-profile.nix). ONE rendered
+  # nixSettings, N writable targets — each profile keeps its own UI edits.
+  settingsDirs = [
+    configDir
+  ]
+  ++ lib.optional config.local.claudeWorkProfile.enable config.local.claudeWorkProfile.configDir;
+
   # The merge itself, shared by the two activation entries below. Idempotent:
   # running it twice yields the same file.
-  mergeScript = ''
-    settings="${configDir}/settings.json"
-    run mkdir -p "${configDir}"
+  mergeOne = dir: ''
+    settings="${dir}/settings.json"
+    run mkdir -p "${dir}"
 
     # MIGRATION: previous generations left a read-only store SYMLINK here.
     # Replace it with a real file once; thereafter this is a no-op.
@@ -159,6 +167,7 @@ let
     run install -m 600 /dev/null "$settings"
     printf '%s\n' "$merged" > "$settings"
   '';
+  mergeScript = lib.concatMapStringsSep "\n" mergeOne settingsDirs;
 in
 # isDarwin only, matching claude-brain.nix and claude-guardrails.nix:
 # programs.claude-code is darwin-only in this fleet (default.nix).
