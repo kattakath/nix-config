@@ -103,7 +103,7 @@ in
       // ---- metrics: node exporter, allowlisted to what ADR-011 § 6 step 4 names ----
       prometheus.exporter.unix "node" {
         set_collectors = ["cpu", "meminfo", "loadavg", "pressure", "filesystem", "diskstats",
-                          "netdev", "hwmon", "thermal_zone", "systemd", "btrfs", "time", "uname"]
+                          "netdev", "hwmon", "thermal_zone", "systemd", "time", "uname"]
         filesystem {
           fs_types_exclude = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|nsfs|overlay|proc|pstore|ramfs|rpc_pipefs|securityfs|sysfs|tmpfs|tracefs)$"
         }

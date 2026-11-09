@@ -132,10 +132,9 @@ let
       # ---- 2b. Are the units that matter actually running? ---------------------
       # Named units only. `systemctl is-active` per unit rather than
       # `is-system-running`, because the latter reports `degraded` for ANY failed
-      # unit on the host — including ones whose failure does not stop it serving.
-      # This host currently carries a legitimately-failing `mnt-storage.mount`
-      # (two USB sticks, `nofail` by design), and a blanket check would alert on
-      # that forever until someone muted the whole heartbeat.
+      # unit on the host — including ones whose failure does not stop it serving
+      # (a `nofail` mount, say), and a blanket check would then alert on that
+      # forever until someone muted the whole heartbeat.
       for unit in ${lib.escapeShellArgs cfg.requireUnits}; do
         if ! systemctl is-active --quiet "$unit"; then
           echo "service-heartbeat: FAIL — $unit is not active." >&2

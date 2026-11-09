@@ -383,10 +383,9 @@
     enable = true;
     slug = "nixpi-serving";
     httpPort = 80;
-    # NAMED units, not a blanket `is-system-running`. `mnt-storage.mount` is
-    # `nofail` on purpose and can fail while the host still serves, so a blanket
-    # `degraded` check would alert on it and train everyone to ignore
-    # the heartbeat. These two are the ones whose death means "not serving":
+    # NAMED units, not a blanket `is-system-running`: any unit whose failure
+    # leaves the host serving would turn a blanket `degraded` check into an alert
+    # everyone learns to ignore. These two are the ones whose death means "not serving":
     # cloudflared is the only remote path in, Caddy serves the one hosted site.
     requireUnits = [
       "caddy.service"
