@@ -545,10 +545,10 @@
       "id": "FD-E4-mcp-twin",
       "doctor": "fleet-doctor",
       "section": "fleet-doctor § E4",
-      "shortDescription": "A server-denied plugin still starts an MCP server, or the AWS path is not exactly one",
+      "shortDescription": "A server-denied plugin still starts an MCP server, or more than one AWS path exists",
       "statusOnFinding": "fail",
       "checkKey": "macos:mcp-twins",
-      "detect": "the three claude mcp list | grep -c lines in fleet-doctor § E4 (must print 0, 0, 1)",
+      "detect": "the three claude mcp list | grep -c lines in fleet-doctor § E4 (must print 0, 0, and 0 or 1)",
       "evidence": ["the line and its count", "the server name that slipped the deny"],
       "vacuousWhen": "claude mcp list printed zero servers"
     },
