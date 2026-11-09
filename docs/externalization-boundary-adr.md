@@ -12,9 +12,10 @@ with a section here, execution wins and §10 records it.
 
 > **⚠ Its worked examples are now historical (2026-09-22).** The body reasons about a fleet of
 > several agent CLIs — `claude`, `qwen`, `grok`, `gemini` — and uses per-client curation
-> ("`qwen` gets 11 of 31 servers") as its running illustration. **`qwen` was removed from the
-> fleet entirely** (client, config and the `qwen3-coder` model; the `qwen3-vl*` **vision** models
-> stay, they belong to `media-cli` and are unrelated). The MCP clients are now `claude-code` and
+> ("`qwen` gets 11 of 31 servers") as its running illustration. **The `qwen` CLI returned
+> 2026-11-09** as nixpkgs' `qwen-code` on `macos` (`environment.systemPackages`). What stayed
+> gone is the `qwen3-coder` model and any Nix-owned `~/.qwen` config. The `qwen3-vl*` **vision**
+> models stay with `media-cli` and are unrelated. The MCP clients of that era are `claude-code` and
 > `claude-desktop`, and per-client curation **by the gateway** is gone with the architecture that
 > allowed it — every client gets one connector onto the same roster (27 entries today; the count
 > lives in `docs/mcp-gateway.md`, never here), so there is no subset for the gateway to curate.
@@ -200,7 +201,7 @@ Three further things the MCP rail would lose by moving:
    Nothing checks any MCP set at eval now, which is the loss §10.8 records.)
 3. **Per-client curation.** `qwen` gets 11 of 31 servers because a local qwen3-coder degrades when
    handed too many tools. That is a *harness* decision; a flat dotfolder has nowhere to put it.
-   (`qwen` left the fleet 2026-09-22; see the header note.)
+   (`qwen`'s gateway curation left on 2026-09-22. The CLI returned 2026-11-09 with no Nix-owned config. See the header note.)
 
 **All three losses were incurred in full on 2026-10-02** — not traded for a better arrangement at
 this layer, but accepted as the price of having no shared MCP process. §10.8.

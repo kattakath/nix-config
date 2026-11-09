@@ -16,6 +16,11 @@ Core package set:
   through `environment.systemPackages`. The hand-pinned `antigravity-cli.nix` was retired
   2026-10-21 once the nixpkgs build was measured to keep Google's Developer ID signature
   (`modules/parts/packages.nix` records the measurement).
+- **Qwen Code (`qwen`) is NOT a file here** — it is nixpkgs' `qwen-code`, shared through
+  `environment.systemPackages` and re-exported as `.#qwen`. Apache-2.0, built from source
+  in nixpkgs, so there is no vendor signature to measure. The version moves with the
+  nixpkgs pin. Per-user state lives in `~/.qwen`. Adopted 2026-11-09. The `qwen3-coder`
+  model is not part of this; the vision models stay in `media-cli`.
 - **`acpx.nix`** — the headless client for **ACP** (Zed's Agent *Client* Protocol), which is
   the rail `claude`, `grok` and `agy` already share; it drives one from another with a real
   permission policy (`--permission-policy`, `--deny-all`, `--allowed-tools`, `--max-turns`,
