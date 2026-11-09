@@ -528,8 +528,8 @@
   # ── Audiobookshelf (LAN only) ───────────────────────────────────────────────
   # Upstream module, left at its defaults on purpose: it binds 127.0.0.1:8000 and
   # keeps its DATABASE (CONFIG_PATH) in /var/lib/audiobookshelf — on the SD card's
-  # root partition, which sits inside the card's REAL capacity (the counterfeit
-  # region is the unused p3). The books and the bulky, regenerable METADATA
+  # root partition (a genuine 256 GB SanDisk since 2026-11-09; the counterfeit
+  # card is gone). The books and the bulky, regenerable METADATA
   # (covers, logs, cache, backups) live on the USB volume — see `environment` below.
   #
   # No new firewall port: Caddy's `http://nixpi.local` vhost below proxies to the

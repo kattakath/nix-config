@@ -96,9 +96,7 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
 2. **Fresh reflash** → `nix run .#nixpi-flash -- --disk /dev/diskN --release`, then insert +
    boot. (`--release` downloads the CI-prebuilt image; drop it to `nix build` locally instead —
    only works where an aarch64-linux builder exists. The image is secret-free, so the public
-   release artifact is safe.) **On the live capped card, redo the cap before boot** (runbook
-   §4c) — a reflash restores the image's partition table, and first boot would grow root back
-   into the card's bad region.
+   release artifact is safe.)
 3. **Re-plant the tunnel token**: it is a FULL apply, so run
    `CLOUDFLARE_API_TOKEN=… nix run .#cf-tunnel-plan` first (same handle as the apply) and STOP
    on any `+ create`, `-/+ replace` or `- destroy` of the Access policy, any change to its
@@ -116,7 +114,13 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
   after `dd` and writes into it; fix deferred). It aborts before the plant, so verify the write
   yourself and run `nixpi-provision` — runbook §4b says how. Any other offset is real.
 - **Never cap with `sdImage.expandOnBoot = false`** — the same `mkIf` gates
-  `nix-store --load-db`, leaving the store unregistered. Cap with a fence partition (§4c).
+  `nix-store --load-db`, leaving the store unregistered. The fence-partition cap (runbook §4c) is retired with the fake card.
+- **Check a plant on the PI, not only on the Mac's mount.** 2026-11-09: `grafana-alloy.env`
+  showed 3/3 non-empty keys on `/Volumes/FIRMWARE`, then booted as a **0-byte** file (its
+  sibling `heartbeat-ping-key`, written just before it, landed intact), so Alloy crash-looped
+  on an empty endpoint. Cause unproven (a `dot_clean -m` and the eject ran in between). After
+  first boot: `sudo wc -c /run/{cloudflared-token,heartbeat-ping-key,grafana-alloy.env}`; a 0
+  is re-planted with the live-Pi command above.
 - **Wi-Fi needs `country=`** — the Pi 4 radio is rfkill-blocked without a regulatory domain.
 - **`--ssid` REPLACES the roster** — a single pinned SSID plants a one-AP card, the single point
   of failure `nixpi-wifi-creds`'s WHY FALLBACKS comment describes. Leave the Wi-Fi args off; to change networks, edit
@@ -131,4 +135,4 @@ Run them from the repo root (they read the vault at `secrets/cloudflared-token.a
 ## Full runbook
 
 `docs/nixpi-sd-flashing-runbook.md` (§1 = the verified-write golden rule; §3c = the f3 card
-test; §4b = the plant step; §4c = reflashing the capped card).
+test; §4b = the plant step).

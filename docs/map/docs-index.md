@@ -158,7 +158,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   rule it turned on: **a gate must move with the content it gates.**
 - [`docs/nixpi-sd-flashing-runbook.md`](../nixpi-sd-flashing-runbook.md) — flashing the `nixpi`
   SD card (full verified `dd` write), f3-testing a new card first (a verified write cannot catch
-  a fake-capacity card), and re-capping the live fake card after every reflash.
+  a fake-capacity card); its §4c fake-card cap is retired (2026-11-09).
 - [`docs/nixpi-nixos-hardware-migration.md`](../nixpi-nixos-hardware-migration.md) — the
   (completed) raspberry-pi-nix → nixos-hardware migration: the pre-migration boot-chain diff and
   the in-place-vs-reflash costing.
