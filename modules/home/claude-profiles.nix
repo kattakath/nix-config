@@ -91,6 +91,13 @@ let
   profileEnv = name: ''
     export OTEL_RESOURCE_ATTRIBUTES="claude.profile=${name}''${OTEL_RESOURCE_ATTRIBUTES:+,$OTEL_RESOURCE_ATTRIBUTES}"
   '';
+  # --allow-dangerously-skip-permissions OFFERS bypass in the Shift+Tab cycle without
+  # starting in it (CLI help: "as an option, without it being enabled by default"); a
+  # session launched without it tops out at auto. Operator's call, 2026-11-09. Under
+  # claude-work the org's allowManagedPermissionRulesOnly drops the user deny/ask floor,
+  # so bypass there has almost no guardrails. Checked with --version and the mcp, auth
+  # and plugin subcommands: the flag does not break them.
+  exec' = "exec ${exe} --allow-dangerously-skip-permissions";
   personal = pkgs.writeShellApplication {
     name = "claude-personal";
     text = ''
@@ -99,7 +106,7 @@ let
       # Unsetting also drops a value inherited from a claude-work session.
       unset CLAUDE_CONFIG_DIR
       ${profileEnv "personal"}
-      exec ${exe} "$@"
+      ${exec'} "$@"
     '';
   };
   work = pkgs.writeShellApplication {
@@ -107,7 +114,7 @@ let
     text = ''
       export CLAUDE_CONFIG_DIR=${lib.escapeShellArg cfg.configDir}
       ${profileEnv "work"}
-      exec ${exe} "$@"
+      ${exec'} "$@"
     '';
   };
 
