@@ -145,10 +145,10 @@ they bite any future second account:
   `sdImage` is prebuilt in CI and published to the `installer-latest` release, since it bakes
   no secrets.
   - **Audiobookshelf, LAN-only** (2026-10-18): loopback `:8000`, served as `http://nixpi.local`
-    by a Caddy vhost on the already-open `:80` (no new port). Database on the SD card; books,
-    metadata, logs and backups on the `/mnt/storage` USB volume (f3-verified, **no
-    redundancy**). The `--metadata` flag / `BACKUP_PATH` whys are commented in
-    `hosts/nixpi.nix`.
+    by a Caddy vhost on the already-open `:80` (no new port). Upstream defaults: database,
+    metadata and backups in `/var/lib/audiobookshelf`, books in its `audiobooks/` (on the SD
+    card). The `/mnt/storage` USB volume and its `--metadata` override were retired
+    2026-11-09 with the counterfeit card.
   - **No IPv6 temporary addresses** (`networking.tempAddresses = "disabled"`, since 2026-10-17).
     dhcpcd hands SLAAC to the kernel with `mngtmpaddr`, so link churn kept minting temporaries
     (on re-add and on pre-expiry regeneration), and each one outlived its base for its full
