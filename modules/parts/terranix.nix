@@ -1820,6 +1820,8 @@ in
         # are read to build the list (`lazyAttrsOf`), so this does not recurse.
         terranix-drift = (pkgsFor system).callPackage ../../packages/terranix-drift.nix {
           plans = nixpkgs.lib.filterAttrs (n: _: nixpkgs.lib.hasSuffix "-plan" n) config.packages;
+          mainRef = "git+https://github.com/${orgName}/${repoName}?ref=main&shallow=1";
+          inherit system;
           gcloudScope = import ../_lib/gcloud-scope.nix;
           pingKeyItem = items.healthchecksPingKey;
           stateDirName = stacks.driftStateDirName;

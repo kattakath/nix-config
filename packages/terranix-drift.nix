@@ -17,10 +17,14 @@
 # through runitor: success when every stack is clean, /fail otherwise. A run that never
 # happens alerts on its own (the monitor's grace).
 #
-# IT PLANS THE ACTIVATED GENERATION'S RENDER, not the checkout: after an infra commit and
-# before the next `activate`, the live (new) config reads as drift, BACKWARDS (2026-11-09:
-# grafana "~2" was `timeSeriesList -> promQL`, the old render). Confirm any drift with a
-# fresh `*-plan` from origin/main before acting, and never apply from the stale render.
+# IT PLANS PUBLISHED main, NOT THE ACTIVATED GENERATION. Each run pins `mainRef` to one
+# rev, builds every `*-plan` wrapper from that rev, and records the rev in summary.json.
+# The baked-in wrappers lagged every infra commit until the next `activate`, so the live
+# (new) config read as drift BACKWARDS (2026-11-09: grafana "~2" was
+# `timeSeriesList -> promQL`, the old render). A wrapper that cannot be fetched or built
+# is class `error`, never a fallback to the baked-in one: that fallback IS the stale
+# render. The stack list and Keychain credentials still come from this generation; a stack
+# main added or removed since shows up as `error` until the next `activate`.
 #
 # upstream-first: plan exit codes are tofu's own `-detailed-exitcode`. The pinger is
 # runitor, the healthchecks.io-recommended runner nixpi's service-heartbeat already uses.
@@ -39,6 +43,12 @@
   runitor,
   # name -> the `*-plan` wrapper derivation (modules/parts/terranix.nix).
   plans,
+  # Published main as a flake ref (modules/parts/terranix.nix builds it from
+  # config.fleet). git+https, not `github:`: a plain git fetch is not counted against the
+  # GitHub API's 60/h unauthenticated limit, which a shared VPN exit IP can exhaust.
+  mainRef,
+  # The system whose `packages.<system>.<stack>-plan` to build from it.
+  system,
   # The two GCP ADC `export`s, scoped exactly as the devShell scopes them
   # (modules/_lib/gcloud-scope.nix, handed in by modules/parts/terranix.nix).
   gcloudScope,
@@ -66,8 +76,10 @@ let
   secretArgs = lib.concatStringsSep " " (lib.mapAttrsToList (k: v: "${k}=${v}") secretEnv);
   secretBin = if homeProfileDir == null then "secret" else "${homeProfileDir}/bin/secret";
   stackLines = lib.concatMapStrings (
-    n: "${lib.removeSuffix "-plan" n} ${lib.getExe plans.${n}}\n"
+    n: "${lib.removeSuffix "-plan" n} ${n} ${plans.${n}.meta.mainProgram or n}\n"
   ) names;
+  # Determinate's system Nix (the daemon's own client): launchd's PATH has no `nix`.
+  nixBin = "/nix/var/nix/profiles/default/bin/nix";
 
   run = writeShellApplication {
     name = "terranix-drift-run";
@@ -90,10 +102,25 @@ let
       results="[]"
       worst=0
       reauth=0
-      while read -r stack plan; do
+      # Pin main ONCE, so every stack is planned against the same rev.
+      rev=$(${nixBin} flake metadata --json --refresh ${lib.escapeShellArg mainRef} 2>"$dir/main-ref.log" | jq -er .locked.rev) || rev=""
+      if [ -n "$rev" ]; then
+        echo "terranix-drift: planning origin/main @ ''${rev:0:12}"
+      else
+        echo "terranix-drift: could not resolve main (see $dir/main-ref.log); every stack is an error"
+      fi
+      while read -r stack attr bin; do
         [ -n "$stack" ] || continue
         log="$dir/$stack.log"
-        if "$plan" -detailed-exitcode -lock=false -input=false -no-color > "$log" 2>&1; then
+        plan=""
+        if [ -n "$rev" ]; then
+          out=$(${nixBin} build --no-link --print-out-paths \
+            "${mainRef}&rev=$rev#packages.${system}.$attr" 2>"$log") && plan="$out/bin/$bin"
+        fi
+        if [ -z "$plan" ]; then
+          echo "terranix-drift: not planned: main unresolved or $attr failed to build at main" >> "$log"
+          rc=127
+        elif "$plan" -detailed-exitcode -lock=false -input=false -no-color > "$log" 2>&1; then
           rc=0
         else
           rc=$?
@@ -127,8 +154,8 @@ let
       done <<'STACKS'
       ${stackLines}STACKS
 
-      jq -n --argjson t "$started" --argjson f "$(date +%s)" --argjson r "$results" \
-        '{started: $t, finished: $f, stacks: $r}' > summary.json.tmp
+      jq -n --argjson t "$started" --argjson f "$(date +%s)" --argjson r "$results" --arg rev "$rev" \
+        '{started: $t, finished: $f, rev: $rev, stacks: $r}' > summary.json.tmp
       mv summary.json.tmp summary.json
       echo "terranix-drift: $(jq '[.stacks[] | select(.code == 0)] | length' summary.json)/$(jq '.stacks | length' summary.json) clean"
       if [ "$reauth" = 1 ]; then
