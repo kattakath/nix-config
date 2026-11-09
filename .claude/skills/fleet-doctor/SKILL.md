@@ -288,15 +288,22 @@ the model picks either copy. The fleet removes known twins with NAME denies
 fails SILENTLY if upstream renames the server key, and this step is the guard. Report only:
 
 ```bash
-claude mcp list 2>/dev/null | grep -cE '^plugin:(aws-core|aws-serverless|cloudflare|slack|neon):'   # must print 0
-claude mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # must print 0
-claude mcp list 2>/dev/null | grep -c  '^claude\.ai AWS MCP:'                  # must print 0 or 1 (at most one AWS path)
+for c in claude-personal claude-work; do   # no bare `claude` on macos — one run per profile
+  echo "== $c"
+  $c mcp list 2>/dev/null | grep -cE '^plugin:(aws-core|aws-serverless|cloudflare|slack|neon):'   # must print 0
+  $c mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # must print 0
+  $c mcp list 2>/dev/null | grep -c  '^claude\.ai AWS MCP:'                  # must print 0 or 1 (at most one AWS path)
+done
 ```
+
+A missing command prints nothing to grep, and `grep -c` then prints 0 — a pass that checked
+nothing. `vacuousWhen` below covers it: a profile whose `mcp list` printed zero servers is
+VACUOUS, not clean.
 
 The first line asks whether the server-denied plugins (every `serverName` in
 `deniedMcpServers`; keep this list in step with it) start ANY server, not whether a
 name is gone: a renamed server key would slip past a name check but still shows up here.
-Non-zero means a deny no longer matches, so read `claude mcp list` and update the
+Non-zero means a deny no longer matches, so read that profile's `mcp list` and update the
 `serverName` entry.
 
 ### E5. (retired 2026-11-07)

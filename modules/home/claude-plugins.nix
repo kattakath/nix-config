@@ -300,7 +300,10 @@ in
       # kept because `marketplace add` may shell out the same way and one store
       # path on PATH is free. UNMEASURED for `add` alone — say so, don't imply.
       export PATH="${pkgs.git}/bin:$PATH"
-      claude="${lib.getExe config.programs.claude-code.package}"
+      # Run with CLAUDE_CONFIG_DIR unset, i.e. the personal profile; the work profile's
+      # plugins/ is a link to this one (./claude-profiles.nix), so one add covers both.
+      # programs.claude-code.package is null (no bare `claude`), so use the shared one.
+      claude="${lib.getExe config.local.claudeProfiles.package}"
       known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
       if [ -x "$claude" ]; then
         ${lib.concatStringsSep "\n\n  " (

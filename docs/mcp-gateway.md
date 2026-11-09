@@ -41,7 +41,7 @@ history.
 | **Spawn-test the exact spec against the PATH runtime BEFORE declaring.** The plugin lane gets whatever `npx` resolves to — measured fnm's **Node 20.20.2**, which lacks `node:sqlite` (arrived 22.5). `mcpfinder` was declared, died with `CONNECTION_CLOSED`, and had to be reverted across two PRs. | § Spawn-test against the PATH runtime | The plugin lane is now the ONLY lane, so this trap is no longer one lane's weakness — it is the whole surface's |
 | **A server whose runtime arrives via a nix-config package is not spawn-testable until ACTIVATED.** Merged is not enough. | same § | Unchanged, and it is exactly how `local.pluginMcp`'s launchers reach PATH |
 | **To add a marketplace under an allowed owner, use `owner/repo`, NOT the https URL.** The shorthand creates a `github:` source that the managed `strictKnownMarketplaces` wildcard matches; the full URL creates a `git:` source and is refused as *"blocked by enterprise policy"* — an error that blames policy for a syntax problem. | § Adding a marketplace under an allowed owner | The managed allowlist is untouched by the purge |
-| **The recipe for proving a plugin-owned server actually answers** — confirm the plugin SHA refreshed, `claude mcp list` in a **fresh** process, then invoke a tool with the **plugin-lane** `--allowedTools` spelling. Judge against a criterion written *before* the test; an empty result is often the pass. | § How to verify a plugin-owned server actually answers | **This is now the ONLY proof a server ANSWERS.** The one check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) reads files in the pinned public tree and spawns nothing, so this runtime procedure replaces the parity check outright |
+| **The recipe for proving a plugin-owned server actually answers** — confirm the plugin SHA refreshed, `claude-personal mcp list` (or `claude-work`) in a **fresh** process, then invoke a tool with the **plugin-lane** `--allowedTools` spelling. Judge against a criterion written *before* the test; an empty result is often the pass. | § How to verify a plugin-owned server actually answers | **This is now the ONLY proof a server ANSWERS.** The one check that reads a plugin's `.mcp.json` (`checks.*.mcp-launcher-parity`) reads files in the pinned public tree and spawns nothing, so this runtime procedure replaces the parity check outright |
 | **A plugin `.mcp.json` cannot run a Keychain read** — it interpolates `${VAR}`/`${VAR:-default}`, `${user_config.KEY}` with `sensitive: true`, and `headersHelper` for remote servers, and that is all. | § Counting convention, § Which lane | It is the whole reason `packages/keychain-mcp.nix` exists |
 | **Call-volume measurement, 2026-09-23** (every MCP tool call across 21 days of transcripts): gateway **~3,200 / 94%**, nine claude.ai connectors **218 / 6%**, marketplace plugins **76** (Neon alone 70). | § Which lane | The baseline against which the purge's cost gets judged. It says plainly that the **94% lane is the one that was removed** — so if the plugin lane proves worse, this is the number that proves it, and nothing else measures it |
 | **Verify at the surface clients use, not the one easiest to curl.** Three Cloudflare objects were needed per published server and a missing one failed SILENTLY — the origin answered `200` throughout while the server was invisible to every client. | [`mcp-public-exposure-design.md`](mcp-public-exposure-design.md) | Generalises to any proxied/gated surface this fleet builds next |
@@ -279,12 +279,12 @@ at session start. **A fresh process can.** Three steps:
 
 1. **Confirm the refresh landed** — compare the cached plugin SHA against the marketplace branch:
    `~/.claude/plugins/installed_plugins.json` → `gitCommitSha` vs `gh api repos/<o>/<r>/commits/main`.
-2. **Connect/fail per server** — `claude mcp list` in a fresh process. Plugin-owned servers appear
+2. **Connect/fail per server** — `claude-personal mcp list` (or `claude-work`) in a fresh process. Plugin-owned servers appear
    as `plugin:<plugin>:<server>`.
 3. **Actually invoke it** — a tool that loads is not a tool that answers:
 
    ```bash
-   claude -p 'Call <tool> once and reply with ONLY its raw result.' \
+   claude-personal -p 'Call <tool> once and reply with ONLY its raw result.' \
      --allowedTools 'mcp__plugin_<plugin>_<server>__<tool>'
    ```
 

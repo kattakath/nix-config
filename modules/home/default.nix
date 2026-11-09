@@ -8,7 +8,7 @@
 # from the keychain-secrets capsule (local.keychainSecrets), which loads once per
 # process tree and lets descendants inherit. Nothing plaintext is written to disk.
 # The Keychain is macOS-only, so the Linux hosts get no personal-token mechanism
-# here (use one-time CLI logins: gh/hf/docker/claude).
+# here (use one-time CLI logins: gh/hf/docker, and claude-personal/claude-work).
 #
 # SYSTEM/SERVICE secrets are separate from this profile — FOUR agenix ciphertexts on
 # two models (secrets/secrets.nix is the count of record): nixpi's Cloudflare tunnel
@@ -408,14 +408,18 @@ in
     # The GLOBAL guardrail floor: user-scope permissions.deny for every repo on
     # this Mac. Project hooks in .claude/ only ever covered this repo.
     ./claude-guardrails.nix
-    # `claude-work`: the work account under its own CLAUDE_CONFIG_DIR, beside the
-    # personal `claude` — separate logins, transcripts and org policy, shared content.
-    ./claude-work-profile.nix
+    # `claude-personal` + `claude-work`: one CLAUDE_CONFIG_DIR per account and no bare
+    # `claude` on darwin — separate logins, transcripts and org policy, shared content.
+    ./claude-profiles.nix
   ];
 
   # Enable the keychain-secrets capsule's module (installs the secret/set-secret/
   # remove-secret CLIs + the ~/.config/secrets/loader.sh every-shell loader).
   local.keychainSecrets.enable = true;
+
+  # The ONE claude-code derivation: the profile wrappers (./claude-profiles.nix) exec it
+  # by store path, and claude-plugins.nix runs `plugin marketplace add` with it.
+  local.claudeProfiles.package = claudeCode;
 
   # The whole media stack, from the media-cli capsule: the CLIs, the durable
   # launchd work queue, and the Finder right-click Services. macos ONLY —
@@ -981,12 +985,15 @@ in
     # NO `mcpServers`: the module that did (`modules/shared/mcp.nix`, the localhost
     # gateway's SSE endpoints + desktop-commander stdio) was deleted 2026-10-02, and
     # servers now arrive only from an enabled plugin's own `.mcp.json`, which this
-    # repo does not write. `package` preserves our darwin strict-sandbox override
-    # (claudeCode above, also used by the VS Code "claude" terminal profile). On the
-    # Linux hosts claude-code stays a plain home.packages entry.
+    # repo does not write. `package = null`: the module then puts NO bare `claude` on
+    # PATH (upstream default.nix `home.packages = mkIf (cfg.package != null) …`) while
+    # still writing settings, CLAUDE.md, skills and marketplaces. The binary reaches
+    # PATH only through the named wrappers (./claude-profiles.nix), which exec
+    # `local.claudeProfiles.package` — our darwin strict-sandbox override, claudeCode
+    # above. On the Linux hosts claude-code stays a plain home.packages entry.
     claude-code = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       enable = true;
-      package = claudeCode;
+      package = null;
 
       # GLOBAL Claude Code instructions — user-level rules loaded in every
       # project/session on this Mac (the sole Claude Code client host): the
@@ -1702,21 +1709,19 @@ in
           "terminal.integrated.tabs.defaultColor" = "terminal.ansiMagenta";
           "terminal.integrated.tabs.defaultIcon" = "terminal-ubuntu";
           "terminal.integrated.persistentSessionReviveProcess" = "onExitAndWindowClose";
-          # Personal "claude" terminal profile — one-click Claude Code with
+          # One-click Claude Code terminal profiles, one per account, with
           # permission prompts skipped. `.osx` (not `.linux`) because the whole
-          # block is darwin-gated. `path` is the exact store path of the
-          # claude-code derivation HM installs, so it resolves regardless of PATH.
-          "terminal.integrated.profiles.osx" = {
-            "claude" = {
-              "path" = "${claudeCode}/bin/claude";
-              "args" = [
-                "--permission-mode"
-                "bypassPermissions"
-              ];
-              "icon" = "claude";
-              "color" = "terminal.ansiYellow";
-            };
-          };
+          # block is darwin-gated. `path` is the profile wrapper's per-user path,
+          # stable across rebuilds (./claude-profiles.nix).
+          "terminal.integrated.profiles.osx" = lib.genAttrs [ "claude-personal" "claude-work" ] (name: {
+            "path" = "/etc/profiles/per-user/${config.home.username}/bin/${name}";
+            "args" = [
+              "--permission-mode"
+              "bypassPermissions"
+            ];
+            "icon" = "claude";
+            "color" = if name == "claude-work" then "terminal.ansiBlue" else "terminal.ansiYellow";
+          });
           # -- Editor --
           # JetBrainsMono Nerd Font (pkgs.nerd-fonts.jetbrains-mono) — pairs with
           # the JetBrains New UI Dark theme; ligatures on. Terminal stays UbuntuMono.
