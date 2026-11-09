@@ -392,10 +392,10 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   the ROOT disk, so `/home`, PERSISTS in `$XDG_STATE_HOME/nixvm/nixvm.qcow2` until you `rm` it
   (only the Nix store image is rebuilt per boot). The filesystem split, and the per-CWD trap
   the app's wrapper defeats: [`docs/map/hosts.md`](docs/map/hosts.md).
-- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder**. Two traps:
+- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder**. Three traps:
   a `determinate-nixd` logged OUT of FlakeHub (or featureless — kickstart it) fails every build
-  as `platform mismatch`, and `cp --no-preserve=mode` into `$out` EPERMs (a Caddy-serving `nixpi`
-  generation). **Never fix that by building on the Pi** — CI warms the cache. Detail:
+  as `platform mismatch`, `cp --no-preserve=mode` into `$out` EPERMs (Caddy's `nixpi` closure),
+  and a full-tunnel VPN blackholes its source fetches. **Never fix that by building on the Pi** — CI warms the cache. Detail:
   [`docs/map/hosts.md`](docs/map/hosts.md) § Building aarch64-linux on the Mac.
 
 ## Documentation
