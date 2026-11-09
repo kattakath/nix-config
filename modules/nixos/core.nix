@@ -180,11 +180,9 @@
     # up to max-free — prevents ENOSPC during large builds.
     nix.settings.min-free = 3 * 1024 * 1024 * 1024; # 3 GiB
     nix.settings.max-free = 10 * 1024 * 1024 * 1024; # 10 GiB
-    # Hard-link identical store files as each path lands, instead of a one-off
-    # `nix store optimise` scan (a long write burst — on nixpi's SD card, the wrong
-    # shape). Same trade macos makes in modules/parts/compose.nix: a hash+link step
-    # per store write, on hosts that mostly substitute whole closures.
-    nix.settings.auto-optimise-store = true;
+    # No auto-optimise-store here (NixOS default: off). It came in 2026-10-27 as a
+    # space measure for nixpi's 14 GiB capped counterfeit card, and was retired
+    # 2026-11-09 with that card: no NixOS host here is short of disk.
 
     # Periodic TRIM instead of online `discard` (Determinate best-practices § "Don't
     # mount your Nix store with online discard"): a weekly fstrim reclaims freed
