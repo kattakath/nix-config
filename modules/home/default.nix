@@ -638,6 +638,7 @@ in
     # a lead; the citable grep still has to run against flake.lock.
     context7-marketplace = {
       source = lib.mkDefault "https://github.com/upstash/context7.git";
+      autoUpdate = true;
     };
 
     # This operator's OWN published marketplace, github:kattakath/skills, as a
@@ -679,11 +680,13 @@ in
     # resolvable. Enabling is the operator's `/plugin` toggle (runtime state, not Nix). Remove a
     # skills-only input only after its plugin is enabled AND seen in a session.
     #
-    # `autoUpdate` is left at its `false` default on every entry here, matching every other
-    # third-party marketplace in this attrset (`context7-marketplace`) — only `kattakath` (the operator's own repo) is `true`.
-    # These are other people's repos, and autoUpdate means whatever lands on their
-    # `main` reaches this Mac on a background refresh with no review. Revisit it
-    # per-marketplace when enabling one.
+    # `autoUpdate = true` on every https marketplace (operator decision 2026-11-12: "the
+    # plugins are curated by me; even if they're from other marketplaces, everyone should
+    # get them auto-updated"). The curation is the gate: which marketplaces are declared
+    # here, and which plugins get enabled. Accepted cost: whatever lands on an upstream
+    # `main` reaches this Mac on a background refresh without a per-commit review.
+    # Measured 2026-11-12: with it unset, a marketplace silently stayed 4 releases behind.
+    # A /nix/store marketplace (xai-grok-build) can't auto-update; Nix updates it.
     #
     # LICENCE, and why marketplace-not-vendor is the RIGHT shape here:
     # `trailofbits/skills` is CC-BY-SA-4.0 — a share-alike licence. Consuming it as
@@ -704,6 +707,7 @@ in
     # positive reason to consume this as a marketplace rather than vendor it.
     trailofbits = {
       source = lib.mkDefault "https://github.com/trailofbits/skills.git";
+      autoUpdate = true;
     };
 
     # Upstream marketplace that replaces a cherry-picked `agent-skills-*` skill (2026-11-07,
@@ -712,6 +716,7 @@ in
     # postgres-pro).
     fullstack-dev-skills = {
       source = lib.mkDefault "https://github.com/Jeffallan/claude-skills.git";
+      autoUpdate = true;
     };
   };
 
