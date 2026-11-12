@@ -295,14 +295,14 @@ in
     };
 
   # The machine's declared name, so it's config-owned rather than manual scutil drift.
-  # computerName is the Settings ▸ About ▸ Name. localHostName (the `.local` name) is set
-  # explicitly: macOS renames it on a Bonjour name conflict (measured 2026-11-12: it read
-  # `macos-2` while a stale responder, likely a sleep proxy, still answered macos.local at an
-  # old IP), and two rebuilds that day did not reset the derived default. Declaring it makes
-  # every activation set it back.
+  # computerName is the Settings ▸ About ▸ Name. localHostName (the `.local` name) is
+  # UNIQUE on purpose: `macos` is generic, and on 2026-11-12 another device (10.0.0.24) kept
+  # answering macos.local with a fresh (TTL 60) record even after an mDNS flush, so macOS
+  # renamed this Mac to `macos-2` straight after every activation set it back. The flake
+  # attribute, hostName and computerName stay `macos`; only the Bonjour name differs.
   networking.hostName = "macos";
   networking.computerName = "macos";
-  networking.localHostName = "macos";
+  networking.localHostName = "ismail-macos";
 
   users.users.${loginName} = {
     name = loginName;
