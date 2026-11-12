@@ -88,12 +88,10 @@ let
   # call inside the session inherits that PATH.
   # OTEL_RESOURCE_ATTRIBUTES tags claude-otel.nix's events with the profile — both
   # profiles share one collector, so without it the two accounts' telemetry is mixed.
-  # CLAUDE_CODE_ENABLE_TODO_TOOLS=1: the task tools (TaskCreate/TaskList/TaskUpdate)
-  # ship by default only on older models; newer ones need this opt-in at launch
-  # (code.claude.com/docs/en/tools-reference#task-tool-availability). Without it a
-  # resumed session keeps its saved task list on disk but cannot read or update it.
+  # No CLAUDE_CODE_ENABLE_TODO_TOOLS here: the task tools are opted in per launch folder
+  # (a settings.json `env`), not per profile. A profile-wide opt-in reached every
+  # session, and short worktree sessions paid its reminders without using the tools.
   profileEnv = name: ''
-    export CLAUDE_CODE_ENABLE_TODO_TOOLS=1
     export OTEL_RESOURCE_ATTRIBUTES="claude.profile=${name}''${OTEL_RESOURCE_ATTRIBUTES:+,$OTEL_RESOURCE_ATTRIBUTES}"
   '';
   # --allow-dangerously-skip-permissions OFFERS bypass in the Shift+Tab cycle without
