@@ -295,10 +295,14 @@ in
     };
 
   # The machine's declared name, so it's config-owned rather than manual scutil drift.
-  # computerName is the Settings ▸ About ▸ Name; localHostName (the `.local` name)
-  # defaults from hostName, so these two cover all three scutil names.
+  # computerName is the Settings ▸ About ▸ Name. localHostName (the `.local` name) is set
+  # explicitly: macOS renames it on a Bonjour name conflict (measured 2026-11-12: it read
+  # `macos-2` while a stale responder, likely a sleep proxy, still answered macos.local at an
+  # old IP), and two rebuilds that day did not reset the derived default. Declaring it makes
+  # every activation set it back.
   networking.hostName = "macos";
   networking.computerName = "macos";
+  networking.localHostName = "macos";
 
   users.users.${loginName} = {
     name = loginName;
