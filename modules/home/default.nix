@@ -1092,12 +1092,8 @@ in
           { serverName = "plugin:cloudflare:cloudflare"; }
           { serverName = "plugin:slack:slack"; }
           { serverName = "plugin:neon:neon"; }
-        ]
-        # The operator's claude.ai Microsoft 365 connector: his tenant blocks consent, so it
-        # only ever showed "Needs authentication"; removed 2026-11-01. The URL deny drops it
-        # from `claude mcp list`.
-        ++ lib.optionals isMacosHost [
-          { serverUrl = "https://microsoft365.mcp.claude.com/mcp"; }
+          # The claude.ai Microsoft 365 connector was denied here 2026-11-01 (tenant blocked
+          # consent); lifted 2026-11-13 once the operator re-added it on claude.ai.
         ];
 
         theme = "auto";
