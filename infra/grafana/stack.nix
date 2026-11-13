@@ -20,9 +20,9 @@
 # Monitoring token) and GRAFANA_CLOUD_ACCESS_POLICY_TOKEN (the gcom token, for the access
 # policy below). None reaches argv, the store or a rendered file.
 #
-# CREATED, NOT ADOPTED — the two exceptions to the rule above: the li-logs access policy and
-# its token (ADR-011 § 4, the allowlisted run-metadata exception). The policy gets its import
-# block once the first apply prints its id (`li_logs_policy_id`). The token never gets one:
+# CREATED, NOT ADOPTED — the li-logs access policy and its token (ADR-011 § 4, the allowlisted
+# run-metadata exception), made by the 2026-11-13 apply. The policy then got its import block
+# like everything else (id from `li_logs_policy_id`). The token never gets one:
 # the API returns its value only at create, so an imported token would be valueless, and the
 # Keychain copy outlives lost state anyway. With state lost, GRAFANA_ALLOW_CREATE=1 re-mints it.
 # The token is the one secret this stack holds in (encrypted) state, by the cf-tunnel
@@ -76,6 +76,9 @@ let
     "grafana_data_source.gcp_monitoring" = "gcp-monitoring";
     "grafana_dashboard.maps_platform" = "maps-platform";
     "grafana_rule_group.maps_platform" = "fleet:maps-platform";
+    # Created here 2026-11-13, then adopted like the rest. `<region>:<policyId>`. Its token
+    # has no block on purpose (header: an imported token has no value).
+    "grafana_cloud_access_policy.li_logs" = "prod-ca-east-0:1919db4f-bf36-4d08-b018-65094d66096f";
   };
 in
 {
