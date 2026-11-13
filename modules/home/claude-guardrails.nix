@@ -305,7 +305,6 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       ])
       [
         "claude"
-        "claude-personal"
         "claude-work"
       ]
     ++ [

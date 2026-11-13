@@ -479,17 +479,17 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `extraServers` (empty in public since 2026-11-01) into Desktop's `claude_desktop_config.json`;
   Desktop chat's MCP now comes only from claude.ai connectors. Design record:
   [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md).
-- **`claude-profiles.nix`** — `claude-personal` (every host; `CLAUDE_CONFIG_DIR` UNSET →
-  `~/.claude`) and, on `macos` (`local.claudeWorkProfile`), `claude-work`
-  (`CLAUDE_CONFIG_DIR=~/.claude-work`). **No bare `claude` on darwin**
-  (`programs.claude-code.package = null`); zsh prints which one to use. Both exec ONE store
+- **`claude-profiles.nix`** — `claude` (personal; `CLAUDE_CONFIG_DIR` UNSET →
+  `~/.claude`) and `claude-work` (`CLAUDE_CONFIG_DIR=~/.claude-work`), on `macos`
+  (`local.claudeWorkProfile`); Linux hosts keep the plain package `claude`
+  (`programs.claude-code.package = null` on darwin, where the wrapper takes the name). Both exec ONE store
   path, `local.claudeProfiles.package`. Separate login, transcripts, peer registry and org
   policy cache; `CLAUDE.md`, `rules/`, `skills/` and `plugins/` are linked from `~/.claude`,
   and `claude-code-settings.nix` merges the same settings floor into its own `settings.json`.
   A shared status line names the profile and flags a personal session in a repo whose git
   config sets `claude.profile = work`. Open Design finds Claude through `CLAUDE_BIN`
-  (`hosts/macos.nix`). **Never `/login` the work account in `claude-personal`**: its
-  server-managed policy then governs EVERY personal session. Why named-only, and the rejected
+  (`hosts/macos.nix`). **Never `/login` the work account in `claude`**: its
+  server-managed policy then governs EVERY personal session. Why this split, and the rejected
   options with evidence: the module header.
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a

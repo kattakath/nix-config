@@ -427,9 +427,9 @@ in
   # and the auto-download. Takes effect for apps launched after activation.
   launchd.user.envVariables.OD_UPDATE_ENABLED = "0";
   # Open Design looks for an agent named `claude` (its daemon's AGENT_BIN_ENV_KEYS maps
-  # claude → CLAUDE_BIN, read from the process env by configuredExecutableOverride). There
-  # is no bare `claude` on this Mac, so point it at the personal profile's stable path.
-  launchd.user.envVariables.CLAUDE_BIN = "/etc/profiles/per-user/${loginName}/bin/claude-personal";
+  # claude → CLAUDE_BIN, read from the process env by configuredExecutableOverride). GUI
+  # apps don't get the login shell's PATH, so point it at the `claude` wrapper's stable path.
+  launchd.user.envVariables.CLAUDE_BIN = "/etc/profiles/per-user/${loginName}/bin/claude";
 
   # ---- Google Drive for desktop (cask below) ----------------------------------
   # Keys are Google's documented admin keys for the com.google.drivefs.settings

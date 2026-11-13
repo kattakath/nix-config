@@ -1,13 +1,17 @@
-# Claude Code PROFILES — two named commands and NO bare `claude` on this Mac:
-#   claude-personal  the personal account   (CLAUDE_CONFIG_DIR UNSET → ~/.claude, ~/.claude.json)
-#   claude-work      the work account       (CLAUDE_CONFIG_DIR=~/.claude-work)
-# Each has its own login. Typing bare `claude` prints which one to use.
+# Claude Code PROFILES on this Mac — two commands, one per account:
+#   claude       the personal account   (CLAUDE_CONFIG_DIR UNSET → ~/.claude, ~/.claude.json)
+#   claude-work  the work account       (CLAUDE_CONFIG_DIR=~/.claude-work)
+# Each has its own login. Linux hosts have one account and keep their plain package
+# `claude` (default.nix); this module installs nothing there.
 #
-# WHY NAMED-ONLY (decided 2026-11-09): with a bare `claude` = personal, habit ran a
-# 4-day work handoff session on the personal account — personal quota, no org policy,
-# invisible to `claude-work --resume` and to work peers, memory split 77 vs 2 notes.
-# Nothing in the session tells you which account it is on until it is too late, so the
-# choice is made explicit at launch. Rejected, with the evidence:
+# HISTORY: 2026-11-09 removed the bare name (`claude-personal` + `claude-work` only),
+# because habit ran a 4-day work handoff on the personal account: personal quota, no
+# org policy, invisible to `claude-work --resume`, memory split 77 vs 2 notes.
+# 2026-11-12 the operator brought the bare name back AS the personal profile ("Let
+# there be no personal. Only claude and claude-work"): every third-party tool that
+# calls `claude` (Open Design, scripts, agents) now works without a per-app override,
+# and the status line still flags a personal session in a work repo in red.
+# Rejected, with the evidence:
 #   - a fresh ~/.claude-personal dir (symmetry): an EXPLICIT CLAUDE_CONFIG_DIR — even
 #     =~/.claude — selects a different Keychain entry than unset (anthropics/claude-code
 #     #92252, open), so it forces a re-login, a ~/.claude.json move and a 3.7 GB
@@ -15,13 +19,10 @@
 #     (#106764) and scheduled tasks (#100138) recreate ~/.claude anyway.
 #   - bare `claude` routed by cwd (like git includeIf): silent wrong-account switches,
 #     and the most custom logic.
-#   - keep bare `claude` = personal + a warning: habit unchanged.
-# Precedent: Anthropic's maintainer suggests exactly these two aliases (#76656, closed
-# 2026-08-17 as "use CLAUDE_CONFIG_DIR"). Every other multi-account CLI (gcloud, aws,
-# kubectl, gh) keeps a default; this fleet deliberately does not.
-# Checked before removing the bare name (2.1.318): teammate panes start the CURRENT
-# binary (`pinToCurrentBinary`), and a subagent ran with no `claude` on PATH.
-#
+#   - no bare `claude` (2026-11-09 to 11-12): every app that knows only `claude` broke.
+# Precedent: Anthropic's maintainer suggests exactly this alias pattern (#76656, closed
+# 2026-08-17 as "use CLAUDE_CONFIG_DIR"), and every other multi-account CLI (gcloud,
+# aws, kubectl, gh) keeps a default.
 # MECHANISM: Anthropic's documented one — "Log in with multiple accounts": give each
 # account its own CLAUDE_CONFIG_DIR (code.claude.com/docs/en/authentication). The
 # Keychain entry is keyed to the directory, so neither login ever replaces the other,
@@ -104,7 +105,7 @@ let
   # `claude --help` to skip the flag; it hand-rolls a parser over help text.
   exec' = "exec ${exe}";
   personal = pkgs.writeShellApplication {
-    name = "claude-personal";
+    name = "claude";
     text = ''
       # UNSET, never =~/.claude: an explicit value selects a different Keychain entry
       # than unset (anthropics/claude-code#92252) and moves .claude.json into the dir.
@@ -161,7 +162,7 @@ in
     enable = lib.mkOption {
       type = lib.types.bool;
       default = import ../_lib/is-macos-host.nix osConfig;
-      description = "Install `claude-personal` and `claude-work`: Claude Code under one CLAUDE_CONFIG_DIR per account, with no bare `claude`.";
+      description = "Install `claude` (personal) and `claude-work`: Claude Code under one CLAUDE_CONFIG_DIR per account.";
     };
     configDir = lib.mkOption {
       type = lib.types.str;
@@ -171,12 +172,11 @@ in
   };
 
   config = lib.mkMerge [
-    # Every host gets `claude-personal`, so the habit is one command everywhere. Linux
-    # hosts have one account and keep their bare `claude` too (default.nix).
-    { home.packages = [ personal ]; }
-
     (lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
-      home.packages = [ work ];
+      home.packages = [
+        personal
+        work
+      ];
       # Replaces the wrappers' old --allow-dangerously-skip-permissions (see exec').
       # Operator's call 2026-11-12: start in bypass. Every session was already launched
       # with --permission-mode bypassPermissions. A user-scope value takes effect (the
@@ -200,17 +200,6 @@ in
         command = lib.getExe statusLine;
       };
 
-      # zsh calls this for any unknown command; only `claude` gets the hint.
-      programs.zsh.initContent = ''
-        command_not_found_handler() {
-          if [[ $1 == claude ]]; then
-            print -u2 "claude: no default profile on this Mac — use claude-work (work account) or claude-personal."
-          else
-            print -u2 "zsh: command not found: $1"
-          fi
-          return 127
-        }
-      '';
     })
   ];
 }

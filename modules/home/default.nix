@@ -8,7 +8,7 @@
 # from the keychain-secrets capsule (local.keychainSecrets), which loads once per
 # process tree and lets descendants inherit. Nothing plaintext is written to disk.
 # The Keychain is macOS-only, so the Linux hosts get no personal-token mechanism
-# here (use one-time CLI logins: gh/hf/docker, and claude-personal/claude-work).
+# here (use one-time CLI logins: gh/hf/docker, and claude/claude-work).
 #
 # SYSTEM/SERVICE secrets are separate from this profile — FOUR agenix ciphertexts on
 # two models (secrets/secrets.nix is the count of record): nixpi's Cloudflare tunnel
@@ -408,8 +408,8 @@ in
     # The GLOBAL guardrail floor: user-scope permissions.deny for every repo on
     # this Mac. Project hooks in .claude/ only ever covered this repo.
     ./claude-guardrails.nix
-    # `claude-personal` + `claude-work`: one CLAUDE_CONFIG_DIR per account and no bare
-    # `claude` on darwin — separate logins, transcripts and org policy, shared content.
+    # `claude` (personal) + `claude-work`: one CLAUDE_CONFIG_DIR per account on darwin —
+    # separate logins, transcripts and org policy, shared content.
     ./claude-profiles.nix
   ];
 
@@ -1718,7 +1718,7 @@ in
           # permission prompts skipped. `.osx` (not `.linux`) because the whole
           # block is darwin-gated. `path` is the profile wrapper's per-user path,
           # stable across rebuilds (./claude-profiles.nix).
-          "terminal.integrated.profiles.osx" = lib.genAttrs [ "claude-personal" "claude-work" ] (name: {
+          "terminal.integrated.profiles.osx" = lib.genAttrs [ "claude" "claude-work" ] (name: {
             "path" = "/etc/profiles/per-user/${config.home.username}/bin/${name}";
             "args" = [
               "--permission-mode"
