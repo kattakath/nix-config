@@ -94,13 +94,15 @@ let
   profileEnv = name: ''
     export OTEL_RESOURCE_ATTRIBUTES="claude.profile=${name}''${OTEL_RESOURCE_ATTRIBUTES:+,$OTEL_RESOURCE_ATTRIBUTES}"
   '';
-  # --allow-dangerously-skip-permissions OFFERS bypass in the Shift+Tab cycle without
-  # starting in it (CLI help: "as an option, without it being enabled by default"); a
-  # session launched without it tops out at auto. Operator's call, 2026-11-09. Under
-  # claude-work the org's allowManagedPermissionRulesOnly drops the user deny/ask floor,
-  # so bypass there has almost no guardrails. Checked with --version and the mcp, auth
-  # and plugin subcommands: the flag does not break them.
-  exec' = "exec ${exe} --allow-dangerously-skip-permissions";
+  # The wrappers set ENV ONLY and pass "$@" through untouched. They used to prepend
+  # --allow-dangerously-skip-permissions (2026-11-09), and a flag in front of the
+  # subcommand turned `claude-work attach <id>` into a NEW chat whose prompt was
+  # "attach" (measured 2026-11-12, claude 2.1.318: two stray sessions; the bare binary
+  # answered "No job matching …"). Any argument a wrapper adds can collide with some
+  # subcommand, so bypass now comes from a SETTING (permissions.defaultMode, below),
+  # which no CLI parse can misread. Rejected: deriving a subcommand list from
+  # `claude --help` to skip the flag; it hand-rolls a parser over help text.
+  exec' = "exec ${exe}";
   personal = pkgs.writeShellApplication {
     name = "claude-personal";
     text = ''
@@ -175,6 +177,15 @@ in
 
     (lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
       home.packages = [ work ];
+      # Replaces the wrappers' old --allow-dangerously-skip-permissions (see exec').
+      # Operator's call 2026-11-12: start in bypass. Every session was already launched
+      # with --permission-mode bypassPermissions. A user-scope value takes effect (the
+      # docs ignore it only from project/local settings), and `claude agents` background
+      # sessions honour it (changelog). Under claude-work the org's
+      # allowManagedPermissionRulesOnly drops the user deny/ask floor, so bypass there
+      # has few guardrails, as before. macOS only: Linux hosts keep a bare `claude`
+      # that reads the same file, and a server should not start in bypass.
+      programs.claude-code.settings.permissions.defaultMode = "bypassPermissions";
       home.file = lib.mkMerge (
         map link [
           "CLAUDE.md"
