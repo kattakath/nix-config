@@ -33,7 +33,7 @@
 /** execSync's thrown error: a plain Error carrying the child's captured output. */
 /** @typedef {Error & { stdout?: string, stderr?: string }} ExecError */
 /** One job in the grok-build plugin's state.json — its schema, not Claude Code's. */
-/** @typedef {{ id: string, status?: string, sessionId?: string, errorMessage?: string, summary?: string, kindLabel?: string, kind?: string, logFile?: string }} GrokJob */
+/** @typedef {{ id: string, status?: string, sessionId?: string, errorMessage?: string, summary?: string, kindLabel?: string, kind?: string, logFile?: string, workspaceRoot?: string }} GrokJob */
 
 const { execSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -168,6 +168,16 @@ const readJson = (p, fallback) => {
   }
 };
 
+/** @param {string | undefined} a @param {string} b */
+const sameDir = (a, b) => {
+  if (!a) return false;
+  try {
+    return fs.realpathSync(a) === fs.realpathSync(b);
+  } catch {
+    return a === b;
+  }
+};
+
 const grokFailures = (() => {
   let dirs = [];
   try {
@@ -182,7 +192,15 @@ const grokFailures = (() => {
     for (const j of readJson(`${GROK_STATE_DIR}/${d}/state.json`, {}).jobs || []) {
       if (j.status !== "failed" || surfaced.has(j.id)) continue;
       // Another session's failure is that session's to report, not ours.
-      if (sessionId && j.sessionId && j.sessionId !== sessionId) continue;
+      if (j.sessionId) {
+        if (sessionId && j.sessionId !== sessionId) continue;
+      } else if (!sameDir(j.workspaceRoot, projectDir)) {
+        // UNATTRIBUTED: the bridge records a sessionId only when the plugin's
+        // SessionStart env-file export reached Bash, and it mostly does not (5 of 593
+        // session-env files, measured 2026-11-13). Without this, every checkout's stop
+        // inherited every other checkout's failure. Scope it to the checkout that ran it.
+        continue;
+      }
       out.push(j);
     }
   }
