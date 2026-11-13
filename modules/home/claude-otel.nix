@@ -22,6 +22,11 @@ let
   # login Keychain at agent start (`secret exec`), so no per-person value sits in
   # the store or the repo. Missing items fall back to the local-only config.
   otlpItems = (import ../_lib/keychain-items.nix).grafana.otlp;
+  # The li run-metadata pipeline: shared DATA, also run by checks.<system>.li-runs-allowlist.
+  liRuns = import ../_lib/li-runs-pipeline.nix {
+    inherit (cfg.liRuns) runsDir;
+    storageDir = "${builtins.dirOf cfg.eventsFile}/li-runs-storage";
+  };
 in
 {
   options.local.claudeOtel = {
@@ -46,6 +51,22 @@ in
     };
 
     grafana.enable = lib.mkEnableOption "a metrics pipeline exporting Claude Code's native metrics to Grafana Cloud over OTLP/HTTP";
+
+    # ADR-011 § 4 exception: allowlisted run METADATA from an operator tool (ids, counts,
+    # statuses — no free text) to Loki, behind its own logs:write token. THE OFF SWITCH:
+    # false + activate removes the pipeline; revoking the token stops it at once.
+    liRuns = {
+      enable = lib.mkEnableOption "shipping the li tool's allowlisted run metadata to Grafana Cloud Loki (needs grafana.enable)";
+      runsDir = lib.mkOption {
+        type = lib.types.str;
+        default = "${config.home.homeDirectory}/.local/state/li/runs";
+        description = ''
+          Folder of the tool's `*.log.jsonl` run logs — a symlink the operator creates to
+          where the tool writes them. The real location is personal data (it carries an
+          account address), so it never appears in this repo. A missing folder ships nothing.
+        '';
+      };
+    };
   };
 
   config = lib.mkIf cfg.enable (
@@ -94,112 +115,152 @@ in
       };
       # `${env:…}` is the collector's own config-provider syntax, resolved at start
       # from the environment `secret exec` builds — never written to the store.
-      grafanaConfig = pkgs.writeText "claude-otel-grafana-config.yaml" (
-        builtins.toJSON {
-          # ADR-011 step 8: the Mac's own host metrics ride the same collector and
-          # credential. Allowlisted to the volumes and interfaces that matter, which
-          # keeps it near the census's ~350 series; utun/awdl/llw/bridge and the
-          # devfs/autofs mounts are dropped.
-          receivers = receivers // {
-            host_metrics = {
-              collection_interval = "60s";
-              scrapers = {
-                cpu = { };
-                memory = { };
-                load = { };
-                paging = { };
-                filesystem.include_mount_points = {
-                  match_type = "strict";
-                  mount_points = [
-                    "/"
-                    "/System/Volumes/Data"
-                    "/nix"
-                  ];
-                };
-                network.include = {
-                  match_type = "regexp";
-                  interfaces = [ "en[0-9]+" ];
-                };
-              };
-            };
-          };
-          extensions."basicauth/grafana".client_auth = {
-            username = "\${env:GRAFANA_OTLP_INSTANCE}";
-            password = "\${env:GRAFANA_OTLP_TOKEN}";
-          };
-          processors = {
-            batch = { };
-            # Claude Code ALWAYS attaches user.email, organization.id and user.id to
-            # metrics (code.claude.com/docs/en/monitoring-usage § Standard attributes);
-            # the env vars in default.nix only turn off session.id and the account
-            # ids. Deleting here is the guarantee; the env vars only cut what is sent.
-            "attributes/strip".actions = map del [
-              "user.email"
-              "user.id"
-              "user.account_uuid"
-              "user.account_id"
-              "organization.id"
-              "session.id"
-              "ccr.session.id"
-              "terminal.type"
-            ];
-            "resource/strip".attributes = map del [
-              "user.email"
-              "host.name"
-            ];
-            "resource/host".attributes = [
-              {
-                key = "service.name";
-                value = "macos-host";
-                action = "upsert";
-              }
-            ];
-            # Claude Code exports DELTA sums; the Grafana OTLP gateway rejects them
-            # (HTTP 400 "invalid temporality and type combination", measured
-            # 2026-11-02). Converting here, AFTER the strip, also merges concurrent
-            # sessions into one stream, which is right now that session.id is gone.
-            # Cumulative export from each process would interleave several running
-            # totals on one label set instead.
-            # max_stale (default 5m) drops a stream idle that long, so an idle session's
-            # counters would restart from 0 every 5 min; a day spans normal gaps.
-            deltatocumulative.max_stale = "24h";
-          };
-          # Canonical component names (`otelcol-contrib components`): 0.155.0 logs the
-          # old `otlphttp`/`hostmetrics` spellings as deprecated aliases at startup.
-          exporters = {
-            file = fileExporter;
-            "otlp_http/grafana" = {
-              endpoint = "\${env:GRAFANA_OTLP_ENDPOINT}";
-              auth.authenticator = "basicauth/grafana";
-            };
-          };
-          service = {
-            extensions = [ "basicauth/grafana" ];
-            pipelines = {
-              logs = logsPipeline;
-              metrics = {
-                receivers = [ "otlp" ];
-                processors = [
-                  "attributes/strip"
-                  "resource/strip"
-                  "deltatocumulative"
-                  "batch"
+      grafanaSettings = {
+        # ADR-011 step 8: the Mac's own host metrics ride the same collector and
+        # credential. Allowlisted to the volumes and interfaces that matter, which
+        # keeps it near the census's ~350 series; utun/awdl/llw/bridge and the
+        # devfs/autofs mounts are dropped.
+        receivers = receivers // {
+          host_metrics = {
+            collection_interval = "60s";
+            scrapers = {
+              cpu = { };
+              memory = { };
+              load = { };
+              paging = { };
+              filesystem.include_mount_points = {
+                match_type = "strict";
+                mount_points = [
+                  "/"
+                  "/System/Volumes/Data"
+                  "/nix"
                 ];
-                exporters = [ "otlp_http/grafana" ];
               };
-              # Host metrics are already cumulative/gauge and carry no identity, so they
-              # skip the strip and the delta conversion.
-              "metrics/host" = {
-                receivers = [ "host_metrics" ];
-                processors = [
-                  "resource/host"
-                  "batch"
-                ];
-                exporters = [ "otlp_http/grafana" ];
+              network.include = {
+                match_type = "regexp";
+                interfaces = [ "en[0-9]+" ];
               };
             };
           };
-        }
+        };
+        extensions."basicauth/grafana".client_auth = {
+          username = "\${env:GRAFANA_OTLP_INSTANCE}";
+          password = "\${env:GRAFANA_OTLP_TOKEN}";
+        };
+        processors = {
+          batch = { };
+          # Claude Code ALWAYS attaches user.email, organization.id and user.id to
+          # metrics (code.claude.com/docs/en/monitoring-usage § Standard attributes);
+          # the env vars in default.nix only turn off session.id and the account
+          # ids. Deleting here is the guarantee; the env vars only cut what is sent.
+          "attributes/strip".actions = map del [
+            "user.email"
+            "user.id"
+            "user.account_uuid"
+            "user.account_id"
+            "organization.id"
+            "session.id"
+            "ccr.session.id"
+            "terminal.type"
+          ];
+          "resource/strip".attributes = map del [
+            "user.email"
+            "host.name"
+          ];
+          "resource/host".attributes = [
+            {
+              key = "service.name";
+              value = "macos-host";
+              action = "upsert";
+            }
+          ];
+          # Claude Code exports DELTA sums; the Grafana OTLP gateway rejects them
+          # (HTTP 400 "invalid temporality and type combination", measured
+          # 2026-11-02). Converting here, AFTER the strip, also merges concurrent
+          # sessions into one stream, which is right now that session.id is gone.
+          # Cumulative export from each process would interleave several running
+          # totals on one label set instead.
+          # max_stale (default 5m) drops a stream idle that long, so an idle session's
+          # counters would restart from 0 every 5 min; a day spans normal gaps.
+          deltatocumulative.max_stale = "24h";
+        };
+        # Canonical component names (`otelcol-contrib components`): 0.155.0 logs the
+        # old `otlphttp`/`hostmetrics` spellings as deprecated aliases at startup.
+        exporters = {
+          file = fileExporter;
+          "otlp_http/grafana" = {
+            endpoint = "\${env:GRAFANA_OTLP_ENDPOINT}";
+            auth.authenticator = "basicauth/grafana";
+          };
+        };
+        service = {
+          extensions = [ "basicauth/grafana" ];
+          pipelines = {
+            logs = logsPipeline;
+            metrics = {
+              receivers = [ "otlp" ];
+              processors = [
+                "attributes/strip"
+                "resource/strip"
+                "deltatocumulative"
+                "batch"
+              ];
+              exporters = [ "otlp_http/grafana" ];
+            };
+            # Host metrics are already cumulative/gauge and carry no identity, so they
+            # skip the strip and the delta conversion.
+            "metrics/host" = {
+              receivers = [ "host_metrics" ];
+              processors = [
+                "resource/host"
+                "batch"
+              ];
+              exporters = [ "otlp_http/grafana" ];
+            };
+          };
+        };
+      };
+      grafanaConfig = pkgs.writeText "claude-otel-grafana-config.yaml" (builtins.toJSON grafanaSettings);
+      # The same collector plus the li pipeline, on its OWN exporter and credential: the
+      # logs:write-only token (ADR-011 § 4). Used only while that Keychain item exists.
+      grafanaLiConfig = pkgs.writeText "claude-otel-grafana-li-config.yaml" (
+        builtins.toJSON (
+          grafanaSettings
+          // {
+            extensions =
+              grafanaSettings.extensions
+              // liRuns.extensions
+              // {
+                "basicauth/li_runs".client_auth = {
+                  username = "\${env:GRAFANA_OTLP_INSTANCE}";
+                  password = "\${env:GRAFANA_OTLP_LI_TOKEN}";
+                };
+              };
+            receivers = grafanaSettings.receivers // liRuns.receivers;
+            processors = grafanaSettings.processors // liRuns.processors;
+            exporters = grafanaSettings.exporters // {
+              "otlp_http/li_runs" = {
+                endpoint = "\${env:GRAFANA_OTLP_ENDPOINT}";
+                auth.authenticator = "basicauth/li_runs";
+              };
+            };
+            service = grafanaSettings.service // {
+              extensions =
+                grafanaSettings.service.extensions
+                ++ [
+                  "basicauth/li_runs"
+                ]
+                ++ lib.attrNames liRuns.extensions;
+              pipelines = grafanaSettings.service.pipelines // {
+                "logs/li_runs" = {
+                  inherit (liRuns.pipeline) receivers;
+                  processors = liRuns.pipeline.processors ++ [ "batch" ];
+                  exporters = [ "otlp_http/li_runs" ];
+                };
+              };
+            };
+          }
+        )
       );
       otelcol = lib.getExe' pkgs.opentelemetry-collector-contrib "otelcol-contrib";
       # launchd-naming: modules/home/launchd-launcher.nix wraps this agent as arg0
@@ -218,6 +279,17 @@ in
             if "$secret" fp ${lib.escapeShellArg otlpItems.endpoint} >/dev/null 2>&1 \
               && "$secret" fp ${lib.escapeShellArg otlpItems.instance} >/dev/null 2>&1 \
               && "$secret" fp ${lib.escapeShellArg otlpItems.token} >/dev/null 2>&1; then
+              ${lib.optionalString cfg.liRuns.enable ''
+                if "$secret" fp ${lib.escapeShellArg otlpItems.liLogsToken} >/dev/null 2>&1; then
+                  exec "$secret" exec \
+                    GRAFANA_OTLP_ENDPOINT=${lib.escapeShellArg otlpItems.endpoint} \
+                    GRAFANA_OTLP_INSTANCE=${lib.escapeShellArg otlpItems.instance} \
+                    GRAFANA_OTLP_TOKEN=${lib.escapeShellArg otlpItems.token} \
+                    GRAFANA_OTLP_LI_TOKEN=${lib.escapeShellArg otlpItems.liLogsToken} \
+                    -- ${otelcol} --config ${grafanaLiConfig}
+                fi
+                echo "claude-otel-collector-run: ${otlpItems.liLogsToken} is missing; li run logs are NOT shipped" >&2
+              ''}
               exec "$secret" exec \
                 GRAFANA_OTLP_ENDPOINT=${lib.escapeShellArg otlpItems.endpoint} \
                 GRAFANA_OTLP_INSTANCE=${lib.escapeShellArg otlpItems.instance} \
@@ -231,6 +303,13 @@ in
       };
     in
     {
+      assertions = [
+        {
+          assertion = cfg.liRuns.enable -> cfg.grafana.enable;
+          message = "local.claudeOtel.liRuns needs local.claudeOtel.grafana.enable: it rides the Grafana config.";
+        }
+      ];
+
       # packages/claude-otel-doctor.nix is a generic flake package and reads these first;
       # its own defaults are only fallbacks, so a changed option reaches it here.
       home.sessionVariables = {

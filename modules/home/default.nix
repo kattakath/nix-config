@@ -496,8 +496,10 @@ in
   # the programs.claude-code.settings.env block below that points Claude Code
   # at it.
   local.claudeOtel.enable = isMacosHost;
-  # ADR-011: metrics (never logs) also go to Grafana Cloud, identity stripped.
+  # ADR-011: metrics also go to Grafana Cloud, identity stripped; logs only as the
+  # allowlisted li run metadata (§ 4 exception, its own token).
   local.claudeOtel.grafana.enable = isMacosHost;
+  local.claudeOtel.liRuns.enable = isMacosHost;
   local.fleetGauges = {
     enable = isMacosHost;
     cloudflareItems = with (import ../_lib/keychain-items.nix).cloudflare; [

@@ -1243,6 +1243,221 @@ in
             };
         }
         // {
+          # The li run-metadata allowlist (modules/_lib/li-runs-pipeline.nix) run through the
+          # REAL otelcol-contrib, with the same attrsets the Mac's collector ships with. Every
+          # fixture is synthetic and carries the things that must never leave: a text slug in
+          # the path, URLs and paths in msg, a page excerpt, an address-shaped path, a
+          # free-text framework line and a non-JSON line. The test fails if any of them, or
+          # any key outside the allowlist, reaches the exporter.
+          li-runs-allowlist =
+            let
+              pipe = import ../_lib/li-runs-pipeline.nix {
+                runsDir = "RUNS_DIR";
+                storageDir = "STORAGE_DIR";
+              };
+              runFile = "2026-01-02T03_04_05Z-fetch-ads-desktop-abc123.log.jsonl";
+              line = builtins.toJSON;
+              at = "2026-01-02T03:04:06.123Z";
+              base = e: {
+                inherit at;
+                event = e;
+                level = "info";
+                logger = "tool_x.run";
+                msg = "see https://site.invalid/cat/list-a/region-b/secret-slug-words-12345678";
+              };
+              fixtures = [
+                (base "start" // { run_id = "ignored"; })
+                (
+                  base "run_card"
+                  // {
+                    card = {
+                      command = "fetch-ads";
+                      stage = "2/7";
+                      purpose = "free text purpose";
+                      live_log.path = "/cloud/someone@mail.invalid/My Drive/x.log.jsonl";
+                      scale = {
+                        eta_s = 60;
+                        per_minute = 7;
+                        planned = {
+                          ad = 3;
+                          robots = 1;
+                        };
+                        blocking = "free text blocking";
+                      };
+                      triggered_by = {
+                        user = "someone";
+                        proxy = "vpn.host.invalid:1080";
+                      };
+                    };
+                  }
+                )
+                (
+                  base "preflight"
+                  // {
+                    egress = {
+                      loc = "XX";
+                      trace_url = "https://trace.invalid/cdn-cgi/trace";
+                    };
+                  }
+                )
+                (
+                  base "request"
+                  // {
+                    kind = "ad";
+                    path = "/cat/list-a/region-b/secret-slug-words-12345678";
+                    final_path = "/cat/list-a/region-b/secret-slug-words-12345678";
+                    status = 200;
+                    ms = 1482.7;
+                    hops = 0;
+                    counts.ad_pages = 1;
+                  }
+                )
+                (
+                  base "request"
+                  // {
+                    kind = "ad";
+                    path = "/cat/list-a/region-b/other-slug-words-87654321";
+                    status = null;
+                    ms = 10.2;
+                  }
+                )
+                (
+                  base "request"
+                  // {
+                    kind = "list";
+                    path = "/cat/list-a/region-b";
+                    page = 10;
+                    status = 200;
+                    ms = 900.1;
+                  }
+                )
+                (base "gone" // { reason = "expired_notice"; })
+                (
+                  base "challenge"
+                  // {
+                    level = "warning";
+                    reason = "signin_wall";
+                    path = "/cat/list-a/region-b/secret-slug-words-12345678";
+                    evidence = {
+                      status = 200;
+                      hops = 0;
+                      excerpt = "page excerpt text";
+                      title = "page title text";
+                      cf_ray = "ray-id";
+                      snapshot = "STATE:snap/x.html.gz";
+                    };
+                  }
+                )
+                (
+                  base "subresources"
+                  // {
+                    msg = "site sub-resources per page: blocked 15.0 / answered 39.8 / sent 9.0 (4 pages)";
+                  }
+                )
+                (base "probe" // { msg = "probe clean"; })
+                (
+                  base "stop"
+                  // {
+                    level = "warning";
+                    code = 6;
+                    msg = "stopped (exit 6): 3 challenges for site.invalid within 0:10:00 (last: unexpected_page at https://site.invalid/cat/list-a/region-b/secret-slug-words-12345678 aborted";
+                    counts = {
+                      ad_pages = 57;
+                      robots = 2;
+                    };
+                  }
+                )
+              ];
+              rawLines = map line fixtures ++ [
+                (line {
+                  inherit at;
+                  level = "info";
+                  logger = "framework.crawler";
+                  msg = "free text with https://site.invalid/cat/list-a/region-b/secret-slug-words-12345678";
+                })
+                "not json at all https://site.invalid/secret-slug-words"
+              ];
+              want = builtins.length fixtures;
+              config = {
+                inherit (pipe) extensions receivers processors;
+                exporters.file.path = "OUT_FILE";
+                service = {
+                  extensions = lib.attrNames pipe.extensions;
+                  telemetry.metrics.level = "none";
+                  pipelines."logs/li_runs" = pipe.pipeline // {
+                    exporters = [ "file" ];
+                  };
+                };
+              };
+              assertPy = pkgs.writeText "li-runs-assert.py" ''
+                import json, sys
+                out, allow, want = sys.argv[1], set(json.loads(sys.argv[2])), int(sys.argv[3])
+                def val(v):
+                    return next(iter(v.values())) if v else None
+                recs = []
+                for raw in open(out):
+                    for rl in json.loads(raw)["resourceLogs"]:
+                        res = {a["key"]: val(a["value"]) for a in rl["resource"].get("attributes", [])}
+                        for sl in rl["scopeLogs"]:
+                            for lr in sl["logRecords"]:
+                                a = {x["key"]: val(x["value"]) for x in lr.get("attributes", [])}
+                                recs.append((res, val(lr["body"]), a))
+                bad = []
+                if len(recs) != want: bad.append(f"{len(recs)} records, want {want}")
+                blob = json.dumps(recs)
+                for s in ("slug", "://", "mail.invalid", "excerpt", "title text", "STATE:", "free text", "vpn.host", "ray-id", "someone", "not json"):
+                    if s in blob: bad.append(f"leaked {s!r}")
+                for res, body, a in recs:
+                    if res != {"service.name": "li-runs"}: bad.append(f"resource {res}")
+                    if body != a.get("event"): bad.append(f"body {body!r}")
+                    extra = set(a) - allow
+                    if extra: bad.append(f"{a.get('event')}: keys outside the allowlist {sorted(extra)}")
+                    if a.get("run_id") != "2026-01-02T03:04:05Z-fetch-ads-desktop-abc123": bad.append(f"run_id {a.get('run_id')}")
+                by = {}
+                for _, b, a in recs: by.setdefault(b, []).append(a)
+                ad = [a for a in by.get("request", []) if a.get("req_kind") == "ad"]
+                if sorted(a.get("ad_id") for a in ad) != ["12345678", "87654321"]: bad.append(f"ad ids {ad}")
+                if [a.get("redirected") for a in ad if "redirected" in a] != [False]: bad.append("redirected")
+                if not any(a.get("status") == "none" for a in ad): bad.append("status none")
+                if by["challenge"][0].get("ad_id") != "12345678": bad.append("challenge ad_id")
+                st = by["stop"][0]
+                if (st.get("stop_reason"), st.get("stop_scope"), st.get("c_ad_pages")) != ("unexpected_page", "budget", 57): bad.append(f"stop {st}")
+                if by["subresources"][0].get("sub_answered") != "39.8": bad.append("subresources")
+                if by["probe"][0].get("result") != "clean": bad.append("probe")
+                if by["preflight"][0].get("result") != "passed": bad.append("preflight")
+                if by["run_card"][0].get("planned_ad") != 3: bad.append("run_card")
+                if bad:
+                    print("\n".join("  x " + b for b in bad), file=sys.stderr); sys.exit(1)
+                print(f"{len(recs)} records, {len(allow)} allowed keys: nothing outside the allowlist left")
+              '';
+            in
+            pkgs.runCommand "li-runs-allowlist"
+              {
+                nativeBuildInputs = [
+                  pkgs.opentelemetry-collector-contrib
+                  pkgs.python3
+                ];
+                CONFIG = builtins.toJSON config;
+                LINES = lib.concatStringsSep "\n" rawLines + "\n";
+              }
+              ''
+                mkdir runs storage
+                export HOME="$TMPDIR"
+                printf '%s' "$CONFIG" | sed -e "s#RUNS_DIR#$PWD/runs#" -e "s#STORAGE_DIR#$PWD/storage#" \
+                  -e "s#OUT_FILE#$PWD/out.jsonl#" -e 's#"start_at":"end"#"start_at":"beginning"#' > config.json
+                printf '%s' "$LINES" > runs/${runFile}
+                otelcol-contrib --config config.json > collector.log 2>&1 &
+                pid=$!
+                for _ in $(seq 1 60); do
+                  [ "$(grep -o '"timeUnixNano"' out.jsonl 2>/dev/null | wc -l)" -ge ${toString want} ] && break
+                  sleep 0.5
+                done
+                kill "$pid" 2>/dev/null || true
+                wait "$pid" 2>/dev/null || true
+                [ -s out.jsonl ] || { cat collector.log >&2; echo "no output" >&2; exit 1; }
+                python3 ${assertPy} out.jsonl '${builtins.toJSON pipe.allowlist}' ${toString want} > "$out"
+              '';
+
           # ---- the hook scripts, type-checked against Anthropic's OWN hook types ----
           #
           # `.claude/hooks/*.js` speak the hook protocol by hand: they parse the event
