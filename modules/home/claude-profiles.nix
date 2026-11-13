@@ -107,11 +107,24 @@ let
   personal = pkgs.writeShellApplication {
     name = "claude";
     text = ''
-      # UNSET, never =~/.claude: an explicit value selects a different Keychain entry
-      # than unset (anthropics/claude-code#92252) and moves .claude.json into the dir.
-      # Unsetting also drops a value inherited from a claude-work session.
-      unset CLAUDE_CONFIG_DIR
-      ${profileEnv "personal"}
+      # A CLAUDE_CONFIG_DIR INHERITED from a running session is KEPT: `claude` run
+      # from inside a claude-work session (a roll-call's `claude respawn`, a
+      # launcher, a script) must act on that session's account. Measured 2026-11-12:
+      # the old unconditional unset made `claude agents` inside a work session list
+      # the PERSONAL account's sessions. A plain terminal has no value, so `claude`
+      # there is still personal.
+      # Never =~/.claude: an explicit value selects a different Keychain entry than
+      # unset (anthropics/claude-code#92252) and moves .claude.json into the dir,
+      # so that one value is unset.
+      case "''${CLAUDE_CONFIG_DIR:-}" in
+        "" | "$HOME/.claude" | "$HOME/.claude/")
+          unset CLAUDE_CONFIG_DIR
+          ${profileEnv "personal"}
+          ;;
+        ${lib.escapeShellArg cfg.configDir} | ${lib.escapeShellArg "${cfg.configDir}/"})
+          ${profileEnv "work"}
+          ;;
+      esac
       ${exec'} "$@"
     '';
   };
