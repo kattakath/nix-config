@@ -307,11 +307,11 @@
     "grok-build-plugin-cc": {
       "flake": false,
       "locked": {
-        "lastModified": 1785875389,
-        "narHash": "sha256-xB2DyUfHIwgNGAp2xI5ikB/9PmRUpdovqxPqccrcKd8=",
+        "lastModified": 1794095026,
+        "narHash": "sha256-j/ckEWVAyk3lOKm4LQtrLIVX9YCDVTj0Af3OHsfA1u0=",
         "owner": "xai-org",
         "repo": "grok-build-plugin-cc",
-        "rev": "92b76a670713335229644e94add15ab40c80e547",
+        "rev": "8070d2fc349a9e196f0db94c1f67b19a00b53907",
         "type": "github"
       },
       "original": {
