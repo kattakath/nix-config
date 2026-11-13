@@ -823,6 +823,15 @@ in
     ++ lib.optionals isMacosHost [
       gmail-filters # `gmail-filters <login|download|diff|test|apply>` — Gmail filters + labels as gmailctl Jsonnet in Drive, client from the Keychain, token 0600 under XDG state (packages/gmail-filters.nix, ADR-012 § 5 step 4)
     ]
+    # OPERATOR-ONLY: the two tools the smtp-egress plugin (github:kattakath/skills) drives —
+    # SMTP through a local SOCKS5 proxy, so the Mac's own IP never lands in a Received:
+    # header. Packages only, on purpose: HM's programs.msmtp would write the account (an
+    # address) into this public repo, so the msmtprc, the wireproxy config and the plugin's
+    # own config stay hand-placed files outside it, like ~/.config/git/local.inc.
+    ++ lib.optionals isMacosHost [
+      msmtp # SMTP client with native SOCKS5 (proxy_host/proxy_port) and passwordeval
+      wireproxy # userspace WireGuard client exposing a SOCKS5 proxy — no system VPN toggle, no IPv6 bypass
+    ]
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       # PREREQUISITE for the MCP ownership split (#657): the `nixos` server moves
       # out of the gateway into the nix-flake-kit plugin, and a plugin's
