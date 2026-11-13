@@ -16,8 +16,17 @@
 # entry in provider-pins.nix. The version follows the flake's nixpkgs.
 #
 # CREDENTIALS are the provider's own env vars, filled by `secret exec` in the wrapper:
-# GRAFANA_AUTH (service account `terranix`, Admin) and GRAFANA_SM_ACCESS_TOKEN (the Synthetic
-# Monitoring token). Neither reaches argv, the store or a rendered file.
+# GRAFANA_AUTH (service account `terranix`, Admin), GRAFANA_SM_ACCESS_TOKEN (the Synthetic
+# Monitoring token) and GRAFANA_CLOUD_ACCESS_POLICY_TOKEN (the gcom token, for the access
+# policy below). None reaches argv, the store or a rendered file.
+#
+# CREATED, NOT ADOPTED — the two exceptions to the rule above: the li-logs access policy and
+# its token (ADR-011 § 4, the allowlisted run-metadata exception). The policy gets its import
+# block once the first apply prints its id (`li_logs_policy_id`). The token never gets one:
+# the API returns its value only at create, so an imported token would be valueless, and the
+# Keychain copy outlives lost state anyway. With state lost, GRAFANA_ALLOW_CREATE=1 re-mints it.
+# The token is the one secret this stack holds in (encrypted) state, by the cf-tunnel
+# precedent: a sensitive output that grafana-apply pipes straight into the Keychain.
 #
 # DATASOURCE SECRETS ARE NEVER TERRAFORM'S. Grafana never returns `secure_json_data`, and the
 # two keys it holds (the GitHub App PEM, the Sheets reader's service-account key) exist ONLY in
@@ -35,6 +44,9 @@
 }:
 let
   resources = import ./resources.nix { inherit operatorEmail gcpProjectId publicSiteUrl; };
+  # The stack slug is the grafana.net subdomain; the stack id and its gcom region are read
+  # from the stack itself rather than written here.
+  stackSlug = lib.removeSuffix ".grafana.net" (lib.removePrefix "https://" grafanaUrl);
   # prevent_destroy too: ignore_changes keeps the secret out of the diff, but would not stop a
   # destroy or replace, and a replaced datasource loses a key that exists nowhere else.
   ignoreSecret =
@@ -86,11 +98,42 @@ in
 
   import = lib.mapAttrsToList (to: id: { inherit to id; }) adopted;
 
+  data.grafana_cloud_stack.this.slug = stackSlug;
+
+  # The li-logs token is surfaced ONLY as a sensitive output; grafana-apply pipes it into
+  # the Keychain item and never prints it (modules/parts/terranix.nix, mkGrafanaTofu).
+  # Not a secret: the policy's import id is `<region>:<this>`.
+  output.li_logs_policy_id.value = "\${grafana_cloud_access_policy.li_logs.policy_id}";
+  output.li_logs_token = {
+    value = "\${grafana_cloud_access_policy_token.li_logs.token}";
+    sensitive = true;
+  };
+
   # `org_id` is deliberately absent from resources.nix: in provider 4.50.0 it is ForceNew and
   # only suppresses a diff when unset, so a literal would turn a provider bump into a REPLACE
   # (terranix-infra-reviewer, 2026-11-03). The root policy also gets prevent_destroy: a destroy
   # or replace of it resets the whole routing tree.
   resource = resources // {
+    # logs:write on THIS stack only: no read, no metrics, no other stack. Revoking it (or
+    # deleting the policy) stops the li run-metadata logs and nothing else.
+    grafana_cloud_access_policy.li_logs = {
+      region = "\${data.grafana_cloud_stack.this.region_slug}";
+      name = "li-logs-write";
+      display_name = "li run metadata: logs write";
+      scopes = [ "logs:write" ];
+      realm = [
+        {
+          type = "stack";
+          identifier = "\${data.grafana_cloud_stack.this.id}";
+        }
+      ];
+    };
+    grafana_cloud_access_policy_token.li_logs = {
+      region = "\${data.grafana_cloud_stack.this.region_slug}";
+      access_policy_id = "\${grafana_cloud_access_policy.li_logs.policy_id}";
+      name = "li-logs";
+      display_name = "li run metadata (claude-otel collector, macos)";
+    };
     grafana_data_source = lib.mapAttrs (_: ignoreSecret) resources.grafana_data_source;
     grafana_notification_policy.root = resources.grafana_notification_policy.root // {
       lifecycle.prevent_destroy = true;

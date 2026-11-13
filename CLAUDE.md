@@ -121,7 +121,7 @@ CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakat
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-access-org-{import,plan,apply}  # Zero Trust org; `import` FIRST or plan/apply refuse
 nix run .#gcp-{foundation,budget}-{plan,apply}              # GCP APIs/SA/state bucket; the 5 CAD spend ALERT
 secret exec HEALTHCHECKSIO_API_KEY=hc:healthchecks.io:api -- nix run .#hc-checks-{plan,apply}
-secret exec GRAFANA_AUTH=grafana:terranix:token GRAFANA_SM_ACCESS_TOKEN=grafana:sm:token -- nix run .#grafana-{plan,apply}
+nix run .#grafana-{plan,apply}   # 3 Keychain creds: run it bare, its ERROR prints the secret exec line
 secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#github-{plan,apply}   # fleet rulesets + Actions variables
 
 ```

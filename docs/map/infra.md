@@ -12,7 +12,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `gcp-budget` | GCS `gcp-budget/` | ADC | the spend ALERT (an alert, never a cap) |
 | `gcp-foundation` | **local** (still encrypted) | ADC | the bucket the others live in |
 | `hc-checks` | GCS `hc-checks/` | `HEALTHCHECKSIO_API_KEY` | the dead-man's-switch ALARMS; a quiet one reads as a healthy host |
-| `grafana` | GCS `grafana/` | `GRAFANA_AUTH` + `GRAFANA_SM_ACCESS_TOKEN` | Grafana alerting, datasources, dashboard, probe (ADR-011). A dropped datasource takes its key with it |
+| `grafana` | GCS `grafana/` | `GRAFANA_AUTH` + `GRAFANA_SM_ACCESS_TOKEN` + gcom token | Grafana alerting, datasources, dashboard, probe (ADR-011). A dropped datasource takes its key with it |
 | `github` | GCS `github/` | `GITHUB_TOKEN` | fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |
 
 The stack set itself is `nix eval .#apps.<system> --apply builtins.attrNames` (every stack has
@@ -327,16 +327,16 @@ only ever consumed by the `cachix` CLI at push time.
 
 ### `infra/grafana/stack.nix` — the Grafana Cloud stack (ADR-012 step 2)
 
-- **Adopted, not created.** Every object ADR-011 built by hand has an `import` block.
+- **Adopted, not created**, bar the li-logs policy + token (stack header: why).
 - **`resources.nix` is generated.** It came from `tofu plan -generate-config-out` plus a
   deterministic HCL-to-Nix conversion. A `builtins.toJSON` value is exactly what the provider stores.
 - **Provider from nixpkgs** (`opentofu.withPlugins`, `grafana_grafana`; ADR-012 § 3), not
   `provider-pins.nix`.
-- **Credentials:** `GRAFANA_AUTH` (service account `terranix`, Admin) and
-  `GRAFANA_SM_ACCESS_TOKEN`, through `secret exec`. The Sheet id is the `ROLLUP_SHEET_ID`
+- **Credentials:** the table's three, via `secret exec`. The Sheet id is the `ROLLUP_SHEET_ID`
   repository variable, read at run time.
 - **Datasource secrets are never Terraform's:** `secure_json_data_encoded` is ignored, so the
   GitHub App, Sheets reader and Cloud Monitoring reader keys stay only in Grafana, never state.
+  The li-logs token IS in state; `grafana-apply` pipes it to the Keychain.
 - **Maps usage:** datasource `gcp-monitoring` (SA `grafana-monitoring-reader`, viewer-only),
   dashboard + rule group `maps-platform`. Queried live, so it costs no Grafana series.
 - **Guards** (the same set as the github stack's): an empty-state guard (with no state, every

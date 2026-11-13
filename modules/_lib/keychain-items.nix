@@ -29,12 +29,17 @@
       endpoint = "grafana:otlp:endpoint";
       instance = "grafana:otlp:instance";
       token = "grafana:otlp:token";
+      # logs:write ONLY, for allowlisted run metadata (ADR-011 § 4 exception). Minted by
+      # the grafana stack (`grafana_cloud_access_policy_token.li_logs`); grafana-apply
+      # pipes it in here. Its own policy, so revoking it stops those logs and nothing else.
+      liLogsToken = "grafana:otlp:li-logs-token";
     };
     # The grafana stack's `terranix` service-account token (Admin) and the Synthetic
     # Monitoring access token.
     terranixToken = "grafana:terranix:token";
     smToken = "grafana:sm:token";
-    # The Grafana Cloud (gcom) token fleet-gauges lists access-token expiry with.
+    # The Grafana Cloud (gcom) token: fleet-gauges lists access-token expiry with it, and
+    # the grafana stack manages access policies with it (its policy holds accesspolicies:write).
     cloudToken = "grafana:cloud:gcx-token";
   };
 }

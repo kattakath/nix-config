@@ -30,6 +30,8 @@ let
   # The Grafana stack's two Keychain items (ADR-012 step 2).
   grafanaTokenItem = items.grafana.terranixToken;
   grafanaSmTokenItem = items.grafana.smToken;
+  grafanaCloudTokenItem = items.grafana.cloudToken;
+  grafanaLiLogsTokenItem = items.grafana.otlp.liLogsToken;
 
   # The GitHub stack's credential (ADR-012 step 3): the operator's classic PAT, which reads
   # rulesets and Actions variables across both owners (measured 2026-11-03). It is broader
@@ -1494,6 +1496,8 @@ let
       # and the render is not" — an import block added later narrows it.
       emptyStateOnPlan ? true,
       applyGuard ? "",
+      # Runs after a SUCCESSFUL apply only (errexit): a stack's own hand-off of outputs.
+      postApply ? "",
     }:
     let
       pkgs = pkgsFor system;
@@ -1582,6 +1586,7 @@ let
         ''}
 
         ${savedPlanRun pkgs action name}
+        ${lib.optionalString (action == "apply") postApply}
       '';
     };
 
@@ -1600,14 +1605,31 @@ let
       driftEnv = {
         GRAFANA_AUTH = grafanaTokenItem;
         GRAFANA_SM_ACCESS_TOKEN = grafanaSmTokenItem;
+        GRAFANA_CLOUD_ACCESS_POLICY_TOKEN = grafanaCloudTokenItem;
       };
       credentialCheck = ''
-        if [ -z "''${GRAFANA_AUTH:-}" ] || [ -z "''${GRAFANA_SM_ACCESS_TOKEN:-}" ]; then
-          echo "ERROR: GRAFANA_AUTH and GRAFANA_SM_ACCESS_TOKEN must both be set." >&2
-          echo "  nix develop -c secret exec GRAFANA_AUTH=${grafanaTokenItem} GRAFANA_SM_ACCESS_TOKEN=${grafanaSmTokenItem} -- nix run .#${name}" >&2
-          echo "  The first is the stack service account 'terranix' (Admin); the second the" >&2
-          echo "  Synthetic Monitoring access token. Both are minted into the Keychain once." >&2
+        if [ -z "''${GRAFANA_AUTH:-}" ] || [ -z "''${GRAFANA_SM_ACCESS_TOKEN:-}" ] \
+          || [ -z "''${GRAFANA_CLOUD_ACCESS_POLICY_TOKEN:-}" ]; then
+          echo "ERROR: GRAFANA_AUTH, GRAFANA_SM_ACCESS_TOKEN and GRAFANA_CLOUD_ACCESS_POLICY_TOKEN must all be set." >&2
+          echo "  nix develop -c secret exec GRAFANA_AUTH=${grafanaTokenItem} GRAFANA_SM_ACCESS_TOKEN=${grafanaSmTokenItem} GRAFANA_CLOUD_ACCESS_POLICY_TOKEN=${grafanaCloudTokenItem} -- nix run .#${name}" >&2
+          echo "  The stack service account 'terranix' (Admin), the Synthetic Monitoring" >&2
+          echo "  access token, and the gcom token (accesspolicies:write, for the li-logs policy)." >&2
           exit 1
+        fi
+      '';
+      # The li-logs token goes from state straight into the Keychain: piped, never printed
+      # (set-secret reads a piped stdin; --no-export keeps it out of every shell's env).
+      # Gated on a NON-EMPTY string, not on the output existing: the API returns the value
+      # only at create, so a token re-adopted after state loss reads null — and the Keychain
+      # copy, which outlives state, must then be left alone rather than fail every apply.
+      postApply = ''
+        if tofu output -json li_logs_token 2>/dev/null | jq -e 'type == "string" and length > 0' >/dev/null; then
+          if ! command -v set-secret >/dev/null 2>&1; then
+            echo "WARNING: set-secret is not on PATH; ${grafanaLiLogsTokenItem} was NOT stored." >&2
+            exit 1
+          fi
+          tofu output -raw li_logs_token | set-secret --no-export ${grafanaLiLogsTokenItem}
+          echo "stored the li-logs token in Keychain item ${grafanaLiLogsTokenItem} (value not shown)" >&2
         fi
       '';
       # The Sheet id comes from the ROLLUP_SHEET_ID repository variable (no data in the repo).
