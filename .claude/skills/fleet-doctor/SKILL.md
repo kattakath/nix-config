@@ -288,7 +288,7 @@ the model picks either copy. The fleet removes known twins with NAME denies
 fails SILENTLY if upstream renames the server key, and this step is the guard. Report only:
 
 ```bash
-for c in claude-personal claude-work; do   # no bare `claude` on macos — one run per profile
+for c in claude claude-work; do   # one run per profile
   echo "== $c"
   $c mcp list 2>/dev/null | grep -cE '^plugin:(aws-core|aws-serverless|cloudflare|slack|neon):'   # must print 0
   $c mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # must print 0

@@ -326,7 +326,7 @@ governance in".
 oversight & approval gates". They are — **for sessions rooted in this repo.** All of them are
 wired in `.claude/settings.json`, which is project scope; the user-scope `settings.json` Nix
 writes carried no `permissions`, no hooks and no sandbox. So a session in any other repo ran
-with no gate at all, while the VS Code extension and the `claude-personal`/`claude-work` terminal profiles start in
+with no gate at all, while the VS Code extension and the `claude`/`claude-work` terminal profiles start in
 `bypassPermissions`. Worse, the MCP gateway *is* global: `mcpfinder`'s
 `add_mcp_server_config` was deny-listed here and callable from everywhere else.
 

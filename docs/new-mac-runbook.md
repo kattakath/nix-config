@@ -119,7 +119,7 @@ certificates, so the Pi trusts a CA rather than a key you have to keep.
 one-time steps are inherently manual — do these after activating a fresh Mac:
 
 - **App logins / personal tokens** — `gh` / `hf` / `docker` one-time CLI logins, plus one
-  Claude Code `/login` per profile (`claude-personal`, then `claude-work` as the work
+  Claude Code `/login` per profile (`claude`, then `claude-work` as the work
   account), and any Keychain-stored personal tokens are re-established by hand (Nix
   manages only the *service* secrets via agenix — see
   [`secrets-and-keychain.md`](secrets-and-keychain.md), not personal logins).
