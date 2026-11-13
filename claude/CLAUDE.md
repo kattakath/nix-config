@@ -359,7 +359,7 @@ agentic-jobseek's career evidence store.
   background. That census covers one repo. It is global anyway, because the cost comes from
   the harness (a foreground call blocks the session), not from anything in the repo.
 
-## Scratch dirs — never `rm -rf` them (every session AND every subagent)
+## Scratch work — fresh dirs, scripts in files (every session AND every subagent)
 
 - **Make a fresh dir instead:** `S=$(mktemp -d "<scratchpad>/x.XXXX")`, or any new unique
   name. Never `rm -rf $S; mkdir $S` to reset one. The session scratchpad is cleaned for you.
@@ -369,3 +369,9 @@ agentic-jobseek's career evidence store.
   rule lives here, where they do read it.
 - **Never reword to dodge it** (`rm -r`, `find -delete`). When something really must be
   deleted, run the real command and let the prompt reach him.
+- **Multi-line scripts go in a file, never inline.** Write the script to the scratchpad and
+  run it by path (`python3 -I "$S/x.py" args`). Never inline a multi-line body through
+  `python3 -c '…'`, `bash -c "…"` or similar. Claude Code's built-in Bash parser can't
+  prove such a command safe, so it asks **even in bypass mode**, with no ask rule or hook
+  involved. Measured 2026-11-13: a teammate's inline `python3 -I -c` prompted after all 3
+  Bash hooks passed and no ask rule matched.
