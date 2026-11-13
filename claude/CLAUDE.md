@@ -375,3 +375,14 @@ agentic-jobseek's career evidence store.
   prove such a command safe, so it asks **even in bypass mode**, with no ask rule or hook
   involved. Measured 2026-11-13: a teammate's inline `python3 -I -c` prompted after all 3
   Bash hooks passed and no ask rule matched.
+
+## Reaching Grok (the grok-build plugin)
+
+- **Designed path first:** the `grok-build:grok-delegate` subagent, or `/grok-build:*`.
+- **From plain Bash** (a subagent, a teammate, a workflow): run **`grok-bridge <subcommand>`**.
+  The plugin's `bin/` is on the Bash PATH while it is enabled, and the shim supplies the
+  plugin root and data dir that Claude Code does not export to Bash.
+- **Never** call `grok-bridge.mjs` by a path you found, least of all under
+  `~/.claude/plugins/cache/`. That copy is dead and carries an old sandbox profile name, so
+  a new run refuses to start. A run without the data dir logs to `$TMPDIR`, where neither
+  `/grok-build:runs` nor stop-gate can see it.
