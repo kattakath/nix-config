@@ -15,8 +15,9 @@ visualise them, alert on them, and show improvement trends longer than a SaaS re
   **~2.4 of 50 GB logs/month (5%)** for the full plan — *if* the three filters in § 5 ship with it.
 - **Long history is not Grafana's job.** A daily, deterministic rollup copies one row per KPI per day
   into a Drive Sheet; Grafana charts it back. Retention stays a cache, never the record.
-- **The privacy boundary is the stack.** Persona-tier signals go to a **separate stack**; finance
-  leaves its source only as ratios.
+- **The privacy boundary is public exposure, not the stack** (operator, 2026-11-13). Persona-tier signals may
+  live in the operator-only stack; they never reach a public surface (public dashboard, snapshot, share
+  link). Finance leaves its source only as ratios.
 
 ## 2. Census (method, not data)
 
@@ -34,7 +35,7 @@ visualise them, alert on them, and show improvement trends longer than a SaaS re
 |---|---|---|
 | Claude Code OTel (`modules/home/claude-otel.nix`) | **Metrics only** to Grafana (~150 series); `session.id` never a label. Logs stay in the local file. | Filtered logs too — ~1 GB/mo and the record carries `tool_input`; the local file already serves `/routing-review`. |
 | Alerts | **Email** contact point to the operator identity's address. | Slack — client-shared workspace; healthchecks.io channel — needs a webhook for no gain. |
-| Discreet / persona domain | **Separate Grafana stack and org**, never linked to `kattakath`. | Restricted folder in the main stack — folder permissions would be the only wall, and every session's Grafana connector reaches the main stack. |
+| Discreet / persona domain | **Operator-only folders in the main stack; never on a public surface** (no public dashboard, snapshot or share link). *Superseded 2026-11-13:* the original call was a separate stack and org. Persona separation is for public space only, and this stack is private. | Restricted folder in the main stack — folder permissions would be the only wall, and every session's Grafana connector reaches the main stack. |
 | Long-term history | **GitHub Actions daily cron → deterministic script → Drive Sheet**, keyless auth by Workload Identity Federation (`google-github-actions/auth`) to a new service account in `infra/gcp/foundation.nix`; Grafana's official Google Sheets datasource reads it back. | Claude cloud routine — the model would sit in the data path (ADR-010 lane rules; "no bulk data through the model"), and plugin MCP servers measured **403** in cloud runs. A Mac launchd job — misses every day the Mac sleeps. |
 | Home | **This repo**: ADR, rollup job, WIF account, shippers. | A new `kattakath/observability` repo — a second home for one design. |
 | nixpi shipper | **Grafana Alloy** (`services.alloy`, pinned nixpkgs `nixos/modules/services/monitoring/alloy.nix`), WAL in `/run` so the SD card takes no writes; substituted from Cachix, never built on the Pi. | node-exporter (67 MiB vs 449 MiB closure) — logs would need a second agent, two configs, two pins. |
@@ -53,7 +54,7 @@ visualise them, alert on them, and show improvement trends longer than a SaaS re
 |---|---|---|
 | Heartbeat | "did it run" | healthchecks.io, the `fleet.heartbeats` registry (`modules/parts/heartbeats.nix`) |
 | Metric | counts, gauges, ratios | OTLP push (collector, Alloy, or a best-effort script) |
-| Log | troubleshooting only, WARN+ | Alloy `loki.source.journal` on nixpi. (otelcol `filelog` on the Mac → **not shipped**, see § 6: Mac logs stay local) |
+| Log | troubleshooting only, WARN+ | Alloy `loki.source.journal` on nixpi. (otelcol `filelog` on the Mac → **not shipped**, see § 6: Mac logs stay local. *Exception, 2026-11-13:* allowlisted run METADATA from operator tools — ids, counts, statuses, no free text — behind its own logs:write token. The reasons logs stayed local, ~1 GB/mo and `tool_input` in the record, do not apply to a few MB/mo of allowlisted fields.) |
 | Annotation | deploys, activations | Grafana annotations from `activate` / deploy → **not shipped**, no § 6 step builds it |
 
 - **Every pipeline copies the agentic-jobseek evidence pattern** (its ADR-0007 § 5): heartbeat →
@@ -84,7 +85,7 @@ visualise them, alert on them, and show improvement trends longer than a SaaS re
 | 9 | Finance at-source ratios push | **Done** — kattakath/skills #179: `beancount-kit metrics` pushes ratios and counts only, never amounts |
 | 10 | Career funnel + evidence quality | **Done** — ismailkattakath/agentic-jobseek #2: funnel gauges in `scripts/evidence-metrics.py`; Grafana rule group `career` |
 | 11 | Daily rollup (WIF account, Sheet, Sheets datasource) | **Done** (#1053; run 41573492727 wrote 19/21 KPIs and `fleet-history` read it back) — `infra/gcp/foundation.nix` (WIF pool admitting ONLY `grafana-rollup.yml`@main by numeric repo/owner id; keyless writer; read-only reader), `.github/workflows/grafana-rollup.yml` + `scripts/grafana-rollup.py`, Grafana datasource `fleet-history`. The Sheet is a STORE only. The reader holds the stack's one Google key: Grafana Cloud's WIF mode runs as the signed-in user and breaks alerting and public dashboards |
-| 12 | Separate persona stack — its own design, its own identity | **Deferred by operator 2026-11-03.** Until it exists, nothing persona-tier goes into the `kattakath` stack |
+| 12 | Separate persona stack — its own design, its own identity | **Superseded by operator 2026-11-13** (deferred 2026-11-03): persona separation applies only to public surfaces, so the private stack needs no split. A separate stack is built only if something persona-tier must be shown publicly |
 
 ## 7. Weakest assumptions
 

@@ -136,7 +136,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   [`ADR-011`](../observability-hub-adr.md) (**DECIDED 2026-11-02**; what has shipped: its § 6 table. Grafana
   Cloud stack `kattakath` as the fleet's observability hub. OTLP push in. Alloy on nixpi, with its WAL
   in `/run`; the existing `otelcol-contrib` on the Mac. Claude Code metrics only. Finance ships ratios
-  computed at source. The persona domain gets a **separate stack**. Long history is a daily GitHub
+  computed at source. Long history is a daily GitHub
   Actions + WIF rollup into a Drive Sheet, not Grafana retention. § 3 is the decision table with the
   alternative that lost, and § 6 is the one-PR-per-step build order.)
   [`ADR-012`](../declarative-gaps-adr.md) (**DECIDED 2026-11-03**: what fleet state is still set by
