@@ -148,7 +148,8 @@ in
         here; only slot 0 keeps its authentic value, for a measured reason.
 
         THE LIFT MOVES LIGHTNESS ONLY. Each colour was converted to OKLab, its L
-        raised until it reaches 4.5:1 against #300A24, and converted back with
+        raised until it reaches 4.5:1 against EVERY session ground (the eight
+        one-word aliases in default.nix, not just #300A24), and converted back with
         hue and chroma untouched — every hue shifted by <= 0.6 deg, so red still
         reads as Tango red.
 
@@ -158,10 +159,16 @@ in
         \e[31m vs \e[91m stops meaning anything. So each bright partner is
         pushed further until the pair is dE00 >= 10 apart:
 
-          red      #CC0000 -> #F03C2E 4.51:1   br #EF2929 -> #FF6B5E   pair 10.02
-          blue     #3465A4 -> #5083C4 4.51:1   br #729FCF -> #74A2D2   pair 10.21
-          magenta  #75507B -> #9A74A1 4.51:1   br #AD7FA8 -> #BD8FB8   pair 10.04
-          br-black #555753 -> #7F827D 4.51:1
+          red      #CC0000 -> #F44031 4.53:1   br #EF2929 -> #FF7163   pair 10.07
+          blue     #3465A4 -> #5386C7 4.51:1   br #729FCF -> #76A5D5   pair 10.02
+          magenta  #75507B -> #9D77A4 4.52:1   br #AD7FA8 -> #C193BC   pair 10.14
+          br-black #555753 -> #828580 4.52:1
+
+        (worst case over all eight grounds — `green` #002303 is the binding one.
+        #432 solved against #300A24 alone and landed at exactly 4.51, so the
+        first non-red ground pushed four slots to 4.34. Re-solved 2026-11-13;
+        each slot moved dE00 <= 1.22 from its #432 value, hue <= 0.53 deg. br-red
+        sits at R=FF, so its push trims chroma at the gamut edge, hue kept.)
 
         Naively "using the bright variant" does NOT work and was measured first:
         br-red is 4.20:1 and br-black 2.41:1, both still failing, and black has
@@ -172,24 +179,24 @@ in
         12.65:1 to 3.90:1, trading a passing role for a failing one.
 
         Result: 5 of the 6 AA failures fixed, min pairwise dE00 among slots 0-7
-        IMPROVES 23.32 -> 24.14, total drift from authentic dE00 71.8 over 7
+        IMPROVES 23.32 -> 23.96, total drift from authentic dE00 71.8 over 7
         moved slots.
       '';
       default = [
         "#2E3436" # 0  black        — authentic Tango, the \e[40m surface
-        "#F03C2E" # 1  red          — lifted from #CC0000
+        "#F44031" # 1  red          — lifted from #CC0000
         "#4E9A06" # 2  green
         "#C4A000" # 3  yellow
-        "#5083C4" # 4  blue         — lifted from #3465A4
-        "#9A74A1" # 5  magenta      — lifted from #75507B
+        "#5386C7" # 4  blue         — lifted from #3465A4
+        "#9D77A4" # 5  magenta      — lifted from #75507B
         "#06989A" # 6  cyan
         "#D3D7CF" # 7  white
-        "#7F827D" # 8  brightBlack  — lifted from #555753
-        "#FF6B5E" # 9  brightRed    — pushed off #F03C2E
+        "#828580" # 8  brightBlack  — lifted from #555753
+        "#FF7163" # 9  brightRed    — pushed off #F44031
         "#8AE234" # 10 brightGreen
         "#FCE94F" # 11 brightYellow
-        "#74A2D2" # 12 brightBlue   — pushed off #5083C4
-        "#BD8FB8" # 13 brightMagenta— pushed off #9A74A1
+        "#76A5D5" # 12 brightBlue   — pushed off #5386C7
+        "#C193BC" # 13 brightMagenta— pushed off #9D77A4
         "#34E2E2" # 14 brightCyan
         "#EEEEEC" # 15 brightWhite
       ];

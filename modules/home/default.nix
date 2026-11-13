@@ -1591,18 +1591,30 @@ in
       # terminal via OSC 11 and persist nothing — a new tab is back to the
       # `local.terminalTheme.background` ground (terminal-theme.nix), so `red` doubles as the reset.
       #
-      # The three grounds are the SAME COLOUR at three hues, not three guesses:
-      # #300A24 converted to OKLCh, then hue rotated with L=0.2228 and C=0.0710
-      # held fixed. So all three read as equally dark and the Tango ring in terminal-theme.nix —
-      # which was lifted to 4.5:1 against #300A24 specifically — stays as
-      # readable on green and blue as it is on red. Contrast against #FFFFFF is
-      # 17.58 / 16.91 / 17.27 respectively.
+      # The grounds are the SAME COLOUR at eight hues, not eight guesses:
+      # #300A24 converted to OKLCh, then hue rotated with L=0.2228 held fixed.
+      # The names are Claude Code's colour names; each hue is that CSS named
+      # colour's OKLCh hue (green 142.5, blue 264.1, orange 70.7, yellow 109.8,
+      # cyan 194.8, purple 328.4, pink 7.1 — the live green/blue sit within 2 deg).
+      # `red` stays the aubergine default, so it doubles as the reset.
+      # C=0.0710 is held too, EXCEPT where that hue leaves sRGB at this L:
+      # orange 0.0480, yellow 0.0485, cyan 0.0380 — chroma trimmed to the gamut
+      # edge, lightness kept, because lightness is what sets contrast.
+      # Contrast vs #FFFFFF, all >= 16.9:1: red 17.58, green 16.91, blue 17.27,
+      # orange 17.26, yellow 17.10, cyan 16.94, purple 17.58, pink 17.62.
+      # The ANSI ring in terminal-theme.nix is solved against ALL eight grounds
+      # (worst ink slot 4.51:1), so add a ground there too, or re-solve the ring.
       #
-      # No PATH collision: `command -v red green blue` is empty on this fleet.
+      # No PATH collision: `command -v` is empty for all eight on this fleet.
       shellAliases = {
         red = "echo 'background: ${config.lib.terminalTheme.background}' | theme.sh";
         green = "echo 'background: #002303' | theme.sh";
         blue = "echo 'background: #09193C' | theme.sh";
+        orange = "echo 'background: #291700' | theme.sh";
+        yellow = "echo 'background: #1D1D00' | theme.sh";
+        cyan = "echo 'background: #002121' | theme.sh";
+        purple = "echo 'background: #2C0C2B' | theme.sh";
+        pink = "echo 'background: #340815' | theme.sh";
       };
 
       # interactiveShellInit in initContent (.zshrc): fnm's chpwd hook is interactive-only.
