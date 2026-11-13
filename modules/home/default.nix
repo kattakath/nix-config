@@ -169,6 +169,26 @@ let
     ${lib.concatMapStringsSep "\n" (g: "      \"**/${g}\",") secretReadPaths.agentCredentialGlobs}
     ]
   '';
+  # `grok-bridge` — the bridge as a bare command, for agents that reach Grok from plain
+  # Bash (a teammate, a subagent, a workflow) instead of /grok-build:* or grok-delegate.
+  # Off-the-shelf mechanism, not a PATH package of ours: Claude Code puts a plugin's
+  # `bin/` on the Bash tool's PATH while the plugin is enabled (code.claude.com/docs/en/
+  # plugins-reference § Standard layout, "Executables"). What it does NOT do is export the
+  # plugin's variables there ("aren't present in the environment of commands Claude runs
+  # through the Bash tool", same page § Environment variables). The plugin's SessionStart
+  # hook tries via CLAUDE_ENV_FILE, but only 5 of 593 session-env files carried it
+  # (measured 2026-11-13). Without CLAUDE_PLUGIN_DATA the bridge falls back to
+  # $TMPDIR/grok-cc-runs (upstream README) — invisible to /grok-build:runs and to
+  # stop-gate. So the shim supplies both, keeping a CLAUDE_PLUGIN_DATA the hook did set.
+  # Rejected: a Nix PATH wrapper — it would be a second entry point outside the plugin.
+  grokBridgeShim = pkgs.writeText "grok-bridge" ''
+    #!/bin/sh
+    set -eu
+    CLAUDE_PLUGIN_ROOT=@root@
+    : "''${CLAUDE_PLUGIN_DATA:=''${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/data/grok-build-xai-grok-build}"
+    export CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA
+    exec @node@ "$CLAUDE_PLUGIN_ROOT/scripts/grok-bridge.mjs" "$@"
+  '';
   grokBuildPluginPatched = pkgs.runCommand "grok-build-plugin-cc-patched" { } ''
     cp -r ${grok-build-plugin-cc} $out
     chmod -R u+w $out
@@ -177,6 +197,10 @@ let
                      'sandbox: "${grokSandboxProfile}",' \
       --replace-fail 'sandbox: write ? undefined : "read-only",' \
                      'sandbox: write ? undefined : "${grokSandboxProfile}",'
+    install -Dm755 ${grokBridgeShim} $out/plugins/grok-build/bin/grok-bridge
+    substituteInPlace $out/plugins/grok-build/bin/grok-bridge \
+      --replace-fail @root@ "$out/plugins/grok-build" \
+      --replace-fail @node@ ${lib.getExe pkgs.nodejs}
   '';
 
   sshDir = "${config.home.homeDirectory}/.ssh";
