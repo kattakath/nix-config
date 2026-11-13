@@ -702,6 +702,7 @@ in
     # "<plugin>@<key>", so a guessed key silently resolves nothing.
     #   trailofbits/skills    -> "trailofbits"                (44 plugins)
     #   Jeffallan/claude-skills -> "fullstack-dev-skills"     (1 plugin, 2026-11-07)
+    #   grafana/skills        -> "grafana-skills"             (7 plugins, 2026-11-13)
 
     # Trail of Bits (CC-BY-SA-4.0), no flake input. 44 plugins. See the licence note above — share-alike is a
     # positive reason to consume this as a marketplace rather than vendor it.
@@ -716,6 +717,15 @@ in
     # postgres-pro).
     fullstack-dev-skills = {
       source = lib.mkDefault "https://github.com/Jeffallan/claude-skills.git";
+      autoUpdate = true;
+    };
+
+    # Grafana Labs' own marketplace (Apache-2.0, 2026-11-13). The grafana-cloud-mcp
+    # connector gives the TOOLS; this gives the vendor's know-how for dashboards, panels,
+    # alerting and Scenes. Picked over the community `grafana-dashboards` skill
+    # (wshobson/agents, more installs, unofficial). Enable `grafana-core` at runtime.
+    grafana-skills = {
+      source = lib.mkDefault "https://github.com/grafana/skills.git";
       autoUpdate = true;
     };
   };
