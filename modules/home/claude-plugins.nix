@@ -44,6 +44,14 @@
 # outright), or the fleet stops caring about publishing plugins/ (which would
 # make `plugins` strictly better). Measured against pinned home-manager
 # 2026-09; re-grep after a bump rather than trusting this line.
+#
+# A SECOND reason, for the one store-path marketplace (xai-grok-build) where the
+# git/https argument does not apply: `plugins` loads its entries as `@skills-dir`
+# personal plugins, so the plugin ID changes. Claude Code keys a plugin's data dir
+# on that ID (`plugins/data/<name>-<marketplace>`), so moving grok-build there would
+# orphan its run history AND break stop-gate check 0, which reads
+# `data/grok-build-xai-grok-build/state` by name. Found by the 2026-11-13 motto audit
+# (inferred from the ID scheme, not migrated to prove it).
 {
   pkgs,
   lib,
