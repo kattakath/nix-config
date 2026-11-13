@@ -358,3 +358,14 @@ agentic-jobseek's career evidence store.
   **6.4–8.4 min of keyboard per day**, and only **1.5%** of 32,201 Bash calls ran in the
   background. That census covers one repo. It is global anyway, because the cost comes from
   the harness (a foreground call blocks the session), not from anything in the repo.
+
+## Scratch dirs — never `rm -rf` them (every session AND every subagent)
+
+- **Make a fresh dir instead:** `S=$(mktemp -d "<scratchpad>/x.XXXX")`, or any new unique
+  name. Never `rm -rf $S; mkdir $S` to reset one. The session scratchpad is cleaned for you.
+- **Why:** `Bash(rm -rf:*)` is an **ask** rule, and a matched ask rule beats bypass mode.
+  Every scratch reset becomes a click for Ismail. Measured 2026-11-07: **53 of 80** Bash
+  prompts came from this one rule. Subagents don't see the main session's memory, so this
+  rule lives here, where they do read it.
+- **Never reword to dodge it** (`rm -r`, `find -delete`). When something really must be
+  deleted, run the real command and let the prompt reach him.
