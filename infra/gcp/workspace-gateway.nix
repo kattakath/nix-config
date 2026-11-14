@@ -126,8 +126,9 @@
 let
   region = "us-central1";
   service = "workspace-gateway";
-  saEmail = "${service}@${projectId}.iam.gserviceaccount.com";
-  saMember = "serviceAccount:${saEmail}";
+  # A REFERENCE, not the literal email: a literal gives OpenTofu no dependency, so the
+  # IAM members raced the account's creation ("does not exist", first apply 2026-11-14).
+  saMember = "serviceAccount:\${google_service_account.gateway.email}";
   bucket = "kattakath-${service}";
   authHost = "${authenticateLabel}.${gatewayDomain}";
 
@@ -306,7 +307,8 @@ in
     };
 
     google_storage_bucket_object.config = {
-      inherit bucket;
+      # Reference, not the name: orders the upload after the bucket exists (same race).
+      bucket = "\${google_storage_bucket.gateway.name}";
       name = "config/config.yaml";
       content = configText;
       content_type = "application/yaml";
@@ -319,7 +321,7 @@ in
     };
 
     google_storage_bucket_iam_member.gateway = {
-      inherit bucket;
+      bucket = "\${google_storage_bucket.gateway.name}";
       role = "roles/storage.objectUser";
       member = saMember;
     };
