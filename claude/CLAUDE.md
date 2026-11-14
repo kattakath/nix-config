@@ -276,7 +276,9 @@ never changes.
     PDF and confirm every diagram character comes from the one monospace font at one advance
     width, then look at the page.
 - **A blank line follows every table and every diagram.** Insert it as an empty Normal-text
-  paragraph; an empty paragraph that inherits a heading style pollutes the outline.
+  paragraph; an empty paragraph that inherits a heading style pollutes the outline. When the
+  next block is a **list**, the new line also inherits the **bullet**, and resetting the named
+  style does not remove it: delete the bullet explicitly, or it shows as an empty bullet.
 - **Bold is a weight, and a font change erases it.** Setting a font family without a weight
   resets every run to 400, silently un-bolding the body. Re-apply bold after any font change,
   and set weight 700 on anything that must stay bold.
