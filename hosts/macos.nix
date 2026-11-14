@@ -129,14 +129,9 @@ in
   # itself ships NotoSansMalayalam.ttf + NotoSerifMalayalam.ttf directly, no
   # split "noto-fonts-malayalam" package exists). Makes the font SELECTABLE
   # everywhere (Font Book, any app's font picker) — it does not make anything
-  # use it automatically. There is no Chromium policy for per-script font
-  # choice (checked: absent from the official policy docs, and grepped the
-  # installed Chromium Framework binary itself for any PerScript*/font-policy
-  # string — none), so Chromium is pointed at these faces by
-  # the malayalam-font-setter extension (modules/home/chromium.nix) instead — a
-  # repo-authored sideloaded extension, the only mechanism that can
-  # (`chrome.fontSettings.setFont` is extension-only). Its comment there carries the full why, including
-  # the two non-extension routes that were tried and failed.
+  # use it automatically. Chrome has no policy for per-script font choice, so the
+  # Advanced Font Settings extension (modules/home/google-chrome.nix) points it at
+  # these faces; `chrome.fontSettings.setFont` is extension-only.
   fonts.packages = [ pkgs.noto-fonts ];
 
   # ---- Self-hosted GitHub Actions runner(s) for dontsell-ai ------------------
@@ -370,33 +365,6 @@ in
     # No `OPENAI_BASE_URL`/`OPENAI_API_BASE` (removed 2026-09-29): an explicit base URL
     # OVERRIDES the SDK default, so a dead proxy made every OpenAI client fail. A real
     # key, if ever needed: `secret set OPENAI_API_KEY`.
-
-    # Chrome DevTools Protocol, in ATTACH mode against Chromium. The attach flag is
-    # picked at spawn time by probing /json/version — neither --browser-url nor
-    # --autoConnect works in both browser modes; that probe went to the page-lab
-    # plugin with the server, so this flag now gates only the `nix-chromium-debug`
-    # launcher. Nothing can reach a browser without the operator having
-    # enabled debugging deliberately (in-browser, or via that launcher).
-    #
-    # Safe to leave on permanently, MEASURED 2026-09-06 rather than assumed: with
-    # nothing listening on the port, the server still answers `initialize` and
-    # stays alive (45s, no exit) — it only touches a browser lazily, when a tool
-    # needs one. That mattered while one server exiting at startup could dark the
-    # whole gateway; since 2026-10-02 every server is spawned per-session by its
-    # own plugin, so it can only cost itself. Individual tool calls simply fail until a browser
-    # is listening; `devtools-doctor.sh` in the page-lab plugin says which
-    # of the three causes it is.
-    #
-    # What is NOT persistent, deliberately: debugging itself. The in-browser toggle
-    # re-prompts per session and `nix-chromium-debug` is hand-run and dies with the
-    # browser window — because an open remote-debugging port is an unauthenticated
-    # control channel over a profile holding live logins. Measured 2026-09-07 on the
-    # then-default Opera Air: a Chromium-family browser stores no persistent consent
-    # key, so there is nothing to make it stop asking. Opera was removed from this Mac
-    # on 2026-09-21; the attach target is now Chromium (modules/home/default-browser.nix).
-    # The MCP server moved to the page-lab plugin (#657 batch 2); opening the port
-    # did not, and never was an MCP concern. See local.ungoogledChromium.debugLauncher.
-    local.ungoogledChromium.debugLauncher = true;
 
     # Replaces the Colima container of the same name. Loopback only. Downloads
     # land in ~/.local/share/yt-dlp-webui/downloads.
@@ -684,19 +652,9 @@ in
       #                                + com.google.Chrome.webauthn{,-uvk} (Touch ID)
       #   Opera / Opera Air      same shape, Opera's own Team ID
       #   Safari                 the WebKit equivalent
-      #   ungoogled-chromium     NEITHER — seven entitlements, all hardware/sandbox,
-      #                          and no `keychain-access-groups` key at all
-      #
-      # So no Chromium swap fixes it, and the obvious one is worse: the plain (googled)
-      # `chromium` cask has been DISABLED in Homebrew since 2026-09-01 for failing the
-      # Gatekeeper check — so not Developer-ID notarized, and a restricted entitlement
-      # needs an Apple-authorized Team ID. A community rebuild
-      # can never obtain the grant. Do not re-attempt this with another Chromium.
-      #
-      # It does NOT take any job back from ungoogled-chromium below.
-      # PUPPETEER_EXECUTABLE_PATH stays pointed at /Applications/Chromium.app on
-      # purpose, so JSON Resume PDF rendering keeps its pinned, ad-free engine rather
-      # than following an auto_updates cask.
+      # Chrome is the only browser on this Mac. ungoogled-chromium lacks the Touch ID
+      # passkey entitlement (seven entitlements, all hardware/sandbox, no
+      # `keychain-access-groups`) and no Chromium cask fixes it (measured 2026-09-15).
       "google-chrome"
       # Google Drive for desktop — the File Provider client (a mounted volume under
       # ~/Library/CloudStorage/, NOT a plain folder).
@@ -708,8 +666,7 @@ in
       # Ghostty — GPU-accelerated terminal. A CASK because nixpkgs' `ghostty` is
       # LINUX-ONLY and refuses to evaluate on aarch64-darwin, which is exactly the
       # case home-manager documents for `programs.ghostty.package = null`:
-      # Homebrew ships the app, Nix owns the config. Same split as the
-      # ungoogled-chromium cask. Settings live in modules/home/default.nix.
+      # Homebrew ships the app, Nix owns the config. Settings live in modules/home/default.nix.
       "ghostty"
       # NO OpenPGP GUI on this Mac — by design, do not re-add one. OpenPGP work
       # goes through the pgp-ops plugin, with pinentry-mac (brews above) as the
@@ -731,8 +688,7 @@ in
       # `local.kdeConnect` (modules/home/kdeconnect.nix). A CASK because nixpkgs'
       # `kdePackages.kdeconnect-kde` is Linux+FreeBSD in `meta.platforms` and does
       # not evaluate on aarch64-darwin; the cask ships the SAME version, arm64-only,
-      # macOS >= 13. Same Homebrew-app/Nix-config split as the ghostty and
-      # ungoogled-chromium casks.
+      # macOS >= 13. Same Homebrew-app/Nix-config split as the ghostty cask.
       #
       # THE macOS BACKEND IS REAL, verified in upstream source (2026-10-06), not
       # inferred from the download page: plugins/mousepad/CMakeLists.txt gates
@@ -853,13 +809,6 @@ in
       # community mechanism; re-deriving dmg extraction and codesign handling in
       # Nix is the hand-rolled path the motto weighs against.
       "tor-browser"
-      # ungoogled-chromium — Chromium without the Google integration. Cask because
-      # nixpkgs' chromium/ungoogled-chromium are *-linux only (no darwin build), and
-      # the plain `chromium` cask is deprecated (fails the macOS Gatekeeper check,
-      # disabled 2026-09-01). Its declarative config — the sideloaded iCloud
-      # Passwords extension + Apple's native-messaging host, which macOS otherwise
-      # ships to Chrome and Firefox ONLY — lives in modules/home/chromium.nix.
-      "ungoogled-chromium"
       # UTM — QEMU+virgl GUI VMs; Tart/Apple VZ failed the NixOS desktop R&D
       # (llvmpipe only, broken virtio-sound), UTM passed (2026-10-17). A CASK:
       # nixpkgs' `utm` is a stale 4.7.5, before the virgl/Venus work. Its three

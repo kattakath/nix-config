@@ -382,7 +382,6 @@ in
     # explicit list, not auto-discovery, is what guarantees.
     ./claude-code-settings.nix
     ./google-chrome.nix # local.googleChrome — Chrome extensions via programs.google-chrome (cask installs the app)
-    ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./kdeconnect.nix # local.kdeConnect — merges declared keys into the kde-connect cask's INI files
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
@@ -539,43 +538,22 @@ in
   # ADR-012 § 5 step 1. `package` comes from modules/parts/hosts.nix (engine-built).
   local.terranixDrift.enable = isMacosHost;
 
-  # ungoogled-chromium's declarative surface — real Mac only, since only
-  # hosts/macos.nix declares the cask. Writes
-  # the External Extensions + NativeMessagingHosts files that make the sideloaded
-  # iCloud Passwords extension talk to macOS Passwords.app; see chromium.nix.
-  local.ungoogledChromium.enable = isMacosHost;
+  # Chrome's declarative extensions — real Mac only, since only hosts/macos.nix declares the cask.
   local.googleChrome.enable = isMacosHost;
 
   # page-lab's DEDICATED browser (Chrome for Testing from nixpkgs), never the daily
-  # Chromium above. Operator Mac only: the closure is ~370 MiB. See page-lab.nix.
+  # Chrome. Operator Mac only: the closure is ~370 MiB. See page-lab.nix.
   local.pageLab.enable = isMacosHost;
 
-  # Google Chrome owns http/https; Chromium stays the DEBUGGING browser, not the daily
-  # one. The claim itself is browser-agnostic and lives in ./default-browser.nix — the
-  # short handler name is what `defaultbrowser` takes, never the bundle id (it is the
-  # last dot-component of the bundle id, lowercased: `com.google.Chrome` → `chrome`,
-  # `org.chromium.Chromium` → `chromium`). Only the real Mac declares any browser cask,
-  # so this is a no-op elsewhere.
+  # Google Chrome owns http/https. The claim is browser-agnostic and lives in
+  # ./default-browser.nix; the short handler name is what `defaultbrowser` takes, never
+  # the bundle id (the last dot-component, lowercased: `com.google.Chrome` -> `chrome`).
+  # Only the real Mac declares a browser cask, so this is a no-op elsewhere.
   #
-  # WHY NOT CHROMIUM, which is what this Mac had drifted to live: PASSKEYS. Reaching a
-  # macOS Passwords.app passkey needs `com.apple.developer.web-browser.public-key-credential`,
-  # a RESTRICTED entitlement Apple grants per-Team-ID to registered browser vendors on
-  # request. Measured 2026-09-15 with `codesign -d --entitlements`: the ungoogled-chromium
-  # cask carries SEVEN entitlements, all hardware/sandbox (camera, bluetooth, usb, …), no
-  # passkey grant and no `keychain-access-groups` at ALL — so neither the iCloud Keychain
-  # nor the profile Touch ID authenticator can work. Opera/Opera Air both carry the grant
-  # plus `…webauthn`, `…webauthn-uvk` and Google's own `com.google.common.folsom` group;
-  # Chrome carries it too, and Safari has the WebKit equivalent.
+  # Why Chrome and not a Chromium build: see the `google-chrome` cask in hosts/macos.nix.
   #
-  # So this is NOT fixable by swapping Chromium builds, and the obvious swap is worse: the
-  # plain (googled) `chromium` cask is DISABLED in Homebrew since 2026-09-01 for failing
-  # the Gatekeeper check, i.e. not Developer-ID notarized — and a restricted entitlement
-  # needs an Apple-authorized Team ID to carry it. A community rebuild
-  # can never obtain the grant — do not re-attempt this with a different Chromium.
-  #
-  # The sideloaded iCloud Passwords extension does not rescue it either: that extension
-  # does PASSWORDS (and verification codes). On macOS a passkey comes from the OS
-  # AuthenticationServices API the browser itself calls, never through an extension.
+  # The iCloud Passwords extension does PASSWORDS (and verification codes) only; a passkey
+  # comes from the OS AuthenticationServices API the browser itself calls.
   local.defaultBrowser = lib.mkIf isMacosHost "chrome";
 
   # KDE Connect (the `kde-connect` cask in hosts/macos.nix). These values pin what the
@@ -975,19 +953,14 @@ in
       #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
       #                      (so `npm i -g resumed puppeteer` / a theme install never breaks).
       #   EXECUTABLE_PATH  — puppeteer launches that system browser at runtime instead.
-      # Points at the `ungoogled-chromium` cask, NOT google-chrome, even though Chrome is
-      # declared again (it holds http/https for passkeys — see hosts/macos.nix). A pinned,
-      # ad-free engine must not follow an `auto_updates` cask mid-render.
-      # Verified 2026-08-31 — puppeteer launched this binary (reports Chrome/152.0.7977.64)
-      # and `page.pdf()` returned a valid `%PDF-` document. That cask is macos-only
-      # (`isMacosHost` below), so off the real Mac this path does not exist and the var is inert
-      # until a browser is declared there; the JSON Resume npm globals live on macos.
+      # The path is macos-only (`isMacosHost` below), so off the real Mac it does not exist
+      # and the var is inert; the JSON Resume npm globals live on macos.
       # Harmless for other puppeteer tools (they get the same browser); Remotion is
       # unaffected — it resolves its own browser, not these vars. The resume THEME
       # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
       PUPPETEER_SKIP_DOWNLOAD = "true";
     }
-    # macos-only: two point into casks only hosts/macos.nix installs (ungoogled-chromium,
+    # macos-only: two point into casks only hosts/macos.nix installs (a browser,
     # android-commandlinetools), and buku's DB is the operator's own data.
     // lib.optionalAttrs isMacosHost {
       PUPPETEER_EXECUTABLE_PATH = "/Applications/Chromium.app/Contents/MacOS/Chromium";
@@ -1418,7 +1391,7 @@ in
     # escape hatch home-manager documents for exactly this: nixpkgs' `ghostty` is
     # LINUX-ONLY and refuses to evaluate on aarch64-darwin, so the Homebrew cask
     # in hosts/macos.nix ships the app and this owns nothing but the config — the
-    # same split already used for the ungoogled-chromium cask.
+    # same split already used for the other Homebrew-app casks.
     #
     # The type comes from terminal-theme.nix's `font` (sizes: its `font.sizes`).
     #

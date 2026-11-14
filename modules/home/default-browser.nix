@@ -1,11 +1,8 @@
 # The macOS default browser, claimed declaratively.
 #
-# This is a fleet-level concern, not a Chromium one — the handler is a property of
-# LaunchServices, and any installed browser can hold it. It lived in
-# `modules/home/chromium.nix` while Chromium was the answer; it moved here when it
-# stopped being (Chrome is the default — it alone carries the passkey entitlement, see
-# hosts/macos.nix; Chromium is the debugging browser whose profile
-# page-lab's chrome-devtools attach probe defaults to).
+# This is a fleet-level concern, not a browser-specific one — the handler is a property
+# of LaunchServices, and any installed browser can hold it. Chrome is the default, and
+# the only browser, for passkeys (see hosts/macos.nix).
 #
 # `defaultbrowser` takes the SHORT name (`chrome`, `chromium`, `safari`), NOT the
 # bundle id — measured 2026-09-07, `com.operasoftware.OperaAir` was rejected as "not
