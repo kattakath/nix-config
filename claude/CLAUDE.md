@@ -239,6 +239,30 @@ in `nix-config`'s [`docs/answer-shape-evidence.md`](https://github.com/kattakath
 rule that surprises people: a diagram or chart that does **not** carry data measurably *hurts*
 comprehension, so "add a visual" is never an automatic improvement.
 
+## Google Docs house style — apply on CREATE, not after being asked
+
+Ismail, 2026-11-14: these were each corrected by hand on one document. Apply all of them the
+first time a Google Doc is created or restyled, and **edit the same Doc in place** so its link
+never changes.
+
+- **Font:** Google Sans for everything except diagrams.
+- **Colour theme: Material purple.** Title and section headings `#6750A4`; tinted fills
+  `#F3EDF7`. Subsection headings stay black.
+- **Headings:** use the built-in Heading 1/2/3 hierarchy **with Docs' default vertical
+  spacing**. An HTML import overwrites those margins with web values and applies them
+  unevenly, so reset them after import (section 18 pt above / 6 below, subsection 14 / 4, body
+  0 / 8, 115% line spacing) and set every heading to keep-with-next.
+- **Every title is in Title Case** — headings, table column headers, and the label column of a
+  key-value table. Names with their own casing are left alone.
+- **Tables: do not touch the borders.** Keep the default grid. Style only the title row — or,
+  for a key-value table such as the document-details block at the top, the title **column** —
+  with the tinted fill and bold text. Rows never split across pages.
+- **Diagrams:** monospace (Courier New), **bold**, **no background**, kept together on one
+  page, and **indented until the block sits at the centre of the page**. The number of indent
+  steps depends on the diagram's width; it is not a fixed count.
+- **Read the Doc back after styling.** An import leaves stray colours behind (the title kept
+  the import's colour through three passes), and a font change resets heading weight.
+
 ## Redact secret values by default
 
 Secret **values** — tokens, API keys, passwords, `.age` plaintext, Keychain reads — are never
