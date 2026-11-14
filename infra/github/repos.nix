@@ -27,6 +27,8 @@
       main = 25995382;
       releaseTags = 25995384;
     };
+    "listing-lens".main = 27248511;
+    "scrape-harness".main = 27248510;
     "userscripts".main = 23271873;
     "website".main = 26397049;
     "workspace-studio".main = 26397055;

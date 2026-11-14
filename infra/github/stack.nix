@@ -35,7 +35,7 @@
 # The rest are per-person data (the no-data rule): the wrapper reads each from GitHub at run
 # time into a TF variable, so for those the stack owns EXISTENCE, not the value. A deleted
 # one fails the read, so the plan errors loudly instead of reading clean. CI_BOT_CLIENT_ID is
-# read once, from the org variable, so the nine personal-repo copies are checked against it.
+# read once, from the org variable, so every personal-repo copy is checked against it.
 {
   lib,
   rulesetTemplates,
