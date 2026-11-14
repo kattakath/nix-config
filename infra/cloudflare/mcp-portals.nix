@@ -150,13 +150,36 @@ in
         enabled = true;
         dynamic_client_registration = {
           enabled = true;
-          # Trailing /* — cloud clients mint a per-connector callback path.
+          # The MCP CLIENTS that may register (operator's pick, 2026-11-14). A client
+          # missing here fails at registration with "redirect_uri is not allowed by the
+          # account configuration" (measured with Grok), and a change takes ~1 min to
+          # reach the account-wide registration endpoint. Trailing /* where a client
+          # mints a per-connector callback path. Who may SIGN IN is still the Access
+          # email policy plus each app's Google consent; this list only names clients.
           allowed_uris = [
             "https://claude.ai/api/mcp/*"
             "https://claude.com/api/mcp/*"
+            # Grok (grok.com/connectors-oauth-exchange-code…).
+            "https://grok.com/*"
+            # ChatGPT: the fixed URI (when the server returns RFC 9207 `iss`) and the
+            # per-callback fallback (OpenAI Apps SDK, "Authentication").
+            "https://chatgpt.com/connector_platform_oauth_redirect"
+            "https://chatgpt.com/connector/oauth/*"
+            # Mistral Le Chat (from a third-party integration guide; unverified upstream).
+            "https://callback.mistral.ai/*"
+            # Cloudflare Workers AI Playground (Cloudflare's own Managed OAuth example).
+            "https://playground.ai.cloudflare.com/*"
+            # VS Code's web redirect; its desktop flow uses loopback (below).
+            "https://vscode.dev/redirect"
+            # Cursor: web/cloud agents and the desktop custom scheme (desktop also uses
+            # localhost:8787, below). Custom schemes must match exactly (Cloudflare docs).
+            "https://www.cursor.com/agents/mcp/oauth/callback"
+            "cursor://anysphere.cursor-mcp/oauth/callback"
           ];
-          allow_any_on_localhost = false;
-          allow_any_on_loopback = false;
+          # Local clients (Claude Code, Gemini CLI, Codex, MCP Inspector, Windsurf, VS
+          # Code and Cursor desktop) call back on a random localhost/127.0.0.1 port.
+          allow_any_on_localhost = true;
+          allow_any_on_loopback = true;
         };
         # Cloudflare's recommendation for agents: a short access token and a 1-2 week
         # grant, so a connector refreshes silently instead of re-signing in daily.
