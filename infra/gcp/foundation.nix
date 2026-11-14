@@ -104,6 +104,13 @@ let
     "docsmcp.googleapis.com" = "Docs MCP server, an upstream of the Workspace gateway";
     "sheetsmcp.googleapis.com" = "Sheets MCP server, an upstream of the Workspace gateway";
     "slidesmcp.googleapis.com" = "Slides MCP server, an upstream of the Workspace gateway";
+    # Each MCP server calls its PLAIN API with this project as the quota project, so
+    # that API must be on too. Measured 2026-11-14 (phone test T4): Docs and Slides
+    # failed with these off; Calendar returned an empty event list. Gmail, Drive,
+    # Sheets, Chat and People already had theirs (above).
+    "docs.googleapis.com" = "Docs API, called by docsmcp for the Workspace gateway";
+    "slides.googleapis.com" = "Slides API, called by slidesmcp for the Workspace gateway";
+    "calendar-json.googleapis.com" = "Calendar API, called by calendarmcp for the Workspace gateway";
 
     # Google's project defaults, on since creation (2026-07-05) with no enable event
     # in the 400-day audit log. Declared so the live API set and this map are equal:
