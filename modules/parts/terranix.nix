@@ -1320,28 +1320,10 @@ let
       '';
     };
 
-  # ---- Workspace gateway (terranix -> OpenTofu) ----------------------------
-  # Renders infra/gcp/workspace-gateway.nix: Pomerium on Cloud Run fronting Google's
-  # hosted Workspace MCP servers, one host per app. Its own stack because its blast
-  # radius is one service and the upstream tokens it holds, not the project
-  # (foundation) or the alarm (budget).
-  gcpWorkspaceGatewayConfig =
-    { system }:
-    terranix.lib.terranixConfiguration {
-      inherit system;
-      modules = [
-        ../../infra/gcp/workspace-gateway.nix
-        (tofuGcsBackend "gcp-workspace-gateway")
-        {
-          _module.args.projectId = gcpProjectId;
-        }
-      ];
-    };
-
   # ---- Workspace MCP portals (terranix -> OpenTofu) ------------------------
-  # Renders infra/cloudflare/mcp-portals.nix: one Cloudflare MCP server portal per
-  # Workspace app, replacing the Pomerium gateway above (2026-11-14). Its own stack:
-  # its blast radius is every Workspace connector and the per-user Google grants
+  # Renders infra/cloudflare/mcp-portals.nix: ONE Cloudflare MCP server portal with a
+  # server per Workspace app, which replaced the Pomerium gateway on Cloud Run (the
+  # gcp-workspace-gateway stack, retired 2026-11-14). Its own stack: its blast radius is every Workspace connector and the per-user Google grants
   # Cloudflare holds, which shares nothing with a DNS record or the tunnel.
   cfMcpPortalsConfig =
     { system }:
@@ -1407,67 +1389,6 @@ let
         "tofu apply has NO rollback."
       ];
       autoApproveWhy = "Read the plan: a replaced portal or server drops every user's grant for that app.";
-    };
-
-  # ADC as the OPERATOR, no impersonation (the stack file's header has why), so the
-  # credential check is mkGcpBudgetTofu's: a MISSING ADC file lets the provider fall
-  # back to another credential silently. Plus three tofu variables from the Keychain,
-  # never the repo: the OAuth client id (per-person data), its secret (ephemeral,
-  # write-only into Secret Manager) and the family allowlist.
-  # `emptyStateOnPlan = false`: nothing pre-exists (the stack header), so the first
-  # apply legitimately creates everything; the empty-state guard still refuses an
-  # APPLY against empty state until GCP_WORKSPACE_GATEWAY_ALLOW_CREATE=1 says so.
-  mkGcpWorkspaceGatewayTofu =
-    {
-      system,
-      name,
-      action,
-    }:
-    mkAdoptedTofu {
-      inherit system name action;
-      stack = "gcp-workspace-gateway";
-      # neon_: the databroker's Postgres project, so the drop guard covers it too.
-      typePrefix = "(google|neon)_";
-      envPrefix = "GCP_WORKSPACE_GATEWAY";
-      label = "workspace-gateway";
-      # The google provider comes from the registry, pinned in infra/provider-pins.nix.
-      plugins = null;
-      emptyStateOnPlan = false;
-      renderer = gcpWorkspaceGatewayConfig;
-      # The client SECRET is ephemeral and only reaches write-only attributes, so a
-      # drift plan holds it in its environment and nowhere else.
-      driftEnv = {
-        TF_VAR_google_oauth_client_id = items.workspaceGateway.oauthClientId;
-        TF_VAR_google_oauth_client_secret = items.workspaceGateway.oauthClientSecret;
-        TF_VAR_gateway_allowed_emails = items.workspaceGateway.allowedEmails;
-        NEON_API_KEY = items.workspaceGateway.neonApiKey;
-      };
-      vars = "";
-      credentialCheck = ''
-        adc="''${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json"
-        if [ ! -f "$adc" ]; then
-          echo "ERROR: no Application Default Credentials at $adc" >&2
-          echo "  Inside 'nix develop', so they land in this repo's scoped gcloud config:" >&2
-          echo "    gcloud auth application-default login" >&2
-          exit 1
-        fi
-        echo "ADC: $adc" >&2
-        if [ -z "''${TF_VAR_google_oauth_client_id:-}" ] || [ -z "''${TF_VAR_google_oauth_client_secret:-}" ] \
-          || [ -z "''${TF_VAR_gateway_allowed_emails:-}" ] || [ -z "''${NEON_API_KEY:-}" ]; then
-          echo "ERROR: TF_VAR_google_oauth_client_id, TF_VAR_google_oauth_client_secret," >&2
-          echo "  TF_VAR_gateway_allowed_emails and NEON_API_KEY must all be set (data and secrets, kept out of the repo):" >&2
-          echo "  nix develop -c secret exec TF_VAR_google_oauth_client_id=${items.workspaceGateway.oauthClientId} TF_VAR_google_oauth_client_secret=${items.workspaceGateway.oauthClientSecret} TF_VAR_gateway_allowed_emails=${items.workspaceGateway.allowedEmails} NEON_API_KEY=${items.workspaceGateway.neonApiKey} -- nix run .#${name}" >&2
-          echo "  The allowlist item is a JSON list, e.g. [\"you@example.com\"]." >&2
-          exit 1
-        fi
-      '';
-      createLine = "The others would be CREATED. Expected ONLY on this stack's first apply; read the plan first.";
-      dropLines = [
-        "Applying it would DELETE each one: the Neon project holds every upstream"
-        "refresh token, and the service is every Workspace connector's backend."
-        "tofu apply has NO rollback."
-      ];
-      autoApproveWhy = "Read the plan: a replaced service, bucket or domain mapping drops every connection.";
     };
 
   # ---- healthchecks.io checks (terranix -> OpenTofu) -----------------------
@@ -1953,16 +1874,6 @@ in
           name = "cf-mcp-portals-apply";
           action = "apply";
         };
-        gcp-workspace-gateway-plan = mkGcpWorkspaceGatewayTofu {
-          inherit system;
-          name = "gcp-workspace-gateway-plan";
-          action = "plan";
-        };
-        gcp-workspace-gateway-apply = mkGcpWorkspaceGatewayTofu {
-          inherit system;
-          name = "gcp-workspace-gateway-apply";
-          action = "apply";
-        };
         # No `hc-checks-destroy`, and no `hc-checks-import`: destroy would silence
         # every dead man's switch at once (remove an entry and let the drop guard make
         # you confirm), and the checks are created by the first apply, not adopted.
@@ -2075,16 +1986,6 @@ in
           type = "app";
           program = "${config.packages.cf-mcp-portals-apply}/bin/cf-mcp-portals-apply";
           meta.description = "tofu apply the Workspace MCP portals stack — refuses a render that drops an object state holds, an apply against empty state, and -auto-approve";
-        };
-        gcp-workspace-gateway-plan = {
-          type = "app";
-          program = "${config.packages.gcp-workspace-gateway-plan}/bin/gcp-workspace-gateway-plan";
-          meta.description = "Render infra/gcp/workspace-gateway.nix (terranix) and tofu PLAN the Pomerium Workspace gateway on Cloud Run, its secrets' containers and its domain mappings — read-only (needs ADC + the client id, client secret and allowlist TF_VARs, and NEON_API_KEY)";
-        };
-        gcp-workspace-gateway-apply = {
-          type = "app";
-          program = "${config.packages.gcp-workspace-gateway-apply}/bin/gcp-workspace-gateway-apply";
-          meta.description = "tofu apply the Workspace gateway stack — refuses a render that drops an object state holds, an apply against empty state, and -auto-approve (needs ADC)";
         };
         hc-checks-plan = {
           type = "app";

@@ -4,7 +4,7 @@ description: >-
   Review and PLAN (never apply) changes under infra/ — the terranix
   (Nix → OpenTofu/Terraform JSON) stacks that manage this fleet's Cloudflare
   Tunnel + ingress, kattakath.com DNS (mail included), the Zero Trust
-  organisation, the GCP foundation + billing budget + Workspace gateway (Pomerium on Cloud Run), the healthchecks.io
+  organisation, the Workspace MCP portal, the GCP foundation + billing budget, the healthchecks.io
   heartbeat checks, the Grafana Cloud stack and the fleet repos' GitHub rulesets
   and Actions variables. (A former stack,
   `mcp-public`, was destroyed and deleted 2026-10-02 with the MCP gateway.) Use
@@ -70,10 +70,10 @@ Three things follow, and apply them to every review:
 **State:** every stack but `gcp-foundation` shares the versioned GCS backend, encrypted with a Keychain
 passphrase (`tofu:state:passphrase`). `gcp-foundation` keeps **local** state on
 purpose — it declares the bucket, so it cannot live in it — and is encrypted the
-same way. Losing that passphrase makes all state unreadable. Three payloads carry a plaintext
-secret: `cf-tunnel`'s (the connector token), `grafana`'s (the li-logs access-policy token,
-since 2026-11-13) and `gcp-workspace-gateway`'s (the Neon role password and connection URIs,
-since 2026-11-14); `mcp-public` was another until it was deleted.
+same way. Losing that passphrase makes all state unreadable. Two payloads carry a plaintext
+secret: `cf-tunnel`'s (the connector token) and `grafana`'s (the li-logs access-policy token,
+since 2026-11-13); `mcp-public` and `gcp-workspace-gateway` were others until they were
+deleted.
 
 ## Credentials — two kinds, never interchangeable
 

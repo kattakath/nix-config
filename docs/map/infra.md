@@ -9,9 +9,9 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `cf-tunnel` | GCS `cf-tunnel/` | `CLOUDFLARE_API_TOKEN` | **the Pi**: tunnel, ingress, CNAMEs, every zone's TLS floor, the `nixpi_ssh` Access app |
 | `cf-zones` | GCS `cf-zones/` | `CLOUDFLARE_API_TOKEN` | **mail**, silently until a message bounces |
 | `cf-access-org` | GCS `cf-access-org/` | `CLOUDFLARE_API_TOKEN` | **every Access app at once** (`auth_domain`) |
+| `cf-mcp-portals` | GCS `cf-mcp-portals/` | `CLOUDFLARE_API_TOKEN` + 3 `TF_VAR`s | every Workspace MCP connector |
 | `gcp-budget` | GCS `gcp-budget/` | ADC | the spend ALERT (an alert, never a cap) |
 | `gcp-foundation` | **local** (still encrypted) | ADC | the bucket the others live in |
-| `gcp-workspace-gateway` | GCS `gcp-workspace-gateway/` | ADC + 3 `TF_VAR`s + Neon key | Pomerium; Neon holds every Google token |
 | `hc-checks` | GCS `hc-checks/` | `HEALTHCHECKSIO_API_KEY` | the dead-man's-switch ALARMS; a quiet one reads as a healthy host |
 | `grafana` | GCS `grafana/` | `GRAFANA_AUTH` + `GRAFANA_SM_ACCESS_TOKEN` + gcom token | Grafana alerting, datasources, dashboard, probe (ADR-011). A dropped datasource takes its key with it |
 | `github` | GCS `github/` | `GITHUB_TOKEN` | fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |

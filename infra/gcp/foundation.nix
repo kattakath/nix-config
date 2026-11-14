@@ -81,36 +81,41 @@ let
     # reached as a claude.ai custom connector. People's MCP server rides people.googleapis.com.
     "chatmcp.googleapis.com" = "Google's Chat MCP server for the claude.ai Chat connector";
 
-    # The Workspace gateway (infra/gcp/workspace-gateway.nix). Enabling run +
-    # artifactregistry ALSO turned on pubsub and containerregistry as their
-    # dependencies: measured in the audit log, which shows both being disabled at the
-    # 2026-11-07 teardown with no enable event of their own. Declared so a census
-    # finds every enabled API here with its reason.
-    "run.googleapis.com" = "the Workspace gateway's Cloud Run service + domain mappings";
+    # Enabled for the Pomerium Workspace gateway on Cloud Run, RETIRED 2026-11-14
+    # (replaced by infra/cloudflare/mcp-portals.nix). Nothing here uses run or
+    # artifactregistry now; they stay on (free) until a deliberate API census drops
+    # them. Enabling run + artifactregistry ALSO turned on pubsub and
+    # containerregistry as their dependencies: measured in the audit log, which
+    # shows both being disabled at the 2026-11-07 teardown with no enable event of
+    # their own. Declared so a census finds every enabled API here with its reason.
+    "run.googleapis.com" = "the retired Workspace gateway's Cloud Run service (2026-11-14); unused now";
     "orgpolicy.googleapis.com" = "the project-scoped org policies below (default network, default SA)";
     "artifactregistry.googleapis.com" =
-      "the Docker Hub pull-through repo the gateway's Pomerium image comes from";
+      "the retired gateway's Docker Hub pull-through repo (2026-11-14); unused now";
     "containerregistry.googleapis.com" =
       "auto-enabled with run/artifactregistry (dependency, 2026-11-07 audit log)";
     "pubsub.googleapis.com" =
       "auto-enabled with run/artifactregistry (dependency, 2026-11-07 audit log)";
-    # Google's hosted Workspace MCP servers the gateway routes to, in THIS project
-    # because the gateway's OAuth client lives here (chatmcp above; People's rides
-    # people.googleapis.com). All six names exist (`gcloud services list --available`,
-    # 2026-11-14); that each must be ON, like chatmcp, is assumed until first use.
-    "gmailmcp.googleapis.com" = "Gmail MCP server, an upstream of the Workspace gateway";
-    "calendarmcp.googleapis.com" = "Calendar MCP server, an upstream of the Workspace gateway";
-    "drivemcp.googleapis.com" = "Drive MCP server, an upstream of the Workspace gateway";
-    "docsmcp.googleapis.com" = "Docs MCP server, an upstream of the Workspace gateway";
-    "sheetsmcp.googleapis.com" = "Sheets MCP server, an upstream of the Workspace gateway";
-    "slidesmcp.googleapis.com" = "Slides MCP server, an upstream of the Workspace gateway";
+    # Google's hosted Workspace MCP servers, the upstreams of the Cloudflare MCP
+    # portal (infra/cloudflare/mcp-portals.nix). In THIS project because the portal's
+    # Google OAuth client lives here, so Google calls them on the portal's behalf
+    # (chatmcp above; People's rides people.googleapis.com). All six names exist
+    # (`gcloud services list --available`, 2026-11-14); that each must be ON, like
+    # chatmcp, is assumed until first use.
+    "gmailmcp.googleapis.com" = "Gmail MCP server, an upstream of the Cloudflare MCP portal";
+    "calendarmcp.googleapis.com" = "Calendar MCP server, an upstream of the Cloudflare MCP portal";
+    "drivemcp.googleapis.com" = "Drive MCP server, an upstream of the Cloudflare MCP portal";
+    "docsmcp.googleapis.com" = "Docs MCP server, an upstream of the Cloudflare MCP portal";
+    "sheetsmcp.googleapis.com" = "Sheets MCP server, an upstream of the Cloudflare MCP portal";
+    "slidesmcp.googleapis.com" = "Slides MCP server, an upstream of the Cloudflare MCP portal";
     # Each MCP server calls its PLAIN API with this project as the quota project, so
     # that API must be on too. Measured 2026-11-14 (phone test T4): Docs and Slides
     # failed with these off; Calendar returned an empty event list. Gmail, Drive,
     # Sheets, Chat and People already had theirs (above).
-    "docs.googleapis.com" = "Docs API, called by docsmcp for the Workspace gateway";
-    "slides.googleapis.com" = "Slides API, called by slidesmcp for the Workspace gateway";
-    "calendar-json.googleapis.com" = "Calendar API, called by calendarmcp for the Workspace gateway";
+    "docs.googleapis.com" = "Docs API, called by docsmcp for the Cloudflare MCP portal";
+    "slides.googleapis.com" = "Slides API, called by slidesmcp for the Cloudflare MCP portal";
+    "calendar-json.googleapis.com" =
+      "Calendar API, called by calendarmcp for the Cloudflare MCP portal";
 
     # Google's project defaults, on since creation (2026-07-05) with no enable event
     # in the 400-day audit log. Declared so the live API set and this map are equal:

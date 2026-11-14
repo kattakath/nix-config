@@ -20,7 +20,6 @@ let
     "cf-mcp-portals"
     "gcp-foundation"
     "gcp-budget"
-    "gcp-workspace-gateway"
     "hc-checks"
     "grafana"
     "github"
