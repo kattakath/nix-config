@@ -1063,7 +1063,11 @@ in
           # kattakath-workspace 2.1.0 declares the Kattakath Workspace MCP portal
           # (mcp.kattakath.com/mcp) so claude.ai lists it with the plugin; here the account
           # connector serves, for the same one-sign-in reason.
-          { serverName = "plugin:kattakath-workspace:kattakath-workspace"; }
+          # Spaced on purpose (plugin 2.1.1): the key is the connector's claude.ai name.
+          # Denying a spaced name works at runtime (measured 2026-11-14); schemastore's
+          # `serverName` pattern rejects it, but that pattern also rejects the `plugin:`
+          # colons above, which work too.
+          { serverName = "plugin:kattakath-workspace:Kattakath Workspace"; }
           # The claude.ai Microsoft 365 connector was denied here 2026-11-01 (tenant blocked
           # consent); lifted 2026-11-13 once the operator re-added it on claude.ai.
         ];
