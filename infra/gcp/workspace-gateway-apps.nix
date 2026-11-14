@@ -138,6 +138,9 @@
       scopes = [
         "https://www.googleapis.com/auth/chat.messages.readonly"
         "https://www.googleapis.com/auth/chat.memberships.readonly"
+        # Measured 2026-11-14: without it search_conversations gets a 403 insufficient-scope
+        # from Google, although its doc page lists memberships.readonly as enough.
+        "https://www.googleapis.com/auth/chat.spaces.readonly"
       ];
       tools = [
         "search_conversations"
