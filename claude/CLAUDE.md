@@ -260,7 +260,9 @@ never changes.
   0 / 8, 115% line spacing) and set every heading to keep-with-next.
 - **Every title is in Title Case** — headings, table column headers, and the label column of a
   key-value table. Names with their own casing are left alone.
-- **Tables: do not touch the borders.** Keep the default grid. Style only the title row — or,
+- **Tables: keep the full grid** (never remove a side); border colour is the neutral
+  `#C4C7C5`, not whatever tint the import left. An HTML import also leaves a stray second line
+  in each header row's last cell, which makes the row too tall: delete it. Style only the title row — or,
   for a key-value table such as the document-details block at the top, the title **column** —
   with the tinted fill and bold text. Rows never split across pages.
 - **Diagrams** (the box-drawing ASCII kind): **JetBrains Mono**, **bold**, **no background**,
