@@ -89,14 +89,14 @@ let
       export CORS_ALLOWED_ORIGINS='*'
       export MAX_CONCURRENT_DOWNLOADS=${toString maxConcurrentDownloads}
       # Age-gated YouTube needs a signed-in browser session. This is the
-      # Chromium profile the extension runs in. A one-element list is what
+      # Chrome profile the extension runs in. A one-element list is what
       # yt-dlp's cookiesfrombrowser parser accepts. The secret stays in the
       # browser's cookie store; the first download may raise a Keychain prompt
-      # for "Chromium Safe Storage".
+      # for "Chrome Safe Storage".
       export YTDL_OPTIONS=${
         lib.escapeShellArg (
           builtins.toJSON {
-            cookiesfrombrowser = [ "chromium" ];
+            cookiesfrombrowser = [ "chrome" ];
           }
         )
       }

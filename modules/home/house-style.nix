@@ -40,7 +40,7 @@
 #     `python3Packages.python-docx` — and those ARE used below. No package ships the style.
 #
 # So the Lego is the plainest one: `pkgs.formats.json` renders an attrset and `xdg.configFile`
-# places it — the same pair page-lab.nix and plugin-mcp.nix use.
+# places it; plugin-mcp.nix renders desktop-commander's config with the same `pkgs.formats.json`.
 #
 # The interpreter follows beancount.nix: an env named by a session variable, NOT a second
 # `python3` on PATH. Darwin-only, like `pandoc` in default.nix — documents are made on the Mac,

@@ -56,7 +56,7 @@
 # Only `resumed validate` would improve, which is not worth splitting the tool
 # across two sources. Revisit if the package ever vendors puppeteer.
 # PDF rendering drives puppeteer via $PUPPETEER_EXECUTABLE_PATH (set in the darwin
-# home profile, modules/home/default.nix), so a browser download is never needed.
+# home profile, modules/home/pinned-chrome.nix), so a browser download is never needed.
 {
   writeShellApplication,
   curl,

@@ -80,17 +80,6 @@ in
     in
     {
       packages = {
-        # `page-lab-pick` — the two-way element picker from the page-lab plugin, as a
-        # CLI on a PINNED Node. Node 20 on this fleet has no global WebSocket, so the raw
-        # CDP client would otherwise need --experimental-websocket; nodejs_22 removes the
-        # flag from the fleet path. See packages/page-lab-pick.nix for why this exists at
-        # all when `node <the script>` already works.
-        page-lab-pick = pkgs.callPackage ../../packages/page-lab-pick.nix {
-          # The plugin tree comes from the pinned input, not from this repo — see
-          # flake.nix `kattakath-skills`.
-          pageLabSrc = "${inputs.kattakath-skills}/plugins/page-lab";
-        };
-
         # The hook scripts' type-check tree, and the link that shows it to an editor.
         # ONE tree: checks.<system>.hook-types and the devShell read these same two.
         hook-types-node-modules = pkgs.callPackage ../../packages/hook-types-node-modules.nix { };

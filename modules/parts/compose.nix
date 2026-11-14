@@ -102,10 +102,9 @@ let
             nixpkgs-claude-code
             # kattakath-skills is DELIBERATELY ABSENT from this seam (removed
             # 2026-10-02, when its last home-manager consumer died). The pin is still
-            # load-bearing — modules/parts/packages.nix (page-lab-pick) and
-            # modules/parts/checks.nix (mcp-launcher-parity) — but each reads
-            # `inputs.kattakath-skills` directly in the FLAKE ENGINE, where `inputs`
-            # is already in scope. None is a home-manager module, so nothing reached
+            # load-bearing — modules/parts/checks.nix (mcp-launcher-parity) — but it
+            # reads `inputs.kattakath-skills` directly in the FLAKE ENGINE, where
+            # `inputs` is already in scope. It is not a home-manager module, so nothing reached
             # through here; an extraSpecialArg no module declares is dead weight that
             # deadnix structurally cannot see (it was `inherit`ed, hence "used").
             # jsonResumeUrl: the raw resume.json URL (or null), consumed by modules/home/default.nix

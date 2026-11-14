@@ -371,7 +371,7 @@ in
     ./terminal-app.nix # Terminal.app type + colours (all darwin)
     ./fleet-gauges.nix # hourly credential-expiry / security-alert / backup gauges (macos only)
     ./terranix-drift.nix # daily drift check over every terranix stack (macos only)
-    ./page-lab.nix # page-lab's pinned dedicated-mode browser + profiles overlay (macos only)
+    ./pinned-chrome.nix # Nix-pinned Chrome for Testing as puppeteer's browser (macos only)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     # Makes ~/.claude/settings.json LAYERED — a real writable file the app and
     # the operator can edit, with Nix's own keys (the permissions.deny floor,
@@ -541,9 +541,9 @@ in
   # Chrome's declarative extensions — real Mac only, since only hosts/macos.nix declares the cask.
   local.googleChrome.enable = isMacosHost;
 
-  # page-lab's DEDICATED browser (Chrome for Testing from nixpkgs), never the daily
-  # Chrome. Operator Mac only: the closure is ~370 MiB. See page-lab.nix.
-  local.pageLab.enable = isMacosHost;
+  # puppeteer's browser: Chrome for Testing pinned by nixpkgs, never the daily Chrome.
+  # Operator Mac only: the closure is ~370 MiB. See pinned-chrome.nix.
+  local.pinnedChrome.enable = isMacosHost;
 
   # Google Chrome owns http/https. The claim is browser-agnostic and lives in
   # ./default-browser.nix; the short handler name is what `defaultbrowser` takes, never
@@ -661,12 +661,11 @@ in
     # the remote decides what it contains. ADR-003 §10 records that
     # this moves the version decision out of flake.lock for plugins.
     #
-    # The `kattakath-skills` flake input still exists, for ONE PATH package built
-    # from a plugin script (`page-lab-pick`), and `checks.<system>.mcp-launcher-parity`,
-    # which checks that each `nix-mcp-*` launcher this fleet builds is run by its pinned
-    # plugin. No plugin or skill is read from the
-    # input, and no home-manager module takes it at all: every consumer lives
-    # in the flake engine and reads `inputs.kattakath-skills` directly.
+    # The `kattakath-skills` flake input still exists for ONE consumer,
+    # `checks.<system>.mcp-launcher-parity`, which checks that each `nix-mcp-*`
+    # launcher this fleet builds is run by its pinned plugin. No plugin or skill is
+    # read from the input, and no home-manager module takes it at all: the check
+    # lives in the flake engine and reads `inputs.kattakath-skills` directly.
     #
     # Adding or changing a plugin = a merge IN THAT REPO; nothing to list here.
     kattakath = {
@@ -946,24 +945,17 @@ in
 
       # The JSON Resume CLIs (jsonresume.org, npm globals: `resumed` — the maintained
       # tool this repo prefers — and legacy `resume-cli`) render PDFs via puppeteer,
-      # whose bundled Chromium auto-download is flaky (its chrome-headless-shell fetch
-      # corrupts, failing the `npm i`). These two vars form one coherent policy —
-      # NEVER download puppeteer's own browser, ALWAYS use the browser cask the host
-      # already declares:
-      #   SKIP_DOWNLOAD    — any `npm i` that pulls puppeteer skips the browser fetch
-      #                      (so `npm i -g resumed puppeteer` / a theme install never breaks).
-      #   EXECUTABLE_PATH  — puppeteer launches that system browser at runtime instead.
-      # The path is macos-only (`isMacosHost` below), so off the real Mac it does not exist
-      # and the var is inert; the JSON Resume npm globals live on macos.
-      # Harmless for other puppeteer tools (they get the same browser); Remotion is
-      # unaffected — it resolves its own browser, not these vars. The resume THEME
-      # still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
+      # whose bundled browser auto-download is flaky (its chrome-headless-shell fetch
+      # corrupts, failing the `npm i`). So any `npm i` that pulls puppeteer skips the
+      # browser fetch, and puppeteer launches the Nix-pinned Chrome for Testing instead:
+      # PUPPETEER_EXECUTABLE_PATH is set once, in ./pinned-chrome.nix (macos only).
+      # Remotion is unaffected — it resolves its own browser, not these vars. The resume
+      # THEME still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
       PUPPETEER_SKIP_DOWNLOAD = "true";
     }
-    # macos-only: two point into casks only hosts/macos.nix installs (a browser,
-    # android-commandlinetools), and buku's DB is the operator's own data.
+    # macos-only: ANDROID_HOME points into a cask only hosts/macos.nix installs
+    # (android-commandlinetools), and buku's DB is the operator's own data.
     // lib.optionalAttrs isMacosHost {
-      PUPPETEER_EXECUTABLE_PATH = "/Applications/Chromium.app/Contents/MacOS/Chromium";
       ANDROID_HOME = androidSdkRoot;
 
       # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a

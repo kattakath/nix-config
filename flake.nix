@@ -320,22 +320,18 @@
       # redirects the old name). Claude Code plugins in plugins/, published as the
       # `kattakath` marketplace.
       #
-      # PINNED FOR TWO THINGS: `page-lab-pick` runs a plugin script as a fleet CLI
-      # (a plugin's own bin/ is on the Bash tool's PATH, NOT a hook's — measured
-      # 2026-09-23 and still true); and `checks.<system>.mcp-launcher-parity` reads
-      # the plugin behind each `local.pluginMcp.servers` entry macos declares, to
-      # check that the `nix-mcp-*` launcher this fleet BUILDS is one its pinned plugin
-      # runs (what it asserts: that check's header in modules/parts/checks.nix).
-      # No secret value crosses this pin. `modules/shared/mcp.nix`'s `mcpCatalog` was a
-      # third reason until 2026-10-02 and died with that module.
+      # PINNED FOR ONE THING: `checks.<system>.mcp-launcher-parity` reads the plugin
+      # behind each `local.pluginMcp.servers` entry macos declares, to check that the
+      # `nix-mcp-*` launcher this fleet BUILDS is one its pinned plugin runs (what it
+      # asserts: that check's header in modules/parts/checks.nix). No secret value
+      # crosses this pin.
       #
       # Plugins and skills themselves are STILL NOT read from here: Claude Code
       # fetches them from the same repo as an auto-updating git marketplace
       # (modules/home/default.nix), so a merge there ships without a bump here.
       # This pin moves with the weekly update-flake-lock run — which means a NEW
       # MCP server merged in kattakath/skills is live in the next session but not
-      # yet visible to the parity gate; it needs this pin bumped first, same as
-      # `page-lab-pick` always has. The `superhook` hooks are the
+      # yet visible to the parity gate; it needs this pin bumped first. The `superhook` hooks are the
       # counter-example, and the reason the distinction is worth stating: they
       # arrive through the MARKETPLACE, so a merge there ships them immediately
       # with no bump here (superhook left this pin 2026-09-30).

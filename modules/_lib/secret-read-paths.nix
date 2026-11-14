@@ -39,9 +39,6 @@
     ".local/state/nix-config-cf-tunnel"
     ".local/state/nix-config-mcp-public"
     ".aws/sso/cache"
-    # page-lab's dedicated browser profiles: session cookies under a mock keychain,
-    # so effectively plaintext. Why, and why the managed tier omits it: claude-guardrails.nix.
-    ".local/state/page-lab"
   ];
 
   # ── The WIDER credential inventory — grok's sandbox only ──────────────────

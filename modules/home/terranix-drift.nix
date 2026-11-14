@@ -7,7 +7,7 @@
 #
 # The package is BUILT IN THE FLAKE ENGINE (modules/parts/terranix.nix), because only
 # the engine sees every `*-plan` wrapper. modules/parts/hosts.nix sets `package` for the
-# operator Mac, the same lane `page-lab-pick` takes.
+# operator Mac.
 {
   config,
   lib,

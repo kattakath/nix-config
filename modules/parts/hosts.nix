@@ -70,20 +70,8 @@ in
             }/${operatorFlakeRelPath}";
           }
         )
-        # `page-lab-pick` on PATH: the page-lab plugin's hooks cannot see a plugin's
-        # own bin/, so the picker has to be a PATH binary. It is built from the
-        # pinned `kattakath-skills` input, which only the engine can reach, hence
-        # here and not hosts/macos.nix. Shared lane, like grok/acpx.
-        (
-          { pkgs, ... }:
-          {
-            environment.systemPackages = [
-              flakePackages.${pkgs.stdenv.hostPlatform.system}.page-lab-pick
-            ];
-          }
-        )
         # The daily terranix drift agent's package (modules/home/terranix-drift.nix).
-        # Engine-built for the same reason: only the engine sees every `*-plan` app.
+        # Engine-built: only the engine sees every `*-plan` app.
         (
           { pkgs, loginName, ... }:
           {
