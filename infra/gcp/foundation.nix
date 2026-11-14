@@ -77,6 +77,9 @@ let
     "chat.googleapis.com" = "operator Workspace use (Chat API), kept on by choice";
     "people.googleapis.com" = "operator Workspace use (People API), kept on by choice";
     "workspacestudio.googleapis.com" = "Workspace Studio flows, kept on by choice";
+    # Google's hosted Chat MCP server (Developer Preview; project enrolled 2026-11-14),
+    # reached as a claude.ai custom connector. People's MCP server rides people.googleapis.com.
+    "chatmcp.googleapis.com" = "Google's Chat MCP server for the claude.ai Chat connector";
 
     # Google's project defaults, on since creation (2026-07-05) with no enable event
     # in the 400-day audit log. Declared so the live API set and this map are equal:
