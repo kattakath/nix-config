@@ -239,59 +239,35 @@ in `nix-config`'s [`docs/answer-shape-evidence.md`](https://github.com/kattakath
 rule that surprises people: a diagram or chart that does **not** carry data measurably *hurts*
 comprehension, so "add a visual" is never an automatic improvement.
 
-## Google Docs house style — apply on CREATE, not after being asked
+## Document house style (Google Docs and PDF) — apply on CREATE, not after being asked
 
-Ismail, 2026-11-14: these were each corrected by hand on one document. Apply all of them the
-first time a Google Doc is created or restyled, and **edit the same Doc in place** so its link
-never changes.
+Ismail, 2026-11-14: every rule here was first corrected by hand on one document, then made
+code. **Build a Google Doc or a PDF with the `house-style` plugin (`kattakath/skills`), never
+by hand**: no Docs API restyling, no HTML printed from a browser.
 
-**Build it with the `gdoc-house-style` plugin (`kattakath/skills`), not by hand.** Its script
-turns Markdown into a styled Word file that Drive converts, and it reads the author, the
-owning account and the style values from `~/.config/gdoc-house-style/config.json`, which
-nix-config's `modules/home/gdoc-house-style.nix` generates from the fleet identity. The
-bullets below are that script's spec and the reasons behind it; change the style in the Nix
-module, never in a prompt. A built Doc is a NEW file, so say when a link will change.
-
-- **Font:** Google Sans for everything except diagrams.
-- **Colour theme: Material blue, as Google uses it** (purple was tried and dropped the same
-  day). Title and section headings `#0B57D0`; tinted fills `#E8F0FE`. Subsection headings stay
-  black.
-- **Footer:** bottom-right `page-number/total-pages`, **not on the first page** (footer
-  right-aligned, "different first page" on). The Docs API can create and align the footer but
-  has **no request that inserts a page-number or page-count field**, so say so and hand
-  Ismail that one step (Insert → Page elements → Page number, type `/`, → Page count); never
-  type the numbers as text.
-- **Headings:** use the built-in Heading 1/2/3 hierarchy **with Docs' default vertical
-  spacing**. An HTML import overwrites those margins with web values and applies them
-  unevenly, so reset them after import (section 18 pt above / 6 below, subsection 14 / 4, body
-  0 / 8, 115% line spacing) and set every heading to keep-with-next.
-- **Every title is in Title Case** — headings, table column headers, and the label column of a
-  key-value table. Names with their own casing are left alone.
-- **Tables: keep the full grid** (never remove a side); border colour is the neutral
-  `#C4C7C5`, not whatever tint the import left. An HTML import also leaves a stray second line
-  in each header row's last cell, which makes the row too tall: delete it. Style only the title row — or,
-  for a key-value table such as the document-details block at the top, the title **column** —
-  with the tinted fill and bold text. Rows never split across pages.
-- **Diagrams** (the box-drawing ASCII kind): **JetBrains Mono**, **bold**, **no background**,
-  kept together on one page, and **indented until the block sits at the centre of the page**.
-  The number of indent steps depends on the diagram's width; it is not a fixed count.
-  - **Why not Consolas** (asked for, measured 2026-11-14): Docs' Consolas has no box-drawing or
-    arrow glyphs, so `─ │ ┌ ┐ └ ┘ ┬ ┴ ▼ ▲ →` fall back to Arial at other widths and every border
-    drifts. JetBrains Mono, Source Code Pro and Courier New draw all of them at the letter
-    width; Roboto Mono borrows Courier New's.
-  - **Borders and arrows must line up, and that is checked, not assumed:** export the Doc to
-    PDF and confirm every diagram character comes from the one monospace font at one advance
-    width, then look at the page.
-- **A blank line follows every table and every diagram.** Insert it as an empty Normal-text
-  paragraph; an empty paragraph that inherits a heading style pollutes the outline. When the
-  next block is a **list**, the new line also inherits the **bullet**, and resetting the named
-  style does not remove it: delete the bullet explicitly, or it shows as an empty bullet.
-- **Bold is a weight, and a font change erases it.** Setting a font family without a weight
-  resets every run to 400, silently un-bolding the body. Re-apply bold after any font change,
-  and set weight 700 on anything that must stay bold.
-- **Check the rendered Doc, not the API reply.** Export it to PDF and look. An import leaves
-  stray colours behind (the title kept the import's colour through three passes), and every
-  defect above passed with "no errors" before the export showed it.
+- **One definition feeds both outputs.** The plugin's `style.json` holds the fonts and
+  colours; nix-config's `modules/home/house-style.nix` writes `~/.config/house-style/config.json`
+  with the same keys plus the author and owning account, derived from the fleet identity.
+  **Change the style there, never in a prompt.**
+- **Run the scripts with `$HOUSE_STYLE_PYTHON`** on the Mac (that module's interpreter, which
+  has `python-docx`): `gdoc.py in.md out.docx`, then upload to Drive with conversion;
+  `pdf.py in.md out.pdf` for a tagged PDF/UA-1.
+- **The style:** Google Sans; **Material blue** `#0B57D0` for the title and section headings,
+  tint `#E8F0FE`, table borders `#C4C7C5` (purple was tried and dropped); Title Case for every
+  title; tables keep the full grid with a tinted bold title row (title **column** for a
+  details block); diagrams in **JetBrains Mono** bold, no background, centred as a block, kept
+  on one page; a blank line after every table and diagram; page numbers (Doc: `page/total`
+  bottom right, not on page 1).
+- **Not Consolas** (asked for, measured): Docs' Consolas has no box-drawing or arrow glyphs,
+  so they fall back to Arial at other widths and every border drifts.
+- **A built Doc is a NEW file.** Drive cannot replace an existing Doc's content, so say when a
+  link will change. Editing an existing Doc in place stays a Docs API job, with three traps:
+  the API has **no request that inserts a page-number field**; a font family set without a
+  weight **erases bold**; a blank line inserted before a list **inherits the bullet**.
+- **Check the rendered result, not the API reply:** export the Doc to PDF (or open the built
+  PDF), confirm every diagram character comes from the one monospace font at one width
+  (`font_probe.py`), then look at the pages.
+- **Résumés are separate:** `agentic-jobseek`'s own template renders them.
 
 ## Redact secret values by default
 
