@@ -246,8 +246,14 @@ first time a Google Doc is created or restyled, and **edit the same Doc in place
 never changes.
 
 - **Font:** Google Sans for everything except diagrams.
-- **Colour theme: Material purple.** Title and section headings `#6750A4`; tinted fills
-  `#F3EDF7`. Subsection headings stay black.
+- **Colour theme: Material blue, as Google uses it** (purple was tried and dropped the same
+  day). Title and section headings `#0B57D0`; tinted fills `#E8F0FE`. Subsection headings stay
+  black.
+- **Footer:** bottom-right `page-number/total-pages`, **not on the first page** (footer
+  right-aligned, "different first page" on). The Docs API can create and align the footer but
+  has **no request that inserts a page-number or page-count field**, so say so and hand
+  Ismail that one step (Insert → Page elements → Page number, type `/`, → Page count); never
+  type the numbers as text.
 - **Headings:** use the built-in Heading 1/2/3 hierarchy **with Docs' default vertical
   spacing**. An HTML import overwrites those margins with web values and applies them
   unevenly, so reset them after import (section 18 pt above / 6 below, subsection 14 / 4, body
