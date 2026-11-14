@@ -62,18 +62,27 @@ let
     // lib.optionalAttrs (r ? priority) { inherit (r) priority; }
     // lib.optionalAttrs (r ? comment) { inherit (r) comment; };
 
-  redirectRule = r: {
-    inherit (r) ref description;
-    expression = ''(http.host eq "${r.host}")'';
-    action = "redirect";
-    enabled = true;
-    action_parameters.from_value = {
-      status_code = 301;
-      preserve_query_string = r.preserveQueryString or false;
-      target_url =
-        if r ? targetExpression then { expression = r.targetExpression; } else { value = r.targetUrl; };
+  # `ref` is optional: an adopted rule keeps its live id, a new rule gets one at apply.
+  # `path` narrows a rule to one exact path on the host (e.g. a favicon).
+  redirectRule =
+    r:
+    lib.optionalAttrs (r ? ref) { inherit (r) ref; }
+    // {
+      inherit (r) description;
+      expression =
+        if r ? path then
+          ''(http.host eq "${r.host}" and http.request.uri.path eq "${r.path}")''
+        else
+          ''(http.host eq "${r.host}")'';
+      action = "redirect";
+      enabled = true;
+      action_parameters.from_value = {
+        status_code = 301;
+        preserve_query_string = r.preserveQueryString or false;
+        target_url =
+          if r ? targetExpression then { expression = r.targetExpression; } else { value = r.targetUrl; };
+      };
     };
-  };
 in
 {
   # Version pinned exactly in ../provider-pins.nix (one place for every stack).
