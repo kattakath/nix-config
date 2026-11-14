@@ -680,7 +680,7 @@
       "shortDescription": "A top-level /Applications app is owned by no cask, no App Store receipt and not Apple",
       "statusOnFinding": "warn",
       "checkKey": "macos:undeclared-apps",
-      "detect": "top-level /Applications/*.app minus brew info --json=v2 --installed cask artifacts, minus kMDItemAppStoreHasReceipt, minus Apple Software Signing authority",
+      "detect": "top-level /Applications/*.app minus apps owned by an installed cask (an app artifact, a path in uninstall[].delete, or a top-level .app in a pkg receipt named by uninstall[].pkgutil), minus kMDItemAppStoreHasReceipt, minus Apple Software Signing authority",
       "evidence": ["the app bundle names", "the brew search --cask candidates"],
       "vacuousWhen": "brew info --json=v2 --installed lists no cask artifacts"
     },

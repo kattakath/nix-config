@@ -385,7 +385,7 @@ Never test warmth with a `--dry-run` of the nixpi toplevel: it negative-caches t
 all. It cannot see an app installed some other way (a downloaded `.dmg`, a vendor
 installer), so that app survives every `activate`. This step lists them. **Report only —
 it never deletes.** The test is the owner, not the name: a top-level `/Applications/*.app` is
-declared if a cask owns it (`brew info --json=v2 --installed`, each `artifacts[].app`), if it
+declared if a cask owns it (`brew info --json=v2 --installed`: an `app` artifact, a path in `uninstall[].delete`, or a top-level `.app` in a pkg receipt that `uninstall[].pkgutil` names; `zap` paths are not ownership), if it
 has an App Store receipt (`kMDItemAppStoreHasReceipt`; `masApps` apps always do, and an
 undeclared MAS app is reaped by cleanup anyway), or if Apple ships it (signed by the
 `Software Signing` authority; Safari reads `macOS Software Signing`). `/Applications/Nix Apps`
@@ -395,10 +395,22 @@ and `Utilities` are subdirectories, so the `*.app` glob never enters them.
 # Read-only: /Applications apps no declaration owns.
 set -u
 tmp=$(mktemp -d)
-# 1. every .app a Homebrew cask owns
-brew info --json=v2 --installed 2>/dev/null \
-  | jq -r '.casks[].artifacts[]? | objects | .app? // empty | .[] | select(type=="string") | split("/") | last' \
-  | sort -u > "$tmp/cask"
+# 1. every .app a Homebrew cask owns, three ways:
+#    (a) an `app` artifact; (b) a path in uninstall[].delete (pkg casks such as microsoft-teams);
+#    (c) a top-level .app in a pkg receipt named by uninstall[].pkgutil (google-drive installs
+#        the Docs/Sheets/Slides shortcuts this way). zap[].delete is NOT ownership.
+brew info --json=v2 --installed 2>/dev/null > "$tmp/info.json"
+jq -r '.casks[].artifacts[]? | objects | .app? // empty | .[] | select(type=="string") | split("/") | last' "$tmp/info.json" > "$tmp/cask"
+jq -r '.casks[].artifacts[]? | objects | .uninstall? // empty | (if type=="array" then .[] else . end) | .delete? // empty | (if type=="array" then .[] else . end)' "$tmp/info.json" \
+  | grep -E '^/Applications/[^/]+\.app$' | sed 's#.*/##' >> "$tmp/cask"
+jq -r '.casks[].artifacts[]? | objects | .uninstall? // empty | (if type=="array" then .[] else . end) | .pkgutil? // empty | (if type=="array" then .[] else . end)' "$tmp/info.json" \
+  | while read -r pat; do   # a pkgutil entry may be a regex
+      pkgutil --pkgs 2>/dev/null | grep -E "^${pat}$" | while read -r id; do
+        [ "$(pkgutil --pkg-info "$id" 2>/dev/null | sed -n 's/^location: //p')" = Applications ] &&
+          pkgutil --files "$id" 2>/dev/null | grep -E '^[^/]+\.app$'
+      done
+    done >> "$tmp/cask"
+sort -u -o "$tmp/cask" "$tmp/cask"
 # 2. every Mac App Store app (name from the bundle, receipt-backed), declared or not
 mdfind -onlyin /Applications 'kMDItemAppStoreHasReceipt == 1' 2>/dev/null \
   | sed 's#.*/##' | sort -u > "$tmp/mas"
@@ -415,17 +427,17 @@ while read -r n; do
   [ -z "$n" ] && continue
   base=${n%.app}
   echo "STRAY: $n"
-  brew search --cask "$base" 2>/dev/null | grep -v '^==>' | head -5 | sed 's/^/  candidate: /'
+  brew search --cask "$base" 2>/dev/null | grep -v '^==>' | head -5 | sed 's/^/  fuzzy candidate: /'
 done < "$tmp/strays"
 ```
 
-Remedy for each stray (report it, never run it unasked): if it prints a `candidate:` cask,
+Remedy for each stray (report it, never run it unasked): `brew search` candidates are fuzzy, so confirm the token is really that app. If one fits,
 `brew install --cask --adopt <token>` takes ownership of the installed app without
 re-downloading it, then declare the token in `hosts/macos.nix` to keep it, or leave it
 undeclared and `activate` zaps it. **Zap deletes that app's user data irreversibly**, so
-declare or export first. No candidate (or a wrong one, e.g. `Google Docs.app` is a Chrome
-app shortcut, not a cask) means the app is not Homebrew-installable: delete it by hand if
-unwanted.
+declare or export first. No fitting candidate means the app is not Homebrew-installable: delete it by hand if unwanted.
+
+Known limitation: a pkg-installed bundle whose path no installed cask lists (neither `delete` nor a `pkgutil` receipt under `/Applications`) reads as a stray.
 
 ### F. Host re-activation — `FD-F-*`
 
