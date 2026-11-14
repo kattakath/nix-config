@@ -1060,6 +1060,10 @@ in
           { serverName = "plugin:cloudflare:cloudflare"; }
           { serverName = "plugin:slack:slack"; }
           { serverName = "plugin:neon:neon"; }
+          # kattakath-workspace 2.1.0 declares the Kattakath Workspace MCP portal
+          # (mcp.kattakath.com/mcp) so claude.ai lists it with the plugin; here the account
+          # connector serves, for the same one-sign-in reason.
+          { serverName = "plugin:kattakath-workspace:kattakath-workspace"; }
           # The claude.ai Microsoft 365 connector was denied here 2026-11-01 (tenant blocked
           # consent); lifted 2026-11-13 once the operator re-added it on claude.ai.
         ];
