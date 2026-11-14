@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,page-lab.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-work-profile.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
+`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,gdoc-house-style.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,page-lab.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-work-profile.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -320,6 +320,14 @@ in the repo can catch that; see that fixture file's header for the measurement.
   **stylix was rejected on measurement, not taste** — its Ghostty target hardcodes
   `"9=${base08}" … "14=${base0C}"`, so brights collapse onto normals and 8 of 16 values come
   out wrong, for +16 lock nodes. Full reasoning: [`terminal-theme.md`](../terminal-theme.md).
+- **`gdoc-house-style.nix`** — the Google Docs house style and the identity it stamps, as ONE
+  file: `$XDG_CONFIG_HOME/gdoc-house-style/config.json`, read by the `gdoc-house-style` plugin
+  (`github:kattakath/skills`). `identity.author` is `fullName` and `identity.owner` is the
+  Workspace account, both **derived** from the fleet identity, so the public script carries no
+  person. **Option-free, package-free, no platform gate** — `pkgs.formats.json` plus
+  `xdg.configFile`, the pair `page-lab.nix` uses. `programs.pandoc` (pinned home-manager
+  `modules/programs/pandoc.nix`) was checked and passed over: a reference doc cannot express
+  the table and diagram post-processing, and it would install a second, wrapped pandoc.
 - **Ghostty** (`programs.ghostty` in `modules/home/default.nix`, `macos` only) — GPU-accelerated terminal,
   installed as a **Homebrew cask** because nixpkgs' `ghostty` is **Linux-only** and refuses to
   evaluate on aarch64-darwin. That is precisely the case home-manager documents for

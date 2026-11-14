@@ -245,6 +245,13 @@ Ismail, 2026-11-14: these were each corrected by hand on one document. Apply all
 first time a Google Doc is created or restyled, and **edit the same Doc in place** so its link
 never changes.
 
+**Build it with the `gdoc-house-style` plugin (`kattakath/skills`), not by hand.** Its script
+turns Markdown into a styled Word file that Drive converts, and it reads the author, the
+owning account and the style values from `~/.config/gdoc-house-style/config.json`, which
+nix-config's `modules/home/gdoc-house-style.nix` generates from the fleet identity. The
+bullets below are that script's spec and the reasons behind it; change the style in the Nix
+module, never in a prompt. A built Doc is a NEW file, so say when a link will change.
+
 - **Font:** Google Sans for everything except diagrams.
 - **Colour theme: Material blue, as Google uses it** (purple was tried and dropped the same
   day). Title and section headings `#0B57D0`; tinted fills `#E8F0FE`. Subsection headings stay
