@@ -79,11 +79,6 @@ let
   # so an option bought nothing anyway.
   dnsRecords = import ../../infra/cloudflare/kattakath-dns.nix;
 
-  # The Workspace gateway's apps (one host each) and its base domain, ONE spelling for
-  # the gcp-workspace-gateway stack; cf-zones' CNAMEs read the same apps file.
-  gateway = import ../../infra/gcp/workspace-gateway-apps.nix;
-  # Apex-level hosts (<app>.<zone>), so the gateway's base IS the zone.
-  gatewayDomain = domainName;
   zoneRedirects = import ../../infra/cloudflare/kattakath-redirects.nix;
 
   # Per-system nixpkgs accessor (legacyPackages avoids a redundant eval). The
@@ -1338,13 +1333,80 @@ let
         ../../infra/gcp/workspace-gateway.nix
         (tofuGcsBackend "gcp-workspace-gateway")
         {
+          _module.args.projectId = gcpProjectId;
+        }
+      ];
+    };
+
+  # ---- Workspace MCP portals (terranix -> OpenTofu) ------------------------
+  # Renders infra/cloudflare/mcp-portals.nix: one Cloudflare MCP server portal per
+  # Workspace app, replacing the Pomerium gateway above (2026-11-14). Its own stack:
+  # its blast radius is every Workspace connector and the per-user Google grants
+  # Cloudflare holds, which shares nothing with a DNS record or the tunnel.
+  cfMcpPortalsConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/cloudflare/mcp-portals.nix
+        (tofuGcsBackend "cf-mcp-portals")
+        {
           _module.args = {
-            projectId = gcpProjectId;
-            inherit gatewayDomain;
-            inherit (gateway) apps authenticateLabel;
+            inherit domainName;
+            accountId = cloudflareAccountId;
+            accessIdpId = accessOrg.googleIdp.id;
           };
         }
       ];
+    };
+
+  # A token that can write MCP portals: `cf:cloudflare.com:api` cannot (measured
+  # 2026-11-14, "Authentication error" on /access/ai-controls/mcp/*). Three tofu
+  # variables from the Keychain, never the repo: the Google OAuth client id, its secret
+  # (write-only at Cloudflare) and the email allowlist.
+  mkCfMcpPortalsTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    mkAdoptedTofu {
+      inherit system name action;
+      stack = "cf-mcp-portals";
+      typePrefix = "cloudflare_";
+      envPrefix = "CF_MCP_PORTALS";
+      label = "mcp-portals";
+      plugins = null;
+      emptyStateOnPlan = false;
+      renderer = cfMcpPortalsConfig;
+      driftEnv = {
+        CLOUDFLARE_API_TOKEN = items.cloudflare.mcpPortals;
+        TF_VAR_google_oauth_client_id = items.workspaceGateway.oauthClientId;
+        TF_VAR_google_oauth_client_secret = items.workspaceGateway.oauthClientSecret;
+        TF_VAR_allowed_emails = items.workspaceGateway.allowedEmails;
+      };
+      vars = "";
+      credentialCheck = ''
+        adc="''${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json"
+        if [ ! -f "$adc" ]; then
+          echo "ERROR: no Application Default Credentials at $adc (the GCS state backend needs them)" >&2
+          echo "  Inside 'nix develop': gcloud auth application-default login" >&2
+          exit 1
+        fi
+        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "''${TF_VAR_google_oauth_client_id:-}" ] \
+          || [ -z "''${TF_VAR_google_oauth_client_secret:-}" ] || [ -z "''${TF_VAR_allowed_emails:-}" ]; then
+          echo "ERROR: CLOUDFLARE_API_TOKEN and the three TF_VARs must all be set (secrets and data, kept out of the repo):" >&2
+          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=${items.cloudflare.mcpPortals} TF_VAR_google_oauth_client_id=${items.workspaceGateway.oauthClientId} TF_VAR_google_oauth_client_secret=${items.workspaceGateway.oauthClientSecret} TF_VAR_allowed_emails=${items.workspaceGateway.allowedEmails} -- nix run .#${name}" >&2
+          exit 1
+        fi
+      '';
+      createLine = "The others would be CREATED. Expected ONLY on this stack's first apply; read the plan first.";
+      dropLines = [
+        "Applying it would DELETE each one: a portal or server holds every user's"
+        "Google grant for its app, and deleting it disconnects that connector."
+        "tofu apply has NO rollback."
+      ];
+      autoApproveWhy = "Read the plan: a replaced portal or server drops every user's grant for that app.";
     };
 
   # ADC as the OPERATOR, no impersonation (the stack file's header has why), so the
@@ -1881,6 +1943,16 @@ in
           name = "gcp-budget-apply";
           action = "apply";
         };
+        cf-mcp-portals-plan = mkCfMcpPortalsTofu {
+          inherit system;
+          name = "cf-mcp-portals-plan";
+          action = "plan";
+        };
+        cf-mcp-portals-apply = mkCfMcpPortalsTofu {
+          inherit system;
+          name = "cf-mcp-portals-apply";
+          action = "apply";
+        };
         gcp-workspace-gateway-plan = mkGcpWorkspaceGatewayTofu {
           inherit system;
           name = "gcp-workspace-gateway-plan";
@@ -1993,6 +2065,16 @@ in
           type = "app";
           program = "${config.packages.gcp-budget-apply}/bin/gcp-budget-apply";
           meta.description = "tofu apply the GCP billing budget — an ALERT at thresholds, NOT a spending cap; Google offers no hard cap (needs ADC)";
+        };
+        cf-mcp-portals-plan = {
+          type = "app";
+          program = "${config.packages.cf-mcp-portals-plan}/bin/cf-mcp-portals-plan";
+          meta.description = "Render infra/cloudflare/mcp-portals.nix (terranix) and tofu PLAN the Workspace MCP portals, servers and Access apps — read-only (needs ADC, a portal-capable CLOUDFLARE_API_TOKEN and three TF_VARs)";
+        };
+        cf-mcp-portals-apply = {
+          type = "app";
+          program = "${config.packages.cf-mcp-portals-apply}/bin/cf-mcp-portals-apply";
+          meta.description = "tofu apply the Workspace MCP portals stack — refuses a render that drops an object state holds, an apply against empty state, and -auto-approve";
         };
         gcp-workspace-gateway-plan = {
           type = "app";

@@ -17,6 +17,7 @@ let
     "cf-tunnel"
     "cf-access-org"
     "cf-zones"
+    "cf-mcp-portals"
     "gcp-foundation"
     "gcp-budget"
     "gcp-workspace-gateway"

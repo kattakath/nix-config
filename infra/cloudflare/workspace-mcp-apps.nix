@@ -1,16 +1,15 @@
-# ---- The Workspace gateway's apps, as DATA -----------------------------------
+# ---- The Workspace MCP apps, as DATA ------------------------------------------
 #
 # ONE list, read by two stacks, so a host cannot exist in one and not the other:
-#   infra/gcp/workspace-gateway.nix   a Cloud Run domain mapping + a Pomerium route each
-#   infra/cloudflare/kattakath-dns.nix  the DNS-only CNAME each mapping needs
+#   infra/cloudflare/mcp-portals.nix   a Cloudflare MCP server per app, all in ONE portal
+#   infra/cloudflare/kattakath-dns.nix the proxied CNAME the portal hostname needs
 #
-# ONE HOST PER APP, never two routes on one host. Measured 2026-11-14 in the local
-# spike: two MCP routes sharing a host (prefix + prefix_rewrite) handed one route the
-# OTHER route's upstream token, and Google answered 403. A host per app keeps each
-# route's upstream_oauth2 token store separate.
+# ONE PORTAL for every app (https://<portalLabel>.kattakath.com/mcp), so claude.ai holds
+# ONE connector, "Kattakath Workspace". Each app is still its own MCP server with its
+# own per-user Google grant and its own tool allowlist.
 #
-# `tools` is the ALLOWLIST the gateway enforces on every surface (phone, web, Mac):
-# Pomerium denies any `tools/call` outside it (`mcp_tool: not_in`, workspace-gateway.nix).
+# `tools` is the ALLOWLIST every surface sees (phone, web, Mac): each portal lists the
+# server with `default_disabled = true` and enables only these (mcp-portals.nix).
 # Operator decision 2026-11-14 after the security audit: READ + DRAFTS. Every tool
 # Google annotates readOnlyHint, plus Gmail drafts, labels and untrash/unspam, plus
 # Drive create/copy into the user's own Drive. Denied: Chat send, calendar invites
@@ -33,14 +32,10 @@
 # Plain data with no arguments: the zone, the operator and the client id are
 # threaded in by the consumers, so nothing per-person lives here.
 {
-  # Every host is <app>.<zone> at the APEX level (operator, 2026-11-14: no
-  # `workspace.` label). The app names are the host labels.
-
-  # Pomerium's own sign-in host (authenticate_service_url), <label>.<zone>.
-  # `authenticate`, Pomerium's own name for the service (operator, 2026-11-14), so
-  # auth./sso./login. stay free for a future family IdP.
-  authenticateLabel = "authenticate";
-
+  # The portal's host label: https://mcp.<zone>/mcp follows claude.ai's own example URL
+  # (https://mcp.example.com/mcp; operator, 2026-11-14). The app names below are the
+  # Cloudflare MCP server ids, and so the prefix of every tool name (gmail_search_threads).
+  portalLabel = "mcp";
   apps = {
     gmail = {
       title = "Gmail";

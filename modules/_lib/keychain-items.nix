@@ -11,6 +11,9 @@
     api = "cf:cloudflare.com:api";
     nixpiTunnel = "cf:cloudflare.com:nixpi-tunnel";
     dontsellDns = "cf:cloudflare.com:dontsell-dns";
+    # The cf-mcp-portals stack: the one token with MCP-portal write (the old mcp-public
+    # stack's, hence the item name). `api` above cannot write /access/ai-controls/mcp.
+    mcpPortals = "cf:cloudflare.com:mcp-public";
   };
 
   # The operator's classic PAT: the GitHub terranix stack and fleet-gauges' alert counts.
