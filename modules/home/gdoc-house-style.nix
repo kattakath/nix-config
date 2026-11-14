@@ -1,6 +1,6 @@
 {
   pkgs,
-  config,
+  loginName,
   fullName,
   domainName,
   ...
@@ -10,9 +10,10 @@
 # The `gdoc-house-style` plugin (github:kattakath/skills) builds a Google Doc from Markdown with
 # a script. That script is public and carries no person: it reads the author, the account that
 # must own the Doc, and the style values from `$XDG_CONFIG_HOME/gdoc-house-style/config.json`.
-# This module is that file. `author` is `fullName` and `owner` is the Workspace account, both
-# from the fleet identity (modules/parts/identity.nix), so a different person's host renders a
-# different file from the same module.
+# This module is that file. `author` is `fullName` and `owner` is the Workspace account, spelled
+# exactly as `fleet.googleAccount` is (modules/parts/identity.nix). Every input is an identity
+# ARGUMENT — `loginName`, `fullName`, `domainName`, which `mkDarwin`/`mkNixos` thread through
+# `extraSpecialArgs` — so a `lib.mkDarwin { identity = …; }` consumer renders their own file.
 #
 # UPSTREAM FIRST — what was checked, and why it is this small:
 #
@@ -36,10 +37,7 @@ let
   settings = {
     identity = {
       author = fullName;
-      owner = names.googleAccount {
-        loginName = config.home.username;
-        inherit domainName;
-      };
+      owner = names.googleAccount { inherit loginName domainName; };
     };
     style = {
       font = "Google Sans";
