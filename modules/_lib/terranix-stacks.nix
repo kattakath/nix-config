@@ -19,6 +19,7 @@ let
     "cf-zones"
     "gcp-foundation"
     "gcp-budget"
+    "gcp-workspace-gateway"
     "hc-checks"
     "grafana"
     "github"

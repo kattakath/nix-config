@@ -42,6 +42,26 @@
 # `key` is the Terraform resource name and MUST stay stable: changing one is a
 # destroy + create of a live DNS record, not a rename. Indices exist only where a
 # (type, name) pair repeats — the apex MX set and its three TXT records.
+let
+  # The Workspace gateway's hosts (infra/gcp/workspace-gateway.nix): authenticate plus one
+  # per app, from the ONE list both stacks read, so a mapping cannot lack its record.
+  gateway = import ../gcp/workspace-gateway-apps.nix;
+  gatewayHosts = [ gateway.authenticateLabel ] ++ builtins.attrNames gateway.apps;
+  # DNS-only, the trap recorded by the reverted gcp-workspace-mcp stack (2026-11-07):
+  # a proxied record resolves to Cloudflare IPs, so Google never sees
+  # ghs.googlehosted.com and never issues the mapping's managed cert. The key is
+  # derived from the host, so it stays stable while the host does. Delete a record
+  # with its mapping, or it dangles.
+  gatewayRecords = map (h: {
+    key = "cname_${h}";
+    type = "CNAME";
+    name = "${h}.kattakath.com";
+    content = "ghs.googlehosted.com";
+    ttl = 1;
+    proxied = false;
+    comment = "Cloud Run domain mapping: workspace-gateway";
+  }) gatewayHosts;
+in
 [
 
   {
@@ -243,3 +263,4 @@
     recordId = "601446102bc93dd337d3bbd4858fe6fa";
   }
 ]
+++ gatewayRecords

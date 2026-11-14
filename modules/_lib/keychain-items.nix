@@ -16,6 +16,16 @@
   # The operator's classic PAT: the GitHub terranix stack and fleet-gauges' alert counts.
   githubPat = "gh:github.com:pat";
 
+  # The Workspace gateway (infra/gcp/workspace-gateway.nix), all three read as tofu
+  # variables by the gcp-workspace-gateway stack: the OAuth client id (per-person data,
+  # not a secret), its secret (ephemeral, write-only into Secret Manager) and the
+  # family allowlist (a JSON list of emails; family data, so never in the repo).
+  workspaceGateway = {
+    oauthClientId = "gcp:workspace-gateway:oauth-client-id";
+    oauthClientSecret = "gcp:workspace-gateway:oauth-client-secret";
+    allowedEmails = "gcp:workspace-gateway:allowed-emails";
+  };
+
   # The healthchecks.io project API key (the hc-checks stack).
   healthchecksApi = "hc:healthchecks.io:api";
 
