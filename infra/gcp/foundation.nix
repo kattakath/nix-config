@@ -85,9 +85,9 @@ let
     # artifactregistry ALSO turned on pubsub and containerregistry as their
     # dependencies: measured in the audit log, which shows both being disabled at the
     # 2026-11-07 teardown with no enable event of their own. Declared so a census
-    # finds every enabled API here with its reason. compute is deliberately NOT here:
-    # nothing needs it, and enabling it re-grants the default SA Editor (below).
+    # finds every enabled API here with its reason.
     "run.googleapis.com" = "the Workspace gateway's Cloud Run service + domain mappings";
+    "orgpolicy.googleapis.com" = "the project-scoped org policies below (default network, default SA)";
     "artifactregistry.googleapis.com" =
       "the Docker Hub pull-through repo the gateway's Pomerium image comes from";
     "containerregistry.googleapis.com" =
@@ -180,15 +180,49 @@ in
   # is shared state; leaving it on costs nothing.
   # The attrset VALUE is the reason each API is on — documentation that lives
   # beside the entry instead of drifting into a comment block elsewhere.
-  resource.google_project_service = lib.mapAttrs' (api: _reason: {
-    name = lib.replaceStrings [ "." "-" ] [ "_" "_" ] api;
-    value = {
-      project = projectId;
-      service = api;
-      disable_on_destroy = false;
-      timeouts.create = "10m";
-    };
-  }) services;
+  resource.google_project_service =
+    lib.recursiveUpdate
+      (lib.mapAttrs' (api: _reason: {
+        name = lib.replaceStrings [ "." "-" ] [ "_" "_" ] api;
+        value = {
+          project = projectId;
+          service = api;
+          disable_on_destroy = false;
+          timeouts.create = "10m";
+        };
+      }) services)
+      (
+        # Compute creates the default network and the default SA AT ENABLE TIME, so the
+        # policies that forbid both must exist first. depends_on orders the API calls,
+        # not enforcement, which can lag "up to 15 minutes" (Google's org-policy docs):
+        # the policies land in one apply, compute in a later one.
+        lib.optionalAttrs (services ? "compute.googleapis.com") {
+          compute_googleapis_com.depends_on = [
+            "google_org_policy_policy.skip_default_network"
+            "google_org_policy_policy.no_default_sa_grants"
+          ];
+        }
+      );
+
+  # ---- Org policies, scoped to THIS project ----------------------------------
+  # Google's own guard rails for what enabling Compute creates, instead of deleting
+  # it afterwards. Project-scoped, so the org's other projects are untouched. Set by
+  # the operator, who holds roles/orgpolicy.policyAdmin on the org (2026-11-14). Both
+  # were unenforced (`gcloud resource-manager org-policies describe … --effective`).
+  # The org policy API wants a quota project with user ADC, hence `google.billed`.
+  resource.google_org_policy_policy =
+    lib.mapAttrs
+      (_: constraint: {
+        provider = "google.billed";
+        name = "projects/${projectId}/policies/${constraint}";
+        parent = "projects/${projectId}";
+        spec.rules = [ { enforce = "TRUE"; } ];
+        depends_on = [ "google_project_service.orgpolicy_googleapis_com" ];
+      })
+      {
+        skip_default_network = "compute.skipDefaultNetworkCreation";
+        no_default_sa_grants = "iam.automaticIamGrantsForDefaultServiceAccounts";
+      };
 
   # ---- Geocoding: a hard daily cap, and a key kept OUT of state ---------------
   # 31 days x 300 = 9,300 requests/month, under Google Maps Platform's 10,000 free
