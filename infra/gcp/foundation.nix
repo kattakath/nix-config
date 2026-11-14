@@ -80,6 +80,10 @@ let
     # Google's hosted Chat MCP server (Developer Preview; project enrolled 2026-11-14),
     # reached as a claude.ai custom connector. People's MCP server rides people.googleapis.com.
     "chatmcp.googleapis.com" = "Google's Chat MCP server for the claude.ai Chat connector";
+    # Found 2026-11-14 in `gcloud services list --available`: one tool, `search_corpus`,
+    # searching across Gmail, Drive, Calendar and Chat. Kept on the MCP portal as a last resort.
+    "workspacemcp.googleapis.com" =
+      "Google's cross-app Workspace search MCP server (MCP portal, last resort)";
 
     # Enabled for the Pomerium Workspace gateway on Cloud Run, RETIRED 2026-11-14
     # (replaced by infra/cloudflare/mcp-portals.nix). Nothing here uses run or

@@ -158,5 +158,26 @@
         "get_user_profile"
       ];
     };
+    # Google's cross-app search server, found in the project's `--available` API list,
+    # not documented alongside the per-app servers. Its `scopes_supported` mixes read
+    # and write; only the read-only ones are requested, since its one tool searches.
+    # KEPT, but last resort (operator, 2026-11-14): the result cannot be narrowed
+    # (`pageSize`/`pageToken` are "currently ignored"), and Chat hits carry full
+    # message bodies. Measured: one "invoice" query returned 30 hits, 136,585 chars,
+    # over claude.ai's tool-result cap. The portal has no per-server "off" flag (only
+    # per-tool), so "off by default" lives in the plugin skill: per-app search first.
+    workspace = {
+      title = "Search";
+      upstream = "workspacemcp.googleapis.com";
+      scopes = [
+        "https://www.googleapis.com/auth/gmail.readonly"
+        "https://www.googleapis.com/auth/drive.readonly"
+        "https://www.googleapis.com/auth/calendar.readonly"
+        "https://www.googleapis.com/auth/chat.messages.readonly"
+        "https://www.googleapis.com/auth/chat.spaces.readonly"
+        "https://www.googleapis.com/auth/chat.memberships.readonly"
+      ];
+      tools = [ "search_corpus" ];
+    };
   };
 }
