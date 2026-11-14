@@ -381,6 +381,7 @@ in
     # upstream's home.file entry, so it has to be loaded at all — which this
     # explicit list, not auto-discovery, is what guarantees.
     ./claude-code-settings.nix
+    ./google-chrome.nix # local.googleChrome — Chrome extensions via programs.google-chrome (cask installs the app)
     ./chromium.nix # ungoogled-chromium (Homebrew cask) config: sideloaded iCloud Passwords + its native host
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./kdeconnect.nix # local.kdeConnect — merges declared keys into the kde-connect cask's INI files
@@ -543,6 +544,7 @@ in
   # the External Extensions + NativeMessagingHosts files that make the sideloaded
   # iCloud Passwords extension talk to macOS Passwords.app; see chromium.nix.
   local.ungoogledChromium.enable = isMacosHost;
+  local.googleChrome.enable = isMacosHost;
 
   # page-lab's DEDICATED browser (Chrome for Testing from nixpkgs), never the daily
   # Chromium above. Operator Mac only: the closure is ~370 MiB. See page-lab.nix.
