@@ -434,7 +434,7 @@ done < "$tmp/strays"
 Remedy for each stray (report it, never run it unasked): `brew search` candidates are fuzzy, so confirm the token is really that app. If one fits,
 `brew install --cask --adopt <token>` takes ownership of the installed app without
 re-downloading it, then declare the token in `hosts/macos.nix` to keep it, or leave it
-undeclared and `activate` zaps it. **Zap deletes that app's user data irreversibly**, so
+undeclared and `activate` zaps it. **Zap moves the cask's app and user data to the Trash, gone for good once the Trash is emptied**, so
 declare or export first. No fitting candidate means the app is not Homebrew-installable: delete it by hand if unwanted.
 
 Known limitation: a pkg-installed bundle whose path no installed cask lists (neither `delete` nor a `pkgutil` receipt under `/Applications`) reads as a stray.

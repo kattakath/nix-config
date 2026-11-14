@@ -34,8 +34,9 @@ _:
     # (preferences, caches, support dirs) go with it — the operator's rule is that
     # anything undeclared is purged without a trace. Precedent: nix-darwin
     # `modules/homebrew.nix` `onActivation.cleanup` (enum none/check/uninstall/zap).
-    # THE CONSEQUENCE THAT BITES: zap deletes an undeclared cask's USER DATA (a
-    # browser profile, say) irreversibly on the next activate. Declare the app, or
+    # THE CONSEQUENCE THAT BITES: zap moves an undeclared cask's app and user
+    # data (a browser profile, say) to the Trash on the next activate: gone for good
+    # once the Trash is emptied. Declare the app, or
     # export its data, BEFORE undeclaring it.
     # Mac App Store apps: zap behaves exactly as uninstall did. The pinned
     # nix-darwin passes `--zap --force-cleanup` where it passed `--force-cleanup`,

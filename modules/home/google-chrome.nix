@@ -1,6 +1,8 @@
 # Declarative Google Chrome extensions (darwin only).
 #
-# Chrome is the fleet's only browser; the passkey rationale is on the cask in hosts/macos.nix.
+# Chrome is the fleet's daily browser; the passkey rationale is on the cask in hosts/macos.nix.
+# Branded Chrome may install external extensions disabled and ask to Enable them per
+# profile: check chrome://extensions in each profile after `activate` (unverified).
 # The .app comes from the Homebrew `google-chrome` cask (hosts/macos.nix), so
 # `programs.google-chrome.package = null` and Home Manager writes only the config
 # files Chrome reads. Upstream precedent: home-manager `modules/programs/chromium.nix`
