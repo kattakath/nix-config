@@ -42,14 +42,5 @@
       host = "contact.kattakath.com";
       targetUrl = "https://docs.google.com/forms/d/e/1FAIpQLSeN1m3WJ63uftyKDX7pqaVBnpsveJ1QKVbTcHuZe3gDyM3BJQ/viewform";
     }
-    {
-      # The Workspace MCP portal's page is Cloudflare's, so its favicon is Cloudflare's
-      # cloud (measured 2026-11-14); the portal page declares no <link rel=icon>, so
-      # /favicon.ico is the one path a client fetches. Point it at the site's GoldShield.
-      description = "301 mcp.kattakath.com/favicon.ico -> kattakath.com GoldShield favicon";
-      host = "mcp.kattakath.com";
-      path = "/favicon.ico";
-      targetUrl = "https://kattakath.com/favicon.ico";
-    }
   ];
 }
