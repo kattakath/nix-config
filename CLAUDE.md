@@ -179,15 +179,15 @@ the `docs/map/` file [`docs/repo-map.md`](docs/repo-map.md) routes each path to.
 
 **Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in
 `github:kattakath/skills`, installed as an **auto-updating git marketplace** (a merge there
-ships, no pin bump here) and pinned as `kattakath-skills` for `page-lab-pick` **and**
-`checks.*.mcp-launcher-parity`, both of which DO need this pin bumped; **zero userscripts** (published to Greasy Fork, so an installed
+ships, no pin bump here) and pinned as `kattakath-skills` for ONE consumer,
+`checks.*.mcp-launcher-parity`, which DOES need this pin bumped; **zero userscripts** (published to Greasy Fork, so an installed
 copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`,
 `/pretooluse-review`, `/remember-nix`, `/routing-review`, `/mcp-scout`,
-`/fleet-doctor`, `/userscript`. (`/devtools`, `/pick`: `page-lab` plugin; `/superhook-review`:
-`superhook` plugin.)
+`/fleet-doctor`, `/userscript`. (`/superhook-review`: `superhook` plugin.) **Browser rail:**
+Claude in Chrome only; on a site-permission wall, ask — never CDP.
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
 `mcp-scout`, `fleet-doctor`, `userscript-author`. Workflow: `nix-hygiene-pass`.

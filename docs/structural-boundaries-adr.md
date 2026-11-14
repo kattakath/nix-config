@@ -439,7 +439,7 @@ direction.
 
 The content directory `chromium-extensions/` (a `.crx` and its source) is a milder version of
 §9a: binary content inside a tree named for modules. Left alone; it sits next to the one module
-that reads it, which is the argument for keeping them.
+that reads it, which is the argument for keeping them. (Both deleted 2026-11-14 with ungoogled-chromium.)
 
 ### 9c. `checks/` is split three ways and blueprint has one key for it
 

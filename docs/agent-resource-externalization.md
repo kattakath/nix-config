@@ -8,12 +8,12 @@
 > its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
-> as `kattakath-skills`, for the `page-lab-pick` PATH package and
-> `checks.<system>.mcp-launcher-parity` (its consumers: grep `kattakath-skills` in `modules/`) — narrowed 2026-10-02,
-> when `mcp.nix`'s `mcpCatalog` went with the gateway (`superhook` had already become a plugin hook
-> 2026-09-30). It was **four consumers, not the "two PATH
+> as `kattakath-skills` for ONE consumer, `checks.<system>.mcp-launcher-parity` (grep
+> `kattakath-skills` in `modules/`) — narrowed 2026-10-02, when `mcp.nix`'s `mcpCatalog` went
+> with the gateway (`superhook` had already become a plugin hook 2026-09-30), and again
+> 2026-11-14, when the `page-lab-pick` PATH package went with `page-lab`. It was **four consumers, not the "two PATH
 > packages" this document said until 2026-09-30**. A plugin's `bin/` reaches the Bash tool's
-> PATH but **not** a hook's (measured), which is why `page-lab-pick` is still a package.
+> PATH but **not** a hook's (measured), which is why `page-lab-pick` was a package until it was deleted.
 > **`superhook` is no longer one** — see § Round two's correction below: its "a wrapper cannot
 > be a plugin hook" premise was measured false on 2026-09-30 and it now ships as a plugin hook.
 >
@@ -47,8 +47,8 @@ Lock nodes at the time: **56 → 59**.
 > `checks.userscripts-lint` + `checks.userscripts-meta` there). The scripts are **published to
 > Greasy Fork** instead. The reason is the one thing extraction could not fix: this
 > pipeline **banned** `@updateURL`, so a materialised `file://` copy could never self-update,
-> while a fork-installed one does. Violentmonkey itself stays, sideloaded by
-> `modules/home/chromium.nix`. Lock nodes 59 → 58. Details: [`map/packages.md`](map/packages.md) § Userscripts.
+> while a fork-installed one does. Violentmonkey itself stays, declared from the Web Store by
+> `modules/home/google-chrome.nix` since 2026-11-14. Lock nodes 59 → 58. Details: [`map/packages.md`](map/packages.md) § Userscripts.
 > The plugin and skill rows above are unaffected — those pins are live.
 
 ## Why this is not ADR-002 in reverse
@@ -167,7 +167,7 @@ eval-breaking reference in the move.
 > **What is still true, and was a different measurement all along:** a plugin's `bin/`
 > reaches the Bash tool's PATH but **not** a hook's (2026-09-23). That is why the plugin's
 > commands use an absolute `${CLAUDE_PLUGIN_ROOT}` path rather than a bare command name —
-> and why `page-lab-pick` remains a PATH package. The two findings were conflated.
+> and why `page-lab-pick` stayed a PATH package (until page-lab's removal, 2026-11-14). The two findings were conflated.
 >
 > **The caveat that shaped the replacement.** `${CLAUDE_PROJECT_DIR}` is the session's LAUNCH
 > CWD, **not** the git root: a session started in `<repo>/sub` gets
@@ -249,7 +249,7 @@ agree, because git is doing the copying.
 2. For a NEW plugin, enable it with `/plugin` (Nix keeps no plugin list). A change to an
    existing plugin ships from the merge alone — the marketplace auto-updates.
 3. Bump the `kattakath-skills` pin here (`/update-input kattakath-skills`) ONLY if the change
-   touches what that pin feeds: `page-lab-pick`, or a `nix-mcp-*` name that
+   touches what that pin feeds: a `nix-mcp-*` name that
    `checks.*.mcp-launcher-parity` joins against. (There is no userscript step any more — a
    script is **published**, not declared; see the 2026-09-14 update above.)
 
@@ -261,9 +261,9 @@ During development, skip the push/update loop with
 `kattakath-skills` (`flake.nix`), and the repo was renamed from `kattakath/ai` to
 `kattakath/skills` on 2026-09-23, so both halves of the old command were wrong.
 
-**That override only covers what the PIN feeds** — today the `page-lab-pick`
-PATH package and `checks.*.mcp-launcher-parity` (`superhook` became a plugin hook 2026-09-30; `mcp.nix`'s
-`mcpCatalog` died with the gateway 2026-10-02). Plugin and skill **content** does not go
+**That override only covers what the PIN feeds** — today only
+`checks.*.mcp-launcher-parity` (`superhook` became a plugin hook 2026-09-30; `mcp.nix`'s
+`mcpCatalog` died with the gateway 2026-10-02; `page-lab-pick` went with `page-lab` 2026-11-14). Plugin and skill **content** does not go
 through the pin at all any more (the marketplace is an https git source), so an
 override cannot test a plugin edit. Test that by **pushing to `kattakath/skills`
 `main` and starting a new session** — the background refresh is the delivery path.

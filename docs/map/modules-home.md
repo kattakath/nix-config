@@ -2,12 +2,11 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,plugin-mcp.nix,chromium.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,house-style.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,page-lab.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-work-profile.nix,tor-browser-backup-exclusion.nix,chromium-extensions/}`
+`modules/home/{default.nix,plugin-mcp.nix,google-chrome.nix,pinned-chrome.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,house-style.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-work-profile.nix,tor-browser-backup-exclusion.nix}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
-same day. This manifest also silently omitted
-`chromium-extensions/` until the same pass.
+same day.
 
 **It was `modules/shared/` until 2026-10-02**, and the entry point was `home.nix`.
 Both renamed together (ADR-009 §8): `shared` named a SCOPE while every sibling
@@ -72,7 +71,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   So the split is: the launcher BINARY here, the server declaration in a
   `github:kattakath/skills` plugin whose `.mcp.json` runs `${user_config.launcher}` — a setting
   `plugin-mcp.nix`'s `pluginConfigs` block seeds with the binary's name, from each server's
-  `plugin` field. Same arrangement `page-lab` already has with `page-lab-pick`.
+  `plugin` field.
   - **THE CONTRACT IS GATED ACROSS THE REPO BOUNDARY.** `plugin-mcp.nix` types
     `local.pluginMcp.servers` as an **enum**, so naming a server this fleet cannot build fails at
     eval. `checks.<system>.mcp-launcher-parity` gates the other side, per declared server: the
@@ -107,150 +106,29 @@ in the repo can catch that; see that fixture file's header for the measurement.
   - Each was smoke-tested through a real MCP `initialize` before being declared, not just
     evaluated: wordpress reported `Connection successful` against the PROD site, postgres
     logged `Successfully connected to database`.
-- **`chromium.nix`** — `local.ungoogledChromium`, real-Mac-only: the declarative surface for
-  the Homebrew `ungoogled-chromium` cask. Installs **no** browser (`programs.chromium.package =
-  null`) — nixpkgs' `chromium`/`ungoogled-chromium` are `*-linux` only, so the `.app` must be a
-  cask; this module contributes only the files Chromium reads out of its user-data dir, via
-  upstream HM `programs.chromium`, plus recommended-level policies (`targets.darwin.defaults."org.chromium.Chromium"`). The
-  LaunchServices default-browser claim is NOT here any more — it left with `local.defaultBrowser`
-  when Chromium stopped being the default (`chromium.nix`'s header). Surfaces (the options are
-  `options.local.ungoogledChromium`):
-  - **`External Extensions/<id>.json`** — pinned `fetchurl` CRXes installed as
-    `external_crx` + `external_version`. The Web Store `external_update_url` is **dead** here
-    (ungoogled's `disable-webstore-urls.patch`), so a local CRX is the only path; the official
-    extension ID survives because it derives from the signed CRX3 public key, not the path.
-    Every extension is unconditional (why: the comment above the options in `chromium.nix`):
-
-    | Extension | MV | Note |
-    |---|---|---|
-    | iCloud Passwords | 3 | also plants the native host below |
-    | uBlock Origin | **2** | the **real** MV2 build, not uBO Lite |
-    | Violentmonkey | 3 | the manager only — the fleet declares no scripts |
-    | Claude in Chrome | 3 | native host is claude-code's, not ours |
-    | Kapture MCP Browser Automation | 3 | browser end only; per-tab gate is **DevTools** |
-    | Into The Black Hole | 2 | code-free theme (a `theme` key, nothing else) |
-
-    uBlock Origin gets the **real MV2** uBlock Origin — with blocking `webRequest`, not
-    `declarativeNetRequest` — because ungoogled's `extensions-manifestv2.patch` makes
-    `ShouldDisableLegacyExtensions()` return false unconditionally. Chrome and Brave cannot.
-    **Two browser-automation extensions, on purpose.** Both hold `debugger` +
-    `<all_urls>`; they differ in *who can reach them*, which is the whole point:
-
-    | | Claude in Chrome | Kapture |
-    |---|---|---|
-    | Transport | native messaging | DevTools panel → local bridge |
-    | Reachable by | the one CLI its host manifest names | any MCP client that speaks to the bridge |
-    | Per-tab gate | none | **must open DevTools + connect** |
-    | Fails when | its tools never load into the session | the `npx` bridge isn't running |
-
-    Claude in Chrome's `com.anthropic.claude_code_browser_extension` native host is written
-    by claude-code itself (its `path` must track the current CLI install), so this module must
-    **not** re-declare it — only Apple's host needs replanting. Kapture needs no host at
-    all, but its **server half is not declared here**: `~/.claude.json` runs
-    `npx -y kapture-mcp@latest bridge` at user scope — imperative and unpinned, so it can
-    change under a session with no rebuild. Its declarative home is the `page-lab` plugin's
-    `.mcp.json` (where `kapture` moved on 2026-09-30), **not** this repo — there is no gateway to
-    declare it in since 2026-10-02 ([`claude-code.md`](claude-code.md) § MCP after the gateway).
-    (Historical note: the kapture *gateway* entry was removed 2026-08-22 along with the whole
-    public-MCP-exposure subsystem; that removal was about the gateway and the Cloudflare
-    tunnel, not about the tool, and this extension does not resurrect either. It outlived both
-    the subsystem's return and its final teardown — which is the point: the extension is a
-    browser capability, never a gateway one.)
-  - **`NativeMessagingHosts/com.apple.passwordmanager.json`** — Apple's own native-messaging
-    manifest, re-pointed at Chromium. macOS ships it to **Chrome and Firefox only**; replanting
-    it is what makes Passwords.app autofill here, and it is safe because the manifest gates on
-    **extension ID** (`allowed_origins`), not on browser brand.
-  - **No declared userscripts.** Violentmonkey is sideloaded empty; scripts are published to
-    Greasy Fork and installed from there ([`packages.md`](packages.md) § Userscripts).
-    The `userScripts.scripts` seam that once materialised `.user.js` files was deleted
-    2026-10-30. **Never put a secret in a userscript.**
-  - **Recommended policies** (no option; always written) — one of two *policy* surfaces, and
-    the place this repo writes Chromium's own preferences domain: HM `targets.darwin.defaults."org.chromium.Chromium"` sets
-    `BookmarkBarEnabled = false`, so **View ▸ Always Show Bookmarks Bar** starts OFF (it seeds
-    the `bookmark_bar.show_on_all_tabs` pref), and `PromptForDownloadLocation = false`, which undoes
-    ungoogled's ask-where-to-save default (its why is a comment on that attrset). macOS has **no** policies-JSON directory — that is
-    the Linux path; Chromium's platform loader reads CFPreferences and grades every key by
-    `CFPreferencesAppValueIsForced`: forced → **mandatory** (greys the menu item out, and only an
-    MDM configuration profile in `/Library/Managed Preferences/` can set it), everything else →
-    **recommended**. So the plain, unprivileged user domain is precisely the level that means
-    "off by default, still toggleable", and a manual tick then wins for good. HM applies it with
-    `defaults import`, which **merges**, so Chromium's own state in that domain survives.
-    - **No sibling for View ▸ Always Show Toolbar in Full Screen.** That is
-      `browser.show_fullscreen_toolbar`, a macOS-only *profile pref* with **no policy behind
-      it** — this cask's Chromium 152 carries a 579-name policy table (`AIModeSettings` →
-      `XSLTEnabled`) with nothing fullscreen-toolbar-shaped in it. The only remaining lever is
-      the profile's `Preferences` JSON, browser-owned mutable state Nix must not seed (same
-      class as `extensions.pinned_extensions`), so it stays a one-time manual click.
-  - **No default-SEARCH-ENGINE option — tried, shipped, and removed 2026-08-31.** Worth keeping
-    the negative result: ungoogled ships **no working prepopulated engine**, because
-    `replace-google-search-engine-with-nosearch.patch` rewrites Google's row of
-    `prepopulated_engines.json` into a "No Search" stub, so a fresh profile's picker reads *No
-    Search (Default)*. A `defaultSearchProvider` option seeding the `DefaultSearchProvider*` set
-    looked like the fix and **evaluated, activated, and verified green from Nix's side** — the
-    plist was written and `chrome://policy` showed every key arriving with Source `Platform`,
-    Level `Recommended`. The browser then **refused it**: `DefaultSearchProviderEnabled` reported
-    *"This policy is blocked, its value will be ignored"* and the other four cascaded to `Error`
-    behind the dead main switch, while `BookmarkBarEnabled` in the same table read `OK`.
-    - **Lesson, and the reason this paragraph exists:** upstream `can_be_recommended: true` is a
-      *hint*, not a guarantee — the set carries it and is still mandatory-only in practice.
-      **`chrome://policy` is the only real test of a policy's tier**, and a policy can arrive
-      correctly and still be ignored. Mandatory would need an MDM-installed
-      `/Library/Managed Preferences` plist and would **padlock** Settings ▸ Search engine, which
-      is worse than a click. Do not re-attempt.
-    - **Manual instead, once per profile:** DuckDuckGo is prepopulated → ⋮ ▸ *Make default*.
-      Google is not (its row is stripped) → Settings ▸ Search engine ▸ Site search ▸ **Add**,
-      name `Google`, shortcut `google.com`, URL `https://www.google.com/search?q=%s`.
-    - **Adding an engine hits the same wall**: `SiteSearchSettings` and
-      `EnterpriseSearchAggregatorSettings` are mandatory-only too, and engines they create can
-      never be promoted to default (`CreatedByNonDefaultSearchProviderPolicy`).
-  - **`makeDefaultBrowser`** — MOVED to `local.defaultBrowser` (`default-browser.nix` below, which
-    now holds `chrome`); this bullet is that module's measured record. It claimed LaunchServices'
-    `http`/`https` handler for Chromium with nixpkgs'
-    **`defaultbrowser`** (darwin-only, substitutable from cache), run from a Home Manager
-    activation step. The argument is the **short name `chromium`**, not the bundle id —
-    `org.chromium.Chromium` is rejected as "not available as an HTTP handler". The `defaultbrowser`
-    CLI also lands on PATH as this setting's read-only doctor: **no arguments** prints the handler
-    list with the current default starred.
-    - **Idempotent by the tool's own guard**, not ours: it reads the current handler first and
-      early-returns with "chromium is already set as the default HTTP handler", never touching
-      LaunchServices. A settled Mac is a true no-op.
-    - **One consent dialog, once**, on the activation that actually changes the handler (a fresh
-      or reset Mac) — unavoidable, and the reason the idempotence above matters. `defaultbrowser`
-      calls Launch Services' `LSSetDefaultHandlerForURLScheme`, whose SDK-declared replacement
-      `-[NSWorkspace setDefaultApplicationAtURL:toOpenURLsWithScheme:completionHandler:]` is
-      documented in the macOS 26 `AppKit/NSWorkspace.h` as: *"Some URL schemes require user
-      consent before you can change their handlers. If a change requires user consent, the system
-      will ask the user asynchronously"*. The browser schemes are exactly those, for every tool
-      and every API. The legacy call is still safe to use — that same SDK declares it
-      `API_TO_BE_DEPRECATED`, i.e. soft-deprecated with **no** removal version.
-    - **`duti` passed over**: it takes bundle ids but has no idempotence guard, so it would
-      re-ask on every activation. The step also tolerates its own failure, because the `.app` is
-      a Homebrew cask and nothing orders brew's activation before Home Manager's — a first-ever
-      rebuild warns and retries next time rather than failing over which browser opens a link.
-  - **No policy can tidy the NEW-TAB PAGE** — a settled dead end, not an omission. **Every** NTP
-    policy Chromium defines is **mandatory-only**: `NewTabPageLocation`, `NTPCardsVisible`,
-    `NTPCustomBackgroundEnabled`, `NTPMiddleSlotAnnouncementVisible`, `NTPOutlookCardVisible`,
-    `NTPSharepointCardVisible`, `NTPContentSuggestionsEnabled` and both `NTPFooter*` all **omit**
-    `can_be_recommended` in their upstream `policy_definitions/**.yaml`, which defaults it to
-    false. Absence is the answer, not a metadata gap — the flag is written explicitly when true,
-    and `BookmarkBarEnabled`, which this repo *does* ship, carries
-    `can_be_recommended: true`. `NewTabPageLocation`'s own
-    `desc` says it outright: "configures the default New Tab page URL **and prevents users from
-    changing it**". A padlocked new-tab page is worse than a click, so it stays unset. Nor is
-    there any policy that hides just the **shortcut tiles**: the one shortcut-shaped policy,
-    `NTPShortcuts`, goes the wrong way (it *pre-configures up to 10 organization shortcuts in
-    addition to* the user's own) and is mandatory-only too. Hiding the tiles writes a
-    profile-JSON pref (`custom_links.*` / `home.module.most_visited.enabled`), browser-owned
-    mutable state Nix must not seed → one click in **Customize Chrome ▸ Shortcuts ▸ Hide
-    shortcuts**. ungoogled's `--custom-ntp` flag is not a route either: `chromium-flags.conf` is
-    Linux-only, so on macOS it needs `chrome://flags`.
-  - **Manual, one-time clicks Nix cannot do:** Chromium parks every *externally* installed
-    extension disabled pending acknowledgement on macOS (enable once → `ack_external` sticks;
-    `ExtensionInstallForcelist` can't help, it needs the patched-out Web Store), and Chrome 138+
-    gates Violentmonkey's `userScripts` permission behind a per-extension "Allow User Scripts"
-    toggle that is deliberately not settable by policy. The theme rides the same gate — until
-    it is enabled once, Chromium unpacks it but leaves `extensions.theme` unset and the browser
-    still looks stock.
+- **`google-chrome.nix`** — `local.googleChrome`, darwin only: Google Chrome is the fleet's
+  only visible browser (the passkey reason is on the `google-chrome` cask in `hosts/macos.nix`
+  and under `default-browser.nix` below). Installs **no** browser (`programs.google-chrome.package
+  = null`); the `.app` is the cask, and upstream HM `programs.google-chrome` writes one
+  `External Extensions/<id>.json` per declared Web Store id. The Web Store is live in Chrome, so
+  each entry is a plain `{ id; }`: no pinned CRX, no version, no hash. The files sit in Chrome's
+  user-data dir, so every profile (the work profile included) gets the same extensions. The
+  list itself is the module; the two remaining manual steps are its header.
+  - **Claude in Chrome is the agents' browser rail** — the only one. Each Chrome profile's
+    extension login decides which Claude account it serves, so no config routes personal vs
+    work. Its native host is written by claude-code itself, never by this repo.
+  - **No declared userscripts.** Violentmonkey ships empty; scripts are published to Greasy
+    Fork and installed from there ([`packages.md`](packages.md) § Userscripts). **Never put a
+    secret in a userscript.**
+  - **History, one line:** until 2026-11-14 the daily browser was the `ungoogled-chromium`
+    cask with pinned CRXes and recommended policies (`local.ungoogledChromium`); its measured
+    dead ends (search-engine and new-tab policies are mandatory-only) are in git history —
+    `git log -S ungoogledChromium -- docs/map/modules-home.md`.
+- **`pinned-chrome.nix`** — `local.pinnedChrome`, darwin only: a content-hash-pinned Chrome for
+  Testing (nixpkgs `playwright-driver.browsers-chromium`) exported as
+  `PUPPETEER_EXECUTABLE_PATH`, so a résumé PDF render never changes because the daily Chrome
+  auto-updated. It is a tool's browser, never a browser for agents to drive. Why it is not an
+  HM option: its header.
 - **The media stack is a CAPSULE, not a module in this directory.** `media-queue.nix`, the
   media CLIs and the Finder Services left for
   [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) on 2026-09-05 and came
@@ -285,10 +163,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
   go to every device in `trusted_devices`, so no device ID is in the repo. home-manager's
   `services.kdeconnect` is Linux-only. The phone half (the Android 10+ clipboard grants) is
   `android-phone kdeconnect-grants`.
-- **`default-browser.nix`** — `local.defaultBrowser`, a fleet-level concern rather than a
-  Chromium one: the HTTP/HTTPS handler is a LaunchServices property any installed browser can
-  hold, so it moved out of `chromium.nix` once Chromium stopped being the daily browser and
-  became the debugging one. Takes `defaultbrowser`'s SHORT name — the last dot-component of the
+- **`default-browser.nix`** — `local.defaultBrowser`, a fleet-level concern rather than one
+  browser's: the HTTP/HTTPS handler is a LaunchServices property any installed browser can
+  hold, so it lives apart from any one browser's module. Takes `defaultbrowser`'s SHORT name — the last dot-component of the
   bundle id, lowercased (`com.google.Chrome` → `chrome`, `org.chromium.Chromium` → `chromium`,
   also `operaair`, `opera`, `safari`); a bundle id itself is rejected, and `null` claims
   nothing. **The fleet holds `chrome`, and the reason is PASSKEYS, not preference.** Reaching a
@@ -331,8 +208,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   installed as a **Homebrew cask** because nixpkgs' `ghostty` is **Linux-only** and refuses to
   evaluate on aarch64-darwin. That is precisely the case home-manager documents for
   `package = null` ("set this on platforms where ghostty is not available"), so the cask ships
-  the app and Nix owns nothing but `$XDG_CONFIG_HOME/ghostty/config` — the same split already
-  used for the ungoogled-chromium cask. Settings deliberately **match the existing terminal**
+  the app and Nix owns nothing but `$XDG_CONFIG_HOME/ghostty/config` — the same split
+  `google-chrome.nix` uses for the `google-chrome` cask. Settings deliberately **match the existing terminal**
   rather than introduce a second look. **Colours and type are not stated here at all** —
   they come from `terminal-theme.nix` via `programs.ghostty.themes.fleet`, selected with
   `settings.theme = "fleet"`, which is upstream's own option for exactly this (pinned HM
@@ -415,12 +292,6 @@ in the repo can catch that; see that fixture file's header for the measurement.
   Runbook: [`infra.md`](infra.md) § Drift detection.
   `default.nix` also installs `gmail-filters` (`packages/gmail-filters.nix`) in its `isMacosHost`
   list, because only the operator has the Drive filter file and the Keychain client.
-- **`page-lab.nix`** — `local.pageLab`, macos only: the fleet half of page-lab's DEDICATED
-  browser mode (skills `docs/page-lab-vnext-design.md` § 6). Exports `PAGE_LAB_CHROME`, the Chrome
-  for Testing executable inside nixpkgs `playwright-driver.browsers-chromium`, and writes a path-free
-  `$XDG_CONFIG_HOME/page-lab/profiles.json` that points the dedicated profiles at that variable.
-  It is NOT the daily Chromium (`chromium.nix`). The Read deny on the profile dirs is in
-  `modules/_lib/secret-read-paths.nix`.
 - **`claude-bedrock-gate.nix`** — **Bedrock routing's governance**: a `nix-bedrock-gate` shell
   hook that makes Claude Code's Bedrock routing conditional on an AWS identity actually
   resolving, instead of on `CLAUDE_CODE_USE_BEDROCK` merely existing.

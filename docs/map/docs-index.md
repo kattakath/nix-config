@@ -129,7 +129,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   code**: where a recurring Claude run lives. Claude Desktop's **Scheduled** page is the one
   official pane, listing local and cloud tasks; **cloud task first** for any job that needs only
   connectors, GitHub and HTTPS (§ 6, measured by the evidence-refresh routine), Desktop local
-  task for what is truly this Mac's (Chromium, the login Keychain, unpushed work, localhost),
+  task for what is truly this Mac's (the browser, the login Keychain, unpushed work, localhost),
   **launchd + `claude -p` only when the Desktop app must not be required**. Community `claude -p` dashboards are rejected as a second pane. §4
   records the costs — skipped runs when asleep (one catch-up within 7 days), and schedules that
   are **not declarative**.)

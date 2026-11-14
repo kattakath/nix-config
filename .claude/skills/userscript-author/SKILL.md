@@ -5,7 +5,8 @@ description: >
   know: how a script reaches this Mac, and why this repo no longer declares or
   gates any. Since 2026-09-14 delivery is PUBLICATION (Greasy Fork, then
   one install click), not a Nix declaration. Use alongside the
-  `page-lab:userscript-author` skill when asked to "make <site> do X", "write a
+  `userscript-lab:userscript-author` skill (or `userscript-lab:site-redesign` for a
+  whole-site redesign) when asked to "make <site> do X", "write a
   userscript for <site>", "fix my <site> script", "this site's X annoys me", or
   "can I see my userscript edits live/reflected in the browser" (Violentmonkey
   live-tracking). The authoring METHOD lives in that plugin (published at kattakath/skills);
@@ -15,10 +16,17 @@ description: >
 # Userscript author — the FLEET layer
 
 **Method is not here.** Measuring, routing, diffing, replaying, the code patterns, the probes and
-the Greasy Fork rulebook all live in the **`page-lab` plugin**
-([`kattakath/skills`](https://github.com/kattakath/skills/tree/main/plugins/page-lab)),
+the Greasy Fork rulebook all live in the **`userscript-lab` plugin**
+([`kattakath/skills`](https://github.com/kattakath/skills/tree/main/plugins/userscript-lab)),
 which is deliberately portable — it stops at a lint-clean, proven `.user.js` and knows nothing
-about Nix. Invoke it as the `page-lab:userscript-author` skill.
+about Nix. Invoke it as the `userscript-lab:userscript-author` skill
+(`userscript-lab:site-redesign` for a whole-site redesign).
+
+**The browser rail is Claude in Chrome — the only one.** Measured 2026-11-14: its `computer`
+clicks and keys arrive trusted (`isTrusted: true`); it has **no** document-start injection;
+`find` + `file_upload` reaches a hidden file input. On a per-site permission wall, **ask the
+operator** — never fall back to CDP. (page-lab, its CDP servers and the ungoogled-chromium it
+drove were removed 2026-11-14.)
 
 **This skill owns the delivery half** — which, since 2026-09-14, is publication rather than a
 Nix declaration.
@@ -31,7 +39,7 @@ Nix declaration.
 ## What this repo stopped doing, and why (2026-09-14, commit 535f1ef)
 
 One commit removed **all three at once**: the `kattakath-userscripts` input, every
-`local.ungoogledChromium.userScripts.scripts` entry, and `checks.<system>.userscripts`.
+`userScripts.scripts` entry of the then-browser module, and `checks.<system>.userscripts`.
 [redacted] dropped its `modules/userscripts.nix`, its own `userscripts` input and **both** of
 its gates the same day.
 
@@ -42,10 +50,11 @@ its gates the same day.
 - **The gate was deleted, not re-pointed.** Aiming it at `${self}` would have been a green build
   over an empty directory — strictly worse than no gate, and exactly the failure its own comment
   warned about. See the long-form note that replaced it in `modules/parts/checks.nix`.
-- **The rulebook did not move.** It is still the plugin's `scripts/userscript-meta-lint.sh`, now
-  running in CI in the repositories that own the scripts. One rulebook, run where the content is.
-- **No userscript option is left.** `modules/home/chromium.nix` sideloads Violentmonkey
-  unconditionally. There is no Nix path to declare a script.
+- **The rulebook did not move off the plugin.** It is
+  `plugins/userscript-lab/scripts/userscript-meta-lint.sh`, running in CI in the repositories
+  that own the scripts. One rulebook, run where the content is.
+- **No userscript option is left.** `modules/home/google-chrome.nix` declares Violentmonkey from
+  the Web Store. There is no Nix path to declare a script.
 
 ## Standing preference (thin by design — append, never invent)
 
@@ -75,8 +84,8 @@ its gates the same day.
 
 ## Deliver it
 
-- [ ] Lint with the plugin's `scripts/userscript-meta-lint.sh` — the only gate left, and it is
-      the same one the deleted check ran.
+- [ ] Lint with `plugins/userscript-lab/scripts/userscript-meta-lint.sh` — the only gate
+      left, and the same rulebook the deleted check ran.
 - [ ] **Publish** per the plugin's `greasyfork.md`: Greasy Fork.
 - [ ] **Updates ship by webhook — push to `main`, nothing else** (since 2026-10-21). Both repos
       run the same pipeline: lint + parse, then a publish job fast-forwards a **`published`**
@@ -97,12 +106,12 @@ its gates the same day.
       2. In a fresh `about:blank` tab, open the script's `update.greasyfork.org/.../*.user.js`
          URL. The stored `custom.lastInstallURL` in Violentmonkey's `scr:<n>` record holds it.
          Starting from an extension page swallows the navigation.
-      3. Violentmonkey's confirm page opens. Take a snapshot and make one trusted `click` on
-         **Reinstall**. Wait for the heading to show the new version first; it reads
-         "Loading script data…" briefly.
-      4. Verify from the service worker: `chrome.storage.local` `scr:<n>` `meta.version` and the
-         `@version` inside `code:<n>`.
-      This needs `chrome-devtools` with extension access (see Install reality below).
+      3. Violentmonkey's confirm page opens. Wait for the heading to show the new version (it
+         reads "Loading script data…" briefly), then make one Claude in Chrome `computer` click
+         on **Reinstall** — trusted, so the page accepts it.
+      4. Verify the installed version on the Violentmonkey dashboard row.
+      If Claude in Chrome cannot reach the `chrome-extension://` page, ask the operator to click
+      **Reinstall**; do not reach for CDP.
 - [ ] **A changed `@name` installs a NEW entry** (Violentmonkey matches by namespace + name), so
       the old version keeps running beside it. Remove the old entry from the dashboard: its trash
       icon is the row's last `.btn-ghost` (`<use href="#trash">`). That moves it to the recycle bin
@@ -114,56 +123,32 @@ its gates the same day.
 
 ## Install reality on this Mac
 
-- **Violentmonkey is still sideloaded** (unconditionally, `modules/home/chromium.nix`), so the
-  extension is there even though zero scripts are declared.
-- **`~/.local/share/userscripts/` no longer exists**, and nothing writes it: **there is no
-  `index.html` to click through** — verified absent on disk 2026-09-14. Installing now means
+- **Violentmonkey is declared** (`modules/home/google-chrome.nix`, Web Store id) into every
+  Chrome profile, even though zero scripts are declared.
+- **`~/.local/share/userscripts/` no longer exists**, and nothing writes it. Installing means
   navigating to the fork listing.
-- One-time per profile, in `chrome://extensions`: **Allow User Scripts** + **Allow access to
-  file URLs** (Chrome 138+ refuses to let policy set the first).
-- Claude cannot install a script, flip a toggle, or drive Violentmonkey's dialog **unless**
-  `chrome-devtools-mcp` is running with `--categoryExtensions` — see the live-tracking loop below,
-  which is exactly that exception. **That flag moved out of this repo**: it used to be
-  `local.mcpGateway.chromeDevtools.allowExtensions` in `modules/shared/mcp.nix`, which was
-  **deleted 2026-10-02** with the MCP gateway. `chrome-devtools` is the `page-lab` plugin's server
-  now, so whether the flag is passed is that plugin's `.mcp.json` to decide and **nothing here can
-  assert it** — if extension pages are unreachable, check there, not in nix-config.
+- One-time per profile, in `chrome://extensions`: **Allow User Scripts** (a manual toggle; no
+  policy for it is declared). Add **Allow access to file URLs** only to install from `file://`.
 - **Activation is no longer part of the loop.** Publishing changes nothing in the Nix closure, so
-  a userscript no longer needs `activate` at all.
+  a userscript needs no `activate` at all.
 
-## Live-tracking loop — driving Violentmonkey directly (preferred over the fallback below)
+## Live loop — Violentmonkey's own tracking, not injection
 
-With `chrome-devtools-mcp` started with `--categoryExtensions` (**verified working in attach mode
-against this fleet's Chrome 152 on 2026-09-30**, despite upstream's own `--help` claiming
-otherwise — that measurement still stands; where the flag lives: § Install reality on this
-Mac). With it on, chrome-devtools-mcp can navigate and drive
-`chrome-extension://` pages — including Violentmonkey's own install/confirm dialog. This
-supersedes the Kapture-injection fallback below for any script being authored against a
-**local `file://` copy**; reach for that fallback only when `--categoryExtensions` is off, or the
-script has no local file to track (already published, editing live in place).
+The authoring loop runs against a local `file://` copy, tracked by Violentmonkey itself:
 
-1. Navigate any page (`new_page`/`navigate_page`, `background: true` is fine) to the script's
-   `file://` path. Violentmonkey redirects it to
-   `chrome-extension://…/confirm/index.html#<token>`.
-2. On that page: click **Track external edits**, then check **Reload tab**. This tab must
-   **stay open** — the tracking loop lives in it, not in a background poll or in
-   `chrome.storage`. Closing it (or navigating it away) stops detection outright.
-3. Get (or create) the tab the script actually targets, then force it **Chrome-active**, not
-   merely "selected" by tooling:
-   ```js
-   const [tab] = await chrome.tabs.query({url: "https://example.com/*"});
-   await chrome.tabs.update(tab.id, {active: true});
-   ```
-   Run this from any extension-context page (the confirm tab itself works). **This is the
-   load-bearing, easy-to-miss step.** A tab created with `background: true` is `active: false`
-   at Chrome's own tab-model level — a separate axis from OS window focus — and Violentmonkey's
-   "Reload tab" only reloads the tab Chrome considers active. Skip this and you get a session
-   that correctly detects every edit (`chrome.storage.local['code:<id>']` updates right on
-   schedule, visible from any extension page) while the actual browser tab never once reloads —
-   which reads exactly like a broken cache and is not one.
-4. Edit the file. Detection + auto-reload typically lands within tens of seconds once steps 2–3
-   are set up — no `activate`, no browser relaunch, no extension reload needed per edit after
-   that.
+1. Open the script's `file://` path in Chrome. Violentmonkey redirects it to its
+   `chrome-extension://…/confirm/index.html#<token>` page.
+2. On that page click **Track external edits**, then check **Reload tab**. This tab must **stay
+   open** — the tracking loop lives in it; closing or navigating it stops detection.
+3. Bring the target site's tab to the front. "Reload tab" reloads only the tab Chrome considers
+   **active**, a separate axis from window focus — a background tab detects every edit and
+   never reloads, which reads like a broken cache and is not one.
+4. Edit the file; the tab reloads within tens of seconds.
+
+If Claude in Chrome cannot click on the extension page, the operator clicks steps 1–2 once.
+There is **no** document-start injection on this rail, so never "preview" a script by
+evaluating its body in a loaded page and call that proof — it runs late, after the site's own
+code. Prove it installed.
 
 **Verifying the edit actually landed:** don't only check `document.styleSheets` / `<style>`
 tags. A script using **Constructable Stylesheets** (`document.adoptedStyleSheets`) injects CSS
@@ -173,36 +158,7 @@ in a way that is invisible to both. Check both surfaces:
 || [...(document.adoptedStyleSheets||[])].some(s => [...s.cssRules].some(r => r.cssText.includes(MARKER)))
 ```
 Checking only the first gives a false "still stale" reading while the real mechanism already
-worked — burned a full session chasing phantom cache/registration bugs before this was caught.
-
-## Live-edit loop — no operator at the keyboard (fallback)
-
-When there is no human to click an installer — an agent-driven session — inject the saved body
-straight into a matching Kapture tab. There is no plugin for this; it is one POST, so a wrapper
-earned nothing (`plugins/userscript-preview` did exactly this and was retired 2026-09-04):
-
-```bash
-python3 - <<'PYEOF'
-import json, re, urllib.request, pathlib
-raw = pathlib.Path('<path to the .user.js you are editing>').read_text()
-body = re.sub(r"//\s*==UserScript==.*?//\s*==/UserScript==", "", raw, flags=re.S).strip()
-req = urllib.request.Request("http://127.0.0.1:61822/tab/<tabId>/evaluate",
-    data=json.dumps({"code": body, "timeout": 30000}).encode(),
-    headers={"Content-Type": "application/json"}, method="POST")
-print(urllib.request.urlopen(req, timeout=40).read().decode()[:200])
-PYEOF
-```
-
-- The file path is **wherever you are authoring it** — a scratch path or the script's own repo.
-  It is no longer `userscripts/<kebab>.user.js` in this tree, and the old three-copy
-  writable/read-only table died with that directory.
-- Tab must have Kapture connected and **Allow JS execution** (`evalAllowed`).
-- The IIFE **must** call `window.__nix<Name>Teardown()` first, or each inject stacks another
-  observer. A leftover `data-*Init` early-return makes inject a no-op instead — do not add one.
-- Injecting over an OLDER installed build that predates its teardown makes the two copies fight
-  for last-in-head until the tab pegs, and the POST times out (measured 2026-09-04). Install the
-  new version first, or edit against a clean tab.
-- Injection dies on reload. Ship by publishing, as above.
+worked.
 
 ## Report format (always end with this)
 
@@ -214,7 +170,7 @@ PYEOF
 - **Diff verdict:** DOM-DIFFERS | DOM-IDENTICAL | STATE-B-UNREACHABLE
 - **Approach:** (attribute set | rules lifted by condition in band X–Y | constructed UI)
 - **Selectors shipped:** (each one, with the date measured — or "none")
-- **Lint:** plugin `userscript-meta-lint.sh` ✅/❌
+- **Lint:** `userscript-lab` `userscript-meta-lint.sh` ✅/❌
 - **Published:** Greasy Fork | not yet (why) — with the listing URL
 - **Operator action:** install from the listing once; it self-updates thereafter
 - **Verdict:** SHIPPED | BLOCKED (why) | ESCALATED (vite-plugin-monkey, in the script's own repo)
@@ -223,7 +179,7 @@ PYEOF
 ## Compose with existing automation
 
 ```
-/userscript <site> <wish>  → this skill + page-lab:userscript-author
+/userscript <site> <wish>  → this skill + userscript-lab:userscript-author
 /eval                      → only if a .nix was actually touched (authoring touches none)
 /hygiene                   → doc/index drift, if a PR here ever lands
 ```

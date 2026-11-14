@@ -179,16 +179,6 @@ Smaller, single-purpose CLIs:
   while `latest` ships a yt-dlp too old for YouTube. v4 `//go:embed`s the UI, so the frontend
   is built and copied into the tree before `go build`. Consumed by
   `modules/home/yt-dlp-web-ui.nix`.
-- **`page-lab-pick.nix`** — the `page-lab` plugin's two-way element picker as a fleet CLI. It
-  exists for ONE reason: Node 20 here has no global `WebSocket`, so the raw-CDP client must
-  either re-exec with `--experimental-websocket` or run on Node 22+ — pinning `nodejs_22`
-  removes the flag from the fleet path entirely. Not the only way to run the picker (the
-  plugin's `scripts/pick-element.mjs` under `node` still works); this is the reproducible
-  entry point. Deliberately **not** a launchd agent and never automatic: arming a picker
-  swallows the next click on every armed tab, so it stays an explicit act with a visible
-  start and a guaranteed disarm. Its plugin tree is the pinned `kattakath-skills` flake input,
-  passed in by `modules/parts/packages.nix` with no default, so a missing pin is an eval
-  error rather than a silent fallback.
 - **`claude-otel-doctor.nix`** — health check for the `local.claudeOtel` collector (launchd
   agent, OTLP port, events-file freshness). See
   [`claude-code-observability-runbook.md`](../claude-code-observability-runbook.md).
@@ -225,7 +215,7 @@ Smaller, single-purpose CLIs:
 ## Userscripts — REMOVED from the fleet entirely (2026-09-14, commit `535f1ef`)
 
 **The fleet declares zero userscripts, and gates none.** That commit deleted the
-`kattakath-userscripts` input, every `local.ungoogledChromium.userScripts.scripts` entry and
+`kattakath-userscripts` input, every `userScripts.scripts` entry of the then-browser module and
 `checks.<system>.userscripts`; [redacted] (`c013aa5`) deleted `modules/userscripts.nix`, its
 own `[redacted]/userscripts` input and both `checks.userscripts-lint` /
 `checks.userscripts-meta` the same day. The scripts are **published to Greasy Fork** instead — the last one out, `google-photos-icon-nav`, is
@@ -239,14 +229,14 @@ change cost a `@version` bump, a `flake update`, an `activate` and a manual inst
 end state was still a script that never updated itself. Publishing inverts that: one upload, and
 every install everywhere follows. What was given up is the declarative guarantee — a fresh Mac no
 longer ends up with the scripts installed, and the linter no longer runs in this repo's CI (it
-still lives in the `page-lab` plugin, and Greasy Fork enforces its own rules at upload).
+still lives in the `userscript-lab` plugin, and Greasy Fork enforces its own rules at upload).
 
-**Only the manager stays.** [`modules/home/chromium.nix`](../../modules/home/chromium.nix)
-sideloads Violentmonkey unconditionally, which the published scripts install into. The empty `userScripts.scripts` seam was deleted
-2026-10-30 (#963); see [`modules-home.md`](modules-home.md) § `chromium.nix`.
+**Only the manager stays.** [`modules/home/google-chrome.nix`](../../modules/home/google-chrome.nix)
+declares Violentmonkey from the Web Store, and the published scripts install into it; see
+[`modules-home.md`](modules-home.md) § `google-chrome.nix`.
 
 **The authoring METHOD is unchanged and lives in the plugin.** The portable
-[`page-lab` plugin](https://github.com/kattakath/skills/tree/main/plugins/page-lab)
+[`userscript-lab` plugin](https://github.com/kattakath/skills/tree/main/plugins/userscript-lab)
 owns the probes, the patterns, the Greasy Fork rulebook and the metadata linter; it **measures
 the live page** before it writes a selector, routing on the diff between the state the site
 already gives you and the state you want:

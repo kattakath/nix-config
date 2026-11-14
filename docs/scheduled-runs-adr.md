@@ -87,7 +87,7 @@ The plugin copies of remote MCP servers that duplicate a claude.ai connector are
 (`deniedMcpServers`, #1023/#1024) so local and cloud runs use the same sign-in.
 
 **Lane order, revised:** **cloud first** for any job that needs only connectors, GitHub and
-HTTPS. **Desktop local** only for what is truly this Mac's: page-lab Chromium, the login
+HTTPS. **Desktop local** only for what is truly this Mac's: Claude in Chrome (page-lab Chromium until 2026-11-14), the login
 Keychain, unpushed work, `localhost` services. launchd stays the exception. § 5's weakest
 assumption (Desktop always running) now binds only the Mac-only jobs.
 

@@ -97,7 +97,7 @@ content-hashed into the store — see `CLAUDE.md` § Code Style on the two path 
 | `/remember-nix` | capture into the harness's native per-project memory store (outside the repo) |
 | `/routing-review` | triage Claude Code's own OTel tool-decision log for deterministic-routing hardening candidates, see [`claude-code-observability-runbook.md`](../claude-code-observability-runbook.md) |
 | `/mcp-scout` | discover → vet → DECLARATIVELY adopt an MCP server **into the owning plugin's `.mcp.json`** via skill `mcp-scout` (there is no gateway to adopt into since 2026-10-02); imperative installer CLIs / config-writing install tools are never used |
-| `/userscript` | measure → replay → **publish** a Violentmonkey userscript, via the `page-lab` plugin's method skill + the project skill `userscript-author` (delivery only since 2026-09-14 — nothing is declared or gated in Nix); **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
+| `/userscript` | measure → replay → **publish** a Violentmonkey userscript, via the `userscript-lab` plugin's method skill (`userscript-lab:userscript-author`) + the project skill `userscript-author` (delivery only since 2026-09-14 — nothing is declared or gated in Nix); **no selector ships that was not dumped from the live page**, and `@require`/`@resource` CDN deps are never used |
 | `/fleet-doctor` | fleet-wide consistency sweep (branches/worktrees/PRs/CI/GC, launchd + terranix drift, heartbeats, nixpi units + cache warmth, host re-activation) across every repo in `.claude/skills/fleet-doctor/fleet-repos.txt`, via skill `fleet-doctor`; composes `nix-hygiene`, `git-purity.md`, `pr-title.md` |
 
 ### `.claude/workflows/`
@@ -244,8 +244,7 @@ and, above it on `macos`, root-owned managed scope in
     the command string AND as exported process environment.
   - **Still true, and a DIFFERENT measurement:** a plugin's `bin/` reaches the Bash tool's PATH
     but **not** a hook's (2026-09-23). That is why the plugin's commands use an absolute
-    `${CLAUDE_PLUGIN_ROOT}` path rather than a bare command name — and why `page-lab-pick`
-    remains a PATH package.
+    `${CLAUDE_PLUGIN_ROOT}` path rather than a bare command name.
   - **`${CLAUDE_PROJECT_DIR}` is the session's LAUNCH CWD, not the git root.** Measured: a
     session started in `<repo>/sub` gets `CLAUDE_PROJECT_DIR=<repo>/sub`. This fleet starts
     sessions in `.claude/worktrees/*` and subdirectories constantly, so each plugin command
@@ -282,7 +281,7 @@ Decoder for what these hooks print: [`claude-hook-messages.md`](../claude-hook-m
 
 Active only when working in this repo: `nix-hygiene`, `nixpi-firmware-provision`,
 `mcp-scout`, `userscript-author` (the FLEET half only — how a script reaches this Mac now that
-nothing is declared in Nix; the method lives in the `page-lab` plugin — see
+nothing is declared in Nix; the method lives in the `userscript-lab` plugin — see
 [`packages.md`](packages.md) § Userscripts),
 `fleet-doctor` (its own `fleet-repos.txt` manifest lists every repo in scope — add
 a line there when a new flake is extracted from this repo, nothing else needs to change).
@@ -347,8 +346,8 @@ only difference between "someone else's skill" and "mine" is now who can push to
   **No pin bump follows** since 2026-09-23: the marketplace is an https git source with
   `autoUpdate`, so a merge on `kattakath/skills` `main` ships by itself. A `flake.lock` bump is
   needed **only** when the thing you landed is consumed through the `kattakath-skills` INPUT —
-  i.e. the `page-lab-pick` PATH package, or a plugin that `checks.*.mcp-launcher-parity`
-  reads. (`superhook` became a
+  i.e. a plugin that `checks.*.mcp-launcher-parity` reads (its only consumer since
+  `page-lab-pick` was deleted 2026-11-14). (`superhook` became a
   plugin hook 2026-09-30; `mcp.nix`'s `mcpCatalog` was the other, and it went with `mcp.nix` on
   2026-10-02.)
 
@@ -376,7 +375,7 @@ this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-ad
 > as `kattakath-skills`, for its consumers in `modules/` (grep `kattakath-skills`) — and, until 2026-10-02,
 > `mcp.nix`'s `mcpCatalog`, which went with that module. A
 > plugin's `bin/` reaches the Bash tool's PATH but **not**
-> a hook's (measured), which is why `page-lab-pick` is still a package. `superhook` WAS the
+> a hook's (measured), which is why `page-lab-pick` was a package until 2026-11-14. `superhook` WAS the
 > second such package until 2026-09-30, on the stronger claim that a hook wrapper cannot be a
 > plugin hook at all — that claim was **measured false** (see § `.claude/hooks/` above), and it
 > now ships as a plugin hook. The rest of this section is the pinned-era record.
@@ -388,9 +387,10 @@ flake pin**: since 2026-09-23 it is registered as the https git source
 `https://github.com/kattakath/skills.git` with `autoUpdate = true`, and it is one of the declared
 marketplaces in `local.claudePlugins.marketplaces` (`modules/home/default.nix` — read it, not a count
 here); the only `/nix/store` one is `xai-grok-build`, from a patched pinned input. The `kattakath-skills`
-input survives for the `page-lab-pick` PATH package and `checks.*.mcp-launcher-parity` — never for the
+input survives for ONE consumer, `checks.*.mcp-launcher-parity` — never for the
 marketplace source. (It was `superhook` + `page-lab-pick` + `mcp.nix`'s `mcpCatalog`; superhook
-became a plugin hook 2026-09-30 and `mcpCatalog` died with the gateway 2026-10-02.) (The renamed-repo and pinned-era history is the quoted
+became a plugin hook 2026-09-30, `mcpCatalog` died with the gateway 2026-10-02, and
+`page-lab-pick` went with `page-lab` 2026-11-14.) (The renamed-repo and pinned-era history is the quoted
 update block above.)
 
 That repo's `.claude-plugin/marketplace.json` lists its plugins with `./plugins/<name>`
@@ -425,52 +425,18 @@ Two of them carry write-ups worth keeping:
 
 - **`llmstxt`** — `llms.txt` authoring skill + `/llmstxt` command + a stdlib-only spec
   linter; see the plugin's own `README.md` in [`kattakath/skills`](https://github.com/kattakath/skills/tree/main/plugins/llmstxt).
-- **`page-lab`** — userscript authoring AND live-page diagnosis in one unit: the
-  measure-before-you-select method, four browser probes, the pre-vetted code patterns, the
-  Greasy Fork rulebook, the GM_* portability matrix, a two-way element **picker**, CDP
-  diagnosis (performance / network / console), the `/userscript` + `/devtools` + `/pick`
-  commands, and `scripts/userscript-meta-lint.sh`. That linter used to be run by
-  `checks.<system>.userscripts` here and by [redacted]'s twin gate; **both gates went with the
-  scripts on 2026-09-14** ([`packages.md`](packages.md) § Userscripts), so the rulebook now has
-  exactly one consumer — the
-  plugin's own users — plus Greasy Fork's own checks at upload.
-  **Merged 2026-09-07 from `userscript-author` + `chrome-devtools`.** They were split on
-  2026-09-06 and cross-referenced, which held only while neither needed the other mid-motion.
-  The verb that broke it is **pick**: the operator points at an element, the agent measures
-  that exact node, reads its cascade, prototypes the override live, dates it in the `WHY`
-  block, lints it, and proves it after install — a motion that crossed the boundary four times
-  and needed a seam FILE to narrate the crossing. The cost, stated plainly: the diagnosis half
-  is no longer adoptable on its own.
-  Carries a `devtools-doctor.sh` preflight, a `page-route.sh` front door that probes the five
-  routes (raw CDP / chrome-devtools-mcp / claude-in-chrome / Kapture / operator-paste), and a
-  **measured** fact table (`references/facts.md`) where every falsifiable claim has an ID, a
-  date and a re-measure recipe — because `chrome-devtools-mcp@1.8.0` exposes **29** of the ~57
-  tools its generated docs describe (those are written from `main`), so 12 of 13 Memory tools
-  do not exist yet. **Upstream's Extensions-group claim is stale for this fleet — and the
-  measurement that refutes it outlived the option that carried it.** Verified 2026-09-30:
-  `--categoryExtensions` works in attach mode against this fleet's Chrome 152 despite upstream's
-  own `--help` claiming otherwise; the group's tools DO navigate/list `chrome-extension://` pages
-  and service workers once it is passed. **What is gone is the plumbing.**
-  `local.mcpGateway.chromeDevtools.*` (`.enable`, `.allowExtensions`, `.port`, `.userDataDir`)
-  lived in `modules/shared/mcp.nix`, deleted 2026-10-02 — and `chrome-devtools` itself had already
-  moved to the `page-lab` plugin on 2026-09-30, so passing that flag, and owning the security
-  tradeoff it accepts, is now that plugin's business and not this repo's. Two things still worth
-  carrying over: the server runs in ATTACH mode against **Chromium** (it was Opera Air until
-  2026-09-21, when Opera was removed from the Mac), and the attach flag had to be
-  **chosen at spawn time** by the `nix-mcp-chrome-devtools` wrapper, because measured
-  2026-09-07 no single upstream flag works in both modes a browser can be in: one put into
-  debugging from `chrome://inspect/#remote-debugging` 404s every `/json/*` path, so
-  `--browser-url` cannot attach; one started with `--remote-debugging-port` serves `/json/*`
-  but leaves a **stale** `DevToolsActivePort` whose WebSocket UUID is dead, so `--autoConnect`
-  cannot. The wrapper probes `/json/version` first — authoritative when it answers, since it
-  carries the live `webSocketDebuggerUrl` — and falls back to the file when nothing
-  answers. A `.mcp.json` has no conditionals, so the plugin now names a script that does that
-  probe itself: `${CLAUDE_PLUGIN_ROOT}/scripts/chrome-devtools-attach.sh` (pinned
-  `kattakath-skills`), a port of that wrapper, configured by `CDP_PORT` / `CDP_USER_DATA_DIR`
-  where the deleted `.port` / `.userDataDir` options used to be. The file fallback is
-  NOT proof the file is fresh: the probe runs once, at spawn, so a flag-mode browser started
-  AFTER spawn met a dead UUID (2026-10-21). `nix-chromium-debug` now rewrites the file after
-  launch; why is in its comment in `modules/home/chromium.nix`.
+- **`userscript-lab`** — the userscript METHOD (skills `userscript-lab:userscript-author` and
+  `userscript-lab:site-redesign`) and the Greasy Fork rulebook, linted by
+  `plugins/userscript-lab/scripts/userscript-meta-lint.sh`; read its own `README.md` in
+  [`kattakath/skills`](https://github.com/kattakath/skills/tree/main/plugins/userscript-lab)
+  rather than a summary here. It drives no browser of its own: the agents' browser rail is
+  **Claude in Chrome** only. Measured 2026-11-14: its `computer` clicks and keys arrive
+  trusted (`isTrusted: true`); it has no document-start injection; `find` + `file_upload`
+  reaches a hidden file input. On a per-site permission wall, ask the operator — never fall
+  back to CDP.
+  **History, one line:** it replaced `page-lab` (CDP diagnosis, the element picker, the
+  `chrome-devtools`/`chrome-lab`/`kapture` MCP servers, `/devtools`, `/pick`), deleted
+  2026-11-14 with the ungoogled-chromium browser it attached to.
 
 **`seargraph` was deleted, not moved into that repo (2026-09-12).** It was the
 `seargraph-langgraph` subagent (LangGraph pipeline design for the private SEARGraph project:

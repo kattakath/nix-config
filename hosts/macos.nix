@@ -652,9 +652,10 @@ in
       #                                + com.google.Chrome.webauthn{,-uvk} (Touch ID)
       #   Opera / Opera Air      same shape, Opera's own Team ID
       #   Safari                 the WebKit equivalent
-      # Chrome is the only browser on this Mac. ungoogled-chromium lacks the Touch ID
-      # passkey entitlement (seven entitlements, all hardware/sandbox, no
-      # `keychain-access-groups`) and no Chromium cask fixes it (measured 2026-09-15).
+      # Chrome is the only passkey-capable browser installed (Safari aside). ungoogled-chromium
+      # lacks the Touch ID passkey entitlement (seven entitlements, all hardware/sandbox, no
+      # `keychain-access-groups`), measured 2026-09-15; the plain `chromium` cask is out
+      # too: disabled in Homebrew and not Developer-ID notarized.
       "google-chrome"
       # Google Drive for desktop — the File Provider client (a mounted volume under
       # ~/Library/CloudStorage/, NOT a plain folder).

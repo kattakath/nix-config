@@ -155,7 +155,7 @@ Option names below are verified against the pinned nix-darwin source
 - **`WindowManager`** (Stage Manager) — `GloballyEnabled`, `AutoHide`, `StandardHideDesktopIcons`, `HideDesktop`, `EnableTilingByEdgeDrag`, `EnableTiledWindowMargins`, …
 - **`spaces`** — `spans-displays`
 - **`SoftwareUpdate`** — `AutomaticallyInstallMacOSUpdates`
-- **`LaunchServices`** — `LSQuarantine` (the "app downloaded from the internet" prompt — a safety guard; left ON deliberately). NB nix-darwin models **no** default-*handler* option: the default browser is not a `defaults` key at all but a LaunchServices binding, done from Home Manager instead — see `local.defaultBrowser` (`modules/home/default-browser.nix` — it left `chromium.nix`, and `makeDefaultBrowser` no longer exists) and § 7 below.
+- **`LaunchServices`** — `LSQuarantine` (the "app downloaded from the internet" prompt — a safety guard; left ON deliberately). NB nix-darwin models **no** default-*handler* option: the default browser is not a `defaults` key at all but a LaunchServices binding, done from Home Manager instead — see `local.defaultBrowser` (`modules/home/default-browser.nix`, which holds `chrome`) and § 7 below.
 - **`smb`** · **`magicmouse`** · **`universalaccess`** · **`ActivityMonitor`** · **`hitoolbox`** · **`iCal`** — present, niche
 
 ### Beyond `system.defaults` (top-level nix-darwin options)
@@ -407,28 +407,17 @@ already an activation no-op: its target still exists and already holds
    consent before you can change their handlers. If a change requires user consent, the
    system will ask the user asynchronously"*, and `http`/`https` are exactly those. So a
    fresh Mac gets **one** dialog. It cannot recur, because `defaultbrowser` no-ops once
-   Chromium already owns the scheme — which is why that tool was chosen over `duti`.
+   Chrome already owns the scheme — which is why that tool was chosen over `duti`.
    Treat "declarative" here as *converges to the right state after one click*, not
    *silently forced*.
-7. **Chromium's default SEARCH ENGINE — delivered, then refused by the browser.** The
-   most instructive failure on this page, because Nix reports total success. Setting the
-   `DefaultSearchProvider*` set in the `org.chromium.Chromium` **user** domain writes a
-   perfect plist and `chrome://policy` confirms arrival — Source `Platform`, Applies to
-   `Current user`, Level `Recommended` — yet `DefaultSearchProviderEnabled` reads
-   **"This policy is blocked, its value will be ignored"** and the other four cascade to
-   `Error` behind that dead main switch. `BookmarkBarEnabled`, immediately above them in
-   the same table, reads `OK`. So the *tier* works; this policy set is mandatory-only in
-   practice, whatever its upstream `can_be_recommended: true` claims. Mandatory needs an
-   MDM-installed `/Library/Managed Preferences` plist and would **padlock** Settings ▸
-   Search engine, so it is not worth having. Tried and removed 2026-08-31; **do not
-   re-attempt** — `chrome://policy` is the only real test of a policy's tier.
-   - Manual instead, once per profile: DuckDuckGo is already prepopulated, so ⋮ ▸ *Make
-     default*. **Google is not** (ungoogled strips its row), so add it by hand —
-     Settings ▸ Search engine ▸ Site search ▸ **Add**, name `Google`, shortcut
-     `google.com`, URL `https://www.google.com/search?q=%s`.
-   - Same wall for *adding* an engine without forcing it: `SiteSearchSettings` and
-     `EnterpriseSearchAggregatorSettings` are mandatory-only too, and engines they create
-     can never be promoted to default.
+7. **Browser policies — `chrome://policy` is the only real test of a policy's tier.**
+   Measured 2026-08-31 on the since-removed ungoogled-chromium: a recommended-level
+   `DefaultSearchProvider*` set arrived (Source `Platform`, Level `Recommended`) and was then
+   **blocked** by the browser, while `BookmarkBarEnabled` in the same table read `OK`. So
+   upstream's `can_be_recommended: true` is a hint, and a policy can arrive correctly and
+   still be ignored. Mandatory needs an MDM-installed `/Library/Managed Preferences` plist and
+   padlocks the setting. Chrome ships Google as its default engine, so no search policy is
+   declared today; **do not re-attempt** one without reading `chrome://policy` first.
 
 ### The "apply immediately" trick
 Many defaults don't take effect until logout/restart (Dock, some keyboard/mouse
