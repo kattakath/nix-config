@@ -257,11 +257,24 @@ never changes.
 - **Tables: do not touch the borders.** Keep the default grid. Style only the title row — or,
   for a key-value table such as the document-details block at the top, the title **column** —
   with the tinted fill and bold text. Rows never split across pages.
-- **Diagrams:** monospace (Courier New), **bold**, **no background**, kept together on one
-  page, and **indented until the block sits at the centre of the page**. The number of indent
-  steps depends on the diagram's width; it is not a fixed count.
-- **Read the Doc back after styling.** An import leaves stray colours behind (the title kept
-  the import's colour through three passes), and a font change resets heading weight.
+- **Diagrams** (the box-drawing ASCII kind): **JetBrains Mono**, **bold**, **no background**,
+  kept together on one page, and **indented until the block sits at the centre of the page**.
+  The number of indent steps depends on the diagram's width; it is not a fixed count.
+  - **Why not Consolas** (asked for, measured 2026-11-14): Docs' Consolas has no box-drawing or
+    arrow glyphs, so `─ │ ┌ ┐ └ ┘ ┬ ┴ ▼ ▲ →` fall back to Arial at other widths and every border
+    drifts. JetBrains Mono, Source Code Pro and Courier New draw all of them at the letter
+    width; Roboto Mono borrows Courier New's.
+  - **Borders and arrows must line up, and that is checked, not assumed:** export the Doc to
+    PDF and confirm every diagram character comes from the one monospace font at one advance
+    width, then look at the page.
+- **A blank line follows every table and every diagram.** Insert it as an empty Normal-text
+  paragraph; an empty paragraph that inherits a heading style pollutes the outline.
+- **Bold is a weight, and a font change erases it.** Setting a font family without a weight
+  resets every run to 400, silently un-bolding the body. Re-apply bold after any font change,
+  and set weight 700 on anything that must stay bold.
+- **Check the rendered Doc, not the API reply.** Export it to PDF and look. An import leaves
+  stray colours behind (the title kept the import's colour through three passes), and every
+  defect above passed with "no errors" before the export showed it.
 
 ## Redact secret values by default
 
