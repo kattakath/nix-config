@@ -65,6 +65,11 @@ jobs:
         with:
           client-id: ${{ vars.CI_BOT_CLIENT_ID }}
           private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+          # Least privilege (zizmor github-app): without permission-* inputs the token
+          # carries the App's WHOLE installation grant. Arming auto-merge is the
+          # enablePullRequestAutoMerge mutation, which needs both of these.
+          permission-contents: write
+          permission-pull-requests: write
 
       # Idempotent: re-arming an already-armed PR is a no-op, which is what makes a
       # 6-hourly sweep safe. Squash is the only method the `main` ruleset allows.

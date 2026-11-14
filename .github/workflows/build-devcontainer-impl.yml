@@ -272,14 +272,16 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push per-arch image
+        # Inputs reach the script through env, never `${{ }}` inside `run:` (zizmor
+        # template-injection): an expansion there is pasted into the shell source.
         env:
           CONTAINERS_REGISTRIES_CONF: ${{ runner.temp }}/registries.conf
+          REF: ${{ inputs.ref }}
+          SHA: ${{ inputs.sha12 }}
         run: |
           set -euo pipefail
           printf 'unqualified-search-registries = ["docker.io"]\n' \
             > "${CONTAINERS_REGISTRIES_CONF}"
-          REF="${{ inputs.ref }}"
-          SHA="${{ inputs.sha12 }}"
           ./result > image.tar
           # Resolve skopeo from OUR flake.lock via `--inputs-from .` — a bare
           # `nixpkgs#` installable resolves the RUNNER's flake registry (a

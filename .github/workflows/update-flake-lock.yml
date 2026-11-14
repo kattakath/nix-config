@@ -58,6 +58,11 @@ jobs:
         with:
           client-id: ${{ vars.CI_BOT_CLIENT_ID }}
           private-key: ${{ secrets.CI_BOT_APP_PRIVATE_KEY }}
+          # Least privilege (zizmor github-app): without permission-* inputs the token
+          # carries the App's WHOLE installation grant. Pushing the bump branch needs
+          # contents, opening + labelling + arming the PR needs pull-requests.
+          permission-contents: write
+          permission-pull-requests: write
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

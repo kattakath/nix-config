@@ -242,10 +242,11 @@ jobs:
       # buildx imagetools reads each source tag's platform from its own manifest
       # and assembles a proper OCI image index — no local pull/emulation needed.
       - name: Assemble manifest lists (:latest + :<sha12>)
+        env:
+          REF: ${{ needs.gate.outputs.ref }}
+          SHA: ${{ needs.gate.outputs.sha12 }}
         run: |
           set -euo pipefail
-          REF="${{ needs.gate.outputs.ref }}"
-          SHA="${{ needs.gate.outputs.sha12 }}"
           for TAG in "${SHA}" latest; do
             docker buildx imagetools create -t "${REF}:${TAG}" \
               "${REF}:${SHA}-arm64" \
@@ -257,9 +258,10 @@ jobs:
       # platforms. `imagetools inspect` prints the index; assert each arch is
       # present, then a real per-platform pull proves each is durably pullable.
       - name: Verify :latest is a durable multi-arch list
+        env:
+          REF: ${{ needs.gate.outputs.ref }}
         run: |
           set -euo pipefail
-          REF="${{ needs.gate.outputs.ref }}"
           echo "::group::imagetools inspect ${REF}:latest"
           INSPECT="$(docker buildx imagetools inspect "${REF}:latest")"
           echo "${INSPECT}"
@@ -277,7 +279,9 @@ jobs:
       # failed arch/assembly never poisons the cache into skipping the next
       # (needed) republish. The gate restores this exact key next run.
       - name: Create gate marker
-        run: echo "${{ needs.gate.outputs.cache_key }} @ ${{ github.sha }}" > .gate-marker
+        env:
+          CACHE_KEY: ${{ needs.gate.outputs.cache_key }}
+        run: echo "${CACHE_KEY} @ ${GITHUB_SHA}" > .gate-marker
 
       - name: Record published baseline (gate cache)
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
