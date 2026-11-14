@@ -315,7 +315,8 @@ in
     };
     revision_generation = {
       type = "number";
-      default = 1;
+      # 2: the 2026-11-14 restart test (tokens survived in Neon). Raise it to roll again.
+      default = 2;
       description = "Bump to roll a new Cloud Run revision with no other change (a cold-start or restart test).";
     };
   };
