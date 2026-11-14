@@ -11,7 +11,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `cf-access-org` | GCS `cf-access-org/` | `CLOUDFLARE_API_TOKEN` | **every Access app at once** (`auth_domain`) |
 | `gcp-budget` | GCS `gcp-budget/` | ADC | the spend ALERT (an alert, never a cap) |
 | `gcp-foundation` | **local** (still encrypted) | ADC | the bucket the others live in |
-| `gcp-workspace-gateway` | GCS `gcp-workspace-gateway/` | ADC + 3 `TF_VAR`s | the Pomerium gateway, every upstream Google token |
+| `gcp-workspace-gateway` | GCS `gcp-workspace-gateway/` | ADC + 3 `TF_VAR`s + `NEON_API_KEY` | the Pomerium gateway and its Neon token store (every upstream Google token) |
 | `hc-checks` | GCS `hc-checks/` | `HEALTHCHECKSIO_API_KEY` | the dead-man's-switch ALARMS; a quiet one reads as a healthy host |
 | `grafana` | GCS `grafana/` | `GRAFANA_AUTH` + `GRAFANA_SM_ACCESS_TOKEN` + gcom token | Grafana alerting, datasources, dashboard, probe (ADR-011). A dropped datasource takes its key with it |
 | `github` | GCS `github/` | `GITHUB_TOKEN` | fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |

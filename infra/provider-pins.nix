@@ -34,4 +34,7 @@
   cloudflare = "5.25.0";
   google = "8.4.0";
   healthchecksio = "2.3.0";
+  # gcp-workspace-gateway's token store (2026-11-14): no prior state, so it starts
+  # at the version the fleet's nixpkgs packages (terraform-providers.kislerdm_neon).
+  neon = "0.18.0";
 }

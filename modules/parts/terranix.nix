@@ -1364,7 +1364,8 @@ let
     mkAdoptedTofu {
       inherit system name action;
       stack = "gcp-workspace-gateway";
-      typePrefix = "google_";
+      # neon_: the databroker's Postgres project, so the drop guard covers it too.
+      typePrefix = "(google|neon)_";
       envPrefix = "GCP_WORKSPACE_GATEWAY";
       label = "workspace-gateway";
       # The google provider comes from the registry, pinned in infra/provider-pins.nix.
@@ -1377,6 +1378,7 @@ let
         TF_VAR_google_oauth_client_id = items.workspaceGateway.oauthClientId;
         TF_VAR_google_oauth_client_secret = items.workspaceGateway.oauthClientSecret;
         TF_VAR_gateway_allowed_emails = items.workspaceGateway.allowedEmails;
+        NEON_API_KEY = items.workspaceGateway.neonApiKey;
       };
       vars = "";
       credentialCheck = ''
@@ -1389,17 +1391,17 @@ let
         fi
         echo "ADC: $adc" >&2
         if [ -z "''${TF_VAR_google_oauth_client_id:-}" ] || [ -z "''${TF_VAR_google_oauth_client_secret:-}" ] \
-          || [ -z "''${TF_VAR_gateway_allowed_emails:-}" ]; then
-          echo "ERROR: TF_VAR_google_oauth_client_id, TF_VAR_google_oauth_client_secret and" >&2
-          echo "  TF_VAR_gateway_allowed_emails must all be set (data and a secret, kept out of the repo):" >&2
-          echo "  nix develop -c secret exec TF_VAR_google_oauth_client_id=${items.workspaceGateway.oauthClientId} TF_VAR_google_oauth_client_secret=${items.workspaceGateway.oauthClientSecret} TF_VAR_gateway_allowed_emails=${items.workspaceGateway.allowedEmails} -- nix run .#${name}" >&2
+          || [ -z "''${TF_VAR_gateway_allowed_emails:-}" ] || [ -z "''${NEON_API_KEY:-}" ]; then
+          echo "ERROR: TF_VAR_google_oauth_client_id, TF_VAR_google_oauth_client_secret," >&2
+          echo "  TF_VAR_gateway_allowed_emails and NEON_API_KEY must all be set (data and secrets, kept out of the repo):" >&2
+          echo "  nix develop -c secret exec TF_VAR_google_oauth_client_id=${items.workspaceGateway.oauthClientId} TF_VAR_google_oauth_client_secret=${items.workspaceGateway.oauthClientSecret} TF_VAR_gateway_allowed_emails=${items.workspaceGateway.allowedEmails} NEON_API_KEY=${items.workspaceGateway.neonApiKey} -- nix run .#${name}" >&2
           echo "  The allowlist item is a JSON list, e.g. [\"you@example.com\"]." >&2
           exit 1
         fi
       '';
       createLine = "The others would be CREATED. Expected ONLY on this stack's first apply; read the plan first.";
       dropLines = [
-        "Applying it would DELETE each one: the bucket holds every upstream"
+        "Applying it would DELETE each one: the Neon project holds every upstream"
         "refresh token, and the service is every Workspace connector's backend."
         "tofu apply has NO rollback."
       ];
@@ -1649,9 +1651,10 @@ let
         # The state filter above keeps only `typePrefix`. A render declaring any other
         # type would be invisible to guards (1) and (2), so refuse it: such a stack
         # needs its own prefix parameter, not this builder as-is.
-        if grep -qv '^${typePrefix}' .render-addrs; then
+        # ERE, like the state filter: a prefix may be an alternation, e.g. "(google|neon)_".
+        if grep -qEv '^${typePrefix}' .render-addrs; then
           echo "REFUSING: the render declares resources outside '${typePrefix}':" >&2
-          grep -v '^${typePrefix}' .render-addrs | sed 's/^/    /' >&2
+          grep -Ev '^${typePrefix}' .render-addrs | sed 's/^/    /' >&2
           echo "  The drop and empty-state guards filter state by that prefix, so they" >&2
           echo "  could not see these. Give mkAdoptedTofu a separate prefix first." >&2
           exit 1
@@ -1994,7 +1997,7 @@ in
         gcp-workspace-gateway-plan = {
           type = "app";
           program = "${config.packages.gcp-workspace-gateway-plan}/bin/gcp-workspace-gateway-plan";
-          meta.description = "Render infra/gcp/workspace-gateway.nix (terranix) and tofu PLAN the Pomerium Workspace gateway on Cloud Run, its secrets' containers and its domain mappings — read-only (needs ADC + the client id, client secret and allowlist TF_VARs)";
+          meta.description = "Render infra/gcp/workspace-gateway.nix (terranix) and tofu PLAN the Pomerium Workspace gateway on Cloud Run, its secrets' containers and its domain mappings — read-only (needs ADC + the client id, client secret and allowlist TF_VARs, and NEON_API_KEY)";
         };
         gcp-workspace-gateway-apply = {
           type = "app";

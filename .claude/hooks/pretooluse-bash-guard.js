@@ -241,7 +241,7 @@ const TERRANIX_APPLY_WORST_CASE = {
   "cf-access-org": "un-imported state, or reverting a dashboard auth_domain",
   "gcp-foundation": "a render declaring NO state bucket",
   "gcp-budget": "DELETES the spend alarm, leaving billing unwatched",
-  "gcp-workspace-gateway": "a dropped bucket or service DELETES every upstream Google token and every Workspace connector's backend",
+  "gcp-workspace-gateway": "a dropped Neon project or service DELETES every upstream Google token and every Workspace connector's backend",
   "hc-checks": "a render dropping a check DELETES its dead-man alarm, and silence reads as healthy",
   grafana: "a render dropping an object DELETES it in Grafana Cloud (alert rules, the contact point, a datasource whose key exists nowhere else)",
   github: "a dropped ruleset DELETES a fleet repo's branch protection, and a stale template pin rolls every ruleset back",

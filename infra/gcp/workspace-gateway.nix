@@ -16,8 +16,8 @@
 # DECISIONS (operator, 2026-11-14), one line of why each:
 #   - Cloud Run, REQUEST-BASED billing (`cpu_idle`): CPU bills only while a request
 #     is open, so an idle gateway costs nothing inside the free tier.
-#   - min 0 / max 1 instances: scale to zero for cost; max 1 because the file token
-#     store must never have two writers.
+#   - min 0 / max 1 instances: scale to zero for cost; max 1 bounds the Postgres
+#     connections and keeps one Pomerium per token store.
 #   - us-central1: the region the state bucket already uses, and one of the three
 #     (us-central1/us-east1/us-west1) where the 5 GB Cloud Storage free tier applies.
 #   - NO Alloy metrics sidecar: Cloud Run's built-in Cloud Monitoring metrics cover
@@ -28,23 +28,31 @@
 #   - Usage reporting OFF: `runtime_flags.product_analytics = false`, the only gate
 #     in v0.34.1's source.
 #
-# DATABROKER: `file` (pebble) on a GCS volume at /data, NOT postgres.
-#   Why: no new credential (a postgres DSN would be a 4th Secret Manager secret,
-#   6/6 on the free tier), no new vendor, $0. Memory storage is out: with min 0,
-#   every cold start would drop every session and every upstream token, so each
-#   app would re-ask for Google consent.
-#   WEAKEST ASSUMPTION: pebble was measured on a LOCAL directory in the spike, never
-#   on Cloud Storage FUSE. gcsfuse offers no flock and rewrites whole objects, and
-#   Google's Cloud Run docs warn against databases on a GCS volume. max 1 instance
-#   removes concurrent writers, but a revision rollout can briefly run the old and
-#   new instance together. Verify on the first deploy (sign in, force a cold start,
-#   confirm the upstream tokens survive). The fallback is postgres (Neon) with its
-#   DSN as the 4th secret.
+# DATABROKER: `postgres` on Neon (operator, 2026-11-14), the project created HERE.
+#   Why not `file` (pebble on the GCS volume, the first deploy): measured on that
+#   deploy, the bucket held no WAL object after a sign-in, and pebble's marker named
+#   MANIFEST-000006 while the bucket held only MANIFEST-000001. gcsfuse uploads an
+#   object only when the file is closed or synced, and pebble keeps both open, so a
+#   cold start could read a half-written store. Memory storage is out: with min 0,
+#   every cold start would drop every session and every upstream token.
+#   Why Neon: scale-to-zero Postgres, and the operator already uses it. Pomerium's
+#   backend LISTENs (pkg/storage/postgres/backend.go, listenForNotifications), so
+#   the DSN is the DIRECT host, never `-pooler` (pgbouncer transaction mode drops
+#   LISTEN). Region aws-us-east-2 (Ohio), the Neon region nearest us-central1.
+#   WEAKEST ASSUMPTION — Neon FREE plan, "measure" (operator): 100 CU-hours per
+#   project per month, about 400 h at 0.25 CU, and over it the compute is SUSPENDED
+#   until the next month (data kept). Pomerium's open LISTEN keeps the compute
+#   awake while an instance lives, and the first deploy's instance outlived 22 min
+#   idle. If usage trends past 100 CU-h (Neon console, or the Neon MCP's
+#   get_project_consumption), move the org to pay-as-you-go: no config change.
+#   Records are encrypted at rest only by Neon's disk encryption.
 #
-# SECRETS: THREE Secret Manager secrets. Measured 2026-11-14: the billing account
-# holds 2 billable versions (both in this project; jsonresume-connect has Secret
-# Manager disabled), so three makes 5 of the free 6 and leaves `secrets-push`
-# (keychain-secrets, capped at 6) one slot.
+# SECRETS: FOUR Secret Manager secrets. Measured 2026-11-14: the billing account
+# holds 2 billable versions besides these, so four makes 6 of the free 6, and
+# `secrets-push` (keychain-secrets, hard cap 6) now needs `--force` ($0.06 per
+# version per month). Accepted by the operator. FOLLOW-UP: one secret mounted as a
+# FILE holding the whole config.yaml (routes, IdP secret, key, DSN) would replace
+# all four and the bucket.
 #   workspace-gateway-policy          env POLICY: base64 of the routes YAML. Routes
 #       must come in whole because upstream_oauth2.client_secret has no *_file key.
 #   workspace-gateway-idp-client-secret  env IDP_CLIENT_SECRET. The SAME Google value
@@ -55,8 +63,11 @@
 #       GetSharedKey and GetCookieSecret). They must not be left unset here: that
 #       random key is regenerated per process, and with min 0 every cold start is a
 #       new process, so every cookie and every stored token would be lost.
-#   REJECTED: four secrets (6/6, no headroom for secrets-push); the keys as files in
-#   the data bucket (the key would sit beside the data it protects).
+#   workspace-gateway-databroker-dsn  env DATABROKER_STORAGE_CONNECTION_STRING: the
+#       Neon project's direct URI, written by this stack (it lives in tofu state,
+#       which is encrypted).
+#   REJECTED: the keys as files in the data bucket (the key would sit beside the
+#   data it protects).
 #
 # THIS STACK WRITES POLICY AND IDP_CLIENT_SECRET ITSELF, through WRITE-ONLY
 # attributes (`secret_data_wo`, google 8.4.0; OpenTofu >= 1.11, the pin is 1.13.1).
@@ -85,12 +96,15 @@
 # FIRST APPLY IS TWO-STEP for the key alone, because a Cloud Run revision will not
 # start on a secret with no version (Cloud Run resolves `latest` at deploy):
 #   1. nix develop -c nix run .#gcp-foundation-apply    (run + artifactregistry APIs)
-#   2. the key's container alone, with the three TF_VARs (the credential check needs
-#      them) and the empty-state override (it refuses any apply on empty state):
-#        secret exec <the three TF_VARs> -- env GCP_WORKSPACE_GATEWAY_ALLOW_CREATE=1 \
+#   2. the key's container alone, with the three TF_VARs and NEON_API_KEY (the
+#      credential check needs them) and the empty-state override (it refuses any
+#      apply on empty state):
+#        secret exec <the three TF_VARs + NEON_API_KEY> -- env GCP_WORKSPACE_GATEWAY_ALLOW_CREATE=1 \
 #          nix run .#gcp-workspace-gateway-apply -- -target=google_secret_manager_secret.workspace_gateway_key
 #   3. add the key (below), then `-plan -- -out=<f>` (23 add) and `-apply -- <f>`.
-#   A FIRST REVISION THAT FAILS (bad POLICY, pebble on gcsfuse) is not fixed by
+#   A revision that fails with PERMISSION_DENIED on a NEW secret is IAM propagation
+#   lag (about 60 s after the grant): wait, re-plan, re-apply.
+#   A FIRST REVISION THAT FAILS (bad POLICY, an unreachable DSN) is not fixed by
 #   re-running apply: deletion_protection refuses the replace. Read Cloud Logging
 #   and fix the render; recovery may need an import block.
 # The key stays out of tofu because it is re-issuable randomness with no other
@@ -140,7 +154,7 @@ let
   # ---- Pomerium config.yaml (non-secret) ------------------------------------
   # Rendered as JSON, which is valid YAML, into the data bucket and read through the
   # mount. Every key here was exercised in the 2026-11-14 spike except the
-  # databroker path and the otel keys. Nothing per-person: the client id arrives as
+  # databroker keys (file on gcsfuse, then postgres via env) and the otel keys. Nothing per-person: the client id arrives as
   # env IDP_CLIENT_ID (Pomerium binds every key to its upper-cased env name,
   # bindEnvsRecursive in config/options.go), and the routes are the POLICY secret.
   pomeriumConfig = lib.filterAttrs (_: v: v != null) {
@@ -149,6 +163,11 @@ let
     insecure_server = true;
     authenticate_service_url = "https://${authHost}";
     idp_provider = "google";
+    # SUPERSEDED by env on the running revision (env beats the config file in viper):
+    # DATABROKER_STORAGE_TYPE=postgres and DATABROKER_STORAGE_CONNECTION_STRING (the
+    # Neon secret). Left as `file` so an OLD revision that cold-starts during the
+    # switch, or a traffic rollback to one, still starts. FOLLOW-UP: drop these two
+    # keys once the postgres revision is proven.
     databroker_storage_type = "file";
     databroker_storage_connection_string = "file:///data/databroker";
     # Only claude.ai may register as an MCP client (Client ID Metadata Documents).
@@ -157,7 +176,7 @@ let
     log_level = "info";
     # TRACES: "none" until Grafana Cloud's OTLP endpoint and token are wired. TODO:
     # set "otlp", the endpoint below, and `otel_exporter_otlp_headers` carrying the
-    # token — which would be a 4th secret (6/6), so it waits on a decision. A
+    # token — which would be a 5th secret (7/6, billable), so it waits on a decision. A
     # placeholder endpoint would log an export failure per batch instead.
     # Under request-based billing the batch exporter can stall between requests
     # (CPU is throttled), so spans may arrive late or be lost at scale-down:
@@ -230,12 +249,17 @@ let
   written = [
     "${service}-policy"
     "${service}-idp-client-secret"
+    "${service}-databroker-dsn"
   ];
+
+  # Neon's direct (non-pooler) URI; see DATABROKER in the header for why direct.
+  neonDsn = "postgresql://\${neon_project.databroker.database_user}:\${urlencode(neon_project.databroker.database_password)}@\${neon_project.databroker.database_host}/\${neon_project.databroker.database_name}?sslmode=require";
 
   # Secret id -> the env vars it feeds. One secret may feed two (the key).
   secrets = {
     "${service}-policy" = [ "POLICY" ];
     "${service}-idp-client-secret" = [ "IDP_CLIENT_SECRET" ];
+    "${service}-databroker-dsn" = [ "DATABROKER_STORAGE_CONNECTION_STRING" ];
     "${service}-key" = [
       "SHARED_SECRET"
       "COOKIE_SECRET"
@@ -243,15 +267,23 @@ let
   };
 in
 {
-  terraform.required_providers.google = {
-    source = "hashicorp/google";
-    version = "= ${(import ../provider-pins.nix).google}";
+  terraform.required_providers = {
+    google = {
+      source = "hashicorp/google";
+      version = "= ${(import ../provider-pins.nix).google}";
+    };
+    neon = {
+      source = "kislerdm/neon";
+      version = "= ${(import ../provider-pins.nix).neon}";
+    };
   };
 
   provider.google = {
     project = projectId;
     inherit region;
   };
+  # Reads NEON_API_KEY (an organization key, Keychain item in keychain-items.nix).
+  provider.neon = { };
 
   # Per-person data (no data in the repo): the OAuth client id, fed at plan time by
   # `secret exec TF_VAR_google_oauth_client_id=gcp:workspace-gateway:oauth-client-id`.
@@ -281,6 +313,11 @@ in
       default = 1;
       description = "Bump after rotating the OAuth client secret: rewrites POLICY and IDP_CLIENT_SECRET.";
     };
+    revision_generation = {
+      type = "number";
+      default = 1;
+      description = "Bump to roll a new Cloud Run revision with no other change (a cold-start or restart test).";
+    };
   };
 
   resource = {
@@ -299,11 +336,30 @@ in
       storage_class = "STANDARD";
       uniform_bucket_level_access = true;
       public_access_prevention = "enforced";
-      # It holds every upstream refresh token (the databroker).
+      # Holds config.yaml (and, until deleted by hand after the switch, the old
+      # pebble objects under databroker/). The tokens now live in Neon.
       force_destroy = false;
-      # Soft delete OFF: pebble rewrites and deletes files on every compaction, and
-      # the 7-day default would keep each deleted version as billable bytes.
+      # Soft delete OFF: the 7-day default would keep each replaced config.yaml.
       soft_delete_policy.retention_duration_seconds = 0;
+    };
+
+    # Pomerium's databroker: every session and every upstream refresh token.
+    neon_project.databroker = {
+      name = service;
+      region_id = "aws-us-east-2";
+      pg_version = 17;
+      # Free plan ceiling for point-in-time restore is 6 h.
+      history_retention_seconds = 21600;
+      # Fixed 0.25 CU: the header's ~400 h/month Free budget assumes it, and Free
+      # would otherwise autoscale up to 2 CU and burn the 100 CU-h faster.
+      autoscaling_limit_min_cu = 0.25;
+      autoscaling_limit_max_cu = 0.25;
+      branch = {
+        name = "main";
+        database_name = "pomerium";
+        role_name = "pomerium";
+      };
+      lifecycle.prevent_destroy = true;
     };
 
     google_storage_bucket_object.config = {
@@ -317,7 +373,7 @@ in
     google_service_account.gateway = {
       account_id = service;
       display_name = "Workspace gateway (Pomerium) on Cloud Run";
-      description = "No keys. Reads its 3 secrets and the ${bucket} bucket, nothing else (infra/gcp/workspace-gateway.nix).";
+      description = "No keys. Reads its 4 secrets and the ${bucket} bucket, nothing else (infra/gcp/workspace-gateway.nix).";
     };
 
     google_storage_bucket_iam_member.gateway = {
@@ -343,7 +399,7 @@ in
       };
     }) secrets;
 
-    # The two client-secret-bearing values, written through write-only attributes.
+    # The three secret-bearing values, written through write-only attributes.
     google_secret_manager_secret_version = {
       ${tfName "${service}-policy"} = {
         secret = "\${google_secret_manager_secret.${tfName "${service}-policy"}.id}";
@@ -355,6 +411,13 @@ in
         secret = "\${google_secret_manager_secret.${tfName "${service}-idp-client-secret"}.id}";
         secret_data_wo = "\${var.google_oauth_client_secret}";
         secret_data_wo_version = "\${var.client_secret_generation}";
+        lifecycle.create_before_destroy = true;
+      };
+      # Changes only when the project, host or password changes.
+      ${tfName "${service}-databroker-dsn"} = {
+        secret = "\${google_secret_manager_secret.${tfName "${service}-databroker-dsn"}.id}";
+        secret_data_wo = neonDsn;
+        secret_data_wo_version = "\${parseint(substr(sha256(\"${neonDsn}\"), 0, 8), 16)}";
         lifecycle.create_before_destroy = true;
       };
     };
@@ -376,7 +439,10 @@ in
         };
         # A changed config.yaml rolls a new revision. gcsfuse delivers no file-change
         # events, so a running Pomerium would otherwise keep the old config.
-        labels.config-sha = builtins.substring 0 16 (builtins.hashString "sha256" configText);
+        labels = {
+          config-sha = builtins.substring 0 16 (builtins.hashString "sha256" configText);
+          revision-generation = "\${var.revision_generation}";
+        };
         volumes = [
           {
             name = "data";
@@ -416,6 +482,11 @@ in
                 name = "IDP_CLIENT_ID";
                 value = "\${var.google_oauth_client_id}";
               }
+              # Overrides config.yaml's `file` (see the comment there).
+              {
+                name = "DATABROKER_STORAGE_TYPE";
+                value = "postgres";
+              }
             ]
             ++ lib.concatLists (
               lib.mapAttrsToList (
@@ -445,6 +516,8 @@ in
       depends_on = [
         "google_secret_manager_secret_version.${tfName "${service}-policy"}"
         "google_secret_manager_secret_version.${tfName "${service}-idp-client-secret"}"
+        "google_secret_manager_secret_version.${tfName "${service}-databroker-dsn"}"
+        "google_secret_manager_secret_iam_member.${tfName "${service}-databroker-dsn"}"
         "google_secret_manager_secret_iam_member.${tfName "${service}-policy"}"
         "google_secret_manager_secret_iam_member.${tfName "${service}-idp-client-secret"}"
         "google_secret_manager_secret_iam_member.${tfName "${service}-key"}"

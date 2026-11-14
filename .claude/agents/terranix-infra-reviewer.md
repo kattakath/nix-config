@@ -70,9 +70,10 @@ Three things follow, and apply them to every review:
 **State:** every stack but `gcp-foundation` shares the versioned GCS backend, encrypted with a Keychain
 passphrase (`tofu:state:passphrase`). `gcp-foundation` keeps **local** state on
 purpose — it declares the bucket, so it cannot live in it — and is encrypted the
-same way. Losing that passphrase makes all state unreadable. Two payloads carry a plaintext
-secret: `cf-tunnel`'s (the connector token) and `grafana`'s (the li-logs access-policy token,
-since 2026-11-13); `mcp-public` was a third until it was deleted.
+same way. Losing that passphrase makes all state unreadable. Three payloads carry a plaintext
+secret: `cf-tunnel`'s (the connector token), `grafana`'s (the li-logs access-policy token,
+since 2026-11-13) and `gcp-workspace-gateway`'s (the Neon role password and connection URIs,
+since 2026-11-14); `mcp-public` was another until it was deleted.
 
 ## Credentials — two kinds, never interchangeable
 
