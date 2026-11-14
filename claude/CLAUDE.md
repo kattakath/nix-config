@@ -239,6 +239,30 @@ in `nix-config`'s [`docs/answer-shape-evidence.md`](https://github.com/kattakath
 rule that surprises people: a diagram or chart that does **not** carry data measurably *hurts*
 comprehension, so "add a visual" is never an automatic improvement.
 
+## Document house style (Google Docs and PDF) — apply on CREATE, not after being asked
+
+Ismail, 2026-11-14: every rule here was first corrected by hand on one document, then made
+code. **Build a Google Doc or a PDF with the `house-style` plugin (`kattakath/skills`), never
+by hand**: no Docs API restyling, no HTML printed from a browser.
+
+- **One definition feeds every output.** The plugin's `style.json` holds the fonts and
+  colours, and its Docs build, its PDF build and `agentic-jobseek`'s résumé theme all read it.
+  **Change the look there, never in a prompt** — and do not restate its values anywhere,
+  including here.
+- **Identity is not in the plugin.** nix-config's `modules/home/house-style.nix` writes
+  `~/.config/house-style/config.json` (author, owning account) from the fleet identity.
+- **Run the scripts with `$HOUSE_STYLE_PYTHON`** on the Mac (that module's interpreter, which
+  has `python-docx`): `gdoc.py in.md out.docx`, then upload to Drive with conversion;
+  `pdf.py in.md out.pdf` for a tagged PDF/UA-1.
+- **A built Doc is a NEW file.** Drive cannot replace an existing Doc's content, so say when a
+  link will change. Editing an existing Doc in place stays a Docs API job, with three traps:
+  the API has **no request that inserts a page-number field**; a font family set without a
+  weight **erases bold**; a blank line inserted before a list **inherits the bullet**.
+- **Check the rendered result, not the API reply:** export the Doc to PDF (or open the built
+  PDF), confirm every diagram character comes from the one monospace font at one width
+  (`font_probe.py`), then look at the pages.
+- **Résumés** render with `agentic-jobseek`'s own layout, on this style's fonts and tokens.
+
 ## Redact secret values by default
 
 Secret **values** — tokens, API keys, passwords, `.age` plaintext, Keychain reads — are never

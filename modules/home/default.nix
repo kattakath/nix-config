@@ -367,6 +367,7 @@ in
     # (operator decision D4). Desktop CHAT runs no plugin stdio server and its MCP now
     # comes only from claude.ai connectors (docs/claude-desktop-mcp.md).
     ./terminal-theme.nix # the fleet terminal palette + type, held once (read by Ghostty and VS Code below)
+    ./house-style.nix # the document house style (Google Docs + PDF) and the identity it stamps: one config file the house-style plugin reads, plus its interpreter
     ./terminal-app.nix # Terminal.app type + colours (all darwin)
     ./fleet-gauges.nix # hourly credential-expiry / security-alert / backup gauges (macos only)
     ./terranix-drift.nix # daily drift check over every terranix stack (macos only)
