@@ -245,21 +245,15 @@ Ismail, 2026-11-14: every rule here was first corrected by hand on one document,
 code. **Build a Google Doc or a PDF with the `house-style` plugin (`kattakath/skills`), never
 by hand**: no Docs API restyling, no HTML printed from a browser.
 
-- **One definition feeds both outputs.** The plugin's `style.json` holds the fonts and
-  colours; nix-config's `modules/home/house-style.nix` writes `~/.config/house-style/config.json`
-  with the same keys plus the author and owning account, derived from the fleet identity.
-  **Change the style there, never in a prompt.**
+- **One definition feeds every output.** The plugin's `style.json` holds the fonts and
+  colours, and its Docs build, its PDF build and `agentic-jobseek`'s résumé theme all read it.
+  **Change the look there, never in a prompt** — and do not restate its values anywhere,
+  including here.
+- **Identity is not in the plugin.** nix-config's `modules/home/house-style.nix` writes
+  `~/.config/house-style/config.json` (author, owning account) from the fleet identity.
 - **Run the scripts with `$HOUSE_STYLE_PYTHON`** on the Mac (that module's interpreter, which
   has `python-docx`): `gdoc.py in.md out.docx`, then upload to Drive with conversion;
   `pdf.py in.md out.pdf` for a tagged PDF/UA-1.
-- **The style:** Google Sans; **Material blue** `#0B57D0` for the title and section headings,
-  tint `#E8F0FE`, table borders `#C4C7C5` (purple was tried and dropped); Title Case for every
-  title; tables keep the full grid with a tinted bold title row (title **column** for a
-  details block); diagrams in **JetBrains Mono** bold, no background, centred as a block, kept
-  on one page; a blank line after every table and diagram; page numbers (Doc: `page/total`
-  bottom right, not on page 1).
-- **Not Consolas** (asked for, measured): Docs' Consolas has no box-drawing or arrow glyphs,
-  so they fall back to Arial at other widths and every border drifts.
 - **A built Doc is a NEW file.** Drive cannot replace an existing Doc's content, so say when a
   link will change. Editing an existing Doc in place stays a Docs API job, with three traps:
   the API has **no request that inserts a page-number field**; a font family set without a
@@ -267,7 +261,7 @@ by hand**: no Docs API restyling, no HTML printed from a browser.
 - **Check the rendered result, not the API reply:** export the Doc to PDF (or open the built
   PDF), confirm every diagram character comes from the one monospace font at one width
   (`font_probe.py`), then look at the pages.
-- **Résumés are separate:** `agentic-jobseek`'s own template renders them.
+- **Résumés** render with `agentic-jobseek`'s own layout, on this style's fonts and tokens.
 
 ## Redact secret values by default
 

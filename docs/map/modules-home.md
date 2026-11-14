@@ -320,16 +320,13 @@ in the repo can catch that; see that fixture file's header for the measurement.
   **stylix was rejected on measurement, not taste** — its Ghostty target hardcodes
   `"9=${base08}" … "14=${base0C}"`, so brights collapse onto normals and 8 of 16 values come
   out wrong, for +16 lock nodes. Full reasoning: [`terminal-theme.md`](../terminal-theme.md).
-- **`house-style.nix`** — the document house style (Google Docs **and** PDF) and the identity
-  it stamps, as ONE file: `$XDG_CONFIG_HOME/house-style/config.json`, read by the `house-style`
-  plugin (`github:kattakath/skills`). `identity.author` is `fullName` and `identity.owner` is
-  the Workspace account, both built from the identity ARGUMENTS (`loginName`, `fullName`,
-  `domainName`), so the public scripts carry no person. The file is `pkgs.formats.json` plus
-  `xdg.configFile`, the pair `page-lab.nix` uses, on every host. On Darwin only it also
-  installs `typst` and exports `HOUSE_STYLE_PYTHON` (a `python3.withPackages` env with
-  `python-docx`, named by a variable as `beancount.nix` does, never a second `python3` on
-  PATH). Passed over, with reasons in the module header: `programs.pandoc` (pinned
-  home-manager), the typix flake, and nixpkgs' variable-only Google Sans.
+- **`house-style.nix`** — the identity the document house style stamps (Google Docs **and**
+  PDF), as ONE file: `$XDG_CONFIG_HOME/house-style/config.json`, read by the `house-style`
+  plugin (`github:kattakath/skills`). `author` and `owner` are built from the identity
+  ARGUMENTS, so the public scripts carry no person. **No style value lives here**: fonts and
+  colours are the plugin's `style.json`. On Darwin only it also installs `typst` and exports
+  `HOUSE_STYLE_PYTHON` (the `beancount.nix` pattern). What was passed over, and why: the
+  module header.
 - **Ghostty** (`programs.ghostty` in `modules/home/default.nix`, `macos` only) — GPU-accelerated terminal,
   installed as a **Homebrew cask** because nixpkgs' `ghostty` is **Linux-only** and refuses to
   evaluate on aarch64-darwin. That is precisely the case home-manager documents for
