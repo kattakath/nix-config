@@ -52,5 +52,6 @@ let
 in
 {
   xdg.configFile."gdoc-house-style/config.json".source =
-    (pkgs.formats.json { }).generate "gdoc-house-style-config.json" settings;
+    (pkgs.formats.json { }).generate "gdoc-house-style-config.json"
+      settings;
 }
