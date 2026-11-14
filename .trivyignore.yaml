@@ -1,0 +1,44 @@
+# trivy's reviewed exceptions — read by `checks.<system>.trivy-terranix` (modules/parts/checks.nix).
+#
+# Triage of 2026-11-14 (trivy 0.76.0, its embedded checks, every terranix stack rendered
+# to stacks/<name>/config.tf.json): 4 findings, all in gcp-foundation. Each entry is
+# scoped to the stack it was triaged on, so the same finding in a NEW stack is red.
+#
+# READ THIS FIRST: trivy cannot read a NESTED BLOCK from Terraform JSON (measured
+# 2026-11-14 — `versioning`, `logging`, a firewall's `allow` are all invisible, in object
+# AND list form; the same config written as HCL is read correctly). So a check about a
+# nested block fires whatever the render says. Entries below say which kind they are.
+misconfigurations:
+  - id: GCP-0003
+    paths:
+      - "gcp-foundation/config.tf.json"
+    statement: >-
+      ACCEPTED: the operator's own roles/owner grant (operator_owner). A one-human
+      project has no group to grant through; foundation.nix declares it so a hand edit
+      shows as drift, and prevent_destroy guards the self-lockout.
+
+  - id: GCP-0066
+    paths:
+      - "gcp-foundation/config.tf.json"
+    statement: >-
+      ACCEPTED: Google-managed encryption, no CMEK. The state bucket's objects are
+      already client-side encrypted by OpenTofu (TF_ENCRYPTION, the Keychain
+      passphrase). A KMS key
+      would be billed spend and one more key to lose, guarding nothing new.
+
+  - id: GCP-0077
+    paths:
+      - "gcp-foundation/config.tf.json"
+    statement: >-
+      ACCEPTED: no usage-log bucket. Access is IAM-only (uniform access, public access
+      prevention enforced), and who changed IAM is in the Admin Activity audit log,
+      which is always on. (This check reads a nested block, so it would fire even if
+      `logging` were set; see the header.)
+
+  - id: GCP-0078
+    paths:
+      - "gcp-foundation/config.tf.json"
+    statement: >-
+      FALSE POSITIVE: the state bucket HAS versioning (foundation.nix sets
+      versioning.enabled = true, and the render carries it). trivy reads no nested
+      block from Terraform JSON, so it never sees it.

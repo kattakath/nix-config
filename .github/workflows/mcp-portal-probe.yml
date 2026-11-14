@@ -1,0 +1,106 @@
+# mcp-portal-probe — the LIVE half of checks.<system>.mcp-portal-posture.
+#
+# That check proves the RENDER of the Workspace MCP portal (infra/cloudflare/mcp-portals.nix)
+# is narrow; nothing proves the running portal still is. This asks the internet, once a day,
+# the questions an attacker would, WITHOUT credentials: does the portal answer an
+# unauthenticated MCP request, does Dynamic Client Registration (DCR) accept a callback
+# nobody listed, does a retired Pomerium gateway host still resolve. No checkout, no third-party
+# action: curl on the runner, with `permissions: {}`.
+#
+# EXPECTATIONS ARE MEASUREMENTS, read 2026-11-14 from the Mac with plain curl:
+#   POST <portal>/mcp     401, `www-authenticate: Bearer realm="OAuth",
+#                         error="invalid_token", resource_metadata="…"` — Cloudflare
+#                         Access's MCP OAuth challenge. A 200 here is the failure this
+#                         file exists for.
+#   GET  <metadata URL>   200, JSON naming <portal>/mcp and the Access team domain as its
+#                         one authorization server.
+#   POST <team>/…/registration with redirect_uri https://evil.example.com/cb
+#                         400, error `invalid_client_metadata` ("redirect_uri is not
+#                         allowed by the account configuration"). A 201 would mean DCR
+#                         takes any callback, and would have minted a junk client.
+#   <retired app hosts>   curl exit 6 (no address): the Pomerium gateway's hostnames were
+#                         destroyed with it, and nothing may answer for them.
+# TLS is curl's default verification: a bad or expired certificate is curl exit 60,
+# reported as a mismatch like any other.
+#
+# ONLY THE REFUSAL is probed. A registration with an ALLOWED callback (any listed URI, or
+# localhost/loopback, which the portal accepts on any port) would SUCCEED and leave a
+# junk DCR client in the account on every run.
+#
+# PORTAL restates infra/cloudflare/workspace-mcp-apps.nix's portalLabel and the zone;
+# mcp-portal-posture fails when the two disagree.
+#
+# NO HEARTBEAT, by choice for now: a failed scheduled run already emails the repo owner,
+# and a heartbeat needs a fleet.heartbeats entry plus an hc-checks apply. It is listed in
+# heartbeat-workflow-parity's `unwatched` with that reason.
+name: mcp-portal-probe
+
+on:
+  schedule:
+    - cron: "41 7 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: mcp-portal-probe
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe the Workspace MCP portal unauthenticated
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      ZONE: kattakath.com
+      PORTAL: mcp
+      TEAM: kattakath.cloudflareaccess.com
+      RETIRED: gmail calendar drive docs sheets slides chat people authenticate
+    steps:
+      - name: The portal refuses, DCR refuses an unlisted callback, retired hosts are gone
+        run: |
+          set -euo pipefail
+          fail=0
+          # probe <expected code> <url> [curl args...]; leaves headers.txt and body.txt
+          probe() {
+            want=$1 url=$2
+            shift 2
+            : > headers.txt # a failed curl must not leave the LAST URL's output to grep
+            : > body.txt
+            got=$(curl -sS --proto '=https' -o body.txt -D headers.txt -m 20 --retry 2 \
+              -w '%{http_code}' "$@" "$url") || got="curl-exit-$?"
+            if [ "$got" = "$want" ]; then
+              echo "ok    $got  $url"
+            else
+              echo "::error::$url answered $got, expected $want"
+              fail=1
+            fi
+          }
+          need() { # need <file> <ERE> <what>
+            if ! grep -qiE "$2" "$1"; then
+              echo "::error::$3"
+              fail=1
+            fi
+          }
+          mcp="https://$PORTAL.$ZONE/mcp"
+
+          probe 401 "$mcp" -X POST -H 'content-type: application/json' \
+            -H 'accept: application/json, text/event-stream' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+          need headers.txt '^www-authenticate: Bearer .*resource_metadata=' \
+            "$mcp sent no OAuth Bearer challenge with resource_metadata"
+
+          probe 200 "https://$PORTAL.$ZONE/.well-known/oauth-protected-resource/mcp"
+          need body.txt "\"authorization_servers\":\[\"https://$TEAM\"\]" \
+            "the protected-resource metadata does not name https://$TEAM"
+
+          probe 400 "https://$TEAM/cdn-cgi/access/oauth/registration" -X POST \
+            -H 'content-type: application/json' \
+            --data '{"redirect_uris":["https://evil.example.com/cb"],"client_name":"nix-config mcp-portal-probe"}'
+          need body.txt '"error":"invalid_client_metadata"' \
+            "DCR did not refuse https://evil.example.com/cb as invalid_client_metadata"
+
+          for h in $RETIRED; do
+            probe curl-exit-6 "https://$h.$ZONE/"
+          done
+          exit "$fail"

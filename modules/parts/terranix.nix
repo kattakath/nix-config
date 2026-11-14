@@ -1778,6 +1778,32 @@ in
     inherit
       cfTunnelConfig
       ;
+    # EVERY stack's render, keyed by its name in ../_lib/terranix-stacks.nix, exactly as
+    # its *-plan wrapper renders it (cf-tunnel with the real hostedSites). Read by the
+    # security checks in modules/parts/checks.nix: trivy-terranix scans each derivation,
+    # and mcp-portal-posture reads `.config`, the attrset terranix serialised, so
+    # no check needs import-from-derivation. Keyed by `stacks.names` so a stack added
+    # there without a renderer here throws at eval instead of going unscanned.
+    terranixStackRenders =
+      system:
+      let
+        renders = {
+          cf-tunnel = cfTunnelConfig { inherit system hostedSites; };
+          cf-access-org = cfAccessOrgConfig { inherit system; };
+          cf-zones = cfZonesConfig { inherit system; };
+          gcp-foundation = gcpFoundationConfig { inherit system; };
+          gcp-budget = gcpBudgetConfig { inherit system; };
+          cf-mcp-portals = cfMcpPortalsConfig { inherit system; };
+          hc-checks = hcChecksConfig { inherit system; };
+          grafana = grafanaConfig { inherit system; };
+          github = githubConfig { inherit system; };
+        };
+        names = builtins.attrNames renders;
+        sorted = builtins.sort builtins.lessThan stacks.names;
+      in
+      assert nixpkgs.lib.assertMsg (names == sorted)
+        "terranixStackRenders: renders (${toString names}) != terranix-stacks.nix names (${toString sorted})";
+      renders;
   };
 
   perSystem =

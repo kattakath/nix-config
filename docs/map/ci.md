@@ -90,6 +90,8 @@ silently skipped caller→callee validation of `uses: ./.github/workflows/*-impl
 composite `uses: ./.github/actions/nix-setup` — measured: an undefined input exited 0 there and
 failed `[workflow-call]` / `[action]` with the marker.
 
+**`checks.<system>.zizmor` is the SECURITY lint beside it** (2026-11-14): same project layout, `--offline` (so zizmor's online audits do not run), exceptions per FILE in the root `zizmor.yml`. `mcp-portal-probe.yml` (daily) is the live half of `mcp-portal-posture`: unauthenticated curl against the Workspace MCP portal (a 401 OAuth challenge, DCR REFUSING an unlisted callback, the retired gateway hosts gone), no checkout, `permissions: {}`. It never registers a client with an allowed callback, which would mint a junk DCR client per run.
+
 **No workflow in this repo targets a self-hosted runner** — every leg is GitHub-hosted (fork
 PRs need no runner fallback), and day-to-day local aarch64-linux builds use Determinate's
 native Linux builder on the Mac. The ruleset's required checks:
@@ -103,7 +105,7 @@ bare-metal ephemeral runners on the **`dontsell-ai`** org
 
 Also in `.github/workflows/`: `auto-merge.yml`, `status-labels.yml` (the shared derived
 `auto-merge`/`merge-queue` labels), `build-devcontainer.yml` (its job body is the reusable
-`build-devcontainer-impl.yml`), `build-installers.yml` (likewise `build-installers-impl.yml`), `claude*.yml` (`claude-config-lint.yml` is a job `gate` needs — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, `grafana-rollup.yml` (ADR-011 step 11's daily KPI row, keyless via WIF —
+`build-devcontainer-impl.yml`), `build-installers.yml` (likewise `build-installers-impl.yml`), `claude*.yml` (`claude-config-lint.yml` is a job `gate` needs — [`claude-code.md`](claude-code.md) § `.claude/hooks/`), `gitleaks.yml`, `mcp-portal-probe.yml` (daily, unauthenticated; see `zizmor` above), `grafana-rollup.yml` (ADR-011 step 11's daily KPI row, keyless via WIF —
 [`observability-hub-adr.md`](../observability-hub-adr.md)), and `flakehub-publish.yml` — the last
 publishes each push to `main` as a rolling release to FlakeHub via
 `DeterminateSystems/flakehub-push`, authenticated by OIDC/`id-token: write` with **no** stored

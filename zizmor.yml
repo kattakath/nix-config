@@ -1,0 +1,58 @@
+# zizmor's reviewed exceptions — read by `checks.<system>.zizmor` (modules/parts/checks.nix).
+#
+# Triage of 2026-11-14 (zizmor 1.31.0, regular persona, --offline): 37 findings over
+# .github/. 9 were FIXED in the workflows (7 template-injection: values now reach `run:`
+# through `env:`; 2 github-app: the App token now names its permissions). The 28 below
+# are accepted, each with its reason. Ignores are per FILE, never per line: a line number
+# rots on the next edit above it (the 75-of-146 drift `line-refs-cite-constructs` exists
+# for). A NEW workflow is therefore covered by no ignore here — except the one rule
+# disabled outright (self-repository, below) — so it must be clean, or earn its own line.
+rules:
+  # 14 findings. The attack needs the checked-out tree (with the token persisted in
+  # .git/config) to be UPLOADED as an artifact; no workflow here uploads one (grep
+  # upload-artifact: 0 hits, 2026-11-14). FOLLOW-UP: persist-credentials: false on each
+  # checkout that never pushes (all but update-flake-lock.yml, which pushes the bump).
+  artipacked:
+    ignore:
+      - build-devcontainer-impl.yml
+      - build-devcontainer.yml
+      - build-installers-impl.yml
+      - build-installers.yml
+      - claude-config-lint.yml
+      - flakehub-publish.yml
+      - gitleaks.yml
+      - grafana-rollup.yml
+      - nix-ci-impl.yml
+      - nix-ci.yml
+      - no-build-change.yml
+      - update-flake-lock.yml
+      - warm-nixpi-cache.yml
+
+  # 8 findings, a style rule. Its fix (`./x` -> `$/x`) is REJECTED by the pinned
+  # actionlint 1.7.12 ("not following the format ... ./path/to/workflow.yml",
+  # [workflow-call], measured 2026-11-14), so applying it would turn checks.actionlint red.
+  self-repository:
+    disable: true
+
+  # 3 findings. Every callee is a reusable workflow in THIS repo, called by local path,
+  # so caller and callee are one trust domain and one review; fork PRs get no secrets
+  # anyway. FOLLOW-UP: name the secrets each *-impl.yml declares under workflow_call.
+  secrets-inherit:
+    ignore:
+      - build-devcontainer.yml
+      - build-installers.yml
+      - nix-ci.yml
+
+  # 2 findings, both guarded as their headers say. claude.yml runs only when the
+  # COMMENT AUTHOR's numeric id is the operator's (an id cannot be renamed into).
+  # status-labels.yml calls a pinned shared workflow that never checks out or runs PR code.
+  dangerous-triggers:
+    ignore:
+      - claude.yml
+      - status-labels.yml
+
+  # 1 finding, informational: softprops/action-gh-release could be `gh release` in a
+  # run step. It is SHA-pinned; the swap is a FOLLOW-UP, not a vulnerability.
+  superfluous-actions:
+    ignore:
+      - build-installers-impl.yml

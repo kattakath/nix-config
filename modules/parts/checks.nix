@@ -1471,6 +1471,10 @@ in
                 # A sweeper, not a job with an outcome: a missed run delays an arming that the
                 # next run (or a manual click) does, and the PRs it arms are visible anyway.
                 "arm-dependabot.yml" = "best-effort sweeper; a missed run only delays the next arming";
+                # A probe whose FAILURE is the signal (a failed scheduled run emails the owner).
+                # What it cannot report is its own silence; making it a pinger needs a
+                # fleet.heartbeats entry and an hc-checks apply (FOLLOW-UP).
+                "mcp-portal-probe.yml" = "a failed run is the alert; a heartbeat waits on an hc-checks apply";
               };
               cronFiles = builtins.filter (n: lib.hasInfix "cron:" (builtins.readFile (dir + "/${n}"))) (
                 lib.attrNames (
@@ -2778,6 +2782,238 @@ in
               ];
             };
 
+          # ---- The Workspace MCP portal's security posture, read off the RENDER --------
+          #
+          # The Workspace connectors reach Google through ONE Cloudflare MCP portal
+          # (infra/cloudflare/mcp-portals.nix + workspace-mcp-apps.nix, stack cf-mcp-portals,
+          # since 2026-11-14): every server attached with its tools OFF unless listed, each
+          # user's own Google grant, an email-allowlisted Access app in front, and a DCR
+          # callback list naming the MCP clients that may register. Every one of those is a
+          # line someone can delete with a green plan, so each is a leg here, and the legs
+          # read the RENDERED stack (`.config` of flake.lib.terranixStackRenders, the attrset
+          # terranix serialises), not the apps file. Reading the apps file back at itself is
+          # the failure mcp-launcher-parity's header records: a check that compares Nix with
+          # itself cannot go red. trivy cannot do this: it reads no nested block from tf.json
+          # (trivy-terranix's header has the measurement).
+          #
+          # The OAuth config reaches tofu only as the HCL string inside each server's
+          # `auth_credentials` (a jsonencode, because the client id is a variable). Its
+          # literals are plain text there, so the scope and endpoint legs EXTRACT them with a
+          # regex and fail closed when it no longer matches — a reshaped string must turn
+          # this red, never skip the leg.
+          #
+          # The guardrail leg pins modules/home/claude-guardrails.nix's ask rules for outward
+          # connector verbs and high-impact phone tools. It is a deliberate SECOND COPY of
+          # that list, like claude-managed-settings' deny floor: deriving the expectation from
+          # the list it checks would pass on an emptied list.
+          #
+          # NOT COVERED: anything live — a dashboard edit, a server's one-time admin
+          # authorization, a Google token minted before a scope was narrowed. The daily
+          # mcp-portal-probe workflow covers the unauthenticated surface.
+          #
+          # NEGATIVE CONTROLS, 2026-11-14 — each turned exactly its leg RED and was reverted:
+          # `default_disabled = false` in mcp-portals.nix (the attachment leg, naming all 8
+          # servers); `https://*` and `http://evil.example.com/cb` added to allowed_uris
+          # (the DCR leg, naming both).
+          mcp-portal-posture =
+            let
+              stack = (config.flake.lib.terranixStackRenders pkgs.stdenv.hostPlatform.system).cf-mcp-portals;
+              res = stack.config.resource or { };
+              mcpApps = import ../../infra/cloudflare/workspace-mcp-apps.nix;
+              portalHost = "${mcpApps.portalLabel}.${domainName}";
+
+              portals = lib.attrValues (res.cloudflare_zero_trust_access_ai_controls_mcp_portal or { });
+              servers = res.cloudflare_zero_trust_access_ai_controls_mcp_server or { };
+              attached = lib.concatMap (p: p.servers or [ ]) portals;
+              attachedIds = lib.sort lib.lessThan (map (s: s.server_id or "") attached);
+              serverIds = lib.sort lib.lessThan (map (n: "${serverRef}${n}.id}") (lib.attrNames servers));
+              badAttach = lib.filter (
+                s: (s.default_disabled or null) != true || (s.on_behalf or null) != true
+              ) attached;
+              # A server id is an HCL reference to `<server>.<app>.id`; name the app, since
+              # a dollar-brace inside a leg name is a bash substitution in mkHostContract's echo.
+              serverRef = "\${cloudflare_zero_trust_access_ai_controls_mcp_server.";
+              appOf = s: lib.removeSuffix ".id}" (lib.removePrefix serverRef (s.server_id or "?"));
+
+              # ---- the Access apps in front of the portal and each server ----
+              accessApps = res.cloudflare_zero_trust_access_application or { };
+              portalApps = lib.filter (a: (a.type or "") == "mcp_portal") (lib.attrValues accessApps);
+              unguarded = lib.attrNames (lib.filterAttrs (_: a: (a.policies or [ ]) == [ ]) accessApps);
+              allowVar = stack.config.variable.allowed_emails or { default = null; };
+
+              # ---- DCR: who may register as an MCP client ----
+              dcr = map (a: a.oauth_configuration.dynamic_client_registration or { }) portalApps;
+              uris = lib.concatMap (d: d.allowed_uris or [ ]) dcr;
+              # https with a literal host (a `*` only in the path), or an exact custom scheme.
+              uriOk =
+                u:
+                builtins.match "https://[a-z0-9.-]+(/[^*]*(\\*)?)?" u != null
+                || (builtins.match "[a-z][a-z0-9+.-]*://[^*]+" u != null && !(lib.hasPrefix "http" u));
+              badUris = lib.filter (u: !(uriOk u)) uris;
+
+              # ---- the Google OAuth literals inside each server's auth_credentials ----
+              grab =
+                k: s:
+                let
+                  m = builtins.match ".*${k} = \"([^\"]*)\".*" (s.auth_credentials or "");
+                in
+                if m == null then null else builtins.head m;
+              authEndpoints = lib.mapAttrsToList (_: grab "authorization_endpoint") servers;
+              googleAuth = "https://accounts.google.com/o/oauth2/v2/auth?";
+              badEndpoints = lib.filter (
+                e: e == null || !(lib.hasPrefix googleAuth e) || !(lib.hasInfix "access_type=offline" e)
+              ) authEndpoints;
+              scopeStrings = lib.mapAttrsToList (_: grab "scope") servers;
+              scopes = lib.concatMap (s: lib.filter (w: w != "") (lib.splitString " " s)) (
+                lib.filter (s: s != null) scopeStrings
+              );
+              auth = "https://www.googleapis.com/auth/";
+              forbiddenScopes = [
+                "https://mail.google.com/"
+                "${auth}gmail.send"
+                "${auth}gmail.send.self"
+                "${auth}calendar"
+                "${auth}calendar.acls"
+                "${auth}drive"
+                "${auth}chat.messages"
+                "${auth}chat.messages.create"
+                "${auth}chat.memberships"
+                "${auth}chat.spaces"
+                "${auth}documents"
+                "${auth}spreadsheets"
+                "${auth}presentations"
+              ];
+              # Whole strings, never substrings: `calendar` is a prefix of the allowed
+              # `calendar.events.readonly`. The one family matched by prefix is
+              # gmail.settings.*, every member of which can forward mail out.
+              badScopes = lib.filter (
+                s: lib.elem s forbiddenScopes || lib.hasPrefix "${auth}gmail.settings." s
+              ) scopes;
+              badUpstreams = lib.attrNames (
+                lib.filterAttrs (
+                  _: s:
+                  builtins.match "https://[a-z0-9-]+\\.googleapis\\.com/mcp/v1" (s.hostname or "") == null
+                  || (s.client_secret or "") != "\${var.google_oauth_client_secret}"
+                ) servers
+              );
+
+              # ---- the live probe probes what the render serves ----
+              probe = builtins.readFile ../../.github/workflows/mcp-portal-probe.yml;
+              probeVar =
+                k:
+                let
+                  m = builtins.match ".*\n      ${k}: ([^\n]*)\n.*" probe;
+                in
+                if m == null then null else builtins.head m;
+
+              # ---- the local floor: claude-guardrails' ask rules ----
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              ask = hm.programs.claude-code.settings.permissions.ask or [ ];
+              outwardVerbs = [
+                "send_message"
+                "send_email"
+                "forward"
+                "reply"
+                "share_file"
+                "download_gmail_attachment"
+                "create_event"
+                "update_event"
+                "delete_event"
+                "respond_to_event"
+                "update_doc"
+                "update_presentation"
+                "update_values"
+                "update_formulas"
+                "append_values"
+                "copy_sheet_to_another_spreadsheet"
+                "update_file"
+                "trash_*"
+                "delete_*"
+                "mark_*_spam"
+              ];
+              phoneTools = map (t: "mcp__plugin_android-phone_mobile-mcp__mobile_${t}") [
+                "install_app"
+                "uninstall_app"
+                "clear_app_data"
+                "clipboard"
+                "open_url"
+                "launch_app"
+              ];
+              missingAsk = lib.filter (r: !(lib.elem r ask)) (map (v: "mcp__*__${v}") outwardVerbs ++ phoneTools);
+              # The two layers must agree: no tool the portal ENABLES may match a verb the
+              # local floor ASKS about, or one layer calls outward what the other permits.
+              globRe = g: lib.replaceStrings [ "*" ] [ "[a-z_]*" ] g;
+              enabledTools = map (t: t.name) (
+                lib.filter (t: t.enabled or false) (lib.concatMap (s: s.updated_tools or [ ]) attached)
+              );
+              enabledOutward = lib.filter (
+                t: lib.any (v: builtins.match (globRe v) t != null) outwardVerbs
+              ) enabledTools;
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "mcp-portal-posture";
+              subject = "workspace MCP portal: tools off unless listed, per-user grants, gated apps, listed DCR clients";
+              expect = [
+                {
+                  name = "ONE portal, at ${portalHost}, attaching every declared server exactly once";
+                  ok =
+                    lib.length portals == 1
+                    && ((lib.head portals).hostname or null) == portalHost
+                    && serverIds != [ ]
+                    && attachedIds == serverIds;
+                }
+                {
+                  name = "every attached server has default_disabled = true and on_behalf = true (broken: ${toString (map appOf badAttach)})";
+                  ok = attached != [ ] && badAttach == [ ];
+                }
+                {
+                  name = "no enabled tool matches a verb the local floor treats as outward (found: ${toString enabledOutward})";
+                  ok = enabledTools != [ ] && enabledOutward == [ ];
+                }
+                {
+                  name = "one mcp_portal Access app, and EVERY Access app has a policy (none: ${toString unguarded})";
+                  ok = lib.length portalApps == 1 && unguarded == [ ];
+                }
+                {
+                  name = "the email allowlist variable has NO default — a forgotten allowlist must fail the apply";
+                  ok = allowVar ? default == false;
+                }
+                {
+                  name = "every DCR callback is https on a literal host or an exact custom scheme (bad: ${toString badUris})";
+                  ok = uris != [ ] && badUris == [ ];
+                }
+                {
+                  name = "every server authorizes at Google with access_type=offline (unmatched or wrong: ${toString (lib.length badEndpoints)})";
+                  ok = authEndpoints != [ ] && badEndpoints == [ ];
+                }
+                {
+                  name = "every server's scope literal parses, and none is a send, settings, full-access or write scope (found: ${toString badScopes})";
+                  ok = scopeStrings != [ ] && !(lib.elem null scopeStrings) && badScopes == [ ];
+                }
+                {
+                  name = "every server's upstream is a googleapis.com MCP endpoint and its secret is the variable (broken: ${toString badUpstreams})";
+                  ok = badUpstreams == [ ];
+                }
+                {
+                  name = "mcp-portal-probe.yml probes exactly the portal host this stack serves";
+                  ok = "${toString (probeVar "PORTAL")}.${toString (probeVar "ZONE")}" == portalHost;
+                }
+                {
+                  name = "the guardrails ASK before every outward connector verb and high-impact phone tool (missing: ${toString missingAsk})";
+                  ok = missingAsk == [ ];
+                }
+              ];
+              advice = [
+                "infra/cloudflare/workspace-mcp-apps.nix owns each app's tools and scopes;"
+                "infra/cloudflare/mcp-portals.nix renders the servers, the portal and its Access apps;"
+                "modules/home/claude-guardrails.nix owns the local ask rules."
+                "Each leg is a decision of the 2026-11-14 security audit. To WIDEN one on purpose,"
+                "change this check in the same commit and say why in its header — a red leg"
+                "deleted to make the build pass is the silent widening this check exists for."
+              ];
+            };
+
           # ---- The rules file and the ciphertexts beside it, joined by a human -
           #
           # `secrets/secrets.nix` is consumed by exactly ONE thing — the `agenix`
@@ -2942,6 +3178,169 @@ in
                 fi
                 echo "actionlint: $(ls ./*.yml | wc -l | tr -d " ") workflow files clean (with shellcheck)"
                 touch "$out"
+              '';
+
+          # ---- zizmor: the SECURITY lint actionlint is not ----------------------------
+          #
+          # actionlint proves a workflow is well-formed; zizmor asks whether it is SAFE:
+          # template injection, over-broad tokens, dangerous triggers, unpinned actions.
+          # Same lane as actionlint — the CLI from the pinned nixpkgs (zizmor 1.31.0), run
+          # as a check, not as a third-party action.
+          #
+          # Triage of 2026-11-14 at the default (regular) persona: 37 findings (80 counting
+          # the 43 the persona suppresses). 9 were FIXED in the workflows, 28 are accepted
+          # in the repo-root zizmor.yml with a reason each, per FILE and never per line.
+          #
+          # NOT COVERED: zizmor's ONLINE audits (impostor-commit, known-vulnerable-actions,
+          # ref-confusion, stale-action-refs). They need the GitHub API; the sandbox has no
+          # network, so `--offline` drops them. Pinning every action by SHA (already true)
+          # is what stands in for them.
+          #
+          # COVERAGE IS ASSERTED, not assumed: zizmor exits 0 when it audits NOTHING.
+          # Measured 2026-11-14: given `..` from inside .github/workflows it reported 0
+          # findings over a tree that had 28. So the check counts the inputs zizmor says it
+          # completed and requires every workflow file among them.
+          #
+          # NEGATIVE CONTROL (2026-11-14): a seeded workflow with an issue title expanded
+          # inside `run:` turned this check RED (template-injection, high); the seed was
+          # then deleted.
+          zizmor =
+            pkgs.runCommand "zizmor"
+              {
+                nativeBuildInputs = [ pkgs.zizmor ];
+                # A PROJECT root, like actionlint above, so the reported paths read
+                # `.github/workflows/<x>.yml` (what zizmor.yml's ignores match).
+                github = builtins.path {
+                  path = ../../.github;
+                  name = "dot-github";
+                };
+                config = ../../zizmor.yml;
+              }
+              ''
+                mkdir proj && cp -r "$github" proj/.github && chmod -R u+w proj && cd proj
+                export HOME="$TMPDIR" XDG_CACHE_HOME="$TMPDIR/cache"
+                status=0
+                zizmor --offline --no-progress --color never --show-audit-urls never \
+                  --render-links never --config "$config" .github > ../report.txt 2> ../log.txt || status=$?
+                expected=$(ls .github/workflows/*.yml | wc -l)
+                audited=$(grep -c 'completed \.github/workflows/.*\.yml$' ../log.txt || true)
+                if [ "$audited" -ne "$expected" ]; then
+                  cat ../log.txt >&2
+                  echo "zizmor: audited $audited of $expected workflow files — a scan that skips files is not a gate." >&2
+                  exit 1
+                fi
+                if [ "$status" -ne 0 ]; then
+                  cat ../report.txt >&2
+                  echo "" >&2
+                  echo "zizmor: fix the findings above. An accepted one goes in the repo-root" >&2
+                  echo "zizmor.yml, per FILE, with a one-line reason; never per line, which rots." >&2
+                  exit 1
+                fi
+                echo "zizmor: $audited workflow files clean ($(tail -1 ../report.txt))" > "$out"
+              '';
+
+          # ---- trivy over EVERY rendered terranix stack -------------------------------
+          #
+          # `trivy config` (pinned nixpkgs, 0.76.0) over each stack's config.tf.json,
+          # rendered exactly as its *-plan wrapper renders it (flake.lib.terranixStackRenders,
+          # which throws if a stack in modules/_lib/terranix-stacks.nix has no renderer).
+          # No credentials: a render is pure Nix. HERMETIC: `--skip-check-update` makes
+          # trivy fall back to the checks bundle compiled into the binary (its log says
+          # "Falling back to embedded checks" at ERROR level — expected, not a failure), so
+          # the rules are whatever 0.76.0 shipped and move only with a nixpkgs bump.
+          #
+          # Triage of 2026-11-14: 4 findings, all in gcp-foundation, accepted or marked
+          # false-positive in the repo-root .trivyignore.yaml, each scoped to the stack it
+          # was triaged on. cf-mcp-portals renders with none.
+          #
+          # THE BLIND SPOT, measured 2026-11-14 and the reason this is not the MCP portal's
+          # posture check: trivy reads NO NESTED BLOCK from Terraform JSON. A world-open
+          # firewall (`allow` block) gave 0 findings as tf.json and 3 as the same HCL; a
+          # bucket with `versioning.enabled = true` still fired "versioning disabled". It
+          # reads top-level attributes correctly (an `allUsers` member, a bucket without
+          # uniform access). So: false NEGATIVES on anything nested, false POSITIVES on
+          # nested-block checks. The portal's server list, DCR callbacks and OAuth scopes
+          # live in nested and string values, so `mcp-portal-posture` asserts them in Nix. Rejected alternatives: checkov 3.3.26 (its closure pulls
+          # python3.14-ecdsa, marked INSECURE in the pin — a scanner that needs an
+          # insecure-package exemption), json2hcl 0.2.0 (emits HCL1 `"allow" = { }`, an
+          # attribute, not a block — JSON alone cannot say which is which without the
+          # provider schema), and trivy's plan-JSON scanner (a plan needs credentials).
+          #
+          # THE SCANNER MUST STILL SEE: a canary stack with a public bucket (`allUsers`)
+          # is scanned with no ignore file and must report GCP-0001, and every stack must
+          # appear as a scanned target. Without both, an emptied bundle or a skipped
+          # directory reads as clean.
+          #
+          # NEGATIVE CONTROL (2026-11-14): adding a bucket IAM member `allUsers` on the
+          # state bucket in infra/gcp/foundation.nix turned this check RED (GCP-0001);
+          # reverted.
+          trivy-terranix =
+            let
+              renders = config.flake.lib.terranixStackRenders pkgs.stdenv.hostPlatform.system;
+              canary = pkgs.writeText "canary.tf.json" (
+                # The member must REFERENCE a declared bucket, as the real stacks do:
+                # with a bare bucket name trivy links it to nothing and reports nothing.
+                builtins.toJSON {
+                  resource.google_storage_bucket.canary = {
+                    name = "canary";
+                    location = "US";
+                    uniform_bucket_level_access = true;
+                    public_access_prevention = "enforced";
+                  };
+                  resource.google_storage_bucket_iam_member.canary = {
+                    bucket = "\${google_storage_bucket.canary.name}";
+                    role = "roles/storage.objectViewer";
+                    member = "allUsers";
+                  };
+                }
+              );
+            in
+            pkgs.runCommand "trivy-terranix"
+              {
+                nativeBuildInputs = [
+                  pkgs.trivy
+                  pkgs.jq
+                ];
+                ignorefile = ../../.trivyignore.yaml;
+              }
+              ''
+                export HOME="$TMPDIR"
+                flags="config --quiet --skip-check-update --skip-version-check --disable-telemetry --cache-dir $TMPDIR/cache"
+                ${lib.concatStringsSep "\n" (
+                  lib.mapAttrsToList (n: r: ''
+                    mkdir -p stacks/${n} && cp ${r} stacks/${n}/config.tf.json
+                  '') renders
+                )}
+                mkdir canary && cp ${canary} canary/config.tf.json
+
+                # shellcheck disable=SC2086 # $flags is a deliberate word list
+                trivy $flags --ignorefile "" --format json canary > canary.json || true
+                if ! jq -e '[.Results[]?.Misconfigurations[]?.ID] | index("GCP-0001")' canary.json > /dev/null; then
+                  echo "trivy-terranix: the canary's allUsers bucket member was NOT reported (GCP-0001)." >&2
+                  echo "The scanner sees nothing, so a clean result below would mean nothing." >&2
+                  exit 1
+                fi
+
+                status=0
+                # shellcheck disable=SC2086
+                trivy $flags --ignorefile "$ignorefile" --exit-code 1 --format json stacks > report.json || status=$?
+                for n in ${lib.concatStringsSep " " (lib.attrNames renders)}; do
+                  if ! jq -e --arg t "$n" '[.Results[]?.Target] | index($t)' report.json > /dev/null; then
+                    echo "trivy-terranix: stack $n was not scanned." >&2
+                    exit 1
+                  fi
+                done
+                if [ "$status" -ne 0 ]; then
+                  # shellcheck disable=SC2086
+                  trivy $flags --ignorefile "$ignorefile" stacks >&2 || true
+                  echo "" >&2
+                  echo "trivy-terranix: fix the stack, or add a SCOPED entry (id + paths) to the" >&2
+                  echo "repo-root .trivyignore.yaml with a statement saying why. Read its header" >&2
+                  echo "first: trivy cannot read nested blocks from tf.json, so some findings are" >&2
+                  echo "false positives, and say so." >&2
+                  exit 1
+                fi
+                echo "trivy-terranix: ${toString (lib.length (lib.attrNames renders))} stacks clean (canary seen)" > "$out"
               '';
 
           # ---- documentation byte budgets -------------------------------------
