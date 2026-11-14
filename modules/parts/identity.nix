@@ -243,7 +243,8 @@ let
     };
     # The Google Workspace identity provider every Access app signs in with
     # (cf-access-org declares it; cf-tunnel's SSH app restricts to it). The OAuth
-    # client is `cloudflare-one` in the kattakath-family project; its secret lives
+    # client is "Kattakath Cloudflare Access" (renamed from `cloudflare-one` 2026-11-14,
+    # same id) in the kattakath-family project; its secret lives
     # only in Cloudflare (write-only), never in this repo or in state.
     googleIdp = {
       id = "3227ee11-f5a4-40ae-a1a7-612e1f035c1c";
