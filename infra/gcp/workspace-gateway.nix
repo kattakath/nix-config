@@ -223,7 +223,8 @@ let
     # `or`, one clause per allowed email (operator decision, header).
     policy.allow."or" = sentinel.allow;
     # TOOL ALLOWLIST (security audit 2026-11-14): any `tools/call` outside the app's
-    # `tools` is denied with a 403, on every surface. Pomerium's documented pattern:
+    # `tools` is denied on every surface, answered as a JSON-RPC error (-32602, HTTP 200,
+    # v0.34.1 deniedResponseForMCP), so claude.ai reports it rather than re-authing. Pomerium's documented pattern:
     # `mcp_tool` under `deny`, so `tools/list` and other non-call requests still pass
     # (pomerium.com/docs/capabilities/mcp/limit-mcp-tools). Denied tools stay LISTED.
     policy.deny."or" = [ { mcp_tool.not_in = a.tools; } ];

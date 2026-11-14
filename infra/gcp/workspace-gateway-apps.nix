@@ -20,12 +20,15 @@
 #
 # `scopes` is the MINIMUM that covers `tools`, read 2026-11-14 from each tool's
 # "Authorization Scopes" on developers.google.com/workspace/<app>/…/reference/mcp/
-# tools_list/<tool> (every tool takes ONE OF several). It is NOT the server's
+# tools_list/<tool> (each tool accepts the scopes listed there, usually several). It is NOT the server's
 # `scopes_supported`, which is the superset and was the first deploy's value.
 # Narrowing does not shrink a token already stored: after a change, revoke the
 # "Kattakath Family" grant (myaccount → third-party access) and reconnect.
-# Gmail has no draft-only scope: gmail.modify (needed for labels) can also send over
-# the plain REST API, so a LEAKED token could send; the allowlist blocks it in Claude.
+# Gmail has no draft-only scope that `create_draft` accepts (only mail.google.com,
+# gmail.compose or gmail.modify), and the label tools need gmail.modify anyway, so a
+# LEAKED token could still send over the plain REST API; the allowlist blocks it in
+# Claude. `update_message_labels` is NOT allowed: it can remove INBOX/UNREAD, which
+# hides mail. Residual: adding a CATEGORY_* label moves a thread out of Primary.
 #
 # Plain data with no arguments: the zone, the operator and the client id are
 # threaded in by the consumers, so nothing per-person lives here.
@@ -55,7 +58,6 @@
         "create_draft"
         "label_thread"
         "label_message"
-        "update_message_labels"
         "create_label"
         "untrash_thread"
         "untrash_message"
