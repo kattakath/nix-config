@@ -322,8 +322,9 @@ in
     revision_generation = {
       type = "number";
       # 3: 2026-11-14 restart after the token-store reset (revoked grant, dead rows deleted).
+      # 4: 2026-11-14 restart after deleting the Chat token rows, so the reconnect asks Google for chat.spaces.readonly.
       # Raise it to roll a revision with no other change.
-      default = 3;
+      default = 4;
       description = "Bump to roll a new Cloud Run revision with no other change (a cold-start or restart test).";
     };
   };
