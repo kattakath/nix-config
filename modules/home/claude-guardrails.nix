@@ -356,5 +356,50 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       "Bash(git push -f *)"
       "Bash(git push * --force)"
       "Bash(git push * -f)"
+
+      # ── Outward or destructive connector tools (security audit 2026-11-14) ──
+      # Prompt injection through mail, files or chats can steer a session to leak data
+      # out (share, send, forward, invite) or hide evidence (trash, spam). Under
+      # bypassPermissions nothing else stops a connector tool locally: no hook names
+      # them. A glob in the tool-name position matches every connector's spelling at
+      # once (claude.ai `mcp__claude_ai_<Name>__`, plugin `mcp__plugin_…__`, user
+      # `mcp__<server>__`); documented: "Deny and ask rules also accept glob patterns
+      # in the tool-name position". The Kattakath gateway already DENIES these
+      # server-side; this is the local floor for every OTHER connector that has them.
+      # Reads stay unprompted, so read-only work is untouched.
+    ]
+    ++ map (verb: "mcp__*__${verb}") [
+      "send_message"
+      "send_email"
+      "forward"
+      "reply"
+      "share_file"
+      "download_gmail_attachment"
+      "create_event"
+      "update_event"
+      "delete_event"
+      "respond_to_event"
+      "update_doc"
+      "update_presentation"
+      "update_values"
+      "update_formulas"
+      "append_values"
+      "copy_sheet_to_another_spreadsheet"
+      "update_file"
+      "trash_*"
+      "delete_*"
+      "mark_*_spam"
+    ]
+    # ── High-impact phone actions over ADB (security audit 2026-11-14, operator's pick) ──
+    # A session with phone control can change what runs on the phone or move data off
+    # it. Taps, swipes and typing stay unprompted (operator: phone tasks must stay
+    # usable); that an agent never taps a Claude approval is a peer-protocol rule.
+    ++ map (tool: "mcp__plugin_android-phone_mobile-mcp__mobile_${tool}") [
+      "install_app"
+      "uninstall_app"
+      "clear_app_data"
+      "clipboard"
+      "open_url"
+      "launch_app"
     ];
 }
