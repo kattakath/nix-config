@@ -321,8 +321,9 @@ in
     };
     revision_generation = {
       type = "number";
-      # 2: the 2026-11-14 restart test (tokens survived in Neon). Raise it to roll again.
-      default = 2;
+      # 3: 2026-11-14 restart after the token-store reset (revoked grant, dead rows deleted).
+      # Raise it to roll a revision with no other change.
+      default = 3;
       description = "Bump to roll a new Cloud Run revision with no other change (a cold-start or restart test).";
     };
   };
