@@ -188,7 +188,7 @@ is "almost anything `defaults`-backed," not "only the typed options."
 
 ## 3. Homebrew layer (`modules/darwin/homebrew.nix`)
 
-Manages the **entire** brew surface with `onActivation.cleanup = "uninstall"`
+Manages the **entire** brew surface with `onActivation.cleanup = "zap"`
 (anything not listed is removed on activation):
 
 - **`casks`** — GUI apps (browsers, editors, Slack, …). There is no Docker cask —

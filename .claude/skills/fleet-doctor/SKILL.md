@@ -38,7 +38,7 @@ re-add it.
 this repo (`hosts/macos.nix`, `modules/parts/identity.nix`). The cross-repo pin-bump step
 existed only to serve it and collapsed with it; the letter it held is now **D. Nix-config's
 own hygiene**, and there is no step G. **Host re-activation did NOT collapse** — it is step
-F below. The checklist runs A, B, C, D, E, E2–E9, F.
+F below. The checklist runs A, B, C, D, E, E2–E10, F.
 
 `activate` did NOT go with it. The CLI that was retired was [redacted]'s
 freshness-gated one; this repo grew its own the same day (`packages/activate.nix`,
@@ -379,6 +379,54 @@ is **path-filtered**, so a `headSha` behind `origin/main` is normal after docs-o
 it is a finding only if a nixpi-closure path (its `paths:` list) changed after that sha.
 Never test warmth with a `--dry-run` of the nixpi toplevel: it negative-caches the 404s for 1h.
 
+### E10. Undeclared apps (macos) — `FD-E10-undeclared-app`
+
+`homebrew.onActivation.cleanup = "zap"` purges every undeclared **Homebrew** app, traces and
+all. It cannot see an app installed some other way (a downloaded `.dmg`, a vendor
+installer), so that app survives every `activate`. This step lists them. **Report only —
+it never deletes.** The test is the owner, not the name: a top-level `/Applications/*.app` is
+declared if a cask owns it (`brew info --json=v2 --installed`, each `artifacts[].app`), if it
+has an App Store receipt (`kMDItemAppStoreHasReceipt`; `masApps` apps always do, and an
+undeclared MAS app is reaped by cleanup anyway), or if Apple ships it (signed by the
+`Software Signing` authority; Safari reads `macOS Software Signing`). `/Applications/Nix Apps`
+and `Utilities` are subdirectories, so the `*.app` glob never enters them.
+
+```bash
+# Read-only: /Applications apps no declaration owns.
+set -u
+tmp=$(mktemp -d)
+# 1. every .app a Homebrew cask owns
+brew info --json=v2 --installed 2>/dev/null \
+  | jq -r '.casks[].artifacts[]? | objects | .app? // empty | .[] | select(type=="string") | split("/") | last' \
+  | sort -u > "$tmp/cask"
+# 2. every Mac App Store app (name from the bundle, receipt-backed), declared or not
+mdfind -onlyin /Applications 'kMDItemAppStoreHasReceipt == 1' 2>/dev/null \
+  | sed 's#.*/##' | sort -u > "$tmp/mas"
+# 3. candidates: top-level /Applications/*.app only (Nix Apps and Utilities are subdirs)
+for a in /Applications/*.app; do
+  n=${a##*/}
+  grep -qxF "$n" "$tmp/cask" && continue
+  grep -qxF "$n" "$tmp/mas" && continue
+  # Apple-shipped: signed by Apple's "Software Signing" authority (Safari reads "macOS Software Signing")
+  codesign -dv --verbose=2 "$a" 2>&1 | grep -qE 'Authority=(macOS )?Software Signing' && continue
+  echo "$n"
+done | sort > "$tmp/strays"
+while read -r n; do
+  [ -z "$n" ] && continue
+  base=${n%.app}
+  echo "STRAY: $n"
+  brew search --cask "$base" 2>/dev/null | grep -v '^==>' | head -5 | sed 's/^/  candidate: /'
+done < "$tmp/strays"
+```
+
+Remedy for each stray (report it, never run it unasked): if it prints a `candidate:` cask,
+`brew install --cask --adopt <token>` takes ownership of the installed app without
+re-downloading it, then declare the token in `hosts/macos.nix` to keep it, or leave it
+undeclared and `activate` zaps it. **Zap deletes that app's user data irreversibly**, so
+declare or export first. No candidate (or a wrong one, e.g. `Google Docs.app` is a Chrome
+app shortcut, not a cask) means the app is not Homebrew-installable: delete it by hand if
+unwanted.
+
 ### F. Host re-activation — `FD-F-*`
 
 **Audit** reports `FD-F-*` only. **Fix** re-activates, and only if repos touched in this run
@@ -449,6 +497,7 @@ The health+json file is the report; this block points at it and reads from it.
 - **Heartbeats:** all up | <slug> down since <last_ping> | <slug> new after a scheduled run
 - **nixpi units:** none failed, longRunning all active | <unit> failed/inactive | skipped (unreachable)
 - **nixpi cache:** warm-nixpi-cache green (<sha>) | red — <run URL> | stale — closure path changed since <sha>
+- **Undeclared apps (macos):** none | `<App>.app` (candidate cask `<token>` or none) — report only
 - **Hosts:** macos re-activated (branch@rev built) | skipped (why) | NOT activated — main checkout behind origin
 - **Verdict:** CLEAN | FIXED (list what) | NEEDS ATTENTION (why, and what needs a human decision)
 ```

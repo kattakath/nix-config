@@ -422,8 +422,8 @@ in
 
   # ---- Homebrew apps for THIS host --------------------------------------------
   # The framework (enable/onActivation) lives in modules/darwin/homebrew.nix;
-  # this is macos's app set. onActivation.cleanup = "uninstall" removes anything
-  # installed but not listed here.
+  # this is macos's app set. onActivation.cleanup = "zap" removes anything
+  # installed but not listed here, trace files included.
   homebrew = {
     # ---- Taps ------------------------------------------------------------------
     # Upstream's own tap for the escrcpy cask (absent from homebrew/cask AND nixpkgs);
@@ -859,13 +859,13 @@ in
 
     # ---- Mac App Store apps (masApps) ----------------------------------------
     # `mas` itself comes from programs.mas (modules/darwin/xcode-license.nix); anything listed here is also
-    # protected from onActivation.cleanup = "uninstall" (undeclared MAS apps
+    # protected from onActivation.cleanup = "zap" (undeclared MAS apps
     # get removed — that is how Xcode was wiped before this entry).
     #
     # That reaping is MACHINE-WIDE and `mas list` sees every App Store app on the
     # machine, whichever Apple ID bought it. Policy: anything to keep is declared
     # HERE (or installed outside MAS). The value itself,
-    # `homebrew.onActivation.cleanup = "uninstall"` (modules/darwin/homebrew.nix),
+    # `homebrew.onActivation.cleanup = "zap"` (modules/darwin/homebrew.nix),
     # stays — the fix is to declare, not to stop cleaning.
     masApps = {
       # Official client is App Store–only (no Homebrew cask). This GUI is the

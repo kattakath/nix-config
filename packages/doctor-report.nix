@@ -118,7 +118,7 @@ writeShellApplication {
                    (if ($r.level | IN("note","warning","error")) then empty else "\($id): level must be note|warning|error" end),
                    (if ($r | has("checkKey") or has("statusOnFinding")) then "\($id): checkKey/statusOnFinding are fleet-doctor fields" else empty end)
                  elif $r.doctor == "fleet-doctor" then
-                   (if ($id | test("^FD-[A-Z][0-9]?-[a-z0-9-]+$")) then empty else "\($id): fleet-doctor ids read FD-<step>-<slug>" end),
+                   (if ($id | test("^FD-[A-Z][0-9]{0,2}-[a-z0-9-]+$")) then empty else "\($id): fleet-doctor ids read FD-<step>-<slug>" end),
                    (if ($r.statusOnFinding | IN("warn","fail")) then empty else "\($id): statusOnFinding must be warn|fail" end),
                    (if (($r.checkKey // "") | test("^[a-z0-9-]+:[a-z0-9-]+$")) then empty else "\($id): checkKey must be component:measurement" end),
                    (if $r | has("level") then "\($id): level is a hygiene field" else empty end)

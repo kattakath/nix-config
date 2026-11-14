@@ -29,11 +29,21 @@ _:
   homebrew = {
     enable = true;
 
-    # Lean activation: cleanup = "uninstall" removes brew/cask/tap **and** MAS
-    # apps not declared in the host's Brewfile (so undeclared App Store apps
-    # installed by hand get uninstalled on next switch — list them in masApps
-    # or reinstall after rebuild). autoUpdate/upgrade stay off so a rebuild
-    # never silently bumps versions.
+    # Lean activation: cleanup = "zap" runs `brew bundle --cleanup --zap`, so anything
+    # not declared in the host's Brewfile is removed AND, for a cask, its trace files
+    # (preferences, caches, support dirs) go with it — the operator's rule is that
+    # anything undeclared is purged without a trace. Precedent: nix-darwin
+    # `modules/homebrew.nix` `onActivation.cleanup` (enum none/check/uninstall/zap).
+    # THE CONSEQUENCE THAT BITES: zap deletes an undeclared cask's USER DATA (a
+    # browser profile, say) irreversibly on the next activate. Declare the app, or
+    # export its data, BEFORE undeclaring it.
+    # Mac App Store apps: zap behaves exactly as uninstall did. The pinned
+    # nix-darwin passes `--zap --force-cleanup` where it passed `--force-cleanup`,
+    # and `--zap` only extends the removal for casks, so undeclared MAS apps are
+    # still uninstalled and `masApps` still protects the declared ones.
+    # Apps installed OUTSIDE Homebrew are invisible to cleanup; fleet-doctor step E10
+    # reports them. autoUpdate/upgrade stay off so a rebuild never silently bumps
+    # versions.
     # `--quiet` exists to make activation output READABLE, not to change what
     # gets installed. Measured 2026-09-06 on a converged Brewfile (76 entries,
     # nothing to install), `brew bundle` on a tty:
@@ -50,7 +60,7 @@ _:
     onActivation = {
       autoUpdate = false;
       upgrade = false;
-      cleanup = "uninstall";
+      cleanup = "zap";
       extraFlags = [ "--quiet" ];
     };
 
