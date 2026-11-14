@@ -9,10 +9,23 @@
 # OTHER route's upstream token, and Google answered 403. A host per app keeps each
 # route's upstream_oauth2 token store separate.
 #
-# `scopes` is each server's own `scopes_supported`, read 2026-11-14 from
-#   https://<upstream>/.well-known/oauth-protected-resource/mcp/v1
-# (RFC 9728 protected-resource metadata). Re-read it there when Google adds a tool;
-# a scope missing here is a 403 on that tool, not an error at plan time.
+# `tools` is the ALLOWLIST the gateway enforces on every surface (phone, web, Mac):
+# Pomerium denies any `tools/call` outside it (`mcp_tool: not_in`, workspace-gateway.nix).
+# Operator decision 2026-11-14 after the security audit: READ + DRAFTS. Every tool
+# Google annotates readOnlyHint, plus Gmail drafts, labels and untrash/unspam, plus
+# Drive create/copy into the user's own Drive. Denied: Chat send, calendar invites
+# and edits, Docs/Sheets/Slides edits, trash, spam, unlabel (outward, injectable into
+# attacker-shared files, or able to hide security alerts). A tool Google ADDS upstream
+# is denied until it is listed here.
+#
+# `scopes` is the MINIMUM that covers `tools`, read 2026-11-14 from each tool's
+# "Authorization Scopes" on developers.google.com/workspace/<app>/…/reference/mcp/
+# tools_list/<tool> (every tool takes ONE OF several). It is NOT the server's
+# `scopes_supported`, which is the superset and was the first deploy's value.
+# Narrowing does not shrink a token already stored: after a change, revoke the
+# "Kattakath Family" grant (myaccount → third-party access) and reconnect.
+# Gmail has no draft-only scope: gmail.modify (needed for labels) can also send over
+# the plain REST API, so a LEAKED token could send; the allowlist blocks it in Claude.
 #
 # Plain data with no arguments: the zone, the operator and the client id are
 # threaded in by the consumers, so nothing per-person lives here.
@@ -30,100 +43,104 @@
       title = "Gmail";
       upstream = "gmailmcp.googleapis.com";
       scopes = [
-        "https://mail.google.com/"
-        "https://www.googleapis.com/auth/gmail.compose"
-        "https://www.googleapis.com/auth/gmail.drafts"
-        "https://www.googleapis.com/auth/gmail.drafts.create"
-        "https://www.googleapis.com/auth/gmail.drafts.readonly"
-        "https://www.googleapis.com/auth/gmail.labels"
-        "https://www.googleapis.com/auth/gmail.labels.create"
-        "https://www.googleapis.com/auth/gmail.labels.readonly"
-        "https://www.googleapis.com/auth/gmail.messages"
-        "https://www.googleapis.com/auth/gmail.messages.delete"
-        "https://www.googleapis.com/auth/gmail.messages.modify"
-        "https://www.googleapis.com/auth/gmail.messages.readonly"
-        "https://www.googleapis.com/auth/gmail.metadata"
         "https://www.googleapis.com/auth/gmail.modify"
-        "https://www.googleapis.com/auth/gmail.readonly"
-        "https://www.googleapis.com/auth/gmail.send"
-        "https://www.googleapis.com/auth/gmail.send.self"
-        "https://www.googleapis.com/auth/gmail.settings.basic"
-        "https://www.googleapis.com/auth/gmail.settings.filters"
-        "https://www.googleapis.com/auth/gmail.settings.filters.readonly"
+      ];
+      tools = [
+        "search_threads"
+        "get_thread"
+        "get_message"
+        "list_drafts"
+        "get_draft"
+        "list_labels"
+        "create_draft"
+        "label_thread"
+        "label_message"
+        "update_message_labels"
+        "create_label"
+        "untrash_thread"
+        "untrash_message"
+        "unmark_thread_spam"
+        "unmark_message_spam"
       ];
     };
     calendar = {
       title = "Calendar";
       upstream = "calendarmcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/calendar"
-        "https://www.googleapis.com/auth/calendar.acls"
-        "https://www.googleapis.com/auth/calendar.calendarlist"
-        "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
-        "https://www.googleapis.com/auth/calendar.calendars"
-        "https://www.googleapis.com/auth/calendar.calendars.readonly"
-        "https://www.googleapis.com/auth/calendar.events"
-        "https://www.googleapis.com/auth/calendar.events.freebusy"
         "https://www.googleapis.com/auth/calendar.events.readonly"
-        "https://www.googleapis.com/auth/calendar.freebusy"
-        "https://www.googleapis.com/auth/calendar.readonly"
-        "https://www.googleapis.com/auth/calendar.settings.readonly"
+        "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
+        "https://www.googleapis.com/auth/calendar.events.freebusy"
+      ];
+      tools = [
+        "list_events"
+        "get_event"
+        "list_calendars"
+        "suggest_time"
+        "search_events"
       ];
     };
     drive = {
       title = "Drive";
       upstream = "drivemcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/drive"
         "https://www.googleapis.com/auth/drive.readonly"
         "https://www.googleapis.com/auth/drive.file"
+      ];
+      tools = [
+        "search_files"
+        "list_recent_files"
+        "read_file_content"
+        "download_file_content"
+        "get_file_metadata"
+        "get_file_permissions"
+        "create_file"
+        "copy_file"
       ];
     };
     docs = {
       title = "Docs";
       upstream = "docsmcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/drive.readonly"
         "https://www.googleapis.com/auth/documents.readonly"
-        "https://www.googleapis.com/auth/drive"
-        "https://www.googleapis.com/auth/documents"
+      ];
+      tools = [
+        "read_doc"
       ];
     };
     sheets = {
       title = "Sheets";
       upstream = "sheetsmcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/drive.readonly"
         "https://www.googleapis.com/auth/spreadsheets.readonly"
-        "https://www.googleapis.com/auth/drive"
-        "https://www.googleapis.com/auth/spreadsheets"
+      ];
+      tools = [
+        "get_values"
+        "get_spreadsheet"
       ];
     };
     slides = {
       title = "Slides";
       upstream = "slidesmcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/drive.readonly"
         "https://www.googleapis.com/auth/presentations.readonly"
-        "https://www.googleapis.com/auth/drive"
-        "https://www.googleapis.com/auth/drive.file"
-        "https://www.googleapis.com/auth/presentations"
+      ];
+      tools = [
+        "read_presentation"
+        "read_slide_page"
+        "read_slide_page_thumbnail"
       ];
     };
     chat = {
       title = "Chat";
       upstream = "chatmcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/chat.spaces"
-        "https://www.googleapis.com/auth/chat.spaces.readonly"
-        "https://www.googleapis.com/auth/chat.memberships"
-        "https://www.googleapis.com/auth/chat.memberships.readonly"
-        "https://www.googleapis.com/auth/chat.messages"
         "https://www.googleapis.com/auth/chat.messages.readonly"
-        "https://www.googleapis.com/auth/chat.messages.create"
-        "https://www.googleapis.com/auth/chat.users.readstate"
-        "https://www.googleapis.com/auth/chat.users.readstate.readonly"
-        "https://www.googleapis.com/auth/chat.users.spacesettings"
+        "https://www.googleapis.com/auth/chat.memberships.readonly"
+      ];
+      tools = [
+        "search_conversations"
+        "list_messages"
+        "search_messages"
       ];
     };
     # People's MCP server rides the People API's own host, not a `peoplemcp` one.
@@ -134,6 +151,11 @@
         "https://www.googleapis.com/auth/directory.readonly"
         "https://www.googleapis.com/auth/userinfo.profile"
         "https://www.googleapis.com/auth/contacts.readonly"
+      ];
+      tools = [
+        "search_contacts"
+        "search_directory_people"
+        "get_user_profile"
       ];
     };
   };
