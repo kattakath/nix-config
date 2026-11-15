@@ -91,5 +91,34 @@
         ]
       }
     ]
-  }
+  },
+  "deniedMcpServers": [
+    {
+      "serverName": "plugin:aws-core:aws-mcp"
+    },
+    {
+      "serverName": "plugin:aws-serverless:aws-serverless-mcp"
+    },
+    {
+      "serverName": "plugin:cloudflare:cloudflare"
+    },
+    {
+      "serverName": "plugin:slack:slack"
+    },
+    {
+      "serverName": "plugin:neon:neon"
+    },
+    {
+      "serverName": "plugin:kattakath-workspace:Kattakath Workspace"
+    },
+    {
+      "serverName": "plugin:desktop-commander:desktop-commander"
+    },
+    {
+      "serverName": "plugin:stripe:stripe"
+    },
+    {
+      "serverName": "plugin:apify:apify"
+    }
+  ]
 }

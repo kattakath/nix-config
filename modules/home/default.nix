@@ -1068,6 +1068,10 @@ in
           # `serverName` pattern rejects it, but that pattern also rejects the `plugin:`
           # colons above, which work too.
           { serverName = "plugin:kattakath-workspace:Kattakath Workspace"; }
+          # Stripe and Apify: claude.ai connectors since 2026-11-14 (their plugin copies could
+          # not sign in from a cloud session), so the plugin twins are denied like the above.
+          { serverName = "plugin:stripe:stripe"; }
+          { serverName = "plugin:apify:apify"; }
           # The claude.ai Microsoft 365 connector was denied here 2026-11-01 (tenant blocked
           # consent); lifted 2026-11-13 once the operator re-added it on claude.ai.
         ];

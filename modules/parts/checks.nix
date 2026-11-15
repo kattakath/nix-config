@@ -2910,6 +2910,16 @@ in
               # ---- the local floor: claude-guardrails' ask rules ----
               hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
               ask = hm.programs.claude-code.settings.permissions.ask or [ ];
+              # ---- the cloud floor: a cloud session reads the repo's settings, never ~/.claude ----
+              # So every server the user scope denies must be denied in .claude/settings.json too;
+              # otherwise an unsigned or write-enabled plugin server runs in cloud sessions
+              # (measured 2026-11-14: aws-core, aws-serverless and desktop-commander all did).
+              serverNames = l: map (d: d.serverName or "") l;
+              userDenied = serverNames (hm.programs.claude-code.settings.deniedMcpServers or [ ]);
+              repoDenied = serverNames (
+                (builtins.fromJSON (builtins.readFile ../../.claude/settings.json)).deniedMcpServers or [ ]
+              );
+              cloudMissingDeny = lib.filter (n: !(lib.elem n repoDenied)) userDenied;
               outwardVerbs = [
                 "send_message"
                 "send_email"
@@ -3007,6 +3017,10 @@ in
                 {
                   name = "the guardrails ASK before every outward connector verb and high-impact phone tool (missing: ${toString missingAsk})";
                   ok = missingAsk == [ ];
+                }
+                {
+                  name = "the repo's .claude/settings.json denies every MCP server the user scope denies, so cloud sessions inherit the deny list (missing: ${toString cloudMissingDeny})";
+                  ok = cloudMissingDeny == [ ];
                 }
               ];
               advice = [
