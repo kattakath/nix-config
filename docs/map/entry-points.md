@@ -387,23 +387,25 @@ ADR-011 step 11: [`observability-hub-adr.md`](../observability-hub-adr.md).
 
 ### `secrets/secrets.nix`
 
-agenix recipients rules — **four** committed secrets on **two different models**. The operator
+agenix recipients rules — **five** committed secrets on **two different models**. The operator
 public key they all share is single-sourced in **`secrets/operator-key.nix`** (also the fleet's
 `authorizedKeys`, via `modules/parts/identity.nix` (`operatorSshKey`) → `mkNixos`), so a key rotation is one edit.
 
 - **Operator-only vault (1).** `secrets/cloudflared-token.age` (nixpi's Cloudflare tunnel token)
   — encrypted to the **operator's key alone**: the operator decrypts it on the Mac to plant on
   the SD card's FAT `FIRMWARE` partition, and it is NEVER decrypted on nixpi.
-- **Host-decrypted on `macos` at activation (3).** Recipients are operator **+ the `macos` host
+- **Host-decrypted on `macos` at activation (4).** Recipients are operator **+ the `macos` host
   key**, landing in `/run/agenix/`: `gh-app-dontsell-ai-key.age` and `gh-app-fleet-key.age` (the
   two runner lanes' GitHub App RS256 keys — **identical key material on purpose**, because an
-  agenix secret has one owner and the lanes run as different users) and
+  agenix secret has one owner and the lanes run as different users),
   `gitlab-runner-token.age` (the `glrt-` token `local.tart.gitlabRunner` renders its `config.toml`
-  from). The host-decryption path is live; do not describe it as unused.
+  from) and `chrome-enrollment-token.age` (Chrome Enterprise Core's browser enrollment token,
+  which `local.chromeEnterprise` also links to the path Chrome reads). The host-decryption path
+  is live; do not describe it as unused.
 
 `checks.<system>.secrets-sync` gates that this rules file and the committed `secrets/*.age`
 name the same files (an unlisted file is skipped by `agenix -r`; a declared-but-absent one is
 silently created on first edit). It compares NAMES only, never real recipients.
 
-All four are safe to commit. Full rules: [`secrets-and-keychain.md`](../secrets-and-keychain.md).
+All five are safe to commit. Full rules: [`secrets-and-keychain.md`](../secrets-and-keychain.md).
 

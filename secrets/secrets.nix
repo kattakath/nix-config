@@ -1,11 +1,12 @@
 # agenix rules — declares each committed .age secret and who may decrypt it.
 # Consumed ONLY by the `agenix` CLI (agenix -e/-r), never imported into a system
 # config. Recipients are SSH public keys directly (age's SSH support, no
-# ssh-to-age step). TWO MODELS live here and the split is 1/3 — assume neither:
+# ssh-to-age step). TWO MODELS live here and the split is 1/4 — assume neither:
 # `cloudflared-token.age` ALONE is OPERATOR-ONLY (the operator's key, never
-# decrypted on any host). The other THREE — both `gh-app-*-key` files and
-# `gitlab-runner-token.age` — are HOST-DECRYPTED on `macos` at activation, via
-# `age.secrets.*` (hosts/macos.nix, modules/darwin/github-runner.nix), so they
+# decrypted on any host). The other FOUR — both `gh-app-*-key` files,
+# `gitlab-runner-token.age` and `chrome-enrollment-token.age` — are
+# HOST-DECRYPTED on `macos` at activation, via `age.secrets.*` (hosts/macos.nix,
+# modules/darwin/github-runner.nix, modules/darwin/chrome-enterprise.nix), so they
 # also carry the `macos` host-key recipient below. A secret added without
 # picking a model explicitly is one the host silently cannot decrypt.
 #
@@ -102,6 +103,19 @@ in
   # config. Minted once via `gitlab-runner register`; rotating = re-register,
   # re-encrypt. Content is the bare token, one line.
   "gitlab-runner-token.age".publicKeys = [
+    operator
+    macos
+  ];
+  # Chrome Enterprise Core's browser ENROLLMENT token (local.chromeEnterprise,
+  # modules/darwin/chrome-enterprise.nix): HOST-decrypted at activation and linked
+  # to the one path Chrome reads without an MDM. It enrolls a browser into the
+  # token's organizational unit and is not a login credential, but anyone holding
+  # it can enroll a browser into the tenant, so it stays out of the store. Minted
+  # in the Admin console (Chrome browser > Tokens); ONE active token per unit, so
+  # rotating = revoke there, copy the new one, re-encrypt. An already-enrolled
+  # browser keeps working across a rotation — it holds its own device token.
+  # Content is the bare token, one line.
+  "chrome-enrollment-token.age".publicKeys = [
     operator
     macos
   ];

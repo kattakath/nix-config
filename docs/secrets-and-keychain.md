@@ -34,7 +34,7 @@ Encrypted secrets are committed via **agenix**: recipients are declared in
 `secrets/secrets.nix` (pure age/SSH, **no `ssh-to-age`**), ciphertext lives in
 `./secrets/<name>.age`.
 
-There are **four** committed secrets across **two different models** — one operator-only, three
+There are **five** committed secrets across **two different models** — one operator-only, four
 host-decrypted. Assuming one model covers all of them is the mistake to avoid.
 
 ### 1. `cloudflared-token.age` — operator-only
@@ -50,17 +50,18 @@ Why not host-decrypt it? agenix binds a secret to the host's SSH host key, and a
 **rotates that key** — which would break decryption and kill the tunnel, the sole remote path
 into `nixpi`. For this secret, host-decryption is a lockout risk.
 
-### 2–4. `gh-app-dontsell-ai-key.age`, `gh-app-fleet-key.age`, `gitlab-runner-token.age` — host-decrypted on `macos`
+### 2–5. `gh-app-dontsell-ai-key.age`, `gh-app-fleet-key.age`, `gitlab-runner-token.age`, `chrome-enrollment-token.age` — host-decrypted on `macos`
 
-The three credentials the `macos` CI runner lanes need. Recipients are the operator **plus the
-`macos` SSH host key**, so these *are* decrypted at activation into `/run/agenix/<name>` by the
-host itself.
+The three credentials the `macos` CI runner lanes need, plus Chrome's browser enrollment token.
+Recipients are the operator **plus the `macos` SSH host key**, so these *are* decrypted at
+activation into `/run/agenix/<name>` by the host itself.
 
 | Secret | Consumer | Content |
 |---|---|---|
 | `gh-app-dontsell-ai-key.age` | `local.macosGithubRunner` (`modules/darwin/github-runner.nix`) — the bare-metal runner **daemons**; root-owned, read before the drop to `_github-runner` (`github-runner.nix` § PRIVILEGE SPLIT) | GitHub App RS256 `.pem` |
 | `gh-app-fleet-key.age` | `local.tart.githubRunners.*` (the `tart-vms` capsule, `hosts/macos.nix`) — the login-user Tart **agents** | the *same* App's RS256 `.pem` |
 | `gitlab-runner-token.age` | `local.tart.gitlabRunner` — renders `config.toml` at agent start | the bare `glrt-` token, one line |
+| `chrome-enrollment-token.age` | `local.chromeEnterprise` (`modules/darwin/chrome-enterprise.nix`) — the only one with a custom `path`: agenix links it to `/Library/Google/Chrome/CloudManagementEnrollmentToken`, where Chrome reads it as the login user | the bare enrollment token, one line |
 
 **The two `gh-app-*` files hold identical key material, and that is deliberate — not duplication
 to clean up.** Both authenticate as the `ismailkattakath-ci` App (appId 4849830), but an agenix

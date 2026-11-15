@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/darwin/`
 
-`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,encrypted-dns.nix,claude-managed-settings.nix,launchd-sources.nix,operator-host.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,chrome-enterprise.nix,encrypted-dns.nix,claude-managed-settings.nix,launchd-sources.nix,operator-host.nix}`
 
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
@@ -251,6 +251,17 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   it. It copies the ollama metal guard's shape, so it is one of the boot-ordering `/bin/sh` rows in
   [`launchd-naming.md`](../../.claude/rules/launchd-naming.md). The file header carries the diagnosis
   (no PREF64, no option 108, no `ipv4only.arpa` AAAA) and the upstream-first grep.
+- **`chrome-enterprise.nix`** (macos only, `local.chromeEnterprise`, since 2026-11-15) — enrolls
+  this Mac's Chrome as a **managed browser** in Chrome Enterprise Core, which is how a Mac with
+  no MDM gets **mandatory** Chrome policy. The whole mechanism is one agenix secret with a custom
+  `path`: `chrome-enrollment-token.age` is decrypted at activation and linked to
+  `/Library/Google/Chrome/CloudManagementEnrollmentToken`, the file Chrome reads on launch.
+  - **The policies are not in this repo.** They sit in the Google Admin console, on the
+    organizational unit the token belongs to, and reach every Chrome profile on the Mac.
+  - **Disabling does not unenroll.** It removes the token link; the browser keeps its own device
+    token until it is deleted in the console. The header has the re-enrollment trap.
+  - **The extension list is still `modules/home/google-chrome.nix`.** Both lanes are live until
+    the cloud lane is proven in `chrome://policy`.
 - **`encrypted-dns.nix`** (macos only, `local.encryptedDns`, since 2026-11-08) — system-wide
   encrypted DNS through macOS's own resolver. It renders a `com.apple.dnsSettings.managed`
   profile (Quad9 DoH, filtered) to `/etc/encrypted-dns/quad9-doh.mobileconfig`, and

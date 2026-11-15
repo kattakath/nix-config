@@ -45,6 +45,7 @@ in
     ../modules/darwin/ollama-daemon.nix
     ../modules/darwin/clat-guard.nix
     ../modules/darwin/encrypted-dns.nix
+    ../modules/darwin/chrome-enterprise.nix
   ];
 
   # The operator's own Mac: opens every operator-only gate
@@ -87,6 +88,12 @@ in
   # Undo macOS 27 turning on CLAT46 where no NAT64 exists (IPv4 dead, IPv6 fine).
   # Why and the measurements: modules/darwin/clat-guard.nix. 2026-10-16.
   local.clatGuard.enable = true;
+
+  # Enroll this Mac's Chrome as a managed browser (Chrome Enterprise Core), so the
+  # Admin console can deliver MANDATORY policy to every profile with no MDM. Only
+  # the enrollment token is declared here; the policies sit on the token's
+  # organizational unit. Mechanism and the off switch: modules/darwin/chrome-enterprise.nix.
+  local.chromeEnterprise.enable = true;
 
   # System-wide encrypted DNS: a native macOS DoH profile for Quad9 (filtered). It is
   # installed once with `encrypted-dns-install` plus one click in System Settings. Why, the
