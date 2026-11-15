@@ -9,7 +9,10 @@
 #
 # THE STACK LIST IS DERIVED, not typed: modules/parts/terranix.nix passes every flake
 # package named `*-plan`, so a new stack's plan app is covered without an edit here. Its
-# Keychain credential comes from that wrapper's `passthru.terranixDriftEnv`. A plan with
+# Keychain credential comes from that wrapper's `passthru.terranixDriftEnv`, and each plan
+# is handed ONLY its own. They were merged into one environment until 2026-11-15, where
+# two stacks naming the same variable collided and the last name won: cf-mcp-portals ran
+# with the cf-zones token and failed every day with 403 "Authentication error". A plan with
 # no entry still runs. Its unset-token guard then exits 1, which is class `error`, so the
 # run pings /fail. An uncovered credential is loud, never silently clean.
 #
@@ -72,8 +75,17 @@ let
     assert lib.assertMsg (uncovered == [ ])
       "terranix-drift: set passthru.terranixDriftEnv (Keychain item NAMES, or { }) on: ${toString uncovered}";
     lib.attrNames plans;
-  secretEnv = lib.foldl' (acc: n: acc // (plans.${n}.terranixDriftEnv or { })) { } names;
-  secretArgs = lib.concatStringsSep " " (lib.mapAttrsToList (k: v: "${k}=${v}") secretEnv);
+  # One `case` arm per stack: the `VAR=item` words `secret exec` takes, item NAMES only.
+  # Per stack on purpose — see the header for the collision a merged set caused.
+  credArms = lib.concatMapStrings (
+    n:
+    let
+      words = lib.mapAttrsToList (k: v: lib.escapeShellArg "${k}=${v}") (
+        plans.${n}.terranixDriftEnv or { }
+      );
+    in
+    "${lib.removeSuffix "-plan" n}) creds=(${lib.concatStringsSep " " words}) ;;\n"
+  ) names;
   secretBin = if homeProfileDir == null then "secret" else "${homeProfileDir}/bin/secret";
   stackLines = lib.concatMapStrings (
     n: "${lib.removeSuffix "-plan" n} ${n} ${plans.${n}.meta.mainProgram or n}\n"
@@ -117,10 +129,18 @@ let
           out=$(${nixBin} build --no-link --print-out-paths \
             "${mainRef}&rev=$rev#packages.${system}.$attr" 2>"$log") && plan="$out/bin/$bin"
         fi
+        # This stack's own credentials, and nothing another stack named.
+        creds=()
+        case "$stack" in
+        ${credArms}        esac
+        runner=("$plan")
+        if [ "''${#creds[@]}" -gt 0 ]; then
+          runner=(${secretBin} exec "''${creds[@]}" -- "$plan")
+        fi
         if [ -z "$plan" ]; then
           echo "terranix-drift: not planned: main unresolved or $attr failed to build at main" >> "$log"
           rc=127
-        elif "$plan" -detailed-exitcode -lock=false -input=false -no-color > "$log" 2>&1; then
+        elif "''${runner[@]}" -detailed-exitcode -lock=false -input=false -no-color > "$log" 2>&1; then
           rc=0
         else
           rc=$?
@@ -177,11 +197,12 @@ writeShellApplication {
 
     # --no-ping: plan and summarise, ping nothing (a manual look).
     if [ "''${1:-}" = "--no-ping" ]; then
-      exec ${secretBin} exec ${secretArgs} -- ${lib.getExe run}
+      exec ${lib.getExe run}
     fi
     # Values arrive only through `secret exec`'s environment, never argv. runitor reads
-    # PING_KEY itself and sends the run's output (counts only) as the ping body.
-    exec ${secretBin} exec ${secretArgs} PING_KEY=${pingKeyItem} -- \
+    # PING_KEY itself and sends the run's output (counts only) as the ping body. The
+    # stacks' own credentials are fetched per plan, inside the run.
+    exec ${secretBin} exec PING_KEY=${pingKeyItem} -- \
       runitor -slug ${lib.escapeShellArg slug} -on-nonzero-exit fail -- ${lib.getExe run}
   '';
 }
