@@ -53,8 +53,8 @@ its gates the same day.
 - **The rulebook did not move off the plugin.** It is
   `plugins/userscript-lab/scripts/userscript-meta-lint.sh`, running in CI in the repositories
   that own the scripts. One rulebook, run where the content is.
-- **No userscript option is left.** `modules/home/google-chrome.nix` declares Violentmonkey from
-  the Web Store. There is no Nix path to declare a script.
+- **No userscript option is left.** `infra/google-workspace/chrome.nix` force-installs Violentmonkey
+  from the Web Store. There is no Nix path to declare a script.
 
 ## Standing preference (thin by design — append, never invent)
 
@@ -123,7 +123,7 @@ its gates the same day.
 
 ## Install reality on this Mac
 
-- **Violentmonkey is declared** (`modules/home/google-chrome.nix`, Web Store id) into every
+- **Violentmonkey is force-installed** (`infra/google-workspace/chrome.nix`, Web Store id) into every
   Chrome profile, even though zero scripts are declared.
 - **`~/.local/share/userscripts/` no longer exists**, and nothing writes it. Installing means
   navigating to the fork listing.

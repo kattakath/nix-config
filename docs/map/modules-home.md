@@ -2,7 +2,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/home/`
 
-`modules/home/{default.nix,plugin-mcp.nix,google-chrome.nix,pinned-chrome.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,house-style.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-work-profile.nix,tor-browser-backup-exclusion.nix}`
+`modules/home/{default.nix,plugin-mcp.nix,pinned-chrome.nix,default-browser.nix,kdeconnect.nix,terminal-theme.nix,house-style.nix,terminal-app.nix,launchd-launcher.nix,containers.nix,beancount.nix,metube.nix,yt-dlp-web-ui.nix,macos-user-agents.nix,claude-otel.nix,fleet-gauges.nix,terranix-drift.nix,claude-bedrock-gate.nix,claude-brain.nix,claude-code-settings.nix,claude-plugins.nix,claude-guardrails.nix,claude-work-profile.nix,tor-browser-backup-exclusion.nix}`
 — the Home Manager profile loaded on every host, and **nothing else**: it is the `.nix` files,
 all home-manager, since `nix-cache.nix` and `nix-ld-libraries.nix` left on 2026-10-02
 (ADR-009 §9b) and `macos-user-agents.nix` arrived from `modules/darwin/core.nix` the
@@ -106,14 +106,13 @@ in the repo can catch that; see that fixture file's header for the measurement.
   - Each was smoke-tested through a real MCP `initialize` before being declared, not just
     evaluated: wordpress reported `Connection successful` against the PROD site, postgres
     logged `Successfully connected to database`.
-- **`google-chrome.nix`** — `local.googleChrome`, darwin only: Google Chrome is the fleet's
-  only visible browser (the passkey reason is on the `google-chrome` cask in `hosts/macos.nix`
-  and under `default-browser.nix` below). Installs **no** browser (`programs.google-chrome.package
-  = null`); the `.app` is the cask, and upstream HM `programs.google-chrome` writes one
-  `External Extensions/<id>.json` per declared Web Store id. The Web Store is live in Chrome, so
-  each entry is a plain `{ id; }`: no pinned CRX, no version, no hash. The files sit in Chrome's
-  user-data dir, so every profile (the work profile included) gets the same extensions. The
-  list itself is the module; the two remaining manual steps are its header.
+- **Google Chrome has NO Home Manager module** (`google-chrome.nix`, `local.googleChrome`,
+  retired 2026-11-15). Chrome is the fleet's only visible browser (the passkey reason is on the
+  `google-chrome` cask in `hosts/macos.nix` and under `default-browser.nix` below), and its
+  extensions are **cloud policy**: the browser is enrolled by `modules/darwin/chrome-enterprise.nix`
+  and the list is the `gws-chrome` stack, `infra/google-workspace/chrome.nix`. Every profile of the
+  enrolled browser gets them, force-installed, with no per-profile enable step — the manual
+  step the old External Extensions lane needed.
   - **Claude in Chrome is the agents' browser rail** — the only one. Each Chrome profile's
     extension login decides which Claude account it serves, so no config routes personal vs
     work. Its native host is written by claude-code itself, never by this repo.
@@ -209,7 +208,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   evaluate on aarch64-darwin. That is precisely the case home-manager documents for
   `package = null` ("set this on platforms where ghostty is not available"), so the cask ships
   the app and Nix owns nothing but `$XDG_CONFIG_HOME/ghostty/config` — the same split
-  `google-chrome.nix` uses for the `google-chrome` cask. Settings deliberately **match the existing terminal**
+  the `google-chrome` cask has (the cask ships the app). Settings deliberately **match the existing terminal**
   rather than introduce a second look. **Colours and type are not stated here at all** —
   they come from `terminal-theme.nix` via `programs.ghostty.themes.fleet`, selected with
   `settings.theme = "fleet"`, which is upstream's own option for exactly this (pinned HM

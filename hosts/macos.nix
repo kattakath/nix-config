@@ -142,7 +142,7 @@ in
   # split "noto-fonts-malayalam" package exists). Makes the font SELECTABLE
   # everywhere (Font Book, any app's font picker) — it does not make anything
   # use it automatically. Chrome has no policy for per-script font choice, so the
-  # Advanced Font Settings extension (modules/home/google-chrome.nix) points it at
+  # Advanced Font Settings extension (infra/google-workspace/chrome.nix) points it at
   # these faces; `chrome.fontSettings.setFont` is extension-only.
   fonts.packages = [ pkgs.noto-fonts ];
 

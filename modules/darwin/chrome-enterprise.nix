@@ -22,8 +22,10 @@
 # `modules/` for `CloudManagementEnrollment`, `enrollment token` and `Library/Google/Chrome`
 # — no option exists; agenix `modules/age.nix`'s `path` is the reused piece).
 #
-# WHAT IS NOT DECLARED HERE. The policies themselves live in the Admin console, on the
-# token's organizational unit. `CloudManagementEnrollmentOptions = Mandatory` is deliberately
+# WHAT IS NOT DECLARED HERE. The policies are the `gws-chrome` terranix stack
+# (infra/google-workspace/chrome.nix), set on the token's organizational unit; the unit, the
+# token and the admin role stay in the Admin console (docs/workspace-runbook.md § 8).
+# `CloudManagementEnrollmentOptions = Mandatory` is deliberately
 # NOT written: with it, a failed FIRST enrollment blocks Chrome from launching at all, and
 # the decrypted token is absent until `activate-agenix` has run after a boot.
 #

@@ -306,7 +306,6 @@ in
     # upstream's home.file entry, so it has to be loaded at all — which this
     # explicit list, not auto-discovery, is what guarantees.
     ./claude-code-settings.nix
-    ./google-chrome.nix # local.googleChrome — Chrome extensions via programs.google-chrome (cask installs the app)
     ./default-browser.nix # local.defaultBrowser — the macOS LaunchServices http/https claim
     ./kdeconnect.nix # local.kdeConnect — merges declared keys into the kde-connect cask's INI files
     ./containers.nix # local.containers — per-user Colima (services.colima) replacing the Docker Desktop cask
@@ -462,9 +461,6 @@ in
   };
   # ADR-012 § 5 step 1. `package` comes from modules/parts/hosts.nix (engine-built).
   local.terranixDrift.enable = isMacosHost;
-
-  # Chrome's declarative extensions — real Mac only, since only hosts/macos.nix declares the cask.
-  local.googleChrome.enable = isMacosHost;
 
   # puppeteer's browser: Chrome for Testing pinned by nixpkgs, never the daily Chrome.
   # Operator Mac only: the closure is ~370 MiB. See pinned-chrome.nix.

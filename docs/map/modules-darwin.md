@@ -256,12 +256,13 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   no MDM gets **mandatory** Chrome policy. The whole mechanism is one agenix secret with a custom
   `path`: `chrome-enrollment-token.age` is decrypted at activation and linked to
   `/Library/Google/Chrome/CloudManagementEnrollmentToken`, the file Chrome reads on launch.
-  - **The policies are not in this repo.** They sit in the Google Admin console, on the
-    organizational unit the token belongs to, and reach every Chrome profile on the Mac.
+  - **The policies are the `gws-chrome` stack** (`infra/google-workspace/chrome.nix`), set on the
+    organizational unit the token belongs to. They reach every Chrome profile on the Mac.
   - **Disabling does not unenroll.** It removes the token link; the browser keeps its own device
     token until it is deleted in the console. The header has the re-enrollment trap.
-  - **The extension list is still `modules/home/google-chrome.nix`.** Both lanes are live until
-    the cloud lane is proven in `chrome://policy`.
+  - **That stack is the one extension list.** The Home Manager External Extensions lane
+    (`modules/home/google-chrome.nix`) was retired 2026-11-15, once the console showed all
+    seven as install type Admin. Runbook: [`workspace-runbook.md`](../workspace-runbook.md) § 8.
 - **`encrypted-dns.nix`** (macos only, `local.encryptedDns`, since 2026-11-08) — system-wide
   encrypted DNS through macOS's own resolver. It renders a `com.apple.dnsSettings.managed`
   profile (Quad9 DoH, filtered) to `/etc/encrypted-dns/quad9-doh.mobileconfig`, and

@@ -25,7 +25,7 @@ inventory, a verification command per item, and the two things that must never b
 | Canonical identity | `config.fleet.googleAccount` | **declared** (`modules/parts/identity.nix`) |
 | Cloudflare Access IdP | `Kattakath Google Workspace`, type `google-apps` — the **only** IdP | Cloudflare, declared |
 | GCP project | `kattakath-family`, billing account: `gcpBillingAccountId` in `modules/parts/identity.nix` | **declared** (ADR-005 phase 3) |
-| Admin-SDK automation identity | `ws-domain-admin@kattakath-family.iam.gserviceaccount.com` | account **declared**; its power is not — see §2 |
+| Admin-SDK automation identity | `ws-domain-admin@kattakath-family.iam.gserviceaccount.com` | account **declared**; its power is not — see §2, and §8 for its one job |
 | Terraform automation identity | `tofu-fleet@kattakath-family.iam.gserviceaccount.com` | **declared**, impersonated, no key |
 | Workspace-facing APIs | `admin`, `drive`, `gmail` | **not** declared — absent from `infra/gcp/foundation.nix`'s `services`; §3's `gcloud services list` is the check |
 | Gmail for agents | the claude.ai Gmail connector, one account | **not** declared — claude.ai account state; the self-hosted Gmail MCP was retired 2026-11-01 |

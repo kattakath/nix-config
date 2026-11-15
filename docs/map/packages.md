@@ -231,9 +231,9 @@ every install everywhere follows. What was given up is the declarative guarantee
 longer ends up with the scripts installed, and the linter no longer runs in this repo's CI (it
 still lives in the `userscript-lab` plugin, and Greasy Fork enforces its own rules at upload).
 
-**Only the manager stays.** [`modules/home/google-chrome.nix`](../../modules/home/google-chrome.nix)
-declares Violentmonkey from the Web Store, and the published scripts install into it; see
-[`modules-home.md`](modules-home.md) § `google-chrome.nix`.
+**Only the manager stays.** [`infra/google-workspace/chrome.nix`](../../infra/google-workspace/chrome.nix)
+force-installs Violentmonkey from the Web Store, and the published scripts install into it; see
+[`workspace-runbook.md`](../workspace-runbook.md) § 8.
 
 **The authoring METHOD is unchanged and lives in the plugin.** The portable
 [`userscript-lab` plugin](https://github.com/kattakath/skills/tree/main/plugins/userscript-lab)
