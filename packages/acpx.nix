@@ -28,11 +28,10 @@
 # fetchPnpmDeps + pnpmConfigHook is the supported path (the pnpm.fetchDeps /
 # pnpm.configHook spellings still work but are DEPRECATED) — grepped
 # pkgs/build-support/node/fetch-pnpm-deps for the hook before writing this.
-# fetcherVersion = 4 is mandatory: 2 was REMOVED in the 26.11 release.
+# fetcherVersion = 5 (1 and 2 were REMOVED in the 26.11 release).
 # Upstream's package.json `packageManager` and nixpkgs' `pnpm` skew (compare both
 # on an input bump). The lockfile format has held across that skew, so it is
-# accepted rather than vendoring a second pnpm — but the pnpm 12 store layout is
-# what the pnpmDeps override below exists for.
+# accepted rather than vendoring a second pnpm.
 #
 # NODE FLOOR IS REAL. package.json engines require node >=22.13.0 and the build
 # targets node22. This package pins nodejs_22 explicitly rather than inheriting
@@ -72,30 +71,14 @@ stdenv.mkDerivation (finalAttrs: {
     makeWrapper
   ];
 
-  # TEMPORARY — DELETE THIS `overrideAttrs` (and re-hash) once NixOS/nixpkgs#565315
-  # (`fetchPnpmDeps: add fetcherVersion 5`) or a successor lands and `fetcherVersion = 5`
-  # is available in the pinned nixpkgs: pnpm 12 materializes unpacked package payloads
-  # under `<store>/links/`, and fetchDeps' fixupPhase jq-parses every `*.json` it finds
-  # there — 17 of acpx's 769 are JSONC, so strict jq aborts the whole build (measured
-  # 2026-10-06; first casualty `@tybys/wasm-util/dist/tsdoc-metadata.json`).
-  #
-  # Pruning `links/` beats making the jq step tolerant: `links/` is a hardlink farm
-  # pnpm rebuilds offline from `files/` + `index.db` at install time, 0 of the 769 `*.json`
-  # live outside it (so the jq loop becomes a no-op rather than a laxer loop that could
-  # still silently rewrite a dependency's config), and it is the same direction #565315
-  # takes — keep `links/` out of the archived store. A nixpkgs overlay was rejected as
-  # fleet-wide drift for one package's bug.
-  pnpmDeps =
-    (fetchPnpmDeps {
-      inherit (finalAttrs) pname version src;
-      fetcherVersion = 4;
-      hash = "sha256-2cTpSPR7GbB6gqEF7ga3W0/gib/XiOXZVv2DixvhAf4=";
-    }).overrideAttrs
-      (_: {
-        preFixup = ''
-          rm -rf $storePath/{v3,v10,v11}/links
-        '';
-      });
+  # fetcherVersion 5 keeps pnpm 12's `links/` hardlink farm out of the archived store,
+  # so the jq fixup no longer trips on its JSONC files (it replaced a local
+  # `overrideAttrs` that pruned `links/` until NixOS/nixpkgs#565315 landed).
+  pnpmDeps = fetchPnpmDeps {
+    inherit (finalAttrs) pname version src;
+    fetcherVersion = 5;
+    hash = "sha256-LbAyfoh164M1l40DFDzOgvCYLACrmkUCE9ezg11z06E=";
+  };
 
   buildPhase = ''
     runHook preBuild

@@ -113,14 +113,14 @@
   #
   # upstream-first: avahi#117 ("Spurious name conflicts", OPEN), whose maintainer
   # names `allow-interfaces` as the workaround; it is upstream's own
-  # `services.avahi.allowInterfaces` (pinned nixpkgs avahi-daemon.nix:116). The
+  # `services.avahi.settings.server.allow-interfaces` (pinned nixpkgs avahi-daemon.nix). The
   # name comes from the watchdog's option, not a fourth literal, and
   # `nixpi-security-posture` pins the pairing.
   #
   # THE COST, accepted: with end0 down and wlan0 on the LAN, `nixpi.local` does not
   # resolve. sshd still answers on wlan0 (lanRecovery above), by its DHCP address.
   # The watchdog's failover moves wlan0, never end0, so the name stays up through it.
-  services.avahi.allowInterfaces = [ config.local.uplinkWatchdog.wiredInterface ];
+  services.avahi.settings.server.allow-interfaces = [ config.local.uplinkWatchdog.wiredInterface ];
 
   # NixOS defaults to a VOLATILE journal (wiped on reboot). The uplink-watchdog's
   # probe/escalate/restore trail is the best timestamp source for dating a router
@@ -197,8 +197,8 @@
 
   # systemd stage-1 (the nixpkgs default; the scripted initrd is removed in 26.11).
   # It replaced a forced scripted initrd on 2026-11-07, after the 6.6.51 kernel whose
-  # stage-1 hung mounting /sysroot was gone. `checks.<system>.nixpi-initrd-posture`
-  # pins it. If a boot ever hangs in stage-1, pick the previous extlinux entry at the
+  # stage-1 hung mounting /sysroot was gone; nixpkgs has since removed the scripted
+  # initrd and its option, so nothing can switch back. If a boot ever hangs in stage-1, pick the previous extlinux entry at the
   # U-Boot menu (HDMI/serial) — every older generation boots the scripted initrd.
 
   # The libbpf C23 patch (`kernelPatches.libbpf_C23_compat`) is GONE with the

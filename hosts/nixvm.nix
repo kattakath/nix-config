@@ -57,7 +57,7 @@
     "sd_mod"
   ];
   # The initrd `terminfo/l/linux` fix for the Mac's case-insensitive store lives
-  # in modules/nixos/core.nix (guarded on boot.initrd.systemd.enable).
+  # in modules/nixos/core.nix.
 
   # Serial console — a getty on ttyAMA0 (harmless; the base config exists only as
   # the build-vm eval substrate, so it never actually serves a login).

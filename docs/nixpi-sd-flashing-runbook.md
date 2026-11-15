@@ -518,7 +518,7 @@ ext4 errors, the card or write is corrupt.
 ## 8. Cross-references
 
 - **Stage-1:** systemd; why, and the rollback path, is the stage-1 comment in
-  `hosts/nixpi.nix` (pinned by `checks.<system>.nixpi-initrd-posture`).
+  `hosts/nixpi.nix` (the only initrd nixpkgs ships since the scripted one was removed).
   A systemd-initrd hang is invisible to eval / generic-kernel QEMU — only a real Pi
   (or serial) shows it.
 - **What `nixpi` does once booted:** `hosts/nixpi.nix` +

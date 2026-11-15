@@ -2308,34 +2308,6 @@ in
               ];
             };
 
-          # nixpi boots systemd stage-1 since 2026-11-07 (PR #1116; on hardware,
-          # systemd-analyze shows an initrd phase). The scripted initrd is removed in
-          # nixpkgs 26.11, so this pins `boot.initrd.systemd.enable == true`; why and
-          # the rollback path are the stage-1 comment in hosts/nixpi.nix. Ungated for
-          # the same reason as uplink-watchdog-paths-agree above: the edit that
-          # breaks it is made on the Mac, so Linux-gating would let `/eval` pass clean.
-          nixpi-initrd-posture =
-            let
-              pi = config.flake.nixosConfigurations.nixpi.config;
-              sd = pi.boot.initrd.systemd or { };
-            in
-            mkHostContract {
-              inherit pkgs;
-              name = "nixpi-initrd-posture";
-              subject = "nixpi: stage-1 is systemd (the scripted initrd is gone in 26.11)";
-              expect = [
-                {
-                  name = "boot.initrd.systemd.enable resolves to true on nixpi";
-                  ok = (sd.enable or null) == true;
-                }
-              ];
-              advice = [
-                "nixpi moved to systemd stage-1 on 2026-11-07 (6.18 kernel, U-Boot + extlinux)."
-                "The scripted initrd is removed in nixpkgs 26.11 (rl-2605.section.md), so it cannot go back."
-                "If a boot hangs in stage-1, pick the previous extlinux entry at the U-Boot menu (HDMI/serial)."
-              ];
-            };
-
           # ---- nixpi's security posture, which until now only PROSE held ------
           #
           # modules/nixos/core.nix's services.openssh block carries three careful paragraphs on why

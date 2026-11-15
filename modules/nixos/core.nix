@@ -2,7 +2,6 @@
 # Platform-specific hardware lives in hosts/<hostname>.nix.
 # User environment lives in modules/home/default.nix (via Home Manager).
 {
-  config,
   pkgs,
   lib,
   loginName,
@@ -125,10 +124,10 @@
     services.avahi = {
       enable = true;
       nssmdns4 = true;
-      publish = {
-        enable = true;
-        addresses = true;
-        workstation = true;
+      settings.publish = {
+        disable-publishing = false;
+        publish-addresses = true;
+        publish-workstation = true;
       };
     };
 
@@ -225,9 +224,9 @@
     # re-pointed at `l~nix~case~hack~1/linux` — that path is an artefact of THIS
     # filesystem and would not exist on a case-sensitive store.
     #
-    # GUARDED on systemd stage-1 because only that initrd reads `contents`; every
-    # fleet NixOS host now runs it (nixpi since 2026-11-07), so the guard only
-    # matters to a downstream consumer still on the scripted initrd.
+    # UNGUARDED: systemd stage-1 is the only initrd since nixpkgs removed the scripted
+    # one (26.11), and `boot.initrd.systemd.enable` itself is a removed option now, so
+    # even reading it throws.
     #
     # COST: the initrd console loses the `linux` terminfo entry. That matters only
     # to a full-screen program on the early-boot console; nothing here runs one.
@@ -237,8 +236,7 @@
     # build on the Mac that resolves a mixed-case store path by literal name is
     # still exposed. The durable fixes are a case-sensitive store volume (reformat)
     # or substituting the closure from CI — neither taken, operator's call 2026-10-06.
-    boot.initrd.systemd.contents."/etc/terminfo/l/linux".enable =
-      lib.mkIf config.boot.initrd.systemd.enable false;
+    boot.initrd.systemd.contents."/etc/terminfo/l/linux".enable = false;
 
     environment.systemPackages = with pkgs; [
       git
