@@ -63,12 +63,12 @@
           },
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/routing-review-digest.js\"",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null); node \"${r:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/routing-review-digest.js\"",
             "timeout": 10
           },
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/fleet-doctor-digest.js\"",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null); node \"${r:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/fleet-doctor-digest.js\"",
             "timeout": 10
           }
         ]
@@ -80,7 +80,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/pretooluse-write-target.js\"",
+            "command": "r=$(git rev-parse --show-toplevel 2>/dev/null); node \"${r:-${CLAUDE_PROJECT_DIR:-.}}/.claude/hooks/pretooluse-write-target.js\"",
             "timeout": 10
           },
           {

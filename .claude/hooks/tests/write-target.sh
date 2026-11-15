@@ -84,6 +84,22 @@ out="$(printf 'not json' | node "$H")"; rc=$?
 if [ "$rc" = 0 ] && [ -z "$out" ]; then echo "  ok    fail-open"; pass=$((pass+1))
 else echo "  FAIL  rc=$rc out=$out"; fail=$((fail+1)); fi
 
+echo "== the WIRED command survives a stale CLAUDE_PROJECT_DIR =="
+# CLAUDE_PROJECT_DIR is the session's LAUNCH cwd. A session that starts elsewhere and
+# moves here with /cd loads this repo's settings but keeps the old value, so a command
+# that trusts it names a script that does not exist and the gate never runs
+# (24 unguarded writes in one session, 2026-11-15). This runs the command AS WIRED.
+cmd="$(python3 -c 'import json,sys
+for g in json.load(open(".claude/settings.json"))["hooks"]["PreToolUse"]:
+    for h in g["hooks"]:
+        if h.get("type") == "command" and "pretooluse-write-target.js" in h["command"]:
+            print(h["command"])')"
+stale="$(mktemp -d)"
+out="$(printf '{"tool_input":{"file_path":"/etc/hosts"}}' | CLAUDE_PROJECT_DIR="$stale" sh -c "$cmd" 2>&1)"
+rmdir "$stale"
+case "$out" in *'"ask"'*) echo "  ok    ask   wired command, stale project dir"; pass=$((pass+1));;
+  *) echo "  FAIL  wired command did not ask under a stale project dir: $out"; fail=$((fail+1));; esac
+
 echo
 echo "pass=$pass fail=$fail"
 [ "$fail" -eq 0 ]
