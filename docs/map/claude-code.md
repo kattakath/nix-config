@@ -4,11 +4,15 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ### MCP after the gateway — plugins and claude.ai connectors (2026-10-02)
 
-**Verdict first: there is no MCP infrastructure in this repo any more.** No shared proxy, nothing
-listening on `127.0.0.1:8097`, no tunnel, no portal, no `modules/shared/mcp.nix`, no
-`infra/cloudflare/mcp-public.nix`, no `local.mcpGateway.*`, no `fleet.publicMcpServers`, no
-`mcp-published-parity` check. `mcp.kattakath.com` has had **no DNS record** since 2026-10-02
-(the `infra/cloudflare/kattakath-dns.nix` header records the deletion).
+**Verdict first: the OLD gateway is gone; ONE MCP portal is back (2026-11-14).** The 2026-10-02
+teardown removed the shared proxy on `127.0.0.1:8097`, its tunnel and portal,
+`modules/shared/mcp.nix`, `infra/cloudflare/mcp-public.nix`, `local.mcpGateway.*`,
+`fleet.publicMcpServers` and the `mcp-published-parity` check. Since 2026-11-14 the
+`cf-mcp-portals` stack (`infra/cloudflare/mcp-portals.nix` + `workspace-mcp-apps.nix`) publishes
+ONE Cloudflare MCP portal, "Kattakath Workspace", at `https://mcp.kattakath.com/mcp`. It holds
+only Google's Workspace MCP servers, and `checks.<system>.mcp-portal-posture` gates it. Its DNS
+CNAME is `gatewayRecords` in `infra/cloudflare/kattakath-dns.nix`. Every other server reaches a
+session through a plugin, as below.
 
 **How a server reaches a session now:**
 

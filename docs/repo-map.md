@@ -10,12 +10,13 @@ Two sibling docs carry the surfaces that outgrew this map:
 lane rules and spawn-test measurements that outlived it) and
 [`secrets-and-keychain.md`](secrets-and-keychain.md) (agenix + Keychain).
 
-> **MCP, 2026-10-02 — THE GATEWAY AND ITS PORTAL ARE GONE.** Read this before acting on any MCP
-> sentence anywhere in this repo. There is no shared proxy, nothing on `127.0.0.1:8097`, no
-> `mcp.kattakath.com` portal (that hostname has had **no DNS record** since 2026-10-02), and no
-> `modules/shared/mcp.nix`. **Every MCP server now comes from an enabled plugin's own
-> `.mcp.json`, spawned per session, nothing shared** — see [`map/claude-code.md`](map/claude-code.md)
-> § MCP after the gateway for the replacement and for what the teardown measured.
+> **MCP, 2026-10-02 — THE OLD GATEWAY AND ITS PORTAL ARE GONE.** Read this before acting on any
+> MCP sentence anywhere in this repo. There is no shared proxy, nothing on `127.0.0.1:8097`, and no
+> `modules/shared/mcp.nix`. **Since 2026-11-14 ONE portal is back:** the `cf-mcp-portals` stack
+> publishes "Kattakath Workspace" at `mcp.kattakath.com`, holding only Google's Workspace MCP
+> servers. **Every other MCP server comes from an enabled plugin's own `.mcp.json`, spawned per
+> session, nothing shared** — see [`map/claude-code.md`](map/claude-code.md) § MCP after the
+> gateway for both lanes and for what the teardown measured.
 
 ## Contents
 

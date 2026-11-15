@@ -38,11 +38,17 @@ against the flake, not memory: `nix eval .#apps.<system> --apply builtins.attrNa
 **`mcp-public` is GONE — destroyed and deleted 2026-10-02.** It owned the published MCP gateway:
 its own tunnel + config, the `upstream` CNAME, the service token, both Access policies, every
 per-server registration and the portal. Two destroy runs removed **65** Cloudflare objects (27
-registrations → 0, 1 portal → 0, 1 tunnel → 0) and `mcp.kattakath.com` has had
-no DNS record since (the `infra/cloudflare/kattakath-dns.nix` header). The module, the five `mcp-public-*` apps, `packages.mcp-worker-probe`, its GCS state
+registrations → 0, 1 portal → 0, 1 tunnel → 0), and `mcp.kattakath.com`'s record went with
+it. The module, the five `mcp-public-*` apps, `packages.mcp-worker-probe`, its GCS state
 object and `fleet.publicMcpServers`/`publicMcpPort` are all deleted. **Reject any change that
-re-creates a stack to publish MCP** unless the operator asks for one explicitly — MCP servers now
-come from an enabled plugin's `.mcp.json`, nothing shared.
+re-creates the retired gateway or `mcp-public`** unless the operator asks for one explicitly.
+
+**`cf-mcp-portals` is the sanctioned Workspace MCP stack (2026-11-14).** It
+(`infra/cloudflare/mcp-portals.nix` + `workspace-mcp-apps.nix`) publishes ONE Cloudflare MCP
+portal, "Kattakath Workspace", holding Google's Workspace MCP servers, gated by
+`checks.<system>.mcp-portal-posture`. So `mcp.kattakath.com` is declared again: the CNAME is
+`gatewayRecords` in `infra/cloudflare/kattakath-dns.nix`. Removing a portal app needs
+`CF_MCP_PORTALS_ALLOW_DROPS=1`, named by the operator only.
 
 **Cross-stack coupling to hold in your head — and it is now the sharpest lesson this file has.**
 The reusable account policy `mcp_allow_operator` (`b3bd8c38-e231-4203-ba6b-69fe16e498b3`) was

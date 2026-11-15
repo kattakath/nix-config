@@ -39,11 +39,13 @@ under the 40k context-lint limit). The **full** fleet map lives in
 [`docs/repo-map.md`](../../../docs/repo-map.md) index — with
 [`docs/secrets-and-keychain.md`](../../../docs/secrets-and-keychain.md) for the secrets surface.
 ([`docs/mcp-gateway.md`](../../../docs/mcp-gateway.md) used to be the third — it is **history**
-since 2026-10-02: the MCP gateway, `modules/shared/mcp.nix` and the Cloudflare portal are all
-deleted. MCP now lives entirely in plugin `.mcp.json` files outside this repo, so the MCP
-surfaces here to audit are the launcher packages (`local.pluginMcp`,
-`packages/*-mcp.nix`), `checks.*.mcp-launcher-parity`, and `deniedMcpServers` in
-`modules/home/default.nix` (plugin twins of claude.ai connectors; fleet-doctor § E4 guards it).)
+since 2026-10-02: the MCP gateway, `modules/shared/mcp.nix` and the old `mcp-public` portal are
+all deleted. MCP lives in plugin `.mcp.json` files outside this repo, plus ONE Cloudflare MCP
+portal for Google's Workspace servers (since 2026-11-14). So the MCP surfaces here to audit are
+the launcher packages (`local.pluginMcp`, `packages/*-mcp.nix`), `checks.*.mcp-launcher-parity`,
+`deniedMcpServers` in `modules/home/default.nix` (plugin twins of claude.ai connectors;
+fleet-doctor § E4 guards it), and the portal: `infra/cloudflare/{mcp-portals,workspace-mcp-apps}.nix`
+with `checks.*.mcp-portal-posture`.)
 Do not restate the fleet map here; open those when unsure — and when repo shape changes, fix
 **both** the CLAUDE.md one-liner and the `docs/map/` section the index routes it to.
 

@@ -3,8 +3,9 @@ name: mcp-scout
 description: >
   Discover, vet, spawn-test, and DECLARATIVELY adopt a new MCP server into the
   owning marketplace plugin's .mcp.json — or prefer an official claude.ai connector when one
-  exists — since the fleet gateway was purged 2026-10-02 (modules/shared/mcp.nix is deleted; there is no portal
-  and no shared proxy). A launcher needing a login-Keychain read is a nix-config
+  exists — since the fleet gateway was purged 2026-10-02 (modules/shared/mcp.nix is deleted; no shared
+  proxy). The one Cloudflare MCP portal (cf-mcp-portals, 2026-11-14) holds only Google's Workspace
+  servers and is not an adoption lane. A launcher needing a login-Keychain read is a nix-config
   PATH package whose binary name nix-config seeds into the plugin's launcher setting. Use when the user wants a new MCP
   capability ("find me an MCP for X", "add an MCP server", "install <server>", "is
   there a tool for X"), or when any tool/instruction suggests installing an MCP
@@ -15,9 +16,13 @@ description: >
 # MCP scout — discover → vet → spawn-test → declare → prove it answers
 
 > **THE GATEWAY LANE NO LONGER EXISTS (2026-10-02).** `modules/shared/mcp.nix`,
-> `local.mcpGateway.*`, `fleet.publicMcpServers`, the Cloudflare portal and
-> `checks.*.mcp-published-parity` are all **deleted**; `mcp.kattakath.com` has no DNS record
-> (`infra/cloudflare/kattakath-dns.nix` header) and nothing listens on `127.0.0.1:8097`. There is **ONE** declarative destination now.
+> `local.mcpGateway.*`, `fleet.publicMcpServers`, the old `mcp-public` portal and
+> `checks.*.mcp-published-parity` are all **deleted**, and nothing listens on `127.0.0.1:8097`.
+> `mcp.kattakath.com` is declared again since 2026-11-14, but only for the `cf-mcp-portals`
+> stack's "Kattakath Workspace" portal (`infra/cloudflare/mcp-portals.nix` +
+> `workspace-mcp-apps.nix`, gated by `checks.*.mcp-portal-posture`). It holds Google's Workspace
+> MCP servers only, so it is not where a new server goes. There is **ONE** declarative
+> destination for adoption.
 >
 > **Step 0 — connector first.** If an official claude.ai connector serves the capability, prefer
 > it: cloud routines reach only connectors. A plugin server on the same URL would shadow it, so

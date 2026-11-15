@@ -389,14 +389,14 @@ ADR-011 step 11: [`observability-hub-adr.md`](../observability-hub-adr.md).
 
 ### `secrets/secrets.nix`
 
-agenix recipients rules — **five** committed secrets on **two different models**. The operator
+agenix recipients rules — the one list of committed secrets, on **two different models**. The operator
 public key they all share is single-sourced in **`secrets/operator-key.nix`** (also the fleet's
 `authorizedKeys`, via `modules/parts/identity.nix` (`operatorSshKey`) → `mkNixos`), so a key rotation is one edit.
 
-- **Operator-only vault (1).** `secrets/cloudflared-token.age` (nixpi's Cloudflare tunnel token)
+- **Operator-only vault.** `secrets/cloudflared-token.age` (nixpi's Cloudflare tunnel token)
   — encrypted to the **operator's key alone**: the operator decrypts it on the Mac to plant on
   the SD card's FAT `FIRMWARE` partition, and it is NEVER decrypted on nixpi.
-- **Host-decrypted on `macos` at activation (4).** Recipients are operator **+ the `macos` host
+- **Host-decrypted on `macos` at activation.** Recipients are operator **+ the `macos` host
   key**, landing in `/run/agenix/`: `gh-app-dontsell-ai-key.age` and `gh-app-fleet-key.age` (the
   two runner lanes' GitHub App RS256 keys — **identical key material on purpose**, because an
   agenix secret has one owner and the lanes run as different users),
@@ -409,5 +409,5 @@ public key they all share is single-sourced in **`secrets/operator-key.nix`** (a
 name the same files (an unlisted file is skipped by `agenix -r`; a declared-but-absent one is
 silently created on first edit). It compares NAMES only, never real recipients.
 
-All five are safe to commit. Full rules: [`secrets-and-keychain.md`](../secrets-and-keychain.md).
+All of them are safe to commit. Full rules: [`secrets-and-keychain.md`](../secrets-and-keychain.md).
 

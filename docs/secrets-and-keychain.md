@@ -34,8 +34,8 @@ Encrypted secrets are committed via **agenix**: recipients are declared in
 `secrets/secrets.nix` (pure age/SSH, **no `ssh-to-age`**), ciphertext lives in
 `./secrets/<name>.age`.
 
-There are **five** committed secrets across **two different models** — one operator-only, four
-host-decrypted. Assuming one model covers all of them is the mistake to avoid.
+The committed secrets (`secrets/secrets.nix` is the list) follow **two different models** — one
+operator-only, the rest host-decrypted. Assuming one model covers all of them is the mistake to avoid.
 
 ### 1. `cloudflared-token.age` — operator-only
 

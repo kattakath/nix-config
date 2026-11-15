@@ -9,11 +9,12 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `cf-tunnel` | GCS `cf-tunnel/` | `CLOUDFLARE_API_TOKEN` | **the Pi**: tunnel, ingress, CNAMEs, every zone's TLS floor, the `nixpi_ssh` Access app |
 | `cf-zones` | GCS `cf-zones/` | `CLOUDFLARE_API_TOKEN` | **mail**, silently until a message bounces |
 | `cf-access-org` | GCS `cf-access-org/` | `CLOUDFLARE_API_TOKEN` | **every Access app at once** (`auth_domain`) |
-| `cf-mcp-portals` | GCS `cf-mcp-portals/` | `CLOUDFLARE_API_TOKEN` + 3 `TF_VAR`s | every Workspace MCP connector |
+| `cf-mcp-portals` | GCS `cf-mcp-portals/` | `CLOUDFLARE_API_TOKEN` + `TF_VAR_{google_oauth_client_id,google_oauth_client_secret,allowed_emails}` | every Workspace MCP connector |
 | `gcp-budget` | GCS `gcp-budget/` | ADC | the spend ALERT (an alert, never a cap) |
 | `gcp-foundation` | **local** (still encrypted) | ADC | the bucket the others live in |
 | `hc-checks` | GCS `hc-checks/` | `HEALTHCHECKSIO_API_KEY` | the dead-man's-switch ALARMS; a quiet one reads as a healthy host |
 | `grafana` | GCS `grafana/` | `GRAFANA_AUTH` + `GRAFANA_SM_ACCESS_TOKEN` + gcom token | Grafana alerting, datasources, dashboard, probe (ADR-011). A dropped datasource takes its key with it |
+| `gws-chrome` | GCS `gws-chrome/` | ADC (as `ws-domain-admin`) + `GITHUB_TOKEN` (tenant ids) | Chrome's forced extensions on the enrolled-browser unit; a dropped row is NOT uninstalled |
 | `github` | GCS `github/` | `GITHUB_TOKEN` | fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |
 
 The stack set itself is `nix eval .#apps.<system> --apply builtins.attrNames` (every stack has
@@ -47,6 +48,10 @@ nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=<handle> -- nix run .#<
 may name the handle it needs, with the reason — `nixpi-tunnel.nix`'s "ADOPTION IS IMPORT-FIRST"
 block does.
 
+`cf-mcp-portals`' handles: `cf:cloudflare.com:mcp-public` + `gcp:workspace-gateway:{oauth-client-id,oauth-client-secret,allowed-emails}`,
+via `nix develop -c secret exec VAR=handle… -- nix run .#cf-mcp-portals-{plan,apply}`. Dropping an
+app needs the operator's `CF_MCP_PORTALS_ALLOW_DROPS=1`.
+
 State is the shared, versioned bucket `kattakath-tofu-state` (named once, as
 `fleet.gcpStateBucket`), **encrypted** with a passphrase
 read from the login Keychain at run time via `TF_ENCRYPTION` (ADR-005 phase 1 —
@@ -57,9 +62,8 @@ because it *declares* that bucket — **and it is encrypted too.** The invariant
 not remoteness: **every** stack sources the same `tofuRemoteStatePrelude`
 (`modules/parts/terranix.nix`), so the passphrase can never be wired on all but one and
 forgotten on the last. "Local" here says where the file sits, never that it is plaintext.
-(That property is why the retired `mcp-public` state was safe to abandon: its payload carried a
-connector token and an Access service-token secret, and the GCS object holding them was
-encrypted at rest with the same Keychain passphrase.)
+(So the retired `mcp-public` state, which held a connector token and a service-token secret,
+was safe to abandon.)
 
 ### `infra/cloudflare/zones.nix` + `infra/cloudflare/kattakath-dns.nix` + `infra/cloudflare/kattakath-redirects.nix`
 
@@ -69,10 +73,9 @@ zone is declared, and the line is drawn by **ownership, not secrecy**: DNS is a 
 publishing the operator's own zone discloses nothing `dig` does not, while the other six zones
 belong to businesses that are not only his.
 
-Records owned by another stack are deliberately absent — today that is `nixpi` alone. (`upstream`
-and `mcp` used to be here as absences too: `upstream` belonged to the retired `mcp-public` stack
-and `mcp` was created by Cloudflare with the portal. Both are **destroyed**, not merely
-unmanaged, so a future render must not grow them back in order to "fix" a missing record.)
+Records owned by another stack are deliberately absent — today that is `nixpi` alone.
+(`upstream`, the retired `mcp-public` stack's, is **destroyed**: never grow it back. `mcp` is
+declared here again since 2026-11-14 — `gatewayRecords`, the `cf-mcp-portals` portal's CNAME.)
 Importing one twice is how a plan grows a destroy.
 
 Its guard is shaped for its own failure mode — a **record-count floor** — because the way this
@@ -252,17 +255,13 @@ declaration site, `infra/cloudflare/nixpi-tunnel.nix`.
 
 `infra/cloudflare/mcp-public.nix` is **gone**, with its five `mcp-public-*` apps, its
 `packages.mcp-worker-probe` helper, its GCS state object and its
-`fleet.publicMcpServers`/`publicMcpPort` inputs. This section is kept because the teardown
-measured things worth not re-learning, not because any of it is still operable. **There is no
-`mcp-public-plan` to run.**
+`fleet.publicMcpServers`/`publicMcpPort` inputs. Kept for what the teardown measured; none of it
+is operable (its successor is `cf-mcp-portals`, above).
 
-**What it was.** The Cloudflare half of the published MCP gateway; the other half was the single
-`mcp-proxy` in `modules/shared/mcp.nix`, whose whole roster was `config.fleet.publicMcpServers`.
-Live 2026-09-12 → 2026-10-02. From ONE list it rendered a `cloudflared` tunnel + connector for
-the Mac, ingress to `:8097`, the proxied CNAME, one Access application over the origin hostname,
-one `non_identity` service-token policy, one portal registration per published server, one
-`mcp`-type Access application per server, and the portal's own `mcp_portal` application carrying
-the DCR allowlist.
+**What it was.** The Cloudflare half of the published MCP gateway (the other: `mcp-proxy` in
+`modules/shared/mcp.nix`), live 2026-09-12 → 2026-10-02: a tunnel + connector to `:8097`, the
+proxied CNAME, an origin Access app with a `non_identity` service-token policy, and per server a
+portal registration plus an `mcp`-type Access app.
 
 **What the teardown measured**, via the Cloudflare API after two destroy runs — **65 objects
 destroyed**:
