@@ -266,8 +266,9 @@ the rest of this section is what stays by hand.
 | Minting or rotating the enrollment token | Admin console > Chrome browser > Tokens | no — no provider resource |
 
 ```bash
-secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrome-plan    # read-only
-secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrome-apply   # asks for a typed yes
+# Inside the devShell: it scopes ADC to this repo, and a bare run reads the global one.
+nix develop -c secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrome-plan    # read-only
+nix develop -c secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrome-apply   # asks for a typed yes
 ```
 
 - **Credentials, no new secret.** The `google` provider mints a short-lived token for
