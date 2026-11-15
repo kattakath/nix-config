@@ -164,6 +164,23 @@ fork.
 maintained tool that never touches the identity root. The directory, Drive and sharing stay a
 runbook. See [ADR-012](declarative-gaps-adr.md) § 3 "Gmail and ADR-005 § 3.3".
 
+**Narrow reopening (2026-11-15): Chrome browser policy on one organizational unit only.** The
+operator's decision, made to replace the Home Manager External Extensions lane, which needed
+manual steps per profile. Three things bound it:
+
+- **Scope.** Chrome policy on the unit that holds enrolled BROWSERS. No account, group, licence
+  or directory setting. The identity root in §5 stays a runbook.
+- **Credential.** A key-less service account holding a Chrome-only admin role, restricted to
+  that one unit. If the role can reach the root unit, the work stops there.
+- **Provider.** `macadmins/googleworkspace`, a different fork from the one §5 names. Measured
+  2026-11-15: created 2026-04-13, signed releases on both registries, 19 commits since
+  2026-08-01 from **two committers (18 and 1)**. That meets the §7 trigger only weakly, so
+  this reopening rests on the narrow scope, not on the fork's health. Its Chrome resources
+  have no CI coverage of read, import or update: they are tested on a child unit first, and
+  a `destroy` is never run (it resets the unit to inherit, which removes a force-install).
+
+The directory, Drive, sharing and domain-wide delegation stay a runbook.
+
 ---
 
 ## 4. Target shape
