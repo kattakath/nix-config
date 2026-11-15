@@ -203,6 +203,10 @@ in
           # version moves with the nixpkgs pin. Per-user state stays in ~/.qwen.
           qwen = pkgs.qwen-code;
 
+          # Gemini CLI (`gemini`) — nixpkgs' `gemini-cli`, re-exported as `.#gemini` so the
+          # flake attr matches the binary; shared machine-wide by hosts/macos.nix. Apache-2.0.
+          gemini = pkgs.gemini-cli;
+
           # acpx — headless ACP (Agent Client Protocol) client. The one piece of
           # cross-agent interop worth installing: it drives `claude`, `grok` and
           # `agy` over the protocol all three already speak, with a real

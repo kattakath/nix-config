@@ -114,6 +114,11 @@ in
     pkgs.grok-build
     pkgs.antigravity-cli
     pkgs.qwen-code
+    # Gemini CLI (`gemini`) — nixpkgs' `gemini-cli` (Apache-2.0, built from source),
+    # Google's own agent CLI. Its extensions (incl. Google's Workspace extension, the
+    # only Claude-side route to Google Tasks) and ACP mode (`gemini --acp`, driven by
+    # `acpx gemini`) are why it is here. Per-user state stays in ~/.gemini.
+    pkgs.gemini-cli
     # acpx — the headless ACP client that drives the fleet's agents (grok,
     # Antigravity, Claude Code) as PEERS
     # rather than as separate terminals. Machine-wide for the same reason they
