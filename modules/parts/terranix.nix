@@ -72,6 +72,11 @@ let
   # creates it from this account id, and infra/github/stack.nix is handed its email.
   rollupWriterAccountId = "grafana-rollup-writer";
 
+  # The Chrome-policy service account, ONE spelling for the same reason:
+  # infra/gcp/foundation.nix creates it from this account id, and the gws-chrome
+  # stack is handed its email to mint a token for.
+  wsDomainAdminAccountId = "ws-domain-admin";
+
   # kattakath.com's records, as a PLAIN LIST rather than a `fleet.*` option.
   # Reading them through the module system recursed: `config` inside a terranix
   # `_module.args` block resolves to that module's own config (measured
@@ -1146,7 +1151,7 @@ let
             stateBucket = gcpStateBucket;
             stateBucketLocation = gcpStateBucketLocation;
             rollupRepo = "${orgName}/${repoName}";
-            inherit rollupWriterAccountId;
+            inherit rollupWriterAccountId wsDomainAdminAccountId;
           };
         }
       ];
@@ -1528,8 +1533,7 @@ let
         ../../infra/google-workspace/chrome.nix
         (tofuGcsBackend "gws-chrome")
         {
-          # `ws-domain-admin` is infra/gcp/foundation.nix's `ws_domain_admin.account_id`.
-          _module.args.chromePolicyServiceAccount = "ws-domain-admin@${gcpProjectId}.iam.gserviceaccount.com";
+          _module.args.chromePolicyServiceAccount = "${wsDomainAdminAccountId}@${gcpProjectId}.iam.gserviceaccount.com";
         }
       ];
     };

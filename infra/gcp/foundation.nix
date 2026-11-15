@@ -38,6 +38,8 @@
   rollupRepo,
   # The writer's account id; modules/parts/terranix.nix also builds its email from it.
   rollupWriterAccountId,
+  # The Chrome-policy account's id; modules/parts/terranix.nix also builds its email from it.
+  wsDomainAdminAccountId,
   ...
 }:
 let
@@ -320,7 +322,7 @@ in
   # name and description below say what is true instead.
   resource.google_service_account.ws_domain_admin = {
     project = projectId;
-    account_id = "ws-domain-admin";
+    account_id = wsDomainAdminAccountId;
     display_name = "Chrome browser policy automation (one unit only)";
     # The description is the FIX for the finding, not decoration. It first read
     # "Domain-wide delegation for Admin SDK domain + site verification", an
