@@ -38,7 +38,6 @@
   agent-skills-excalidraw,
   agent-skills-mac-automation,
   agent-skills-vercel-agent,
-  grok-build-plugin-cc,
   # Source-only nixpkgs checkout read for ONE package recipe (claudeCode below).
   nixpkgs-claude-code,
   # The ABSORBED local-rag capsule (local.rag.ollama +
@@ -67,12 +66,6 @@
   ...
 }:
 let
-  # The credential-path inventory grok's sandbox deny list renders from. Shared
-  # with the Claude Read() floor (./claude-guardrails.nix) so the mechanisms cannot hold
-  # quietly different views of one fact — which is exactly what they did
-  # until 2026-10-07. That file carries the per-layer price table.
-  secretReadPaths = import ../_lib/secret-read-paths.nix;
-
   # The operator's Mac vs every other profile — the Linux hosts, a Tart darwin
   # guest, the template consumer. Keeps macos-only agents (RAG stack, OTel
   # collector, Claude Desktop servers) off all of them.
@@ -134,74 +127,6 @@ let
     doInstallCheck = false;
     __noChroot = false;
   });
-
-  # ---- grok-build: repoint its hardcoded `read-only` sandbox at `read-only` + a credential deny ----
-  # xAI's bridge hardcodes `--sandbox read-only` for every non-write run (delegate/review/
-  # critique). The built-in `read-only` blocks writes to the CWD but does NOT cover
-  # credentials: under it `~/.ssh`, `~/.aws`, `~/.config/gh` and `~/.docker` all list fine
-  # (measured 2026-11-02, grok 1.0.45 and 1.0.50). So the bridge runs our profile instead: `read-only`
-  # plus the kernel-enforced `deny` list below. A custom profile may not reuse a built-in name,
-  # hence the repoint. Same probes on this profile: CWD `touch` → "Operation not permitted",
-  # all four dirs DENIED, a plain read works. Retire this patch only if the built-in profile
-  # ever denies those paths itself; the deny list is the whole reason it exists.
-  #
-  # It extended `workspace` until Docker Desktop's symlinked /run/docker.sock (gone 2026-09-16) stopped blocking `read-only`.
-  #
-  # NAME: a GROK sandbox profile (`[profiles.<name>]` in ~/.grok/sandbox.toml), not a macOS
-  # Seatbelt profile. Its deny list renders from modules/_lib/secret-read-paths.nix.
-  grokSandboxProfile = "nix-agent-read-only";
-
-  # The sandbox profile's CONTENT, as a store file. It is copied to
-  # ~/.grok/sandbox.toml at activation rather than symlinked, because grok
-  # rejects a symlink there — see home.activation.grokSandboxProfile below for
-  # the failure it causes. Kept next to the profile NAME so the two cannot drift apart.
-  grokSandboxToml = pkgs.writeText "grok-sandbox.toml" ''
-    # Managed by nix-config (modules/home/default.nix) — do not hand-edit.
-    [profiles.${grokSandboxProfile}]
-    extends = "read-only"
-    deny = [
-    ${
-      # Whole dirs: grok's sandbox has no file-level granularity (secret-read-paths.nix).
-      lib.concatMapStringsSep "\n" (
-        d: "      \"${config.home.homeDirectory}/${d}\","
-      ) secretReadPaths.agentCredentialDirs
-    }
-    ${lib.concatMapStringsSep "\n" (g: "      \"**/${g}\",") secretReadPaths.agentCredentialGlobs}
-    ]
-  '';
-  # `grok-bridge` — the bridge as a bare command, for agents that reach Grok from plain
-  # Bash (a teammate, a subagent, a workflow) instead of /grok-build:* or grok-delegate.
-  # Off-the-shelf mechanism, not a PATH package of ours: Claude Code puts a plugin's
-  # `bin/` on the Bash tool's PATH while the plugin is enabled (code.claude.com/docs/en/
-  # plugins-reference § Standard layout, "Executables"). What it does NOT do is export the
-  # plugin's variables there ("aren't present in the environment of commands Claude runs
-  # through the Bash tool", same page § Environment variables). The plugin's SessionStart
-  # hook tries via CLAUDE_ENV_FILE, but only 5 of 593 session-env files carried it
-  # (measured 2026-11-13). Without CLAUDE_PLUGIN_DATA the bridge falls back to
-  # $TMPDIR/grok-cc-runs (upstream README) — invisible to /grok-build:runs and to
-  # stop-gate. So the shim supplies both, keeping a CLAUDE_PLUGIN_DATA the hook did set.
-  # Rejected: a Nix PATH wrapper — it would be a second entry point outside the plugin.
-  grokBridgeShim = pkgs.writeText "grok-bridge" ''
-    #!/bin/sh
-    set -eu
-    CLAUDE_PLUGIN_ROOT=@root@
-    : "''${CLAUDE_PLUGIN_DATA:=''${CLAUDE_CONFIG_DIR:-$HOME/.claude}/plugins/data/grok-build-xai-grok-build}"
-    export CLAUDE_PLUGIN_ROOT CLAUDE_PLUGIN_DATA
-    exec @node@ "$CLAUDE_PLUGIN_ROOT/scripts/grok-bridge.mjs" "$@"
-  '';
-  grokBuildPluginPatched = pkgs.runCommand "grok-build-plugin-cc-patched" { } ''
-    cp -r ${grok-build-plugin-cc} $out
-    chmod -R u+w $out
-    substituteInPlace $out/plugins/grok-build/scripts/grok-bridge.mjs \
-      --replace-fail 'sandbox: "read-only",' \
-                     'sandbox: "${grokSandboxProfile}",' \
-      --replace-fail 'sandbox: write ? undefined : "read-only",' \
-                     'sandbox: write ? undefined : "${grokSandboxProfile}",'
-    install -Dm755 ${grokBridgeShim} $out/plugins/grok-build/bin/grok-bridge
-    substituteInPlace $out/plugins/grok-build/bin/grok-bridge \
-      --replace-fail @root@ "$out/plugins/grok-build" \
-      --replace-fail @node@ ${lib.getExe pkgs.nodejs}
-  '';
 
   sshDir = "${config.home.homeDirectory}/.ssh";
   operatorPrivateKey = "${sshDir}/id_ed25519";
@@ -588,20 +513,6 @@ in
   # `source` is mkDefault throughout so a downstream layer can repoint one (a
   # fork of the official marketplace, say) with a plain assignment.
   local.claudePlugins.marketplaces = {
-    # xAI's grok-build bridge, from a PATCHED store copy of the pinned flake
-    # input (grokBuildPluginPatched in the let block above — read it for WHY the
-    # built-in `read-only` sandbox had to be repointed). Store path ⇒ the ONE
-    # marketplace claude-plugins.nix still touches imperatively, and only to
-    # spare the first session after a bump — a directory-source plugin loads
-    # LIVE from the marketplace dir (measured 2026-09-30), so the patch reaches
-    # Claude Code with no cache copy to go stale.
-    # Runtime: the `grok` binary (nixpkgs' grok-build, shared via environment.systemPackages)
-    # + Node — the bridge shells out to `grok models`. Remove that package only together
-    # with this plugin and its flake input.
-    xai-grok-build = {
-      source = lib.mkDefault "${grokBuildPluginPatched}";
-    };
-
     # Anthropic's official marketplace (`claude-plugins-official`) is NOT declared here
     # since 2026-11-07: its plugins are installed from claude.ai and arrive as `<name>@synced`
     # (account sync), one source instead of a second Nix-declared copy that shadows them.
@@ -692,7 +603,6 @@ in
     # here, and which plugins get enabled. Accepted cost: whatever lands on an upstream
     # `main` reaches this Mac on a background refresh without a per-commit review.
     # Measured 2026-11-12: with it unset, a marketplace silently stayed 4 releases behind.
-    # A /nix/store marketplace (xai-grok-build) can't auto-update; Nix updates it.
     #
     # LICENCE, and why marketplace-not-vendor is the RIGHT shape here:
     # `trailofbits/skills` is CC-BY-SA-4.0 — a share-alike licence. Consuming it as
@@ -1851,18 +1761,6 @@ in
   };
 
   home.activation = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    # ~/.grok/sandbox.toml as a REAL FILE, not a store symlink — grok counts it as a
-    # hooks-paths registry entry and refuses to start on a symlink, taking every
-    # grok-build run down with it. Rationale in full beside grokSandboxToml above.
-    # upstream-first: grepped home-manager/modules/lib/file-type.nix — home.file has no
-    # copy/mutable mode → custom.
-    grokSandboxProfile = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-      run mkdir -p "$HOME/.grok"
-      run rm -f "$HOME/.grok/sandbox.toml"
-      run cp -L "${grokSandboxToml}" "$HOME/.grok/sandbox.toml"
-      run chmod u+w "$HOME/.grok/sandbox.toml"
-    '';
-
     # Regenerate the HTML email signature (JSON Resume + bundled logo) into
     # ~/.local/share/email-signature/signature.html. Best-effort: the generator fetches
     # resume.json over the network and self-skips (keeping any existing artifact) when

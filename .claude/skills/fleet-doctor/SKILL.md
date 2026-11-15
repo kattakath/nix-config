@@ -478,7 +478,7 @@ deleted 2026-09-30), so what activation touches is a strict subset of what is de
 
 | Case | What activation does | Absent plugin means |
 |---|---|---|
-| **store-path** marketplace (today only `xai-grok-build`) | runs one `plugin marketplace add` (no install) — see `home.activation.claudeCodePlugins` | the **tree was stale**, OR activation failed |
+| **store-path** marketplace (none declared today) | runs one `plugin marketplace add` (no install) — see `home.activation.claudeCodePlugins` | the **tree was stale**, OR activation failed |
 | **https** marketplace | **nothing** — no `marketplace add`, no `plugin install` | **normal** until the next session start; Claude Code clones and downloads it itself |
 | marketplace missing from `extraKnownMarketplaces` | n/a — the declaration never reached settings | this, and only this, **proves a stale tree** |
 

@@ -36,7 +36,7 @@ Core package set:
 - **`fal.nix`** — fal.ai as two binaries, because the vendor ships two different things:
   `fal` (their own CLI — a serverless runtime, `fal run`/`fal deploy`) and `fal-gen` (ours, a
   thin wrapper over `fal-client`, since the vendor ships NO inference CLI). Both are ephemeral
-  `uv run --with` environments, the same shape as the media-cli capsule's `fidelity-enhance`,
+  `uv run --with` environments, the same shape as `jobspy.nix`,
   because none of fal's dependency tree is in nixpkgs. Reads `FAL_KEY` from the login Keychain
   and never prints it. Rejected on the way here: `buildPythonApplication` (hand-packaging a
   serverless runtime's whole tree) and the registry's community fal MCP servers (all
@@ -124,7 +124,7 @@ Smaller, single-purpose CLIs:
   `android-phone` plugin in
   [`kattakath/skills`](https://github.com/kattakath/skills).
 - **The media packages are NOT here — they are in the `media-cli` capsule.** Every media
-  package, plus the two media-*adjacent* tools `obs-fb-setup.nix` and `fidelity-enhance.nix`,
+  package, plus the media-*adjacent* tool `obs-fb-setup.nix`,
   lives in `modules/features/media-cli/packages/` — read that directory, not a list here. The
   original set left for `kattakath/nix-media-cli` on 2026-09-05 (which is where the
   `photo-describe` → `media-describe` renaming happened) and came back on 2026-09-12, with its
@@ -136,11 +136,11 @@ Smaller, single-purpose CLIs:
   `nix flake show` rows nothing consumes. The why, and the one-line path back, are in the
   capsule's `flake-module.nix` header.
 
-  The two adjacent tools are **opt-in** in that module
-  (`fidelityEnhance.enable`, `obsFacebookSetup.enable`) and deliberately stay OUT of the
+  The adjacent tool is **opt-in** in that module
+  (`obsFacebookSetup.enable`) and deliberately stays OUT of the
   `media-toolkit` bundle: that bundle is what the Finder Services put
   on their `PATH`, so every member becomes a runtime dependency of the Finder Services, and a
-  uv/Python environment plus a Keychain read have no business there.
+  Keychain read has no business there.
 - **The four Keychain CLIs are not here either — and never were.** `secret`, `set-secret`,
   `remove-secret` and `pb-conceal` live in **`modules/features/keychain-secrets/packages/`**,
   inside the capsule whose home-manager module installs them, because a capsule owns its own

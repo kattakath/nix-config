@@ -9,8 +9,7 @@
 #             vendor ships NO CLI for it — hence ours.
 #
 # Both are packaged the way this tree already packages Python tooling that is
-# not in nixpkgs (modules/features/media-cli/packages/fidelity-enhance.nix, and
-# jobspy before it): an EPHEMERAL `uv run --with` environment, uv and Python
+# not in nixpkgs (./jobspy.nix): an EPHEMERAL `uv run --with` environment, uv and Python
 # pinned from Nix, the distribution fetched once and cached. Nothing is
 # pip-installed globally and there is no hand-made venv in $HOME to depend on.
 #
@@ -48,7 +47,7 @@ let
   cliSpec = "fal==1.80.0";
   clientSpec = "fal-client==1.0.1";
 
-  # Python 3.12 rather than latest, matching fidelity-enhance: wheel coverage is
+  # Python 3.12 rather than latest: wheel coverage is
   # reliable there and both distributions only require >=3.8.
   python = "3.12";
 
@@ -152,7 +151,7 @@ let
         raise SystemExit(main())
   '';
 
-  # --no-project is load-bearing, exactly as fidelity-enhance records: `uv run`
+  # --no-project is load-bearing: `uv run`
   # otherwise adopts whatever project sits in the CURRENT directory, so running
   # this from a checkout with its own pyproject.toml would resolve that project's
   # dependencies instead of the pinned spec above.

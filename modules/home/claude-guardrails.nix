@@ -57,7 +57,7 @@
 # Top-level `lib.mkIf isDarwin`, matching ./claude-brain.nix: programs.claude-code
 # is darwin-only (default.nix), and the gate keeps nixpi/nixvm byte-identical.
 let
-  # The secret-path COORDINATES, shared with grok's sandbox so the layers cannot drift.
+  # The secret-path COORDINATES, shared with the Bash guard hook so the layers cannot drift.
   # See that file for why this is data rather than a second copy of the rules.
   secretReadPaths = import ../_lib/secret-read-paths.nix;
 
@@ -216,7 +216,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # it after deleting the directory, in that order, never the reverse.
     #
     # The `Read(...)` path globs render from modules/_lib/secret-read-paths.nix (shared
-    # with grok's sandbox); the `assertions` above make an empty render a build error.
+    # with the Bash guard hook); the `assertions` above make an empty render a build error.
   ]
   ++ secretReadDenies
   ++ [

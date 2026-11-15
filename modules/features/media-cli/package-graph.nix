@@ -93,9 +93,7 @@ in
     inherit media-toolkit media-queue;
   };
   # Deliberately NOT in media-toolkit — see the two membership questions in
-  # packages/media-toolkit.nix. Both are opt-in in the module: fidelity-enhance
-  # pulls ~1 GB of torch/insightface on first run, and obs-fb-setup is inert
+  # packages/media-toolkit.nix. Opt-in in the module: obs-fb-setup is inert
   # until you put FB_PERSISTENT_STREAM_KEY in the login Keychain.
-  fidelity-enhance = callPackage ./packages/fidelity-enhance.nix { };
   obs-fb-setup = callPackage ./packages/obs-fb-setup.nix { };
 }

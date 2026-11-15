@@ -30,7 +30,6 @@ let
     agent-skills-excalidraw
     agent-skills-mac-automation
     agent-skills-vercel-agent
-    grok-build-plugin-cc
     nixpkgs-claude-code
     ;
 
@@ -98,7 +97,6 @@ let
             agent-skills-excalidraw
             agent-skills-mac-automation
             agent-skills-vercel-agent
-            grok-build-plugin-cc
             nixpkgs-claude-code
             # kattakath-skills is DELIBERATELY ABSENT from this seam (removed
             # 2026-10-02, when its last home-manager consumer died). The pin is still

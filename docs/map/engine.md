@@ -351,7 +351,7 @@ The layer exists for its files' shape rather than their count:
   distroless image). Widen HERE and both follow.
 - **`modules/_lib/secret-read-paths.nix`** — the secret paths no agent may read, as DATA: one
   copy, rendered as Claude's `permissions.deny` globs (`modules/home/claude-guardrails.nix`) and
-  grok's sandbox deny list (`modules/home/default.nix`); desktop-commander's Seatbelt renderer
+  read as text by the Bash guard's Rule 1f; desktop-commander's Seatbelt renderer
   retired with its fenced launcher on 2026-11-01. The root-owned managed copy in
   `modules/darwin/claude-managed-settings.nix` stays hand-written on purpose (its comment says why).
 - **`modules/_lib/keychain-items.nix`** — login-Keychain item NAMES (never values) that more than

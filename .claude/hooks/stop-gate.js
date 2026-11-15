@@ -4,15 +4,10 @@
  *
  * Runs when an agent execution block is about to finish. It verifies the
  * configuration is in a trustworthy state before allowing the stop:
- *   0. Background grok-build runs — none of THIS session's runs died unreported.
  *   1. Git purity — no untracked `.nix` files (flakes ignore untracked files).
  *   2. Syntax validity — every tracked `.nix` file parses.
  *   3. Flake evaluation — `nix flake check --no-build` evaluates (runs no check derivation; host system only) if `nix` is available;
  *      otherwise the gate degrades to syntax-only and says so explicitly.
- *
- * Check 0 is collected early but only ACTED ON at the terminal approve paths
- * (via `finishOk`), so a genuine Nix failure still wins the block and the grok
- * finding survives to the next stop.
  *
  * Protocol: reads the Stop hook event JSON from stdin, prints a decision
  * object to stdout, exits 0. `{"decision":"block","reason":...}` keeps the
@@ -32,8 +27,6 @@
 /** @typedef {import("@anthropic-ai/claude-agent-sdk").SyncHookJSONOutput} SyncHookJSONOutput */
 /** execSync's thrown error: a plain Error carrying the child's captured output. */
 /** @typedef {Error & { stdout?: string, stderr?: string }} ExecError */
-/** One job in the grok-build plugin's state.json — its schema, not Claude Code's. */
-/** @typedef {{ id: string, status?: string, sessionId?: string, errorMessage?: string, summary?: string, kindLabel?: string, kind?: string, logFile?: string, workspaceRoot?: string }} GrokJob */
 
 const { execSync } = require("node:child_process");
 const fs = require("node:fs");
@@ -125,120 +118,25 @@ const syntaxOnlyAdvisory = () => {
   );
 };
 
-// Read the event payload so stdin is drained (and to learn our session id).
+// Read the event payload so stdin is drained.
 let raw = "";
 try {
   raw = fs.readFileSync(0, "utf8");
 } catch {
   /* no stdin — fine */
 }
-let sessionId = "";
 try {
   /** @type {Partial<StopHookInput>} */
   const evt = raw ? JSON.parse(raw) : {};
-  sessionId = evt.session_id || "";
   // Avoid infinite loops: if a previous stop hook already blocked, don't re-block.
   if (evt.stop_hook_active) approve();
 } catch {
   /* non-JSON stdin — proceed */
 }
 
-// 0. Background grok-build runs that FAILED without ever being reported.
-//
-// The grok-build bridge is fire-and-forget: `/grok-build:delegate` shells out, prints
-// "started in the background as run-…", and the forwarding subagent then reports
-// "completed" — the status of the WRAPPER, not of grok. So a grok that dies at startup
-// (e.g. a sandbox profile it cannot apply) is invisible: the session keeps waiting on a
-// run that is already dead and the failure lives only in the plugin's own jobs/ state.
-// This gate is the repo's error boundary, so this is where that has to cry.
-//
-// Only THIS session's runs, and each run id at most once (a block whose finding is
-// already surfaced would just wedge the stop). Findings are collected here but acted on
-// in `finishOk`, so a real Nix failure still wins and an unsurfaced grok finding
-// survives to the next stop.
-const GROK_STATE_DIR = `${process.env.HOME}/.claude/plugins/data/grok-build-xai-grok-build/state`;
-const SURFACED_FILE = `${projectDir}/.claude/hooks/.grok-runs-state.json`;
-
-/** @param {string} p @param {any} fallback @returns {any} */
-const readJson = (p, fallback) => {
-  try {
-    return JSON.parse(fs.readFileSync(p, "utf8"));
-  } catch {
-    return fallback;
-  }
-};
-
-/** @param {string | undefined} a @param {string} b */
-const sameDir = (a, b) => {
-  if (!a) return false;
-  try {
-    return fs.realpathSync(a) === fs.realpathSync(b);
-  } catch {
-    return a === b;
-  }
-};
-
-const grokFailures = (() => {
-  let dirs = [];
-  try {
-    dirs = fs.readdirSync(GROK_STATE_DIR);
-  } catch {
-    return []; // plugin never ran on this machine — nothing to check
-  }
-  const surfaced = new Set(readJson(SURFACED_FILE, {}).surfaced || []);
-  /** @type {GrokJob[]} */
-  const out = [];
-  for (const d of dirs) {
-    for (const j of readJson(`${GROK_STATE_DIR}/${d}/state.json`, {}).jobs || []) {
-      if (j.status !== "failed" || surfaced.has(j.id)) continue;
-      // Another session's failure is that session's to report, not ours.
-      if (j.sessionId) {
-        if (sessionId && j.sessionId !== sessionId) continue;
-      } else if (!sameDir(j.workspaceRoot, projectDir)) {
-        // UNATTRIBUTED: the bridge records a sessionId only when the plugin's
-        // SessionStart env-file export reached Bash, and it mostly does not (5 of 593
-        // session-env files, measured 2026-11-13). Without this, every checkout's stop
-        // inherited every other checkout's failure. Scope it to the checkout that ran it.
-        continue;
-      }
-      out.push(j);
-    }
-  }
-  return out;
-})();
-
-/** @param {GrokJob[]} jobs */
-const markSurfaced = (jobs) => {
-  const prev = readJson(SURFACED_FILE, {}).surfaced || [];
-  // Keep the tail bounded — this file is a dedupe ledger, not a history.
-  const next = [...new Set([...prev, ...jobs.map((j) => j.id)])].slice(-200);
-  try {
-    fs.writeFileSync(SURFACED_FILE, `${JSON.stringify({ surfaced: next }, null, 2)}\n`);
-  } catch {
-    /* best-effort: a failed write only means it is reported again next stop */
-  }
-};
-
-/** Terminal "the Nix side is fine" path — a dead background run still blocks the stop. */
+/** Terminal "the Nix side is fine" path — approve, with an optional advisory. */
 /** @param {string} [systemMessage] */
 const finishOk = (systemMessage) => {
-  if (grokFailures.length) {
-    markSurfaced(grokFailures);
-    const detail = grokFailures
-      .map((j) => {
-        const why = (j.errorMessage || j.summary || "(no summary recorded)").split("\n")[0].slice(0, 300);
-        return `  • ${j.id} [${j.kindLabel || j.kind || "run"}] ${why}\n    log: ${j.logFile || "(none)"}`;
-      })
-      .join("\n");
-    block(
-      `✘ stop-gate BLOCKED — ${grokFailures.length} background grok-build run(s) FAILED and were never ` +
-        `reported in this session. "started in the background" is NOT evidence a run worked, and the ` +
-        `forwarding subagent reporting "completed" only means the wrapper exited. Do NOT tell the user a ` +
-        `delegated run is still going.\n${detail}\n` +
-        `Tell the user it failed and why, then either fix and re-run or offer to do the work directly. ` +
-        `Full record: \`/grok-build:runs <run-id>\`.`,
-    );
-  }
   process.stdout.write(
     JSON.stringify(/** @satisfies {SyncHookJSONOutput} */ (systemMessage ? { decision: "approve", systemMessage } : { decision: "approve" })),
   );
@@ -462,5 +360,5 @@ if (nixFiles && has("nix")) {
   syntaxOnlyAdvisory();
 }
 
-// No .nix files at all — nothing for checks 1-3, but check 0 still applies.
+// No .nix files at all — nothing for checks 1-3.
 finishOk();

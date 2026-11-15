@@ -77,36 +77,26 @@ jobs:
       # only fetches already-locked revs). Anonymous calls share the 60/hr rate
       # limit across the whole GitHub Actions runner IP pool; an authenticated
       # token — even one scoped to a different repo, like this App's — reads
-      # public-repo metadata at the 5000/hr authenticated rate instead. (Does
-      # NOT help with the xai-org IP-allowlist issue below — that's a
-      # different failure mode entirely, not rate-limiting.)
+      # public-repo metadata at the 5000/hr authenticated rate instead.
       - uses: cachix/install-nix-action@75c75c31ebece974e48ebc36b4ad125bd97bd97b # v31
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
             access-tokens = github.com=${{ steps.app-token.outputs.token }}
 
-      # `nix flake update` is all-or-nothing: ONE input failing to resolve
-      # aborts the whole call, so every other input silently stops getting
-      # weekly bumps too. `xai-org` (grok-build-plugin-cc) has a GitHub org
-      # IP allow list that blocks Actions runner IPs outright — confirmed via
-      # the API's own 403 body ("your IP address is not permitted"), which no
-      # token/auth can work around. Compute every OTHER root input at runtime
+      # Compute every root input EXCEPT the held-back ones at runtime
       # (self-maintaining — a newly added input is included automatically,
       # nothing to remember to update here) and pass that explicit allowlist
-      # to update-flake-lock's `inputs:` so the job updates everything it
-      # reasonably can instead of silently updating nothing. grok-build-plugin-cc
-      # still needs a manual `nix flake lock --update-input grok-build-plugin-cc`
-      # from a machine whose IP isn't blocked (this Mac's IP works fine).
+      # to update-flake-lock's `inputs:`.
       #
-      # nixos-hardware is excluded for a DIFFERENT reason: it carries the LIVE Pi's
+      # nixos-hardware is held back: it carries the LIVE Pi's
       # kernel (raspberry-pi/common/kernel.nix pins one linux-rpi tag), so a weekly
       # bump would move nixpi's kernel unannounced and cost a cold kernel build in
       # warm-nixpi-cache. Kernel moves are deliberate: `/update-input nixos-hardware`
       # by hand (flake.nix, its input comment).
       - id: updatable-inputs
         run: |
-          inputs=$(jq -r '.nodes[.root].inputs | keys[] | select(. != "grok-build-plugin-cc" and . != "nixos-hardware")' flake.lock | tr '\n' ' ')
+          inputs=$(jq -r '.nodes[.root].inputs | keys[] | select(. != "nixos-hardware")' flake.lock | tr '\n' ' ')
           echo "list=$inputs" >> "$GITHUB_OUTPUT"
 
       - id: update

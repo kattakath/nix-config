@@ -149,7 +149,7 @@ in
 
           # fal.ai: the vendor's own deploy CLI (`fal`) plus `fal-gen`, a thin
           # inference wrapper the vendor does not ship. Ephemeral uv
-          # environments, the same shape as fidelity-enhance and jobspy, because
+          # environments, the same shape as jobspy, because
           # none of fal's dependency tree is in nixpkgs. Shared through
           # environment.systemPackages (hosts/macos.nix); reads FAL_KEY from the
           # login Keychain.

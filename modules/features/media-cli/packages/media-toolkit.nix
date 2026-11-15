@@ -63,17 +63,13 @@
 #      Services put on their PATH (media-worker takes only media-fix and media-describe), so every member becomes a runtime dependency
 #      of the Finder Services.
 #
-# `obs-fb-setup` and `fidelity-enhance` answer YES to (1) and NO to (2):
+# `obs-fb-setup` answers YES to (1) and NO to (2): it writes an OBS config
+# profile and reads a Keychain secret. It configures an app; it never touches a
+# media file.
 #
-#   - obs-fb-setup writes an OBS config profile and reads a Keychain secret.
-#     It configures an app; it never touches a media file.
-#   - fidelity-enhance is an MCP server / referee for an agentic image loop,
-#     running an ephemeral uv environment (~1 GB of torch/insightface on first
-#     run). It judges images, generating and transforming nothing.
-#
-# So they live in this capsule, behind their own opt-in module options, and stay
-# OUT of this bundle. Folding them in would put a uv/Python environment and a
-# Keychain read on the Finder Services' PATH for no reason, and would make
+# So it lives in this capsule, behind its own opt-in module option, and stays
+# OUT of this bundle. Folding it in would put a Keychain read on the Finder
+# Services' PATH for no reason, and would make
 # "media-toolkit" mean only "vaguely about media", which is not a useful thing
 # for it to mean.
 #

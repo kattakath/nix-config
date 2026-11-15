@@ -255,18 +255,6 @@
     # (modules/home/default.nix, darwin-gated). Pinned in flake.lock, bumped via
     # `nix flake update` — the reproducible replacement for imperative
     # `npx skills add --global`, with NO vendored copies committed here.
-    # xAI's OFFICIAL Claude Code plugin (grok-build-plugin-cc) — the sanctioned
-    # Grok Build <-> Claude Code bridge (/grok-build:{review,critique,delegate,
-    # import,...}). Pinned flake=false; patched (`grokBuildPluginPatched`) and wired as
-    # `local.claudePlugins.marketplaces.xai-grok-build` (modules/home/default.nix, darwin-gated). Needs
-    # grok on PATH + Node; grok must be authenticated. That PATH entry is the
-    # STORE one from hosts/macos.nix's environment.systemPackages, NOT
-    # `~/.grok/bin` — home.sessionPath dropped that on purpose 2026-09-15 so a
-    # stale self-updated copy cannot shadow the store binary (nixpkgs' grok-build).
-    grok-build-plugin-cc = {
-      url = "github:xai-org/grok-build-plugin-cc";
-      flake = false;
-    };
     # claude-code ONLY, from a newer nixpkgs than the weekly `nixpkgs` above — the weekly
     # snapshot lags upstream's near-daily claude-code bumps (2026-11-07: weekly 2.1.308, the
     # operator needed >= 2.1.318). flake = false: nothing here is EVALUATED as a second tree;

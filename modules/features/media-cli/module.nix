@@ -73,7 +73,6 @@ let
     media-toolkit
     media-queue
     media-quick-actions
-    fidelity-enhance
     obs-fb-setup
     ;
 
@@ -189,26 +188,10 @@ in
       '';
     };
 
-    # The two media-ADJACENT tools. They ship in this capsule, under
-    # `local.mediaCli.enable`, but they are opt-in and stay
-    # out of the media-toolkit bundle — see the two membership questions in
-    # packages/media-toolkit.nix. Neither is wanted by default: one is a
-    # gigabyte, the other does nothing without a Keychain secret.
-    fidelityEnhance.enable = lib.mkEnableOption ''
-      `fidelity-enhance` + `fidelity-enhance-mcp` — the referee for an agentic
-      image-editing loop. It judges a generated image against the original and
-      answers retry / next-step / done; it generates nothing itself.
-
-      OFF BY DEFAULT because the first run is expensive, not because it is
-      unreliable: the identity and perceptual extras pull torch and insightface,
-      on the order of a gigabyte, which uv downloads once and then caches. Warm
-      it deliberately with `fidelity-enhance capabilities` before wiring the MCP
-      server into an agent, or the first tool call will look like a hang.
-
-      PARKED: no host enables it. Kept as a ready opt-in; deleting it is the
-      operator's call
-    '';
-
+    # The media-ADJACENT tool. It ships in this capsule, under
+    # `local.mediaCli.enable`, but it is opt-in and stays out of the
+    # media-toolkit bundle — see the two membership questions in
+    # packages/media-toolkit.nix. It does nothing without a Keychain secret.
     obsFacebookSetup.enable = lib.mkEnableOption ''
       `obs-fb-setup` — write an OBS "Facebook" profile with researched
       screencast-to-Facebook-Live settings (1080p30, no downscale, Apple VT
@@ -245,7 +228,6 @@ in
       media-queue
     ]
     ++ cfg.extraSearchPackages
-    ++ lib.optional cfg.fidelityEnhance.enable fidelity-enhance
     ++ lib.optional cfg.obsFacebookSetup.enable obs-fb-setup;
 
     # BOTH knobs are threaded into media-describe at BUILD time (see its

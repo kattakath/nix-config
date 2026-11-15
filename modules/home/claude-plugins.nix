@@ -9,11 +9,12 @@
 # on top of it.
 #
 # The one imperative call left is a single `plugin marketplace add` per
-# store-path marketplace, and it only removes a first-session lag — read the
-# activation block's own comment, which carries the 2026-09-30 measurements.
+# store-path marketplace (none is declared today, so activation emits nothing),
+# and it only removes a first-session lag — read the activation block's own
+# comment, which carries the 2026-09-30 measurements.
 #
 # An attrsOf option merges by key, so any layer composed in through `extraHomeModules`
-# ADDS one attribute (none does today) and there is exactly one activation script.
+# ADDS one attribute (none does today) and there is at most one activation script.
 #
 # WHY NOT `programs.claude-code.marketplaces` (upstream home-manager,
 # modules/programs/claude-code/options.nix): its lib.nix hardcodes every entry to
@@ -44,14 +45,6 @@
 # outright), or the fleet stops caring about publishing plugins/ (which would
 # make `plugins` strictly better). Measured against pinned home-manager
 # 2026-09; re-grep after a bump rather than trusting this line.
-#
-# A SECOND reason, for the one store-path marketplace (xai-grok-build) where the
-# git/https argument does not apply: `plugins` loads its entries as `@skills-dir`
-# personal plugins, so the plugin ID changes. Claude Code keys a plugin's data dir
-# on that ID (`plugins/data/<name>-<marketplace>`), so moving grok-build there would
-# orphan its run history AND break stop-gate check 0, which reads
-# `data/grok-build-xai-grok-build/state` by name. Found by the 2026-11-13 motto audit
-# (inferred from the ID scheme, not migrated to prove it).
 {
   pkgs,
   lib,
@@ -305,35 +298,39 @@ in
     # changed" notice. Activation runs before any session does, so one `add`
     # collapses that to zero sessions of lag. Drop this block and nothing
     # breaks permanently — you just pay one stale session per bump.
-    home.activation.claudeCodePlugins = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-      # home-manager activation runs with a bare PATH (no ~/.nix-profile, no
-      # /etc/profiles/per-user/<user>/bin). `claude` is invoked by absolute
-      # store path, but its SUBPROCESSES are not: a bare `git` lookup failed
-      # with "git ... not on PATH" here while every interactive PATH had it.
-      # Measured against `plugin install` on a git-subdir source, which is gone;
-      # kept because `marketplace add` may shell out the same way and one store
-      # path on PATH is free. UNMEASURED for `add` alone — say so, don't imply.
-      export PATH="${pkgs.git}/bin:$PATH"
-      # Run with CLAUDE_CONFIG_DIR unset, i.e. the personal profile; the work profile's
-      # plugins/ is a link to this one (./claude-profiles.nix), so one add covers both.
-      # programs.claude-code.package is null (no bare `claude`), so use the shared one.
-      claude="${lib.getExe config.local.claudeProfiles.package}"
-      known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
-      if [ -x "$claude" ]; then
-        ${lib.concatStringsSep "\n\n  " (
-          lib.mapAttrsToList (
-            name: mp:
-            reindent ''
-              # ${name} — content-addressed source: the store path moves whenever the
-              # pinned content changes. Key off the path actually RECORDED in
-              # known_marketplaces.json (settings.json is not what the CLI reads), and
-              # re-point in place: `add` on a registered name with a new path succeeds.
-              mp_src=${lib.escapeShellArg mp.source}
-              grep -qF "$mp_src" "$known_mps" 2>/dev/null || "$claude" plugin marketplace add "$mp_src" 2>&1 || true
-            ''
-          ) storePathMarketplaces
-        )}
-      fi
-    '';
+    # Gated on a NON-EMPTY set: with no store-path marketplace the `if … then`
+    # below would have an empty body, which bash rejects as a syntax error.
+    home.activation.claudeCodePlugins = lib.mkIf (storePathMarketplaces != { }) (
+      lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+        # home-manager activation runs with a bare PATH (no ~/.nix-profile, no
+        # /etc/profiles/per-user/<user>/bin). `claude` is invoked by absolute
+        # store path, but its SUBPROCESSES are not: a bare `git` lookup failed
+        # with "git ... not on PATH" here while every interactive PATH had it.
+        # Measured against `plugin install` on a git-subdir source, which is gone;
+        # kept because `marketplace add` may shell out the same way and one store
+        # path on PATH is free. UNMEASURED for `add` alone — say so, don't imply.
+        export PATH="${pkgs.git}/bin:$PATH"
+        # Run with CLAUDE_CONFIG_DIR unset, i.e. the personal profile; the work profile's
+        # plugins/ is a link to this one (./claude-profiles.nix), so one add covers both.
+        # programs.claude-code.package is null (no bare `claude`), so use the shared one.
+        claude="${lib.getExe config.local.claudeProfiles.package}"
+        known_mps="${config.home.homeDirectory}/.claude/plugins/known_marketplaces.json"
+        if [ -x "$claude" ]; then
+          ${lib.concatStringsSep "\n\n  " (
+            lib.mapAttrsToList (
+              name: mp:
+              reindent ''
+                # ${name} — content-addressed source: the store path moves whenever the
+                # pinned content changes. Key off the path actually RECORDED in
+                # known_marketplaces.json (settings.json is not what the CLI reads), and
+                # re-point in place: `add` on a registered name with a new path succeeds.
+                mp_src=${lib.escapeShellArg mp.source}
+                grep -qF "$mp_src" "$known_mps" 2>/dev/null || "$claude" plugin marketplace add "$mp_src" 2>&1 || true
+              ''
+            ) storePathMarketplaces
+          )}
+        fi
+      ''
+    );
   };
 }

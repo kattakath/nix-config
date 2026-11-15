@@ -1,8 +1,8 @@
 # The secret PATHS no agent may read, as DATA — one copy, rendered by each importer.
 #
 # WHY DATA AND NOT RULES. Each consumer renders its own spelling: Claude Code
-# `permissions.deny` globs (claude-guardrails.nix) and grok's sandbox deny list
-# (modules/home/default.nix). Data → strings cannot yield an empty floor on a
+# `permissions.deny` globs (claude-guardrails.nix) and the Bash guard hook's
+# argv rule (.claude/hooks/pretooluse-bash-guard.js, Rule 1f). Data → strings cannot yield an empty floor on a
 # reword the way a match-based derivation can; an EMPTY list is still caught by
 # claude-guardrails.nix's assertion and the Bash guard hook's "Rule 1f DISARMED".
 #
@@ -39,27 +39,5 @@
     ".local/state/nix-config-cf-tunnel"
     ".local/state/nix-config-mcp-public"
     ".aws/sso/cache"
-  ];
-
-  # ── The WIDER credential inventory — grok's sandbox only ──────────────────
-  # These hold credentials but are also read by tools the fleet needs (gh reads
-  # ~/.config/gh, evaluation reads **/*.age, this fleet documents ~/.aws/config), so
-  # they are NOT Claude Read denies. grok's sandbox has no file-level granularity, so
-  # it denies the whole set. `~/.ssh/id_ed25519` is the
-  # agenix OPERATOR identity (secrets/secrets.nix) — the reason this tier exists.
-
-  # Home-relative credential DIRECTORIES. grok denies all of these outright.
-  agentCredentialDirs = [
-    ".ssh"
-    ".aws"
-    ".docker"
-    ".config/gh"
-  ];
-
-  # Basename patterns at any depth. grok renders them `**/<glob>`.
-  agentCredentialGlobs = [
-    "*.pem"
-    "*.age"
-    ".env"
   ];
 }

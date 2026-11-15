@@ -414,8 +414,9 @@ let
     # "unset", it is "allow nothing" (upstream's own table), which would block the
     # official marketplace fleet-wide. Edit it in one complete change.
     #
-    # `pathPattern` covers the ONE store-path marketplace (xai-grok-build, a
-    # `directory` source). An exact path is impossible here for the same reason
+    # `pathPattern` covers any store-path marketplace (a `directory` source) that
+    # local.claudePlugins.marketplaces accepts — none is declared today; kept so the
+    # option's store-path form is not silently refused by policy. An exact path is impossible here for the same reason
     # `allowedMcpServers` was rejected in #674 — the hash rotates on every rebuild
     # and a stale entry fails SILENTLY. `^/nix/store/` is the right trust boundary
     # instead: only the Nix daemon can write there, so a path under it is already

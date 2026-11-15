@@ -452,9 +452,7 @@ function envDump(segment) {
 // same data the Read() denies render), never restated here. That file sits two directories up from this one in every
 // checkout that carries this hook, because superhook finds the hook by
 // convention in the repo root; `__dirname` is used, not CLAUDE_PROJECT_DIR, which
-// is the session's LAUNCH cwd. The wider credential tiers in that file
-// (the `agentCredential*` lists) are deliberately NOT read: they hold files the
-// fleet's own tools need, which is why they exist as a separate tier.
+// is the session's LAUNCH cwd.
 // A parse that comes back EMPTY is the silent-vacuum failure that file warns
 // about, so it is LOUD here: every Bash call then carries a "DISARMED" message,
 // and the rule1f suite fails in CI (it asserts the parse against an awk count of

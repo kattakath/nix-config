@@ -46,5 +46,5 @@ SD-resident state: the Audiobookshelf database (its backups are on `/mnt/storage
 persistent journal, and the SSH host key.
 
 **The kernel is HELD.** `update-flake-lock.yml` excludes `nixos-hardware` from its weekly
-allowlist (as it does `grok-build-plugin-cc`), so a bump never moves the LIVE Pi's kernel
+allowlist, so a bump never moves the LIVE Pi's kernel
 unannounced; move it deliberately with `/update-input nixos-hardware`.

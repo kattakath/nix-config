@@ -187,7 +187,6 @@
                      ${graph.media-describe}/bin/media-describe \
                      ${graph.media-queue}/bin/media-worker \
                      ${graph.media}/bin/media \
-                     ${graph.fidelity-enhance}/bin/fidelity-enhance \
                      ${graph.obs-fb-setup}/bin/obs-fb-setup; do
             test -x "$bin"
           done

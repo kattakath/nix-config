@@ -49,21 +49,20 @@ the cheap, regenerable one is left to a tool like [`rclip`](https://github.com/y
 Every one takes `--help`. All of them stay on `PATH` under their own names;
 `media` is additive, never a replacement.
 
-### Two more, opt-in
+### One more, opt-in
 
-**Parked: no host enables either one.** They stay as ready opt-ins; deleting them is the
+**Parked: no host enables it.** It stays as a ready opt-in; deleting it is the
 operator's call.
 
 | Command | Option | Why it is off by default |
 |---|---|---|
-| `fidelity-enhance` / `-mcp` | `fidelityEnhance.enable` | the referee for an agentic image-editing loop — judges a generated image against the original and answers retry / next-step / done. First run pulls ~1 GB of torch + insightface |
 | `obs-fb-setup` | `obsFacebookSetup.enable` | writes an OBS "Facebook" profile with researched 1080p30 screencast settings. Inert until `FB_PERSISTENT_STREAM_KEY` is in your login Keychain |
 
-These ship here so the media story is **one repo you add or strip off**, but
-they stay out of the `media-toolkit` bundle: that bundle is what
+It ships here so the media story is **one repo you add or strip off**, but
+it stays out of the `media-toolkit` bundle: that bundle is what
 the Finder Services put on their `PATH`, so every member becomes a
-runtime dependency of the Finder Services. A uv/Python environment and a Keychain read
-have no business there.
+runtime dependency of the Finder Services. A Keychain read
+has no business there.
 
 ## The queue is launchd's, not ours
 
@@ -114,7 +113,6 @@ which is what runs shellcheck over them. The one-line path back is in `flake-mod
 | `ollamaHost` | `127.0.0.1:11434` | exported as `OLLAMA_HOST` |
 | `logRelPath` | `Library/Logs/nix-media-queue.log` | where Console.app looks |
 | `extraSearchPackages` | `[ pkgs.exiftool ]` | companion tools; `[ ]` for none |
-| `fidelityEnhance.enable` | `false` | the agentic-loop referee (~1 GB first run); parked, no host enables it |
 | `obsFacebookSetup.enable` | `false` | the OBS Facebook Live profile writer; parked, no host enables it |
 
 ## Requirements

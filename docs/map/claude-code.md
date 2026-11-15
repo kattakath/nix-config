@@ -386,7 +386,7 @@ The operator's OWN Claude Code plugin marketplace is
 flake pin**: since 2026-09-23 it is registered as the https git source
 `https://github.com/kattakath/skills.git` with `autoUpdate = true`, and it is one of the declared
 marketplaces in `local.claudePlugins.marketplaces` (`modules/home/default.nix` — read it, not a count
-here); the only `/nix/store` one is `xai-grok-build`, from a patched pinned input. The `kattakath-skills`
+here); none is a `/nix/store` path today. The `kattakath-skills`
 input survives for ONE consumer, `checks.*.mcp-launcher-parity` — never for the
 marketplace source. (It was `superhook` + `page-lab-pick` + `mcp.nix`'s `mcpCatalog`; superhook
 became a plugin hook 2026-09-30, `mcpCatalog` died with the gateway 2026-10-02, and
@@ -407,8 +407,8 @@ its `extraKnownMarketplaces` entry (`{ source = "git"; url = …; autoUpdate = t
 `<plugin>@kattakath` keys of `enabledPlugins` — only for the always-on set, never one per
 catalogue entry (the `enabledPlugins`
 comment in that file says why). It does **not** register or install them — the
-`home.activation.claudeCodePlugins` script skips every https marketplace and serves exactly ONE
-today (`xai-grok-build`); Claude Code clones and downloads this one itself at session start.
+`home.activation.claudeCodePlugins` script skips every https marketplace and serves only
+store-path ones (none today, so it is not emitted); Claude Code clones and downloads this one itself at session start.
 
 `repin` defaulted true here (the source starts with `/`) and was believed load-bearing on this
 reasoning: the store path moves on every content bump and `plugin install` COPIES into

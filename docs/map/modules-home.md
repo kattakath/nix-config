@@ -403,9 +403,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
     `plugins/` directory and a 5-line module until it was retired 2026-09-15, rather than
     shipping the tree here. Nothing in this repo can trip the trap today: there is no
     `plugins/` tree here either, so none of the marketplace `source` values in
-    `modules/home/default.nix` is a repo-relative path literal — every one but one is an
-    `https://` git URL (`kattakath` among them since 2026-09-23), and that one is a store path
-    (the patched grok-build plugin).
+    `modules/home/default.nix` is a repo-relative path literal — every one is an
+    `https://` git URL (`kattakath` among them since 2026-09-23).
   - **The activation script is now ONE `marketplace add` per store-path marketplace**
     (2026-09-30) — no install loop, no uninstall, no marketplace-remove, no two phases. The
     declarations do the work: `extraKnownMarketplaces` + `enabledPlugins`, and Claude Code's
