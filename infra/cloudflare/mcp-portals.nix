@@ -97,7 +97,8 @@ in
     account_id = accountId;
     id = app;
     name = "Kattakath ${a.title}";
-    hostname = "https://${a.upstream}/mcp/v1";
+    # Google's Workspace servers serve /mcp/v1; Home and Maps serve /mcp (their own docs).
+    hostname = "https://${a.upstream}${a.path or "/mcp/v1"}";
     auth_type = "oauth";
     auth_credentials = authCredentials a;
     client_secret = "\${var.google_oauth_client_secret}";

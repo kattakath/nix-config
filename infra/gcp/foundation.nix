@@ -84,6 +84,10 @@ let
     # searching across Gmail, Drive, Calendar and Chat. Kept on the MCP portal as a last resort.
     "workspacemcp.googleapis.com" =
       "Google's cross-app Workspace search MCP server (MCP portal, last resort)";
+    # MCP portal TRIAL 2026-11-14 (infra/cloudflare/workspace-mcp-apps.nix). Home and
+    # Maps serve their MCP server from the API host itself, like People.
+    "home.googleapis.com" = "Google Home MCP server (MCP portal trial, read tools only)";
+    "mapstools.googleapis.com" = "Maps Grounding Lite MCP server (MCP portal trial)";
 
     # Enabled for the Pomerium Workspace gateway on Cloud Run, RETIRED 2026-11-14
     # (replaced by infra/cloudflare/mcp-portals.nix). Nothing here uses run or

@@ -389,6 +389,10 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       "trash_*"
       "delete_*"
       "mark_*_spam"
+      # Google Home (portal trial 2026-11-14): its only scope also controls devices.
+      "run_home_actions"
+      "save_automation"
+      "submit_feedback"
     ]
     # ── High-impact phone actions over ADB (security audit 2026-11-14, operator's pick) ──
     # A session with phone control can change what runs on the phone or move data off

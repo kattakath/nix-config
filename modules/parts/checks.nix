@@ -2882,6 +2882,7 @@ in
                 "${auth}documents"
                 "${auth}spreadsheets"
                 "${auth}presentations"
+                "${auth}keep"
               ];
               # Whole strings, never substrings: `calendar` is a prefix of the allowed
               # `calendar.events.readonly`. The one family matched by prefix is
@@ -2892,7 +2893,7 @@ in
               badUpstreams = lib.attrNames (
                 lib.filterAttrs (
                   _: s:
-                  builtins.match "https://[a-z0-9-]+\\.googleapis\\.com/mcp/v1" (s.hostname or "") == null
+                  builtins.match "https://[a-z0-9-]+\\.googleapis\\.com/mcp(/v1)?" (s.hostname or "") == null
                   || (s.client_secret or "") != "\${var.google_oauth_client_secret}"
                 ) servers
               );
@@ -2930,6 +2931,10 @@ in
                 "trash_*"
                 "delete_*"
                 "mark_*_spam"
+                # Google Home (portal trial 2026-11-14): its only scope also controls devices.
+                "run_home_actions"
+                "save_automation"
+                "submit_feedback"
               ];
               phoneTools = map (t: "mcp__plugin_android-phone_mobile-mcp__mobile_${t}") [
                 "install_app"
