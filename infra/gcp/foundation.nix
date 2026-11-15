@@ -69,6 +69,8 @@ let
       "Cloud Quotas API, which holds the geocoding daily request cap below";
     "gmail.googleapis.com" = "gmailctl's filter sync (packages/gmail-filters.nix), operator ADC";
     "admin.googleapis.com" = "Admin SDK, enabled 2026-09-07 with ws_domain_admin below";
+    "chromepolicy.googleapis.com" =
+      "Chrome Policy API: Chrome browser policy on one organizational unit, as ws_domain_admin (ADR-005 § 3.3)";
     # Operator-enabled by hand (2026-09-21 .. 10-31) for Workspace work outside this repo,
     # and kept on by choice when the workspace-mcp plugins were removed (2026-11-07).
     # No code here calls them; declared so the project's live API set is reproducible.
@@ -308,16 +310,31 @@ in
   #
   # The SYSTEM_MANAGED key Google rotates is a different thing and is what makes
   # impersonation work. Leave it.
+  #
+  # IN USE SINCE 2026-11-15, for ONE job (ADR-005 § 3.3's narrow reopening): Chrome
+  # browser policy on the organizational unit that holds enrolled browsers. It holds
+  # a Chrome-only custom admin role, assigned to it DIRECTLY in the Admin console and
+  # restricted to that unit. Still NO domain-wide delegation: delegation would let it
+  # act as the super admin, and this job never needs that. The `account_id` is
+  # immutable and predates the job, so the NAME overstates the power — the display
+  # name and description below say what is true instead.
   resource.google_service_account.ws_domain_admin = {
     project = projectId;
     account_id = "ws-domain-admin";
-    display_name = "Workspace Domain Admin (fleet automation)";
-    # The description is the FIX for the finding, not decoration. It previously
-    # read "Domain-wide delegation for Admin SDK domain + site verification",
-    # which described an intention that was never carried out — and which reads to
-    # an auditor as authority that exists. No delegation was ever registered
-    # (verified 2026-09-22 in the Admin console). Say what is true.
-    description = "UNUSED as of 2026-09-22: no domain-wide delegation registered, no project roles, no user-managed key. See docs/workspace-runbook.md before granting it anything.";
+    display_name = "Chrome browser policy automation (one unit only)";
+    # The description is the FIX for the finding, not decoration. It first read
+    # "Domain-wide delegation for Admin SDK domain + site verification", an
+    # intention never carried out, which reads to an auditor as authority that
+    # exists. Then "UNUSED" (2026-09-22). Say what is true NOW.
+    description = "Chrome policy on one organizational unit, by a unit-restricted Chrome-only admin role. No domain-wide delegation, no project roles, no user-managed key. See docs/workspace-runbook.md.";
+  };
+
+  # The operator mints a 1-hour token for it; nothing else can. Revoke THIS to cut
+  # the Chrome policy lane off without touching the Admin console.
+  resource.google_service_account_iam_member.operator_token_creator_ws = {
+    service_account_id = "\${google_service_account.ws_domain_admin.name}";
+    role = "roles/iam.serviceAccountTokenCreator";
+    member = "user:${operatorAccount}";
   };
 
   # Lets the service account be used as a quota/consumer identity on the project.
