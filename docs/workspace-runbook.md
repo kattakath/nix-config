@@ -249,3 +249,51 @@ gmail-filters download   # re-import the live filters; refuses to overwrite with
   and that check classes tofu's `-detailed-exitcode`. Adding Gmail means a `--exit-code`-style
   shim. For now, run `diff` by hand.
 - **New Mac:** recreate the symlink to the Drive folder, then `gmail-filters login`.
+
+---
+
+## 8. Chrome browser policy — the second declared piece (ADR-005 § 3.3)
+
+Chrome on `macos` is a **managed browser** (Chrome Enterprise Core). Two halves are code, and
+the rest of this section is what stays by hand.
+
+| Piece | Where it lives | Declared? |
+|---|---|---|
+| Enrollment token on the Mac | `modules/darwin/chrome-enterprise.nix` (`local.chromeEnterprise`), agenix `chrome-enrollment-token.age` | **yes** |
+| Force-installed extensions | `infra/google-workspace/chrome.nix`, the `gws-chrome` stack | **yes** — the one extension list |
+| The unit that holds enrolled browsers | Admin console; its id is the repo variable `GWS_CHROME_ORG_UNIT_ID` | no — the role cannot manage units |
+| The Chrome-only admin role and its assignment | Admin console > Account > Admin roles | no — needs a super admin |
+| Minting or rotating the enrollment token | Admin console > Chrome browser > Tokens | no — no provider resource |
+
+```bash
+secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrome-plan    # read-only
+secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrome-apply   # asks for a typed yes
+```
+
+- **Credentials, no new secret.** The `google` provider mints a short-lived token for
+  `ws-domain-admin` from the operator's ADC, inside the plan. `GITHUB_TOKEN` lets `gh` read the
+  two per-tenant ids (`GWS_CUSTOMER_ID`, `GWS_CHROME_ORG_UNIT_ID`). Neither id is committed.
+- **The role is unit-restricted, and that was measured** (2026-11-15): reading the unit's
+  policy returns 200, the same read on the root unit returns 403. If the second one ever
+  returns 200, stop: the other accounts are then inside this credential's reach.
+- **Bootstrap, once, by a super admin:** create a custom role with only Chrome Management >
+  Settings > Manage User Settings; assign it to the service account; then tick the row and use
+  **Change organizational unit** to restrict it. The console assigns at the root unit by
+  default.
+- **Adding an extension:** add its id to the stack file, `plan`, `apply`.
+- **Removing one is two steps, in this order:** delete the row in Admin console > Chrome
+  browser > Apps & extensions, then drop the id from the stack. The API refuses to inherit an
+  install type no parent unit sets, and the provider reports that destroy as done, so the
+  reverse order leaves the extension forced while state says it is gone.
+- **Never `tofu destroy`** this stack, for the same reason. To stop managing a row, `tofu
+  state rm` it.
+- **Machine policy reaches EVERY profile** on an enrolled browser, a profile signed in to
+  another organisation included, and overrides that organisation's value for the same policy.
+  Read that profile's `chrome://policy` before adding a policy beyond the extensions.
+- **Token rotation:** one active token per unit. Revoke in the console, copy the new one,
+  re-encrypt the `.age` file. An enrolled browser keeps working; it holds its own device token.
+- **After a console-side delete of the browser record,** Chrome will not re-enroll until
+  `~/Library/Application Support/Google/Chrome Cloud Enrollment/` is removed.
+- **New Mac, or a rotated host key:** re-key with `agenix -r` first (the token is encrypted to
+  the host key). The new Mac enrolls as a second browser record; delete the old one.
+- **No policy exists** for Violentmonkey's "Allow User Scripts" toggle. One click per profile.

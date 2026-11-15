@@ -1515,6 +1515,76 @@ let
       ];
     };
 
+  # ---- Google Workspace Chrome policy stack (terranix -> OpenTofu) ----------
+  # Renders infra/google-workspace/chrome.nix: the force-installed extensions on the
+  # unit that holds enrolled browsers, adopted by `import` blocks (ADR-005 § 3.3's
+  # narrow reopening). Both providers come from the registry, pinned in
+  # infra/provider-pins.nix.
+  gwsChromeConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/google-workspace/chrome.nix
+        (tofuGcsBackend "gws-chrome")
+        {
+          # `ws-domain-admin` is infra/gcp/foundation.nix's `ws_domain_admin.account_id`.
+          _module.args.chromePolicyServiceAccount = "ws-domain-admin@${gcpProjectId}.iam.gserviceaccount.com";
+        }
+      ];
+    };
+
+  # TWO credentials, neither a new secret: the operator's ADC (the `google` provider
+  # mints the Chrome-policy token from it INSIDE the plan — the stack file says how),
+  # and GITHUB_TOKEN, which `gh` uses to read the two per-tenant ids below.
+  mkGwsChromeTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    mkAdoptedTofu {
+      inherit system name action;
+      stack = "gws-chrome";
+      # Explicit: the defaults would be `gws-chrome_` (no such resource type) and
+      # `GWS-CHROME` (not a shell variable name, which the builder asserts).
+      typePrefix = "googleworkspace_";
+      envPrefix = "GWS_CHROME";
+      label = "Chrome browser policy";
+      plugins = null;
+      renderer = gwsChromeConfig;
+      driftEnv.GITHUB_TOKEN = githubTokenItem;
+      autoApproveWhy = "Read the plan: every row here is force-installed on every enrolled browser.";
+      credentialCheck = ''
+        if [ -z "''${GITHUB_TOKEN:-}" ]; then
+          echo "ERROR: GITHUB_TOKEN must be set." >&2
+          echo "  nix develop -c secret exec GITHUB_TOKEN=${githubTokenItem} -- nix run .#${name}" >&2
+          echo "  It reads two Actions variables on ${orgName}/${repoName}." >&2
+          exit 1
+        fi
+        export GH_TOKEN="$GITHUB_TOKEN"
+        adc="''${GOOGLE_APPLICATION_CREDENTIALS:-''${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json}"
+        if [ ! -f "$adc" ]; then
+          echo "ERROR: no Application Default Credentials at $adc" >&2
+          echo "  Inside 'nix develop':  gcloud auth application-default login" >&2
+          exit 1
+        fi
+      '';
+      # Per-tenant ids are data (infra/google-workspace/chrome.nix § VARIABLE VALUES).
+      vars = ''
+        TF_VAR_customer_id=$(gh variable get GWS_CUSTOMER_ID -R ${orgName}/${repoName})
+        TF_VAR_org_unit_id=$(gh variable get GWS_CHROME_ORG_UNIT_ID -R ${orgName}/${repoName})
+        export TF_VAR_customer_id TF_VAR_org_unit_id
+      '';
+      createLine = "The others would be SET on the unit, over whatever the Admin console holds.";
+      # Literal text. The second half is the trap the stack file's header measures.
+      dropLines = [
+        "A dropped row is NOT uninstalled: the API refuses to inherit an install type"
+        "no parent unit sets, the provider hides that, and state then lies. Delete the"
+        "row in the Admin console FIRST (Chrome browser > Apps & extensions)."
+      ];
+    };
+
   # ---- Adopted, import-guarded stacks: grafana, github and hc-checks --------
   # ONE builder for the stacks ADR-012 adopted with `import` blocks, plus hc-checks,
   # which needs the same three guards with no imports. The older wrappers above stay
@@ -1797,6 +1867,7 @@ in
           hc-checks = hcChecksConfig { inherit system; };
           grafana = grafanaConfig { inherit system; };
           github = githubConfig { inherit system; };
+          gws-chrome = gwsChromeConfig { inherit system; };
         };
         names = builtins.attrNames renders;
         sorted = builtins.sort builtins.lessThan stacks.names;
@@ -1933,6 +2004,18 @@ in
           name = "github-apply";
           action = "apply";
         };
+        # No `gws-chrome-destroy`: a destroy does not uninstall anything (the stack
+        # file's trap 2), it only makes state lie.
+        gws-chrome-plan = mkGwsChromeTofu {
+          inherit system;
+          name = "gws-chrome-plan";
+          action = "plan";
+        };
+        gws-chrome-apply = mkGwsChromeTofu {
+          inherit system;
+          name = "gws-chrome-apply";
+          action = "apply";
+        };
         # destroy intentionally keeps hostedSites at its [ ] default: rendering
         # "nothing" against non-empty state is exactly what trips the guards
         # above, so tearing down the real stack still needs the explicit
@@ -2042,6 +2125,16 @@ in
           type = "app";
           program = "${config.packages.github-apply}/bin/github-apply";
           meta.description = "tofu apply the GitHub stack — refuses a render that drops an object state holds, an empty state without imports, and -auto-approve (needs GITHUB_TOKEN)";
+        };
+        gws-chrome-plan = {
+          type = "app";
+          program = "${config.packages.gws-chrome-plan}/bin/gws-chrome-plan";
+          meta.description = "Render infra/google-workspace/chrome.nix (terranix) and tofu PLAN Chrome's force-installed extensions on the enrolled-browser unit — read-only, run it before gws-chrome-apply (needs GITHUB_TOKEN + ADC)";
+        };
+        gws-chrome-apply = {
+          type = "app";
+          program = "${config.packages.gws-chrome-apply}/bin/gws-chrome-apply";
+          meta.description = "tofu apply the Chrome browser policy stack — refuses a render that drops a row state holds, an empty state without imports, and -auto-approve (needs GITHUB_TOKEN + ADC)";
         };
         cf-zones-plan = {
           type = "app";

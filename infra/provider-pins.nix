@@ -30,8 +30,15 @@
 # argument is a reading of THIS version's encoder — re-derive it before raising it.
 # A bump changes the constraint, so the next `tofu init` refuses the old lock until
 # it is re-run with `-upgrade`.
+#
+# googleworkspace is `macadmins/googleworkspace`, a young fork (created 2026-04-13,
+# signed releases, no CI coverage of its Chrome resources' read, import or update).
+# 1.5.3 is the version whose create, re-plan, import and drift behaviour was measured
+# on a throwaway unit on 2026-11-15 (infra/google-workspace/chrome.nix header, with
+# the destroy path that does NOT work). Re-run that test before raising it.
 {
   cloudflare = "5.25.0";
   google = "8.4.0";
+  googleworkspace = "1.5.3";
   healthchecksio = "2.3.0";
 }

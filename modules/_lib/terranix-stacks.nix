@@ -23,6 +23,7 @@ let
     "hc-checks"
     "grafana"
     "github"
+    "gws-chrome"
   ];
 in
 {

@@ -97,6 +97,8 @@ CLAUDE.md § Overview and [`hosts.md`](hosts.md).
 | `gmail-filters` | yes |  |
 | `grafana-apply` | yes | yes |
 | `grafana-plan` | yes | yes |
+| `gws-chrome-apply` | yes | yes |
+| `gws-chrome-plan` | yes | yes |
 | `hc-checks-apply` | yes | yes |
 | `hc-checks-plan` | yes | yes |
 | `jobspy` | yes |  |

@@ -131,12 +131,9 @@ need `serviceUsageAdmin` + `iam.serviceAccountAdmin` + `projectIamAdmin` — the
 itself anything. The privileged bootstrap stays with the human; the narrow stacks use the
 least-privileged identity it creates, by **impersonation**, with no key file anywhere.
 
-It also declares `ws-domain-admin`, the Workspace-facing account — the account, and the
-operator's `serviceAccountTokenCreator` grant on it. Since 2026-11-15 it has ONE job: Chrome
-browser policy on the organizational unit that holds enrolled browsers
-([ADR-005 § 3.3](../iac-coverage-adr.md)). Its authority is a Chrome-only admin role assigned
-in the Admin console and restricted to that unit, which no provider reaches; it has no
-domain-wide delegation and no key: [`workspace-runbook.md`](../workspace-runbook.md).
+It also declares `ws-domain-admin`, the Chrome-policy account (`gws-chrome` stack). Its
+authority lives in the Admin console, which no provider reaches:
+[`workspace-runbook.md`](../workspace-runbook.md) § 8.
 
 ### `infra/gcp/budget.nix`
 
@@ -350,4 +347,3 @@ only ever consumed by the `cachix` CLI at push time.
 
 Adopted by `import` blocks, like grafana. Repo registry: `infra/github/repos.nix`. The rest: its
 header.
-
