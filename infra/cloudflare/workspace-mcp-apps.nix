@@ -179,28 +179,13 @@
       ];
       tools = [ "search_corpus" ];
     };
-    # TRIAL (2026-11-14, operator: "I use these google services"). Home and Maps are on
-    # Google's supported-products list and serve /mcp, not /mcp/v1. Probed and DROPPED
-    # the same day: Keep (consent refused `keep.readonly`, Error 400 invalid_scope) and
+    # TRIAL (2026-11-14, operator: "I use these google services"). Maps is on Google's
+    # supported-products list and serves /mcp, not /mcp/v1. Probed and DROPPED the same
+    # day: Home (synced, but every call answers "At least one Home Premium Advanced
+    # subscription is required", while its only scope can control devices), Keep (consent refused `keep.readonly`, Error 400 invalid_scope) and
     # Meet (consent passed, then Cloudflare's tool sync failed: meetmcp is not
     # enable-able in the project). Tasks (tasksmcp) was never enable-able either.
     #
-    # Home: `home.platform.v2` is the API's only scope and also controls devices, so the
-    # allowlist is the only fence: the five list_* reads, never run_home_actions,
-    # save_automation or submit_feedback.
-    home = {
-      title = "Home";
-      upstream = "home.googleapis.com";
-      path = "/mcp";
-      scopes = [ "https://www.googleapis.com/auth/home.platform.v2" ];
-      tools = [
-        "list_homes"
-        "list_home_resources"
-        "list_home_states"
-        "list_home_history"
-        "list_automations"
-      ];
-    };
     # Maps Grounding Lite: public map data, every tool readOnlyHint. Free while
     # Experimental; billed per call if it reaches GA (developers.google.com/maps/ai/
     # usage-and-billing). The gcp-budget alert covers the project.
