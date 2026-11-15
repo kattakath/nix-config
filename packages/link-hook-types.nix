@@ -30,6 +30,14 @@ writeShellApplication {
       echo "link-hook-types: $root has no .claude/hooks/tsconfig.json; nothing linked" >&2
       exit 1
     fi
+    # A checkout this user cannot write (the devcontainer smoke test bind-mounts the
+    # runner's tree and runs as another uid) gets a one-line skip, not Nix's own
+    # symlink error: this link is an editor nicety, and that error text is exactly
+    # what the smoke test treats as a broken shellHook (build-devcontainer-impl.yml).
+    if [ ! -w "$root/.claude/hooks" ]; then
+      echo "link-hook-types: $root/.claude/hooks is read-only for this user; nothing linked" >&2
+      exit 1
+    fi
     nix-store --realise ${hookTypesNodeModules} \
       --add-root "$root/.claude/hooks/node_modules" --indirect >/dev/null
   '';
