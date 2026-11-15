@@ -348,6 +348,8 @@ let
       "Read(//run/agenix.d/**)"
       "Read(//private/var/run/agenix/**)"
       "Read(//private/var/run/agenix.d/**)"
+      # Chrome's enrollment token is LINKED here from /run/agenix (chrome-enterprise.nix).
+      "Read(//Library/Google/Chrome/**)"
       "Read(~/.local/state/nix-config-cf-tunnel/**)"
       "Read(~/.local/state/nix-config-mcp-public/**)"
       "Read(~/.aws/sso/cache/**)"

@@ -24,11 +24,18 @@
   # Claude's `Read()` glob does NOT resolve symlinks — it matches the path text the
   # tool call carries — so `Read(//run/agenix/**)` alone never covered a read spelled
   # `/private/var/run/agenix.d/1/…`. Rendering all four closes that hole.
+  #
+  # `/Library/Google/Chrome` is the same hole from the other side: agenix links
+  # Chrome's enrollment token THERE (modules/darwin/chrome-enterprise.nix), and a read
+  # spelled through the link never names `/run/agenix`. The whole directory, because
+  # every entry here renders as a subtree; its only other content is the
+  # NativeMessagingHosts manifests, which hold no secret and cost nothing to deny.
   absolute = [
     "/run/agenix"
     "/run/agenix.d"
     "/private/var/run/agenix"
     "/private/var/run/agenix.d"
+    "/Library/Google/Chrome"
   ];
 
   # Paths under $HOME, written WITHOUT a leading slash. Rendered `Read(~/<p>/**)`

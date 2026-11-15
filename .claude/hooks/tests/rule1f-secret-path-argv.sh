@@ -120,6 +120,7 @@ ck block "FOO=$A/x some-tool"
 ck block "head -c 64 /run/agenix.d/1/x"
 ck block "head -c 64 /private/var/run/agenix.d/1/x"
 ck block "head -c 64 /private/var/run/agenix/x"
+ck block "cat /Library/Google/Chrome/CloudManagementEnrollmentToken"
 
 echo "== must BLOCK: home-relative spellings =="
 ck block "cat $C/abc.json"
