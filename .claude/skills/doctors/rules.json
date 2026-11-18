@@ -685,6 +685,17 @@
       "vacuousWhen": "brew info --json=v2 --installed lists no cask artifacts"
     },
     {
+      "id": "FD-E11-undeclared-api",
+      "doctor": "fleet-doctor",
+      "section": "fleet-doctor § E11",
+      "shortDescription": "A Google Cloud API is enabled on the fleet project but not declared in infra/gcp/foundation.nix, or declared but not enabled",
+      "statusOnFinding": "warn",
+      "checkKey": "gcp:undeclared-apis",
+      "detect": "gcloud services list --enabled on the fleet project (the gcloud-nix-config profile) compared with the keys of the services map in infra/gcp/foundation.nix at the subject SHA; report both directions",
+      "evidence": ["the live-only API names", "the declared-only API names"],
+      "vacuousWhen": "gcloud returned no enabled API (not logged in, or the listing failed)"
+    },
+    {
       "id": "FD-F-main-behind",
       "doctor": "fleet-doctor",
       "section": "fleet-doctor § F",

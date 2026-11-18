@@ -38,7 +38,7 @@ re-add it.
 this repo (`hosts/macos.nix`, `modules/parts/identity.nix`). The cross-repo pin-bump step
 existed only to serve it and collapsed with it; the letter it held is now **D. Nix-config's
 own hygiene**, and there is no step G. **Host re-activation did NOT collapse** — it is step
-F below. The checklist runs A, B, C, D, E, E2–E10, F.
+F below. The checklist runs A, B, C, D, E, E2–E11, F.
 
 `activate` did NOT go with it. The CLI that was retired was [redacted]'s
 freshness-gated one; this repo grew its own the same day (`packages/activate.nix`,
@@ -440,6 +440,28 @@ declare or export first. No fitting candidate means the app is not Homebrew-inst
 
 Known limitation: a pkg-installed bundle whose path no installed cask lists (neither `delete` nor a `pkgutil` receipt under `/Applications`) reads as a stray.
 
+### E11. Undeclared Google Cloud APIs — `FD-E11-undeclared-api`
+
+`gcp-foundation` declares an API per `google_project_service`, so its plan watches the APIs
+the file lists and is blind to one enabled by a click. On 2026-11-18 the project ran 86 APIs
+against 60 declared, with every drift check green. This step compares the two sets directly.
+Report only:
+
+```bash
+live=$(CLOUDSDK_CONFIG="$HOME/.config/gcloud-nix-config" \
+  gcloud services list --enabled \
+  --project="$(rg -o 'gcpProjectId = "([^"]+)"' -r '$1' "$snap/modules/parts/identity.nix")" \
+  --format='value(config.name)' | sort)
+decl=$(rg -o '^\s+"([a-z0-9.-]+\.googleapis\.com)"\s*=' -r '$1' "$snap/infra/gcp/foundation.nix" | sort -u)
+comm -23 <(printf '%s\n' "$live") <(printf '%s\n' "$decl")   # live only: a finding per line
+comm -13 <(printf '%s\n' "$live") <(printf '%s\n' "$decl")   # declared only: a finding per line
+```
+
+An empty `live` is VACUOUS, not clean: the gcloud login lapsed or the listing failed. The
+remedy is the operator's choice per API: disable it (`gcloud services disable`, never with
+`--force`), or add it to the `services` map with its reason. A refusal that names a declared
+API means the undeclared one is a dependency: declare it.
+
 ### F. Host re-activation — `FD-F-*`
 
 **Audit** reports `FD-F-*` only. **Fix** re-activates, and only if repos touched in this run
@@ -511,6 +533,7 @@ The health+json file is the report; this block points at it and reads from it.
 - **nixpi units:** none failed, longRunning all active | <unit> failed/inactive | skipped (unreachable)
 - **nixpi cache:** warm-nixpi-cache green (<sha>) | red — <run URL> | stale — closure path changed since <sha>
 - **Undeclared apps (macos):** none | `<App>.app` (candidate cask `<token>` or none) — report only
+- **Google Cloud APIs:** live = declared (N) | <api> live only / declared only — report only
 - **Hosts:** macos re-activated (branch@rev built) | skipped (why) | NOT activated — main checkout behind origin
 - **Verdict:** CLEAN | FIXED (list what) | NEEDS ATTENTION (why, and what needs a human decision)
 ```
