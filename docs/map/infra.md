@@ -123,10 +123,7 @@ blank the organisation and DELETE the IdP (`prevent_destroy` refuses that).
 ### `infra/gcp/foundation.nix`
 
 The GCP project's declared objects (the file is the list; what stays out is ADR-005 §10), plus
-ONE object above the project: the organization's `roles/billing.creator` binding
-(`google_organization_iam_binding.billing_creator`), which is authoritative for that role.
-**Reverting that block is not a rollback:** removing it plans a destroy, which leaves the role
-with no member at all. To give the domain the role back, add it to `members`.
+the organization's `operatorOnlyOrgRoles` bindings (see that block's UNDOING note).
 
 **Its state is LOCAL but not plaintext.** It cannot live in the bucket it declares, so it sits
 `0600` under `$XDG_STATE_HOME/nix-config-gcp-foundation` — and it still runs

@@ -47,6 +47,13 @@ let
   # account_id, not the full email, while every IAM binding takes the email.
   saAccountId = lib.head (lib.splitString "@" automationServiceAccount);
 
+  # Organization roles only the operator may hold (see "Who may create" below).
+  # The attribute name is the resource's address in state: renaming one is a move.
+  operatorOnlyOrgRoles = {
+    billing_creator = "roles/billing.creator";
+    project_creator = "roles/resourcemanager.projectCreator";
+  };
+
   # APIs this fleet actually turned on, each with the reason it exists. Enabling
   # an API is free; the cost of NOT declaring one is a 403 whose text names a
   # permission rather than a missing service, which is how 2026-09-22 went.
@@ -382,24 +389,26 @@ in
     lifecycle.prevent_destroy = true;
   };
 
-  # ---- Who may create billing accounts: the operator, not the whole domain ---
-  # Google grants roles/billing.creator to `domain:<workspace domain>` when an
-  # organization is created, so every account in the domain can open a billing
-  # account and attach a payment method. Read 2026-11-18: that domain grant was the
-  # role's ONLY member, and the console's billing health check flags it.
+  # ---- Who may create billing accounts and projects: the operator only -------
+  # Google grants roles/billing.creator and roles/resourcemanager.projectCreator to
+  # `domain:<workspace domain>` when an organization is created, so every account
+  # in the domain can open a billing account, attach a payment method and create
+  # projects. Read 2026-11-18: on both roles that domain grant was the ONLY member,
+  # and the console's billing health check flags the billing one.
   #
-  # The one AUTHORITATIVE binding in this stack, on purpose, and for this one role
-  # only. The rule above (MEMBER resources, never `_iam_binding`) exists because a
-  # binding strips every member it does not list. Here that stripping IS the change:
-  # a re-grant to the domain, or to anyone else, shows as drift on the next plan.
+  # The only AUTHORITATIVE bindings in this stack, on purpose: one per role in
+  # `operatorOnlyOrgRoles`, and for those roles only. The rule above (MEMBER
+  # resources, never `_iam_binding`) exists because a binding strips every member it
+  # does not list. Here that stripping IS the change: a re-grant to the domain, or
+  # to anyone else, shows as drift on the next plan.
   # Not `_iam_member_remove`: the pinned provider (8.4.0) ships that for PROJECTS
   # only (`tofu providers schema`, read 2026-11-18), and `_iam_policy` would own
   # every role on the organization.
   #
-  # UNDOING IT: deleting this block does NOT restore the domain. Removing an
+  # UNDOING IT: deleting a role here does NOT restore the domain. Removing an
   # `_iam_binding` destroys the whole binding, so the role would end with no
-  # member. To give the domain the role back, add it to `members`. And never add
-  # a `google_organization_iam_member` for this role anywhere: the two resources
+  # member. To give the domain a role back, add it to `members`. And never add
+  # a `google_organization_iam_member` for these roles anywhere: the two resources
   # would undo each other on alternate applies.
   #
   # The organization is found by the operator account's domain, so no org id is
@@ -408,20 +417,18 @@ in
   # refused (403 "has not been used in project", measured 2026-11-18).
   data.google_organization.this.domain = lib.last (lib.splitString "@" operatorAccount);
 
-  # Adopt the existing binding instead of creating over it, so the plan SHOWS the
+  # Adopt each existing binding instead of creating over it, so the plan SHOWS the
   # domain leaving rather than a bare "+ create". A no-op once it is in state.
-  import = [
-    {
-      to = "google_organization_iam_binding.billing_creator";
-      id = "\${data.google_organization.this.org_id} roles/billing.creator";
-    }
-  ];
+  import = lib.mapAttrsToList (name: role: {
+    to = "google_organization_iam_binding.${name}";
+    id = "\${data.google_organization.this.org_id} ${role}";
+  }) operatorOnlyOrgRoles;
 
-  resource.google_organization_iam_binding.billing_creator = {
+  resource.google_organization_iam_binding = lib.mapAttrs (_: role: {
     org_id = "\${data.google_organization.this.org_id}";
-    role = "roles/billing.creator";
+    inherit role;
     members = [ "user:${operatorAccount}" ];
-  };
+  }) operatorOnlyOrgRoles;
 
   # The project's default log bucket, at Google's default 30-day retention. The
   # `_Required` bucket is locked by Google and cannot be managed.
