@@ -343,7 +343,7 @@ only ever consumed by the `cachix` CLI at push time.
   resource must have an import block — `GRAFANA_ALLOW_CREATE`), a drop guard (a render that
   loses an object state holds refuses — `GRAFANA_ALLOW_DROPS`) and no `-auto-approve`.
 
-### `infra/github/stack.nix` — fleet rulesets and variables (ADR-012 step 3)
+### `infra/github/stack.nix` — rulesets, variables, environment (ADR-012 step 3)
 
 Adopted by `import` blocks, like grafana. Repo registry: `infra/github/repos.nix`. The rest: its
 header.
