@@ -357,11 +357,11 @@
     "kattakath-dotgithub": {
       "flake": false,
       "locked": {
-        "lastModified": 1794053333,
-        "narHash": "sha256-E4uaSWwEcG2w1TJBrTV9X8TsyA6K0qEZi8Lx+j7Nqfk=",
+        "lastModified": 1794996667,
+        "narHash": "sha256-C/qAq8fsKt8X0/GNLLrGT2v1+3E0fodt9jyNBIMsk0w=",
         "owner": "kattakath",
         "repo": ".github",
-        "rev": "942aade208ba810247a70b20187b2c8b46c6c776",
+        "rev": "6e5e59c3a325590c558b079a0a4de8fc98858b62",
         "type": "github"
       },
       "original": {
