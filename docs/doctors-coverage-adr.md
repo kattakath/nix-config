@@ -110,6 +110,11 @@ in the terranix Grafana stack (ADR-012 § 5 step 2).
 | 4 | Workflow conclusions + SD-release asset age | 10, 22 | `startup_failure` counts as red | **landed** #1080 |
 | 5 | Loki redaction canary | 9, new shapes | plant a known-fake address and MAC, alert if it arrives unredacted | **landed** #1080 (rules); #1083 made it ACTIVE: nixpi logs the canary daily (`modules/_lib/redaction-canary.nix`) |
 | 6 | Deploy guard | 3, 16 | see below | **landed** #1081, the TTL half narrower than planned (below) |
+| 7 | Doctor findings as a gauge (`doctor_findings{doctor}`), with an alert | the gap between weekly runs: `doctor-report weekly` pings success on findings, so nothing emailed them | counts only, from each doctor's `latest`; the count moves only when that doctor runs | **landed** 2026-11-18 (rule `fleet-doctor-findings`) |
+| 8 | Pull requests left unarmed (`github_unarmed_prs{owner}`), with an alert | `FD-B-unarmed` between runs | non-draft, over 8 h old, in repos that carry `auto-merge.yml` | **landed** 2026-11-18 (rule `fleet-unarmed-prs`) |
+
+Moves 7 and 8 came from the 2026-11-18 census. The same day added the `Fleet overview`
+dashboard and the Mac disk rule (`fleet-mac-disk-free`), both over series that already arrived.
 
 **Move 6, in two parts:**
 

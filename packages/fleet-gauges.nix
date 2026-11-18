@@ -1,6 +1,6 @@
 # `fleet-gauges` — hourly fleet-health gauges (credential expiry, open security alerts,
-# workflow health, healthchecks.io status, launchd-doctor, Time Machine, the terranix drift
-# summary) pushed to Grafana Cloud as OTLP JSON. ADR-011 step 7. The family list is
+# workflow health, unarmed pull requests, healthchecks.io status, launchd-doctor, Time
+# Machine, the terranix drift summary, the doctors' finding counts) pushed to Grafana Cloud as OTLP JSON. ADR-011 step 7. The family list is
 # fleet-gauges.py's docstring.
 #
 # The shape copies agentic-jobseek's scripts/evidence-metrics.py: a deterministic script,

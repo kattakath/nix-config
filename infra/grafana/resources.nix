@@ -274,6 +274,117 @@ let
     }
     // (if model ? queryType then { query_type = model.queryType; } else { });
 
+  # ---- Fleet overview dashboard: one screen over series that already arrive ----
+  # Hand-written because its top row is this fleet's own gauges (packages/fleet-gauges.py),
+  # which no catalogue board knows. The grafana.com catalogue does carry boards for otelcol
+  # hostmetrics and for Claude Code; this one takes two panels from each subject, not a copy.
+  fleetProm = {
+    type = "prometheus";
+    uid = "grafanacloud-prom";
+  };
+  # The Mac's Data volume: APFS volumes share one container, so its free space is the
+  # container's. Same 10% line as fleet-doctor's FD-E-disk-free.
+  macDiskFreePct =
+    let
+      sel =
+        state:
+        ''system_filesystem_usage_bytes{service_name="macos-host",mountpoint="/System/Volumes/Data",state${state}}'';
+    in
+    "100 * sum(last_over_time(${sel ''="free"''}[1h])) / sum(last_over_time(${sel ''=~"free|used"''}[1h]))";
+  # A count that should be 0: green at 0, red from 1.
+  fleetStat =
+    {
+      title,
+      expr,
+      x,
+      y,
+      description ? null,
+    }:
+    {
+      datasource = fleetProm;
+      inherit title;
+      fieldConfig = {
+        defaults = {
+          color.mode = "thresholds";
+          thresholds = {
+            mode = "absolute";
+            steps = [
+              {
+                color = "green";
+                value = null;
+              }
+              {
+                color = "red";
+                value = 1;
+              }
+            ];
+          };
+        };
+        overrides = [ ];
+      };
+      gridPos = {
+        h = 4;
+        w = 4;
+        inherit x y;
+      };
+      options = {
+        colorMode = "background";
+        graphMode = "none";
+        reduceOptions = {
+          calcs = [ "lastNotNull" ];
+          fields = "";
+          values = false;
+        };
+      };
+      targets = [
+        {
+          datasource = fleetProm;
+          inherit expr;
+          instant = true;
+          refId = "A";
+        }
+      ];
+      type = "stat";
+    }
+    // (if description == null then { } else { inherit description; });
+  fleetSeries =
+    {
+      title,
+      expr,
+      legend,
+      x,
+      y,
+      unit ? "short",
+      description ? null,
+    }:
+    {
+      datasource = fleetProm;
+      inherit title;
+      fieldConfig = {
+        defaults = { inherit unit; };
+        overrides = [ ];
+      };
+      gridPos = {
+        h = 8;
+        w = 12;
+        inherit x y;
+      };
+      options.legend = {
+        displayMode = "list";
+        placement = "bottom";
+      };
+      targets = [
+        {
+          datasource = fleetProm;
+          inherit expr;
+          legendFormat = legend;
+          refId = "A";
+        }
+      ];
+      type = "timeseries";
+    }
+    // (if description == null then { } else { inherit description; });
+
   # One Grafana-managed rule in the generated rules' exact shape (query A, threshold C),
   # so a new rule is its distinct fields only. Explicit uids keep the plan free of churn.
   mkRule =
@@ -407,6 +518,115 @@ in
     };
   };
   grafana_dashboard = {
+    # One screen over what already arrives: the top row is the alert rules' own
+    # expressions as counts, so the board and the alerts cannot disagree.
+    fleet_overview = {
+      config_json = builtins.toJSON {
+        editable = true;
+        graphTooltip = 1;
+        links = [ ];
+        panels = [
+          (fleetStat {
+            title = "Heartbeats down";
+            expr = "count(max by (slug) (last_over_time(hc_check_overdue[2h])) > 0) or vector(0)";
+            x = 0;
+            y = 0;
+          })
+          (fleetStat {
+            title = "Workflows failing";
+            expr = "count(min by (repo, workflow) (last_over_time(github_workflow_last_conclusion_ok[26h])) < 1) or vector(0)";
+            x = 4;
+            y = 0;
+          })
+          (fleetStat {
+            title = "Stacks drifted";
+            description = "0/1/2 = clean/drift/error per terranix stack, from the daily drift check.";
+            expr = "count(max by (stack) (last_over_time(terranix_drift_status[26h])) > 0) or vector(0)";
+            x = 8;
+            y = 0;
+          })
+          (fleetStat {
+            title = "Doctor findings";
+            description = "From the latest published /hygiene and /fleet-doctor runs; it changes only when a doctor runs.";
+            expr = "sum(max by (doctor) (last_over_time(doctor_findings[26h]))) or vector(0)";
+            x = 12;
+            y = 0;
+          })
+          (fleetStat {
+            title = "Unarmed pull requests";
+            expr = "sum(max by (owner) (last_over_time(github_unarmed_prs[26h]))) or vector(0)";
+            x = 16;
+            y = 0;
+          })
+          (fleetStat {
+            title = "launchd findings";
+            expr = "sum(max by (section) (last_over_time(launchd_doctor_findings[26h]))) or vector(0)";
+            x = 20;
+            y = 0;
+          })
+          (fleetSeries {
+            title = "Open security alerts";
+            expr = "sum by (owner, kind) (last_over_time(github_security_open_alerts[26h]))";
+            legend = "{{owner}} {{kind}}";
+            x = 0;
+            y = 4;
+          })
+          (fleetSeries {
+            title = "Mac: free space on the Data volume";
+            description = "The alert line is 10%.";
+            expr = macDiskFreePct;
+            legend = "free";
+            unit = "percent";
+            x = 12;
+            y = 4;
+          })
+          (fleetSeries {
+            title = "Mac: load average (1 m)";
+            expr = ''max(system_cpu_load_average_1m{service_name="macos-host"})'';
+            legend = "load";
+            x = 0;
+            y = 12;
+          })
+          (fleetSeries {
+            title = "nixpi: SoC temperature";
+            expr = ''max(node_thermal_zone_temp{instance="nixpi"})'';
+            legend = "SoC";
+            unit = "celsius";
+            x = 12;
+            y = 12;
+          })
+          (fleetSeries {
+            title = "Claude Code: cost per day";
+            expr = "sum(increase(claude_code_cost_usage_USD_total[1d]))";
+            legend = "USD";
+            unit = "currencyUSD";
+            x = 0;
+            y = 20;
+          })
+          (fleetSeries {
+            title = "Claude Code: tokens per day by type";
+            expr = "sum by (type) (increase(claude_code_token_usage_tokens_total[1d]))";
+            legend = "{{type}}";
+            x = 12;
+            y = 20;
+          })
+        ];
+        refresh = "";
+        schemaVersion = 42;
+        tags = [ "fleet" ];
+        templating.list = [ ];
+        time = {
+          from = "now-7d";
+          to = "now";
+        };
+        timezone = "browser";
+        title = "Fleet overview";
+        uid = "fleet-overview";
+      };
+      folder = "fleet";
+      message = null;
+      overwrite = null;
+    };
     evidence_pipeline = {
       config_json = builtins.toJSON {
         annotations = {
@@ -1674,6 +1894,52 @@ in
             severity = "info";
           };
           repeat = "1w";
+        })
+        (mkRule {
+          uid = "fleet-doctor-findings";
+          name = "Doctor findings open";
+          summary = "{{ $labels.doctor }}: {{ $values.A }} finding(s) in its latest report";
+          description = "From doctor_findings (fleet-gauges, hourly), read from the latest published /hygiene or /fleet-doctor run. The count changes only when that doctor runs again, so re-run it after a fix. Reports: ~/.local/state/nix-config-doctors.";
+          expr = "max by (doctor) (last_over_time(doctor_findings[26h]))";
+          op = "gt";
+          threshold = 0;
+          for = "2h0m0s";
+          labels = {
+            domain = "infra";
+            severity = "info";
+          };
+          repeat = "1w";
+        })
+        (mkRule {
+          uid = "fleet-unarmed-prs";
+          name = "Pull requests open with no auto-merge armed";
+          summary = "{{ $labels.owner }}: {{ $values.A }} pull request(s) open over 8 h with no auto-merge armed";
+          description = "From github_unarmed_prs (fleet-gauges, hourly): non-draft PRs in repos that carry auto-merge.yml. The arming workflows run on a schedule, so a count here means one did not arm, or a PR was opened by hand and left. Draft it, arm it or close it.";
+          expr = "max by (owner) (last_over_time(github_unarmed_prs[26h]))";
+          op = "gt";
+          threshold = 0;
+          for = "2h0m0s";
+          labels = {
+            domain = "ci";
+            severity = "info";
+          };
+          repeat = "1w";
+        })
+        (mkRule {
+          uid = "fleet-mac-disk-free";
+          name = "Mac: under 10% free on the Data volume";
+          summary = "The Mac's Data volume has {{ printf \"%.1f\" $values.A.Value }}% free";
+          description = "From the collector's hostmetrics (service_name macos-host). APFS volumes share the container, so this is the container's free space. Same line as fleet-doctor's FD-E-disk-free.";
+          expr = macDiskFreePct;
+          op = "lt";
+          threshold = 10;
+          # 6 h, not 1 h: the live value sits near the line, and a short `for` would flap.
+          for = "6h0m0s";
+          labels = {
+            domain = "infra";
+            host = "macos";
+            severity = "warning";
+          };
         })
       ];
     };
