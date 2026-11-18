@@ -291,6 +291,13 @@ nix develop -c secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrom
 - **Machine policy reaches EVERY profile** on an enrolled browser, a profile signed in to
   another organisation included, and overrides that organisation's value for the same policy.
   Read that profile's `chrome://policy` before adding a policy beyond the extensions.
+- **The stack is not the whole policy.** The root unit holds console-set policies that every
+  unit inherits, and the role cannot read or write root. `gws-chrome-plan` reading clean says
+  only that the extension rows match; `chrome://policy` on the Mac is the full list (measured
+  2026-11-18: one stack row, fourteen others).
+- **Adding a Chrome profile is blocked from root** (`BrowserAddPersonEnabled = false`). Lift
+  it in Admin console > Chrome browser > Settings before re-adding a removed profile, the work
+  profile included, then set it back.
 - **Token rotation:** one active token per unit. Revoke in the console, copy the new one,
   re-encrypt the `.age` file. An enrolled browser keeps working; it holds its own device token.
 - **After a console-side delete of the browser record,** Chrome will not re-enroll until
