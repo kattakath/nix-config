@@ -8,10 +8,12 @@
 # Home Manager External Extensions lane (2026-11-15), which needed a manual enable per
 # profile.
 #
-# ADOPTED, NOT CREATED. Every row was first set in the Admin console, so each resource
-# carries an `import` block and the first plan must be EMPTY. Measured 2026-11-15 on a
-# throwaway child unit, provider 1.5.3: create, re-plan (no changes), import (no
-# changes) and an out-of-band change (shown as drift) all behaved.
+# TWO LISTS. `adopted` was first set in the Admin console, so each of those resources
+# carries an `import` block and the first plan must be EMPTY. `created` was never set
+# there: no import block, the stack creates it, the same way `settings` does. An import
+# of an id the unit does not have fails the plan. Measured 2026-11-15 on a throwaway
+# child unit, provider 1.5.3: create, re-plan (no changes), import (no changes) and an
+# out-of-band change (shown as drift) all behaved.
 #
 # THREE TRAPS, all measured the same day, not read from docs:
 #   1. ONE RESOURCE PER EXTENSION. The provider's Read collapses a multi-key resource
@@ -56,7 +58,8 @@ let
   installTypeSchema = "chrome.users.apps.InstallType";
 
   # Chrome Web Store ids. The comment is the listing's name, for the reader only.
-  extensions = [
+  # `adopted` is imported. `created` is not: see the header.
+  adopted = [
     "ddkjiahejlhfcafbddmgiahcphecmpfh" # uBlock Origin Lite
     "caclkomlalccbpcdllchkeecicepbmbm" # Advanced Font Settings (Malayalam faces, hosts/macos.nix fonts.packages)
     "jinjaccalgkegednnccohejagnlnfdag" # Violentmonkey (its "Allow User Scripts" toggle has no policy: one manual click)
@@ -65,6 +68,10 @@ let
     "pejdijmoenmkgeppbflobdenhhabjlaj" # iCloud Passwords
     "fcoeoabgfenejglbffodgkkbkcdhcgfn" # Claude in Chrome — the agents' only browser rail
   ];
+  created = [
+    "ejfnegenodbdcodemkibocefmajjjjbn" # Kapture MCP Browser Automation
+  ];
+  extensions = adopted ++ created;
 
   # Schema name (without the `chrome.users.` prefix) -> every field of that schema.
   settings = {
@@ -158,7 +165,7 @@ in
   import = map (id: {
     to = "googleworkspace_chrome_policy.${addr id}";
     id = "id:\${var.org_unit_id}/app_id=chrome:${id}/${installTypeSchema}";
-  }) extensions;
+  }) adopted;
 
   resource.googleworkspace_chrome_policy =
     lib.listToAttrs (map (id: lib.nameValuePair (addr id) (policyFor id)) extensions)

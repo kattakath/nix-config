@@ -282,7 +282,9 @@ nix develop -c secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrom
   Settings > Manage User Settings; assign it to the service account; then tick the row and use
   **Change organizational unit** to restrict it. The console assigns at the root unit by
   default.
-- **Adding an extension:** add its id to the stack file, `plan`, `apply`.
+- **Adding an extension:** add its id to `created` in the stack file (no import block),
+  `plan`, `apply`. An id already set in the console goes in `adopted`, so the plan imports
+  it. An import of an id the unit does not have fails the plan.
 - **Removing one is two steps, in this order:** delete the row in Admin console > Chrome
   browser > Apps & extensions, then drop the id from the stack. The API refuses to inherit an
   install type no parent unit sets, and the provider reports that destroy as done, so the
