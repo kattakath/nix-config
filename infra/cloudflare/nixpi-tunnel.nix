@@ -334,6 +334,19 @@ in
         }
       ]
     ) dedupedZones
+    # The PRIMARY zone only: on there since 2026-04-14 (read 2026-11-18) and never
+    # declared. Not in `zoneSettings`, which reaches every site zone, where this
+    # setting was not read.
+    ++ [
+      {
+        name = "${siteKey domainName}_hotlink_protection";
+        value = {
+          zone_id = zoneId;
+          setting_id = "hotlink_protection";
+          value = "on";
+        };
+      }
+    ]
   );
 
   # The Access application fronting the SSH host. This was hand-created and

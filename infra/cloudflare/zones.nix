@@ -120,7 +120,23 @@ in
         to = "cloudflare_ruleset.redirects";
         id = "zones/${zoneId}/${zoneRedirects.rulesetId}";
       }
+      {
+        to = "cloudflare_zone_dnssec.this";
+        id = zoneId;
+      }
     ];
+
+  # DNSSEC signing, live and `active` (read 2026-11-18) but declared nowhere until now.
+  # It belongs with the records it signs: a rebuilt zone without it serves unsigned
+  # answers and nothing reports the loss. Not a `cloudflare_zone_setting`, so the
+  # one-owner rule in the header is untouched. prevent_destroy because a destroy turns
+  # signing off while the registrar still publishes the DS record, which makes every
+  # validating resolver refuse the zone, mail included.
+  resource.cloudflare_zone_dnssec.this = {
+    zone_id = zoneId;
+    status = "active";
+    lifecycle.prevent_destroy = true;
+  };
 
   resource.cloudflare_ruleset.redirects = {
     zone_id = zoneId;
