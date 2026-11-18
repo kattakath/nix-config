@@ -382,6 +382,47 @@ in
     lifecycle.prevent_destroy = true;
   };
 
+  # ---- Who may create billing accounts: the operator, not the whole domain ---
+  # Google grants roles/billing.creator to `domain:<workspace domain>` when an
+  # organization is created, so every account in the domain can open a billing
+  # account and attach a payment method. Read 2026-11-18: that domain grant was the
+  # role's ONLY member, and the console's billing health check flags it.
+  #
+  # The one AUTHORITATIVE binding in this stack, on purpose, and for this one role
+  # only. The rule above (MEMBER resources, never `_iam_binding`) exists because a
+  # binding strips every member it does not list. Here that stripping IS the change:
+  # a re-grant to the domain, or to anyone else, shows as drift on the next plan.
+  # Not `_iam_member_remove`: the pinned provider (8.4.0) ships that for PROJECTS
+  # only (`tofu providers schema`, read 2026-11-18), and `_iam_policy` would own
+  # every role on the organization.
+  #
+  # UNDOING IT: deleting this block does NOT restore the domain. Removing an
+  # `_iam_binding` destroys the whole binding, so the role would end with no
+  # member. To give the domain the role back, add it to `members`. And never add
+  # a `google_organization_iam_member` for this role anywhere: the two resources
+  # would undo each other on alternate applies.
+  #
+  # The organization is found by the operator account's domain, so no org id is
+  # written here. The default provider, not `google.billed`: Cloud Resource Manager
+  # is not enabled on the project, and a call that names it as quota project is
+  # refused (403 "has not been used in project", measured 2026-11-18).
+  data.google_organization.this.domain = lib.last (lib.splitString "@" operatorAccount);
+
+  # Adopt the existing binding instead of creating over it, so the plan SHOWS the
+  # domain leaving rather than a bare "+ create". A no-op once it is in state.
+  import = [
+    {
+      to = "google_organization_iam_binding.billing_creator";
+      id = "\${data.google_organization.this.org_id} roles/billing.creator";
+    }
+  ];
+
+  resource.google_organization_iam_binding.billing_creator = {
+    org_id = "\${data.google_organization.this.org_id}";
+    role = "roles/billing.creator";
+    members = [ "user:${operatorAccount}" ];
+  };
+
   # The project's default log bucket, at Google's default 30-day retention. The
   # `_Required` bucket is locked by Google and cannot be managed.
   resource.google_logging_project_bucket_config.default = {
