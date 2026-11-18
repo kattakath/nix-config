@@ -1,7 +1,7 @@
 # The ACTIVE redaction canary (ADR-013): one WARNING line nixpi logs daily, carrying
 # addresses that MUST be redacted before Grafana sees them. Shared DATA, read by:
 #   modules/nixos/alloy-shipper.nix  — the daily timer that logs it
-#   infra/grafana/resources.nix      — two rules: the line arrived UNREDACTED (the redact
+#   infra/grafana/      — two rules: the line arrived UNREDACTED (the redact
 #                                      stage failed), or did not arrive (shipping is broken)
 #
 # Every value is reserved, so the canary can never point at a real host or device:

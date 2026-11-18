@@ -120,7 +120,7 @@ in
     sensitive = true;
   };
 
-  # `org_id` is deliberately absent from resources.nix: in provider 4.50.0 it is ForceNew and
+  # `org_id` is deliberately absent from the resource files: in provider 4.50.0 it is ForceNew and
   # only suppresses a diff when unset, so a literal would turn a provider bump into a REPLACE
   # (terranix-infra-reviewer, 2026-11-03). The root policy also gets prevent_destroy: a destroy
   # or replace of it resets the whole routing tree.

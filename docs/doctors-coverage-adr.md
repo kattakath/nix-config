@@ -105,7 +105,7 @@ in the terranix Grafana stack (ADR-012 § 5 step 2).
 | # | Move | Closes | Note | Status |
 |---|---|---|---|---|
 | 1 | healthchecks.io check status as a gauge; alert on `new` and `down` | 6 | `new` = never pinged. A read-only hc API key, read from the Keychain at run time, never a Nix string | **landed** #1080; #1082 narrowed the alert to `down`, or `new` past its first due time (`hc_check_overdue`), so a just-created weekly check does not page |
-| 2 | Alert on fleet-gauges' own source errors | 15, and every silent source | a source that errors is today a missing series, not a red one | **landed** #1080 (rule `fleet-gauges-source-errors`, `infra/grafana/resources.nix`) |
+| 2 | Alert on fleet-gauges' own source errors | 15, and every silent source | a source that errors is today a missing series, not a red one | **landed** #1080 (rule `fleet-gauges-source-errors`, `infra/grafana/`) |
 | 3 | `launchd-doctor --json` (#1062) as a gauge | 24 | | **landed** #1080 |
 | 4 | Workflow conclusions + SD-release asset age | 10, 22 | `startup_failure` counts as red | **landed** #1080 |
 | 5 | Loki redaction canary | 9, new shapes | plant a known-fake address and MAC, alert if it arrives unredacted | **landed** #1080 (rules); #1083 made it ACTIVE: nixpi logs the canary daily (`modules/_lib/redaction-canary.nix`) |

@@ -328,7 +328,7 @@ only ever consumed by the `cachix` CLI at push time.
 ### `infra/grafana/stack.nix` — the Grafana Cloud stack (ADR-012 step 2)
 
 - **Adopted, not created**, bar the li-logs policy + token (stack header: why).
-- **`resources.nix` is generated.** It came from `tofu plan -generate-config-out` plus a
+- **Per-domain files under `resources.nix`.** From `tofu plan -generate-config-out` plus a
   deterministic HCL-to-Nix conversion. A `builtins.toJSON` value is exactly what the provider stores.
 - **Provider from nixpkgs** (`opentofu.withPlugins`, `grafana_grafana`; ADR-012 § 3), not
   `provider-pins.nix`.

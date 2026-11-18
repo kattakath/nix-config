@@ -588,7 +588,7 @@ in
   };
 
   # ---- Grafana reads Cloud Monitoring (Maps Platform usage) ------------------
-  # The Grafana `gcp-monitoring` datasource (infra/grafana/resources.nix) queries Cloud
+  # The Grafana `gcp-monitoring` datasource (infra/grafana/) queries Cloud
   # Monitoring ON DEMAND, so Maps request counts, errors, latency and the quota limit cost
   # zero Grafana series. Same key model as the Sheets reader above: ONE key, created
   # out-of-band and sent straight into the datasource, never in state or on disk. To
