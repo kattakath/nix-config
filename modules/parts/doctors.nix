@@ -50,6 +50,7 @@ in
         inherit repoName;
         repoUrl = "https://github.com/${orgName}/${repoName}";
         pingKeyItem = (import ../_lib/keychain-items.nix).healthchecksPingKey;
+        stateDirName = (import ../_lib/terranix-stacks.nix).doctorStateDirName;
       };
 
       apps.doctor-report = {

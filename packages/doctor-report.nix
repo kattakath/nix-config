@@ -51,6 +51,9 @@
   slug ? "nix-config-doctors-weekly",
   # The Keychain item NAME runitor reads PING_KEY from (modules/_lib/keychain-items.nix).
   pingKeyItem,
+  # The state dir's name under XDG_STATE_HOME (modules/_lib/terranix-stacks.nix), shared
+  # with fleet-gauges, which reads the latest run.
+  stateDirName,
 }:
 let
   # SARIF 2.1.0 Plus Errata 01, the schema ADR-013 § 8 cites.
@@ -299,7 +302,7 @@ writeShellApplication {
     }
 
     state_dir() {
-      printf '%s/%s\n' "''${DOCTOR_REPORT_DIR:-''${XDG_STATE_HOME:-$HOME/.local/state}/nix-config-doctors}" "$1"
+      printf '%s/%s\n' "''${DOCTOR_REPORT_DIR:-''${XDG_STATE_HOME:-$HOME/.local/state}/${stateDirName}}" "$1"
     }
 
     # 0 when FILE has nothing open, else 1 (any finding, vacuous or skipped section).

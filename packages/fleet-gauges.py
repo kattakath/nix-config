@@ -14,7 +14,14 @@ source that errors is skipped and counted in fleet_gauges_source_errors, never f
   github_workflow_last_conclusion_ok{repo,workflow}
       1/0 = the latest COMPLETED main-branch run of each workflow, in the same repos,
       succeeded (success/skipped/neutral) / did not. A workflow absent from a repo's
-      latest 100 completed runs is absent here, not 0.
+      latest 100 completed runs is absent here, not 0. Dependabot's own update runs
+      are left out: each is NAMED after its one update, so every run would be a new
+      label value that never gets a later run to clear it (measured 2026-11-18).
+  github_unarmed_prs{owner}
+      Open, non-draft pull requests older than UNARMED_AFTER_H with no auto-merge
+      armed, in repos that carry ARM_WORKFLOW. Zeros included. A PR sitting in a
+      merge queue reads unarmed too (GitHub clears the field on enqueue); one that
+      has queued that long is worth the same look.
   nixpi_sd_release_age_seconds
       Age of the newest nixos-sd-image-*.img(.zst) asset on the SD_RELEASE_REPO's
       installer-latest release (its updated_at: the publish re-uploads the asset).
@@ -35,6 +42,10 @@ source that errors is skipped and counted in fleet_gauges_source_errors, never f
       0/1/2 = clean/drift/error per terranix stack, read from the daily drift check's
       summary.json (packages/terranix-drift.nix). Read here rather than pushed by the
       drift check itself: one OTLP push path and one credential set, not two.
+  doctor_findings{doctor}, doctor_unchecked{doctor}, doctor_report_timestamp_seconds{doctor}
+      From the latest published /hygiene (SARIF) and /fleet-doctor (health+json) run in
+      DOCTOR_REPORT_DIR: findings, checks that ran vacuous or skipped, and when the
+      report was written. Counts only: no finding ID and no rule name is a label.
   fleet_gauges_source_errors{source}
       Errors per source family, 0 included for every family in SOURCES, so a source
       that recovers reads 0 instead of keeping its last bad value.
@@ -43,7 +54,8 @@ Environment (supplied by `secret exec`, never argv): GRAFANA_OTLP_ENDPOINT,
 GRAFANA_OTLP_INSTANCE, GRAFANA_OTLP_TOKEN, GCOM_TOKEN, GH_TOKEN, HC_API_KEY, and
 CF_TOKEN_<n> pairs named by CF_TOKEN_NAMES (space-separated Keychain item names, same
 order). Scope, from the Nix module (space-separated, unset = probe none): GCOM_REGIONS,
-GH_ORGS, GH_USERS, SD_RELEASE_REPO (owner/repo), LAUNCHD_DOCTOR (an executable path).
+GH_ORGS, GH_USERS, SD_RELEASE_REPO (owner/repo), LAUNCHD_DOCTOR (an executable path),
+DOCTOR_REPORT_DIR (the doctors' state dir).
 Prints counts only; never a token.
 """
 
@@ -64,7 +76,13 @@ GH_USERS = os.environ.get("GH_USERS", "").split()
 SD_RELEASE_REPO = os.environ.get("SD_RELEASE_REPO", "")
 ALERT_KINDS = ["dependabot", "code-scanning", "secret-scanning"]
 # Every source family fail() can name; each gets a fleet_gauges_source_errors point.
-SOURCES = ["grafana", "cloudflare", "github", "time-machine", "terranix-drift", "healthchecks", "launchd-doctor"]
+SOURCES = ["grafana", "cloudflare", "github", "time-machine", "terranix-drift", "healthchecks", "launchd-doctor", "doctors"]
+# A PR is "unarmed" only past the arming schedule: the shared arm-dependabot workflow
+# runs every 6 h, so 8 h leaves one missed tick of slack.
+UNARMED_AFTER_H = 8
+ARM_WORKFLOW = ".github/workflows/auto-merge.yml"
+# report file suffix per doctor, under DOCTOR_REPORT_DIR/<doctor>/latest
+DOCTORS = {"hygiene": "sarif", "fleet-doctor": "health"}
 HC_STATUSES = ["new", "up", "grace", "down", "paused"]
 WORKFLOW_OK = {"success", "skipped", "neutral"}
 SD_IMAGE = re.compile(r"^nixos-sd-image-.*\.img(\.zst)?$")
@@ -154,6 +172,7 @@ def github():
             fail(f"github:{owner}:repos", e)
             continue
         workflow_health(owner, repos, tok)
+        unarmed_prs(owner, repos, tok)
         for kind in ALERT_KINDS:
             try:
                 total = 0
@@ -187,12 +206,64 @@ def workflow_health(owner, repos, tok):
                         "?branch=main&status=completed&per_page=100", tok, "token")
             latest = {}
             for run in body.get("workflow_runs", []):
+                if (run.get("path") or "").startswith("dynamic/dependabot/"):
+                    continue
                 latest.setdefault(run.get("name") or "?", run.get("conclusion"))
             for wf, conclusion in latest.items():
                 gauge("github_workflow_last_conclusion_ok", 1 if conclusion in WORKFLOW_OK else 0,
                       repo=f"{owner}/{name}", workflow=wf)
         except Exception as e:  # noqa: BLE001
             fail(f"github:{owner}/{name}:workflows", e)
+
+
+def unarmed_prs(owner, repos, tok):
+    # One list call per repo; the workflow-file probe only where a candidate exists.
+    try:
+        cutoff = time.time() - UNARMED_AFTER_H * 3600
+        total = 0
+        for name in repos:
+            stale = [p for p in pages(f"https://api.github.com/repos/{owner}/{name}/pulls?state=open&per_page=100", tok)
+                     if not p.get("draft") and p.get("auto_merge") is None and iso_to_epoch(p["created_at"]) < cutoff]
+            if not stale:
+                continue
+            try:
+                http(f"https://api.github.com/repos/{owner}/{name}/contents/{ARM_WORKFLOW}", tok, "token")
+            except urllib.error.HTTPError as e:
+                if e.code == 404:  # nothing arms PRs in this repo, so none is "unarmed"
+                    continue
+                raise
+            total += len(stale)
+        gauge("github_unarmed_prs", total, owner=owner)
+    except Exception as e:  # noqa: BLE001
+        fail(f"github:{owner}:unarmed-prs", e)
+
+
+def doctors():
+    # The latest published run of each doctor (packages/doctor-report.nix). A doctor
+    # that has never published emits nothing: absent, not zero.
+    root = os.environ.get("DOCTOR_REPORT_DIR", "")
+    if not root:
+        return
+    for doctor, kind in DOCTORS.items():
+        path = os.path.join(root, doctor, "latest")
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path) as f:
+                report = json.load(f)
+            if kind == "sarif":
+                results = report["runs"][0]["results"]
+                found = sum(1 for r in results if r.get("kind") == "fail")
+                unchecked = sum(1 for r in results if r.get("kind") == "notApplicable")
+            else:
+                checks = [c for arr in report["checks"].values() for c in arr]
+                found = sum(int(c.get("observedValue", 0)) for c in checks)
+                unchecked = sum(1 for c in checks if c.get("inputsExamined", 1) == 0)
+            gauge("doctor_findings", found, doctor=doctor)
+            gauge("doctor_unchecked", unchecked, doctor=doctor)
+            gauge("doctor_report_timestamp_seconds", os.path.getmtime(path), doctor=doctor)
+        except Exception as e:  # noqa: BLE001
+            fail(f"doctors:{doctor}", e)
 
 
 HC_SEEN = os.path.join(os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")),
@@ -370,6 +441,7 @@ def main():
     terranix_drift()
     healthchecks()
     launchd_doctor()
+    doctors()
     by_family = errors_by_family(errors)
     for family in sorted(set(SOURCES) | set(by_family)):
         gauge("fleet_gauges_source_errors", by_family.get(family, 0), source=family)

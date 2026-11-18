@@ -40,4 +40,8 @@ in
   # The terranix-drift agent's own state dir (summary.json lives there). Not a stack; it
   # sits in the same nix-config-* family, so its one spelling lives beside theirs.
   driftStateDirName = "nix-config-terranix-drift";
+
+  # The doctors' state dir (packages/doctor-report.nix writes each run there, and
+  # packages/fleet-gauges.nix reads the latest). Same family, same reason.
+  doctorStateDirName = "nix-config-doctors";
 }

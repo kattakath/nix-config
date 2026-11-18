@@ -30,6 +30,8 @@
   launchdDoctor ? null,
   # terranix-drift's state dir name (modules/_lib/terranix-stacks.nix), where summary.json is.
   driftStateDirName,
+  # The doctors' state dir name (same file), where each doctor's `latest` run is.
+  doctorStateDirName,
 }:
 let
   script = writers.writePython3Bin "fleet-gauges-run" {
@@ -59,6 +61,8 @@ writeShellApplication {
     # The daily drift check's summary: packages/terranix-drift.nix writes it into its
     # fixed working dir, whose name both packages are handed. Exported so the script does not guess.
     export TERRANIX_DRIFT_SUMMARY="''${XDG_STATE_HOME:-$HOME/.local/state}/${driftStateDirName}/summary.json"
+    # The doctors' published runs; an operator-set DOCTOR_REPORT_DIR wins, as it does in doctor-report.
+    export DOCTOR_REPORT_DIR="''${DOCTOR_REPORT_DIR:-''${XDG_STATE_HOME:-$HOME/.local/state}/${doctorStateDirName}}"
     # shellcheck disable=SC2086 # cfEnv is a fixed list of ENV=item words
     exec ${secretBin} exec \
       GRAFANA_OTLP_ENDPOINT=${items.grafana.otlp.endpoint} \
