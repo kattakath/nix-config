@@ -1816,14 +1816,17 @@ let
         fi
         export GH_TOKEN="$GITHUB_TOKEN"
       '';
-      # `gh` reads the same token for the four data-valued variables (infra/github/stack.nix
+      # `gh` reads the same token for the data-valued variables (infra/github/stack.nix
       # header). A missing one fails here, which the drift check classes as an error.
       vars = ''
         TF_VAR_ci_bot_client_id=$(gh variable get CI_BOT_CLIENT_ID --org ${orgName})
         TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/${repoName})
         TF_VAR_rollup_wif_provider=$(gh variable get ROLLUP_WIF_PROVIDER -R ${orgName}/${repoName})
         TF_VAR_resume_json_gist=$(gh variable get RESUME_JSON_GIST -R ${userName}/${resumeSiteRepo})
+        TF_VAR_gws_customer_id=$(gh variable get GWS_CUSTOMER_ID -R ${orgName}/${repoName})
+        TF_VAR_gws_chrome_org_unit_id=$(gh variable get GWS_CHROME_ORG_UNIT_ID -R ${orgName}/${repoName})
         export TF_VAR_ci_bot_client_id TF_VAR_rollup_sheet_id TF_VAR_rollup_wif_provider TF_VAR_resume_json_gist
+        export TF_VAR_gws_customer_id TF_VAR_gws_chrome_org_unit_id
       '';
       createLine = "The others would be CREATED next to their live objects.";
       # prevent_destroy stops a ruleset delete inside tofu too; this refuses before tofu.

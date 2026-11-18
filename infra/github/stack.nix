@@ -197,6 +197,9 @@ let
             (mk "ROLLUP_SHEET_ID" "\${var.rollup_sheet_id}" { })
             (mk "ROLLUP_WIF_PROVIDER" "\${var.rollup_wif_provider}" { })
             (mk "ROLLUP_WRITER_SA" rollupWriterSa { })
+            # Read by the gws-chrome wrapper at run time; without either, that stack cannot plan.
+            (mk "GWS_CUSTOMER_ID" "\${var.gws_customer_id}" { })
+            (mk "GWS_CHROME_ORG_UNIT_ID" "\${var.gws_chrome_org_unit_id}" { })
           ]
           ++ lib.optional (owner == userOwner && repo == resumeSiteRepo) (
             mk "RESUME_JSON_GIST" "\${var.resume_json_gist}" { }
@@ -261,6 +264,8 @@ in
     rollup_sheet_id = dataVar "Drive id of the fleet-history Sheet (repo variable ROLLUP_SHEET_ID).";
     rollup_wif_provider = dataVar "The rollup's WIF provider path (repo variable ROLLUP_WIF_PROVIDER).";
     resume_json_gist = dataVar "website's RESUME_JSON_GIST (repo variable).";
+    gws_customer_id = dataVar "The Workspace customer id (repo variable GWS_CUSTOMER_ID).";
+    gws_chrome_org_unit_id = dataVar "The enrolled-browsers unit id (repo variable GWS_CHROME_ORG_UNIT_ID).";
   };
 
   import =
@@ -271,9 +276,39 @@ in
         to = "github_actions_organization_variable.ci_bot_client_id";
         id = "CI_BOT_CLIENT_ID";
       }
+      {
+        to = "github_repository_environment.jsonresume_connect_production";
+        id = "jsonresume-connect:production";
+      }
     ];
 
+  # The deploy gate's reviewer, read by login so no account id is written here.
+  data.github_user.operator = {
+    provider = "github.user";
+    username = userOwner;
+  };
+
   resource = {
+    # The one deploy gate in the fleet: a release there pushes to a live Apps Script
+    # deployment, and this environment is what makes that wait for the operator
+    # (read 2026-11-18: one required reviewer, protected branches only). Its two secrets
+    # stay out, for the reason given for Actions secrets above. prevent_destroy because
+    # deleting an environment deletes those secrets with it.
+    github_repository_environment.jsonresume_connect_production = {
+      provider = "github.user";
+      repository = "jsonresume-connect";
+      environment = "production";
+      can_admins_bypass = true;
+      prevent_self_review = false;
+      reviewers = [ { users = [ "\${data.github_user.operator.id}" ]; } ];
+      deployment_branch_policy = [
+        {
+          protected_branches = true;
+          custom_branch_policies = false;
+        }
+      ];
+      lifecycle.prevent_destroy = true;
+    };
     github_repository_ruleset = byAddr rulesetEntries;
     github_actions_variable = byAddr variableEntries;
     github_actions_organization_variable.ci_bot_client_id = {
