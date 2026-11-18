@@ -117,7 +117,7 @@
       "id": "NH-C-plan-without-drift-env",
       "doctor": "hygiene",
       "section": "nix-hygiene § C",
-      "shortDescription": "A *-plan wrapper without passthru.terranixDriftEnv (runs credential-less in the drift agent)",
+      "shortDescription": "A *-plan wrapper without passthru.terranixDriftEnv (an evaluation failure: packages/terranix-drift.nix asserts it; this rule is the back-stop)",
       "level": "warning",
       "detect": "grep -n 'terranixDriftEnv' modules/parts/terranix.nix and compare with every *-plan package",
       "evidence": ["the plan package name"],

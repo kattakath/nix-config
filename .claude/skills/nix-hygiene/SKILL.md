@@ -158,7 +158,7 @@ because CLAUDE.md is near its 40k budget. A path missing from both is itself a f
 - [ ] `NH-C-ungated-host-list` — no host-specific lists in shared modules without `mkIf` on `isMacosHost` or a `local.*` flag (never the hostname).
 - [ ] `NH-C-launchd-name` — launchd BTM basenames: `nix-<activity>` via `modules/home/launchd-launcher.nix` for HM
       agents, or a hand-written `writeShellScriptBin "nix-<activity>"` arg0 for nix-darwin units
-      (`launchd-naming.md` item 2 names the one left) — never bare `sh`/`open`. (`mkNixAgent` is gone; see
+      (none is left today; `launchd-naming.md` item 2 names the example to restore) — never bare `sh`/`open`. (`mkNixAgent` is gone; see
       `.claude/rules/launchd-naming.md`.)
 - [ ] `NH-C-plaintext-secret` — never plaintext in `.nix`; agenix vault vs Keychain rules unchanged.
 - [ ] **Already mechanical — spend judgment elsewhere.** Three registry↔consumer invariants
@@ -166,10 +166,10 @@ because CLAUDE.md is near its 40k budget. A path missing from both is itself a f
       (`terranix-drift` in `modules/parts/terranix.nix` filters `config.packages` on the suffix);
       every `cron:` workflow pings a heartbeat or sits in the `unwatched` allowlist
       (`checks.<system>.heartbeat-workflow-parity`); the Bash guard knows every `*-apply`
-      (`checks.<system>.terranix-guard-knows-every-apply`). What none of them sees: a new
-      `*-plan` wrapper with no `passthru.terranixDriftEnv` runs credential-less and shows up
-      only at runtime, as a drift-run `error` — that one IS a finding
-      (`NH-C-plan-without-drift-env`).
+      (`checks.<system>.terranix-guard-knows-every-apply`). A fourth is enforced too: a
+      `*-plan` wrapper with no `passthru.terranixDriftEnv` FAILS EVALUATION
+      (`packages/terranix-drift.nix`'s `uncovered` assert), so
+      `NH-C-plan-without-drift-env` is only that assert's back-stop.
 
 ### D. Comments & docs
 

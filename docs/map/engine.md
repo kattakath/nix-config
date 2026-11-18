@@ -100,7 +100,7 @@ the satellites published `nixosModules.*` to strangers; in-tree the only consume
 
 ### `cloudflared-connector` (wave 3)
 
-Per-file index: [`modules/features/cloudflared-connector/README.md`](../../modules/features/cloudflared-connector/README.md).
+Capsule README (the why; `ls` the directory for its files): [`modules/features/cloudflared-connector/README.md`](../../modules/features/cloudflared-connector/README.md).
 
 The scaffold capsule — the cleanest of the seven, absorbed first precisely because the wave had
 to build the boundary machinery around it.
@@ -124,7 +124,7 @@ to build the boundary machinery around it.
 
 ### `firmware-secrets` (wave 4)
 
-Per-file index: [`modules/features/firmware-secrets/README.md`](../../modules/features/firmware-secrets/README.md).
+Capsule README (the why; `ls` the directory for its files): [`modules/features/firmware-secrets/README.md`](../../modules/features/firmware-secrets/README.md).
 
 - **Owns:** reflash-safe secrets for headless NixOS devices. Plant a secret on the device's FAT
   **firmware** partition from another machine; a boot-time oneshot copies it into a root-only
@@ -146,7 +146,8 @@ Per-file index: [`modules/features/firmware-secrets/README.md`](../../modules/fe
 
 ### `keychain-secrets` (wave 4)
 
-Per-file index: [`modules/features/keychain-secrets/README.md`](../../modules/features/keychain-secrets/README.md).
+Capsule README (the why; `ls` the directory for its files): [`modules/features/keychain-secrets/README.md`](../../modules/features/keychain-secrets/README.md).
+`index-service.nix` is the ONE binding of the secret index's Keychain service name.
 
 - **Owns:** `local.keychainSecrets` — the `secret set/reveal/rm/ls/exec/copy/fp/bind/unbind/adopt/load`
   CLI over the macOS login Keychain, plus a home-manager loader that exports registered secrets
@@ -193,7 +194,8 @@ Per-file index: [`modules/features/keychain-secrets/README.md`](../../modules/fe
 
 ### `tart-vms` (wave 5) — the most LIVE surface
 
-Per-file index: [`modules/features/tart-vms/README.md`](../../modules/features/tart-vms/README.md).
+Capsule README (the why; `ls` the directory for its files): [`modules/features/tart-vms/README.md`](../../modules/features/tart-vms/README.md).
+`slot-defaults.nix` is the one spelling of the two-guest slot budget's defaults.
 
 `macos` declares two Tart-VM GitHub lanes (only `dontsell-vm` enabled) and a GitLab lane off this capsule, and both runner
 modules sit in `mkDarwin`'s **base list**, so EVERY `mkDarwin` composition evaluates them —
@@ -234,7 +236,7 @@ the one exported host (`macos`) and the stranger-identity Mac that
 
 ### `media-cli` (wave 5) — the LARGEST, with the narrowest live surface
 
-Per-file index: [`modules/features/media-cli/README.md`](../../modules/features/media-cli/README.md).
+Capsule README (the why; `ls` the directory for its files): [`modules/features/media-cli/README.md`](../../modules/features/media-cli/README.md).
 
 **One option** in `modules/home/default.nix` is the capsule's entire live surface.
 
@@ -274,7 +276,7 @@ Per-file index: [`modules/features/media-cli/README.md`](../../modules/features/
 
 ### `local-rag` (wave 6) — the last satellite
 
-Per-file index: [`modules/features/local-rag/README.md`](../../modules/features/local-rag/README.md).
+Capsule README (the why; `ls` the directory for its files): [`modules/features/local-rag/README.md`](../../modules/features/local-rag/README.md).
 
 - **Owns:** `local.rag.ollama` + `local.rag.pgvector` — a loopback-only
   Postgres + pgvector + pgsql-http and a loopback-only Ollama, wired by bootstrap SQL into an
@@ -312,7 +314,7 @@ Per-file index: [`modules/features/local-rag/README.md`](../../modules/features/
 
 ### `cloud-cli` (born in-tree 2026-09-20) — the one capsule that was never a satellite
 
-Per-file index: [`modules/features/cloud-cli/README.md`](../../modules/features/cloud-cli/README.md).
+Capsule README (the why; `ls` the directory for its files): [`modules/features/cloud-cli/README.md`](../../modules/features/cloud-cli/README.md).
 
 `local.cloudCli.aws`: the AWS CLI plus `aws-sso-util` and `ssm-session-manager-plugin` (no
 upstream option: pinned `awscli.nix` declares only enable/package/settings/credentials), and **`~/.aws/config.example` —

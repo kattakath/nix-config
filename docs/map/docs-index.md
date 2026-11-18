@@ -19,7 +19,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   which is written in the present tense of a system that no longer exists. What is live is
   [`claude-code.md`](claude-code.md) § MCP after the gateway: servers come from an enabled plugin's
   `.mcp.json`, spawned per
-  session, nothing shared.
+  session. The one shared piece is the Workspace MCP portal
+  (`infra/cloudflare/mcp-portals.nix`, since 2026-11-14).
   - [`docs/mcp-gateway.md`](../mcp-gateway.md) — **RETIRED.** The roster, the
     capabilities-vs-entries counting convention, the lane-ownership rule, and the measurements
     that OUTLIVED the gateway and still bind the plugin lane: the Node-20 `node:sqlite`
@@ -79,9 +80,9 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   terranix, Workspace not — §8c is its doc-rot record);
   [`ADR-006`](../mcp-gateway-succession-adr.md) (**MOOT since 2026-10-02 — never implemented,
   and the question it asked no longer exists.** It weighed ContextForge as a **PORTAL-layer**
-  candidate, not as `mcp-proxy`'s successor; both the proxy and the portal are now destroyed, so
-  there is no succession to decide. Kept for the comparison itself, which is reusable if a portal
-  is ever wanted again, and for the finding that closed it: a remote portal structurally **cannot**
+  candidate, not as `mcp-proxy`'s successor; both the proxy and that portal are destroyed, so
+  there is no succession to decide. Kept for the comparison itself (a portal is live again since
+  2026-11-14, for Google's Workspace servers only), and for the finding that closed it: a remote portal structurally **cannot**
   inject per-user credentials into a local child — the one axis the Cloudflare portal lost on, and
   the exact thing `local.pluginMcp` does by keeping the launcher local);
   [`ADR-007`](../agent-interop-adr.md) (decided, **partially implemented**: **ACP** — Zed's
@@ -205,6 +206,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   6–8 min/day) and the lever backlog with the rejected alternatives — its levers SHIPPED
   2026-10-18 (`ci.md`, `.claude/rules/landing-changes.md`), including removing the
   `deploy-schema` eval edge to the Pi kernel.
+- `docs/superpowers/{plans,specs}/` — dated plan and spec records written by the `superpowers`
+  skills. As-of documents: today the 2026-11-14 Chrome-only browser design and its two plans.
 - [`docs/flakehub-input-freshness.md`](../flakehub-input-freshness.md) — the weekly automated
   `flake.lock` bump flow.
 - [`docs/nix-media-cli-extraction-grant.md`](../nix-media-cli-extraction-grant.md) + its

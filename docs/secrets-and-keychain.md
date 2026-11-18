@@ -157,7 +157,7 @@ for is not cosmetic** — the broad one is refused on the newest API surface:
 | Keychain entry | Scope | Bound to an env var? |
 |---|---|---|
 | `cf:cloudflare.com:nixpi-tunnel` | Account **Cloudflare Tunnel:Edit** (Personal only) + **DNS / Zone Settings / Dynamic URL Redirects :Edit** on `kattakath.com` + `snoringirl.com`. No Access scope, so the `cf-tunnel` stack uses `:api` for now (`infra/cloudflare/nixpi-tunnel.nix`, ADOPTION IS IMPORT-FIRST) | **no** — `secret exec` only |
-| ~~`cf:cloudflare.com:mcp-public`~~ | **ORPHANED 2026-10-02.** Was the only handle that worked on `/access/ai-controls/mcp/*`; the `mcp-public` stack it served is destroyed and deleted, so it has no consumer. Safe to `secret rm` — harmless to leave, since a Keychain item with no caller does nothing | **no** |
+| `cf:cloudflare.com:mcp-public` | **LIVE again since 2026-11-14:** the `cf-mcp-portals` stack's token, and the only handle that works on `/access/ai-controls/mcp/*`. It had no consumer from 2026-10-02 (the `mcp-public` stack's deletion) until then. **Never `secret rm` it** | **no** |
 | ~~`cf:cloudflare.com:mcp-connector`~~ | **ORPHANED 2026-10-02.** Was the published gateway's tunnel connector token (a credential the connector ran with, not an API token). `nix-mcp-tunnel-connector` no longer exists | **no** |
 | `cf:cloudflare.com:api` | broad (both accounts, all zones) — ad-hoc work, and the stacks no scoped handle serves yet (the `cf-*` wrappers' own hints in `modules/parts/terranix.nix` name it) | **no** (was bound, now unbound) |
 

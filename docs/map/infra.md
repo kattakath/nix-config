@@ -48,8 +48,8 @@ nix develop -c bash -c 'secret exec CLOUDFLARE_API_TOKEN=<handle> -- nix run .#<
 may name the handle it needs, with the reason — `nixpi-tunnel.nix`'s "ADOPTION IS IMPORT-FIRST"
 block does.
 
-`cf-mcp-portals`' handles: `cf:cloudflare.com:mcp-public` + `gcp:workspace-gateway:{oauth-client-id,oauth-client-secret,allowed-emails}`,
-via `nix develop -c secret exec VAR=handle… -- nix run .#cf-mcp-portals-{plan,apply}`. Dropping an
+`cf-mcp-portals`: run it bare and its ERROR prints the `secret exec` line; the handles' one home is
+`modules/_lib/keychain-items.nix`. Dropping an
 app needs the operator's `CF_MCP_PORTALS_ALLOW_DROPS=1`.
 
 State is the shared, versioned bucket `kattakath-tofu-state` (named once, as
