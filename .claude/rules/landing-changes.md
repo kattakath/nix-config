@@ -31,7 +31,7 @@ The global rule says to check only what you touched. In this repo that means:
 | any `.nix` | `git add -A`, then `nix fmt` (or `nix build .#checks.<system>.formatting`) |
 | a host or module | the output you changed, e.g. `nix build --no-link .#darwinConfigurations.macos.system` |
 | `.claude/hooks/**` | that hook's `.claude/hooks/tests/*.sh` |
-| `CLAUDE.md` | `wc -c CLAUDE.md`, which must stay under 40,000 bytes (`claude-md-budget`) |
+| `CLAUDE.md`, `docs/repo-map.md` or `docs/map/*.md` | `nix build --no-link .#checks.<system>.claude-md-budget`. Each file has its own byte budget, and several map files sit a few hundred bytes under theirs. `wc -c CLAUDE.md` alone misses them (2026-11-18: a six-line map note turned `main` RED) |
 
 Then the two leak gates from the global rule: `nix develop -c gitleaks git
 --log-opts="origin/main..HEAD" --redact --no-banner`, plus the client-literal patterns.
