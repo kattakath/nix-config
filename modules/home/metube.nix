@@ -59,27 +59,6 @@ let
     text = ''
       mkdir -p ${lib.escapeShellArg videoDir} ${lib.escapeShellArg audioDir} \
         ${lib.escapeShellArg stateDir} ${lib.escapeShellArg "${rootDir}/tmp"}
-      # State files from the first layout sat next to the downloads directory.
-      legacy=${lib.escapeShellArg rootDir}
-      for name in completed.json queue.json pending.json subscriptions.json cookies.txt; do
-        if [ -f "$legacy/$name" ] && [ ! -e ${lib.escapeShellArg stateDir}/"$name" ]; then
-          mv "$legacy/$name" ${lib.escapeShellArg stateDir}/"$name"
-        fi
-      done
-      # Media from that layout. Move once, and do not overwrite a file already
-      # in Movies or Music.
-      old=${lib.escapeShellArg "${rootDir}/downloads"}
-      audio=${lib.escapeShellArg audioDir}
-      video=${lib.escapeShellArg videoDir}
-      if [ -d "$old" ]; then
-        find "$old" -maxdepth 1 -type f \( \
-          -iname '*.mp3' -o -iname '*.m4a' -o -iname '*.opus' -o -iname '*.flac' \
-          -o -iname '*.wav' -o -iname '*.aac' -o -iname '*.ogg' \
-          \) -exec sh -c 'dest="$1/$(basename "$2")"; [ -e "$dest" ] || mv "$2" "$dest"' _ "$audio" {} \;
-        find "$old" -maxdepth 1 -type f \( \
-          -iname '*.mp4' -o -iname '*.mkv' -o -iname '*.webm' -o -iname '*.mov' \
-          \) -exec sh -c 'dest="$1/$(basename "$2")"; [ -e "$dest" ] || mv "$2" "$dest"' _ "$video" {} \;
-      fi
       export HOST=127.0.0.1
       export PORT=${toString cfg.port}
       export DOWNLOAD_DIR=${lib.escapeShellArg videoDir}
