@@ -238,10 +238,11 @@ in
       );
 
   # ---- Org policies, scoped to THIS project ----------------------------------
-  # Google's own guard rails for what enabling Compute creates, instead of deleting
-  # it afterwards. Project-scoped, so the org's other projects are untouched. Set by
-  # the operator, who holds roles/orgpolicy.policyAdmin on the org (2026-11-14). Both
-  # were unenforced (`gcloud resource-manager org-policies describe … --effective`).
+  # Google's own guard rails: two for what enabling Compute creates, instead of
+  # deleting it afterwards, and one on API keys. Project-scoped, so the org's other
+  # projects are untouched. Set by the operator, who holds roles/orgpolicy.policyAdmin
+  # on the org. Each was unenforced before it was declared here
+  # (`gcloud org-policies describe … --effective`).
   # The org policy API wants a quota project with user ADC, hence `google.billed`.
   resource.google_org_policy_policy =
     lib.mapAttrs

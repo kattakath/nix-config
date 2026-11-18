@@ -1,4 +1,4 @@
-# ---- GitHub: rulesets, the merge queue and Actions variables across the fleet repos -----
+# ---- GitHub: rulesets, the merge queue, Actions variables and one deploy environment -----
 #
 # ADR-012 step 3, GitHub half (docs/declarative-gaps-adr.md § 3 row 2). Rendered by
 # modules/parts/terranix.nix (`github-plan` / `github-apply`); state encrypted in the shared
@@ -24,7 +24,8 @@
 # must never exist without the merge_queue rule. `depends_on` creates the ruleset first.
 #
 # NOT DECLARED, on purpose:
-#   - Actions SECRETS: the provider keeps a secret's value in state (ADR-012 § 3).
+#   - Actions SECRETS, the deploy environment's two included: the provider keeps a secret's
+#     value in state (ADR-012 § 3).
 #   - `github_repository`: an import adopts ~36 attributes (description, topics, visibility,
 #     security_and_analysis, has_*), far past the merge settings, and a destroy of it DELETES
 #     the repo. The ruleset's allowed_merge_methods = ["squash"] already enforces the merge
