@@ -294,8 +294,7 @@ nix develop -c secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrom
   Read that profile's `chrome://policy` before adding a policy beyond the extensions.
 - **The stack is not the whole policy.** The root unit holds console-set policies that every
   unit inherits, and the role cannot read or write root. `gws-chrome-plan` reading clean says
-  only that the extension rows match; `chrome://policy` on the Mac is the full list (measured
-  2026-11-18: one stack row, fourteen others).
+  only that the stack's own rows match; `chrome://policy` on the Mac is the full list.
 - **Adding a Chrome profile is blocked from root** (`BrowserAddPersonEnabled = false`). Lift
   it in Admin console > Chrome browser > Settings before re-adding a removed profile, the work
   profile included, then set it back.

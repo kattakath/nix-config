@@ -10,14 +10,15 @@
 # The Keychain is macOS-only, so the Linux hosts get no personal-token mechanism
 # here (use one-time CLI logins: gh/hf/docker, and claude/claude-work).
 #
-# SYSTEM/SERVICE secrets are separate from this profile — FOUR agenix ciphertexts on
+# SYSTEM/SERVICE secrets are separate from this profile — FIVE agenix ciphertexts on
 # two models (secrets/secrets.nix is the count of record): nixpi's Cloudflare tunnel
 # token (secrets/cloudflared-token.age) is an
 # operator-only vault (encrypted to the operator's key alone, decrypted on the Mac,
 # planted on the FAT FIRMWARE partition → /run/cloudflared-token) precisely BECAUSE
 # host-decryption would bind it to the SSH host key a fresh SD flash rotates (see
 # hosts/nixpi.nix); the three runner secrets (gh-app-dontsell-ai-key.age,
-# gh-app-fleet-key.age, gitlab-runner-token.age) ARE host-decrypted into /run/agenix
+# gh-app-fleet-key.age, gitlab-runner-token.age) and Chrome's enrollment token
+# (chrome-enrollment-token.age) ARE host-decrypted into /run/agenix
 # at activation — macos's host key is stable.
 #
 # Deliberately MINIMAL: no nixvim — the operator uses VSCode/Cursor and
