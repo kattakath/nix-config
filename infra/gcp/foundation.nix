@@ -54,6 +54,14 @@ let
     project_creator = "roles/resourcemanager.projectCreator";
   };
 
+  # Organization roles the operator holds and must never lose (see "Who may create").
+  # Same rule as above: the attribute name is the address in state.
+  operatorOrgGrants = {
+    operator_organization_admin = "roles/resourcemanager.organizationAdmin";
+    operator_org_policy_admin = "roles/orgpolicy.policyAdmin";
+    operator_service_usage_viewer = "roles/serviceusage.serviceUsageViewer";
+  };
+
   # APIs this fleet actually turned on, each with the reason it exists. Enabling
   # an API is free; the cost of NOT declaring one is a 403 whose text names a
   # permission rather than a missing service, which is how 2026-09-22 went.
@@ -139,6 +147,8 @@ let
     # in the 400-day audit log. Declared so the live API set and this map are equal:
     # a census then has nothing to explain. `disable_on_destroy = false` keeps them on.
     "analyticshub.googleapis.com" = "Google project default";
+    "apptopology.googleapis.com" =
+      "required by cloudapis: Google refuses to disable it while cloudapis is on (measured 2026-11-18)";
     "backupdr.googleapis.com" = "Google project default";
     "bigquery.googleapis.com" = "Google project default";
     "bigqueryconnection.googleapis.com" = "Google project default";
@@ -245,6 +255,10 @@ in
       {
         skip_default_network = "compute.skipDefaultNetworkCreation";
         no_default_sa_grants = "iam.automaticIamGrantsForDefaultServiceAccounts";
+        # No API key bound to a service account in THIS project. The organization
+        # carries the same constraint unenforced (read 2026-11-18), and another
+        # project uses such a key, so it is enforced here and not there.
+        no_sa_api_keys = "iam.managed.disableServiceAccountApiKeyCreation";
       };
 
   # ---- Geocoding: a hard daily cap, and a key kept OUT of state ---------------
@@ -290,9 +304,11 @@ in
   };
 
   # ---- The automation identity ----------------------------------------------
-  # No KEY. Nothing here creates or stores a service-account key, and the org
-  # policy `constraints/iam.managed.disableServiceAccountApiKeyCreation` is
-  # already in force. Terraform authenticates by IMPERSONATING this account with a
+  # No KEY. Nothing here creates or stores a service-account key, and this project
+  # enforces `iam.managed.disableServiceAccountApiKeyCreation` (declared above).
+  # That constraint covers API keys BOUND to a service account, not service-account
+  # keys themselves: two accounts outside this identity hold one user-managed key
+  # each (read 2026-11-18). Terraform authenticates by IMPERSONATING this account with a
   # short-lived token, which is why the binding below is the only credential that
   # matters and why there is nothing to rotate.
   resource.google_service_account.tofu_fleet = {
@@ -417,12 +433,28 @@ in
   # refused (403 "has not been used in project", measured 2026-11-18).
   data.google_organization.this.domain = lib.last (lib.splitString "@" operatorAccount);
 
+  # The operator's remaining organization grants (all three read live 2026-11-18,
+  # each with the operator as its only member). MEMBER resources, unlike the two
+  # roles above: these are the grants that let the operator repair everything else,
+  # so nothing here may ever strip one. prevent_destroy for the same reason.
+  resource.google_organization_iam_member = lib.mapAttrs (_: role: {
+    org_id = "\${data.google_organization.this.org_id}";
+    inherit role;
+    member = "user:${operatorAccount}";
+    lifecycle.prevent_destroy = true;
+  }) operatorOrgGrants;
+
   # Adopt each existing binding instead of creating over it, so the plan SHOWS the
   # domain leaving rather than a bare "+ create". A no-op once it is in state.
-  import = lib.mapAttrsToList (name: role: {
-    to = "google_organization_iam_binding.${name}";
-    id = "\${data.google_organization.this.org_id} ${role}";
-  }) operatorOnlyOrgRoles;
+  import =
+    lib.mapAttrsToList (name: role: {
+      to = "google_organization_iam_binding.${name}";
+      id = "\${data.google_organization.this.org_id} ${role}";
+    }) operatorOnlyOrgRoles
+    ++ lib.mapAttrsToList (name: role: {
+      to = "google_organization_iam_member.${name}";
+      id = "\${data.google_organization.this.org_id} ${role} user:${operatorAccount}";
+    }) operatorOrgGrants;
 
   resource.google_organization_iam_binding = lib.mapAttrs (_: role: {
     org_id = "\${data.google_organization.this.org_id}";
