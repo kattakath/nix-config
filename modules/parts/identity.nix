@@ -182,6 +182,10 @@ let
   # terranix renders outside any shell and needs it at eval.
   gcpProjectId = "kattakath-family";
 
+  # The Workspace add-on's OWN project (an Apps Script project binds to exactly one).
+  # Nothing is declared in it: gcp-foundation only grants the Grafana reader there.
+  addonGcpProjectId = "jsonresume-connect";
+
   # OpenTofu state bucket (ADR-005 phase 1). Bucket names are a GLOBAL namespace,
   # so this one is prefixed with the org name rather than being a bare "state".
   gcpStateBucket = "kattakath-tofu-state";
@@ -370,6 +374,7 @@ in
         gcpBudgetAmount
         gcpBudgetCurrency
         gcpAutomationServiceAccount
+        addonGcpProjectId
         gcpProjectId
         gcpStateBucket
         gcpStateBucketLocation

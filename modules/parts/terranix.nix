@@ -54,6 +54,7 @@ let
     gcpBudgetAmount
     gcpBudgetCurrency
     gcpAutomationServiceAccount
+    addonGcpProjectId
     gcpProjectId
     gcpStateBucket
     gcpStateBucketLocation
@@ -1145,6 +1146,7 @@ let
         {
           _module.args = {
             projectId = gcpProjectId;
+            addonProjectId = addonGcpProjectId;
             billingAccountId = gcpBillingAccountId;
             operatorAccount = googleAccount;
             automationServiceAccount = gcpAutomationServiceAccount;
@@ -1489,7 +1491,12 @@ let
         {
           _module.args = {
             operatorEmail = googleAccount;
-            inherit gcpProjectId grafanaUrl grafanaRegion;
+            inherit
+              gcpProjectId
+              addonGcpProjectId
+              grafanaUrl
+              grafanaRegion
+              ;
             publicSiteUrl = "https://${(builtins.head hostedSites).domain}/";
           };
         }

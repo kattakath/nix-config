@@ -26,6 +26,7 @@
 {
   lib,
   projectId,
+  addonProjectId,
   billingAccountId,
   operatorAccount,
   automationServiceAccount,
@@ -607,6 +608,16 @@ in
   # Not monitoring.editor (writes), not roles/viewer (every resource in the project).
   resource.google_project_iam_member.grafana_monitoring_reader_viewer = {
     project = projectId;
+    role = "roles/monitoring.viewer";
+    member = "serviceAccount:\${google_service_account.grafana_monitoring_reader.email}";
+  };
+
+  # The same role on the Workspace add-on's project, the ONE thing this stack touches
+  # there: its Apps Script logs and API calls are counted in that project's Cloud
+  # Monitoring, which the reader could not see (read 2026-11-18). A member resource, so
+  # that project's other grants are never rewritten.
+  resource.google_project_iam_member.grafana_monitoring_reader_addon_viewer = {
+    project = addonProjectId;
     role = "roles/monitoring.viewer";
     member = "serviceAccount:\${google_service_account.grafana_monitoring_reader.email}";
   };

@@ -36,6 +36,7 @@
   lib,
   operatorEmail,
   gcpProjectId,
+  addonGcpProjectId,
   grafanaUrl,
   # The stack's region (config.fleet.grafanaRegion), shared with fleet-gauges.
   grafanaRegion,
@@ -43,7 +44,14 @@
   ...
 }:
 let
-  resources = import ./resources.nix { inherit operatorEmail gcpProjectId publicSiteUrl; };
+  resources = import ./resources.nix {
+    inherit
+      operatorEmail
+      gcpProjectId
+      addonGcpProjectId
+      publicSiteUrl
+      ;
+  };
   # The stack slug is the grafana.net subdomain; the stack id and its gcom region are read
   # from the stack itself rather than written here.
   stackSlug = lib.removeSuffix ".grafana.net" (lib.removePrefix "https://" grafanaUrl);
