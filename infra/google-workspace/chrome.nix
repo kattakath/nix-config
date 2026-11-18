@@ -34,6 +34,14 @@
 # admin role restricted to the one unit: measured, it reads the unit (200) and is
 # refused on the root unit (403).
 #
+# BROWSER SETTINGS (2026-11-18) are the second, smaller list: `settings` below. Unlike
+# the extensions they were never set in the console, so they are CREATED, with no
+# `import` block. Each one names EVERY field of its schema (read from the API's
+# policySchemas list): the provider reads the whole object back, so a field left out
+# would show as drift. A two-valued setting is an enum STRING here ("TRUE"/"FALSE"),
+# not a JSON boolean; that is how the API returns the ones the root unit sets.
+# The root unit sets more policies in the console; the role cannot reach them.
+#
 # VARIABLE VALUES are per-tenant DATA and never committed: the engine reads the
 # customer id and the unit id from repository Actions variables at run time
 # (modules/parts/terranix.nix `mkGwsChromeTofu`), the infra/github/stack.nix precedent.
@@ -57,6 +65,35 @@ let
     "pejdijmoenmkgeppbflobdenhhabjlaj" # iCloud Passwords
     "fcoeoabgfenejglbffodgkkbkcdhcgfn" # Claude in Chrome — the agents' only browser rail
   ];
+
+  # Schema name (without the `chrome.users.` prefix) -> every field of that schema.
+  settings = {
+    # The default blocks DevTools on force-installed extensions, which is every
+    # extension above. The second field's UNSET means "follow the first".
+    DeveloperTools = {
+      developerToolsAvailability = "DEVELOPER_TOOLS_AVAILABILITY_ENUM_ALWAYS_ALLOW_DEVELOPER_TOOLS";
+      extensionDeveloperModeSettings = "EXTENSION_DEVELOPER_MODE_SETTINGS_ENUM_UNSET";
+    };
+    # No usage or crash reports to Google, and the toggle is locked.
+    MetricsReportingEnabled = {
+      metricsReportingEnabled = "FALSE";
+      metricsReportingEnabledCategoryItemPolicyMode = "POLICY_MODE_MANDATORY";
+    };
+    # Visited URLs are not sent to Google.
+    UrlKeyedAnonymizedDataCollectionEnabled = {
+      urlKeyedAnonymizedDataCollectionEnabled = "FALSE";
+    };
+  };
+
+  settingFor = schema: values: {
+    org_unit_id = "\${var.org_unit_id}";
+    policies = [
+      {
+        schema_name = "chrome.users.${schema}";
+        schema_values = lib.mapAttrs (_: builtins.toJSON) values;
+      }
+    ];
+  };
 
   idOk = id: builtins.match "[a-p]{32}" id != null;
   addr = id: "ext_${id}";
@@ -123,7 +160,9 @@ in
     id = "id:\${var.org_unit_id}/app_id=chrome:${id}/${installTypeSchema}";
   }) extensions;
 
-  resource.googleworkspace_chrome_policy = lib.listToAttrs (
-    map (id: lib.nameValuePair (addr id) (policyFor id)) extensions
-  );
+  resource.googleworkspace_chrome_policy =
+    lib.listToAttrs (map (id: lib.nameValuePair (addr id) (policyFor id)) extensions)
+    // lib.mapAttrs' (
+      schema: values: lib.nameValuePair "set_${schema}" (settingFor schema values)
+    ) settings;
 }

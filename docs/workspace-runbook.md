@@ -261,6 +261,7 @@ the rest of this section is what stays by hand.
 |---|---|---|
 | Enrollment token on the Mac | `modules/darwin/chrome-enterprise.nix` (`local.chromeEnterprise`), agenix `chrome-enrollment-token.age` | **yes** |
 | Force-installed extensions | `infra/google-workspace/chrome.nix`, the `gws-chrome` stack | **yes** — the one extension list |
+| Browser settings on that unit (DevTools on forced extensions, telemetry off, URL collection off) | the same file, its `settings` list | **yes** — created by the stack, never set in the console |
 | The unit that holds enrolled browsers | Admin console; its id is the repo variable `GWS_CHROME_ORG_UNIT_ID` | no — the role cannot manage units |
 | The Chrome-only admin role and its assignment | Admin console > Account > Admin roles | no — needs a super admin |
 | Minting or rotating the enrollment token | Admin console > Chrome browser > Tokens | no — no provider resource |
