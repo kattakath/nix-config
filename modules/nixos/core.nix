@@ -183,13 +183,9 @@
     # space measure for nixpi's 14 GiB capped counterfeit card, and was retired
     # 2026-11-09 with that card: no NixOS host here is short of disk.
 
-    # Periodic TRIM instead of online `discard` (Determinate best-practices § "Don't
-    # mount your Nix store with online discard"): a weekly fstrim reclaims freed
-    # blocks in one batch, where a `discard` mount option would issue one
-    # synchronous request per freed extent during every GC. Root (the SD image's
-    # ext4) does not mount with `discard`, so this is the missing half. Upstream option: services.fstrim (nixos/modules/services/misc/fstrim.nix),
-    # default interval weekly.
-    services.fstrim.enable = true;
+    # Periodic TRIM, not online `discard` (Determinate best-practices § "Don't mount
+    # your Nix store with online discard"). Nothing to set: `services.fstrim.enable`
+    # is the pinned nixpkgs default (weekly), and root does not mount with `discard`.
 
     # THE SYSTEMD INITRD'S `linux` TERMINFO ENTRY IS UNREACHABLE WHEN BUILT ON
     # THE MAC, so drop it. Without this, EVERY build of a systemd-initrd host

@@ -2544,7 +2544,7 @@ in
               # (measured 2026-10-17, avahi#117 — hosts/nixpi.nix). `or null` so a
               # vanished option reads as broken rather than throwing.
               avahi = pi.services.avahi or { };
-              avahiIfaces = avahi.allowInterfaces or null;
+              avahiIfaces = avahi.settings.server.allow-interfaces or null;
               wiredIface = pi.local.uplinkWatchdog.wiredInterface or null;
               addrs = map (a: a.addr or null) listen;
               addrsWellFormed = !(lib.elem null addrs);

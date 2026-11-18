@@ -195,7 +195,7 @@
   # — the same tpm-tis/tpm-crb modules-shrunk failure this file used to mkForce
   # away on the old kernel. One copy, upstream's.
 
-  # systemd stage-1 (the nixpkgs default; the scripted initrd is removed in 26.11).
+  # systemd stage-1.
   # It replaced a forced scripted initrd on 2026-11-07, after the 6.6.51 kernel whose
   # stage-1 hung mounting /sysroot was gone; nixpkgs has since removed the scripted
   # initrd and its option, so nothing can switch back. If a boot ever hangs in stage-1, pick the previous extlinux entry at the
