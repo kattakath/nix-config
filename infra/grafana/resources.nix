@@ -485,10 +485,20 @@ let
       datasource ? "grafanacloud-prom",
       repeat ? "1d",
       # The query model; a non-Prometheus datasource passes its own shape here.
-      model ? {
-        inherit expr;
-        instant = true;
-      },
+      # Loki ignores `instant` and answers a range series, which alerting refuses ("only
+      # reduced data can be alerted on"): its switch is queryType (measured 2026-11-18,
+      # 1561 points against 1). That error kept one canary rule firing for two weeks.
+      model ?
+        if datasource == "grafanacloud-logs" then
+          {
+            inherit expr;
+            queryType = "instant";
+          }
+        else
+          {
+            inherit expr;
+            instant = true;
+          },
       # Insert a reduce node B (last value) between A and the threshold. Needed by a
       # datasource whose backend only answers range queries: the stackdriver plugin calls
       # query_range alone, and Grafana refuses to alert on a series that is not reduced.
