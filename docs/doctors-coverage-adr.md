@@ -97,7 +97,7 @@ Shares are of 28 and rounded, so they sum to 99%.
 | Output standard | SARIF 2.1.0 | health check response format |
 | Composes | `nix fmt`, `nix flake check` | `/hygiene` (step D), `launchd-doctor`, `activate` |
 
-## 5. Moves 1–6 (adopted)
+## 5. Moves 1–8 (adopted)
 
 Each move adds a JSON summary that `fleet-gauges` reads hourly, a Grafana series, and an alert rule
 in the terranix Grafana stack (ADR-012 § 5 step 2).

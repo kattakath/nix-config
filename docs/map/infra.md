@@ -337,8 +337,8 @@ only ever consumed by the `cachix` CLI at push time.
 - **Datasource secrets are never Terraform's:** `secure_json_data_encoded` is ignored, so the
   GitHub App, Sheets reader and Cloud Monitoring reader keys stay only in Grafana, never state.
   The li-logs token IS in state; `grafana-apply` pipes it to the Keychain.
-- **Maps usage:** datasource `gcp-monitoring` (SA `grafana-monitoring-reader`, viewer-only),
-  dashboard + rule group `maps-platform`. Queried live, so it costs no Grafana series.
+- **Maps + add-on:** datasource `gcp-monitoring` (SA `grafana-monitoring-reader`, viewer, both projects),
+  dashboard + rule group `maps-platform`. Queried live: no Grafana series.
 - **Guards** (the same set as the github stack's): an empty-state guard (with no state, every
   resource must have an import block — `GRAFANA_ALLOW_CREATE`), a drop guard (a render that
   loses an object state holds refuses — `GRAFANA_ALLOW_DROPS`) and no `-auto-approve`.
