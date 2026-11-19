@@ -1,5 +1,5 @@
 # A content-hash-pinned Chrome for Testing, exported as PUPPETEER_EXECUTABLE_PATH,
-# plus the three agent browser-rail MCP launchers and a login helper (below).
+# plus the two agent browser-rail MCP launchers (below).
 # puppeteer renders the JSON Resume PDFs (packages/jsonresume.nix), and a render must
 # not change because the daily browser auto-updated overnight. So puppeteer gets a
 # browser that moves only with a nixpkgs bump. listing-lens pins the same nixpkgs
@@ -30,10 +30,9 @@ let
   # `browsers-chromium` is a linkFarm keyed `chromium-<revision>`. The revision
   # comes from the same derivation's passthru, so a nixpkgs bump cannot leave
   # this pointing at a directory that no longer exists.
-  cftApp =
+  chromeExecutable =
     "${pw.browsers-chromium}/chromium-${pw.browsersJSON.chromium.revision}"
-    + "/chrome-mac-arm64/Google Chrome for Testing.app";
-  chromeExecutable = cftApp + "/Contents/MacOS/Google Chrome for Testing";
+    + "/chrome-mac-arm64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing";
 
   # Fails the BUILD if the zip layout ever moves, instead of puppeteer failing at
   # render time. The output holds no store path, so it adds no runtime reference.
@@ -45,10 +44,10 @@ let
     mkdir -p "$out"
   '';
 
-  # ---- the three agent browser rails (page-tools plugin, github:kattakath/skills) ----
+  # ---- the two agent browser rails (page-tools plugin, github:kattakath/skills) ----
   # Every argument lives HERE, so each client config names only a command and has
   # nothing to drift. Claude Code, grok and qwen read the plugin's .mcp.json; agy
-  # cannot, so it gets the same three names through programs.antigravity-cli below.
+  # cannot, so it gets the same two names through programs.antigravity-cli below.
   #
   # playwright-chrome-mcp: nixpkgs playwright-mcp in --extension mode drives the
   #   operator's REAL Chrome through the force-installed Playwright Extension
@@ -59,18 +58,6 @@ let
   #   above, headless, throwaway profile, over a pipe. Measured the same day: trusted
   #   clicks. Not in nixpkgs, so it rides a pinned npx spec (the kapture-mcp precedent,
   #   docs/declarative-gaps-adr.md). It refuses chrome:// URLs by itself.
-  # chrome-devtools-cft-profile-mcp: the same server on the same CfT, but HEADED and on a
-  #   PERSISTENT profile, so a site login survives between sessions. CfT is a separate app
-  #   (`com.google.chrome.for.testing`), and Chrome's enrollment and policy do not reach it.
-  #   Measured 2026-11-19: CfT 156 answered on --remote-debugging-port while
-  #   RemoteDebuggingAllowed = false was set for the enrolled Chrome. The launcher keeps the
-  #   pipe anyway, so no local app gets a port into the logged-in profile.
-  #   --ignoreDefaultChromeArg=--use-mock-keychain: puppeteer's default args include it, and
-  #   that flag encrypts cookies with a fixed mock key instead of the login Keychain. Without
-  #   it, the cookies stay Keychain-encrypted and match the ones `cft-profile` writes.
-  # cft-profile: opens that profile by hand, with NO automation flags, so the operator can
-  #   log in. Google's sign-in can refuse a browser carrying --enable-automation. Chrome
-  #   locks a profile to one process, so close this window before the agent launches its own.
   playwrightChromeMcp = pkgs.writeShellApplication {
     name = "playwright-chrome-mcp";
     runtimeInputs = [ pkgs.playwright-mcp ];
@@ -84,26 +71,6 @@ let
       exec npx -y chrome-devtools-mcp@1.13.0 \
         --executablePath ${lib.escapeShellArg chromeExecutable} \
         --isolated --headless --no-usage-statistics "$@"
-    '';
-  };
-  cftProfileDir = ''"''${XDG_STATE_HOME:-$HOME/.local/state}/cft-profile"'';
-  chromeDevtoolsCftProfileMcp = pkgs.writeShellApplication {
-    name = "chrome-devtools-cft-profile-mcp";
-    runtimeInputs = [ pkgs.nodejs ];
-    text = ''
-      exec npx -y chrome-devtools-mcp@1.13.0 \
-        --executablePath ${lib.escapeShellArg chromeExecutable} \
-        --userDataDir ${cftProfileDir} \
-        --ignoreDefaultChromeArg=--use-mock-keychain \
-        --no-usage-statistics "$@"
-    '';
-  };
-  cftProfile = pkgs.writeShellApplication {
-    name = "cft-profile";
-    text = ''
-      # open -n, not a backgrounded exec: LaunchServices owns the process, so closing the
-      # terminal does not take the window with it.
-      exec /usr/bin/open -na ${lib.escapeShellArg cftApp} --args --user-data-dir=${cftProfileDir} --no-first-run "$@"
     '';
   };
 in
@@ -125,8 +92,6 @@ in
     home.packages = [
       playwrightChromeMcp
       chromeDevtoolsCftMcp
-      chromeDevtoolsCftProfileMcp
-      cftProfile
     ];
 
     # agy only: the module writes ~/.gemini/config/mcp_config.json. `package = null`
@@ -137,7 +102,6 @@ in
       mcpServers = {
         playwright.command = "playwright-chrome-mcp";
         chrome-devtools.command = "chrome-devtools-cft-mcp";
-        cft-profile.command = "chrome-devtools-cft-profile-mcp";
       };
     };
 

@@ -46,9 +46,5 @@
     ".local/state/nix-config-cf-tunnel"
     ".local/state/nix-config-mcp-public"
     ".aws/sso/cache"
-    # The persistent Chrome for Testing profile (modules/home/pinned-chrome.nix). Its
-    # cookies are Keychain-encrypted, but Local Storage and IndexedDB are plaintext, and
-    # many sites keep their session token there.
-    ".local/state/cft-profile"
   ];
 }

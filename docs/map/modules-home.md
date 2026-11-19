@@ -31,8 +31,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `home.packages` also carries `pandoc`/`poppler-utils` (nixpkgs, darwin-only) — together with
   macos's `libreoffice` cask, these satisfy the docx/pptx/xlsx/pdf skills' stated runtime deps
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
-  wired. Also declares Spotlight-visible `.app` bundles for the Android emulator
-  (focus-or-launch) and the Test Browser (`cft-profile`) (`home.file."Applications/<name>.app"`, backed by
+  wired. Also declares a Spotlight-visible, focus-or-launch `.app` bundle for the Android
+  emulator (`home.file."Applications/Android Emulator.app"`, backed by
   `packages/spotlight-launchers.nix`, macos-only). **qBittorrent** is planted the
   same `recursive = true` way (`home.file."Applications/qBittorrent.app"`, from nixpkgs): NOT the
   Homebrew cask, which Homebrew DISABLED on 2026-09-01 for failing Gatekeeper, and NOT
@@ -126,9 +126,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
 - **`pinned-chrome.nix`** — `local.pinnedChrome`, darwin only: a content-hash-pinned Chrome for
   Testing (nixpkgs `playwright-driver.browsers-chromium`) exported as
   `PUPPETEER_EXECUTABLE_PATH`, so a résumé PDF render never changes because the daily Chrome
-  auto-updated. It also ships the three `page-tools` launchers (`playwright-chrome-mcp`, and
-  `chrome-devtools-cft-mcp`/`-cft-profile-mcp`, which drive this CfT throwaway or on a persistent
-  profile), the `cft-profile` login helper, agy's MCP config and qwen's page-tools install guard. Why: its header.
+  auto-updated. It also ships the two `page-tools` launchers (`playwright-chrome-mcp`,
+  `chrome-devtools-cft-mcp`, which drives this CfT), agy's MCP config and qwen's page-tools install guard. Why: its header.
 - **The media stack is a CAPSULE, not a module in this directory.** `media-queue.nix`, the
   media CLIs and the Finder Services left for
   [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) on 2026-09-05 and came
