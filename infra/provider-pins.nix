@@ -40,9 +40,9 @@
   # 5.29.0 since 2026-11-19: 5.25.0 cannot create or read `cloudflare_ai_search_instance`
   # (model.go declares `vectorize_name`, schema.go does not: upstream #7383, fixed in
   # 5.29.0). Planned clean the same day on 5.29.0: cf-zones, cf-tunnel, cf-mcp-portals
-  # ("No changes"); cf-ai-search (its first create). cf-access-org is PARTLY re-derived
-  # (encoder.go byte-identical, model rename + one new optional field; see access-org.nix)
-  # and its state is not yet migrated, so that stack refuses until it is.
+  # ("No changes"); cf-ai-search (its first create). cf-access-org re-derived (encoder.go
+  # byte-identical, model rename + new optional fields; see access-org.nix), its state
+  # migrated by ONE refresh-only apply, and it too plans "No changes".
   # Re-lock each stack once with TOFU_INIT_UPGRADE=1 (modules/parts/terranix.nix).
   cloudflare = "5.29.0";
   google = "8.4.0";

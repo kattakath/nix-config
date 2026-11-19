@@ -114,9 +114,10 @@
   # encoder.go identical; resource.go changed one error string; model.go renamed
   # `mfa_ssh_piv_key_requirements` -> `mfa_piv_key_requirements` and added optional
   # `service_token_inactivity`, which is SET live ({enabled = false}). Both joined the
-  # wrapper's risky list. NOT yet done: this stack's state still holds the old field
-  # name (the rename kept schema version 500, so no upgrader runs) and `tofu show
-  # -json` fails, so the wrapper REFUSES every run until the state is migrated.
+  # wrapper's risky list. The rename kept schema version 500, so no upgrader ran and
+  # `tofu show -json` failed on the old field name until ONE refresh-only apply
+  # rewrote the state (2026-11-19; it added only default-valued fields). Since then the
+  # stack plans "No changes" with `dns64_enabled` (also new) declared below.
   terraform.required_providers.cloudflare = {
     source = "cloudflare/cloudflare";
     version = "= ${(import ../provider-pins.nix).cloudflare}";
@@ -230,6 +231,9 @@
     dns_destination_ips_id = "0e4a32c6-6fb8-4858-9296-98f51631e8e6";
     networks = [ ];
     max_ttl.mode = "inherit";
+    # New (optional) in provider 5.29.0 and false live: declared so the encoder does not
+    # send an explicit null for it (the null-out rule in this file's header).
+    dns64_enabled = false;
   };
 
   resource.cloudflare_zero_trust_device_default_profile.default = {
