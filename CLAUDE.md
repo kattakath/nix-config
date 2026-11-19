@@ -187,8 +187,8 @@ copy self-updates). Why:
 
 **Commands** (`.claude/commands/`): `/eval`, `/hygiene`, `/update-input`,
 `/pretooluse-review`, `/remember-nix`, `/routing-review`, `/mcp-scout`,
-`/fleet-doctor`, `/userscript`. (`/superhook-review`: `superhook` plugin.) **Browser rail:**
-Claude in Chrome only; on a site-permission wall, ask — never CDP.
+`/fleet-doctor`, `/userscript`. (`/superhook-review`: `superhook` plugin.) **Browser rails:**
+Claude in Chrome first, else `page-tools` (Playwright: real Chrome; chrome-devtools: CfT).
 
 **Project skills** (`.claude/skills/`): `nix-hygiene`, `nixpi-firmware-provision`,
 `mcp-scout`, `fleet-doctor`, `userscript-author`. Workflow: `nix-hygiene-pass`.

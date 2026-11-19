@@ -433,11 +433,9 @@ Two of them carry write-ups worth keeping:
   `userscript-lab:site-redesign`) and the Greasy Fork rulebook, linted by
   `plugins/userscript-lab/scripts/userscript-meta-lint.sh`; read its own `README.md` in
   [`kattakath/skills`](https://github.com/kattakath/skills/tree/main/plugins/userscript-lab)
-  rather than a summary here. It drives no browser of its own: the agents' browser rail is
-  **Claude in Chrome** only. Measured 2026-11-14: its `computer` clicks and keys arrive
-  trusted (`isTrusted: true`); it has no document-start injection; `find` + `file_upload`
-  reaches a hidden file input. On a per-site permission wall, ask the operator — never fall
-  back to CDP.
+  rather than a summary here. It drives no browser of its own; it uses **Claude in Chrome**. Every
+  other agent's rails are the `page-tools` plugin (its README holds the order and the
+  measurements). On a per-site permission wall, ask the operator.
   **History, one line:** it replaced `page-lab` (CDP diagnosis, the element picker, the
   `chrome-devtools`/`chrome-lab`/`kapture` MCP servers, `/devtools`, `/pick`), deleted
   2026-11-14 with the ungoogled-chromium browser it attached to.
