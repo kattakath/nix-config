@@ -57,8 +57,8 @@ Claude Code spawns one stdio child PER SESSION  —  nothing shared, nothing lon
   declaration lands: the owning plugin's repo, not this one.
 - **A claude.ai connector beats its plugin twin.** When an official connector serves the same
   URL as a plugin's server, the plugin copy is denied by `serverName` in
-  `programs.claude-code.settings.deniedMcpServers` (`modules/home/default.nix`): AWS, Cloudflare,
-  Slack and Neon today. Cloud routines reach only connectors, so the connector is the one lane
+  `programs.claude-code.settings.deniedMcpServers` (`modules/home/default.nix`), which names
+  each twin. Cloud routines reach only connectors, so the connector is the one lane
   that works everywhere. `fleet-doctor` § E4 checks the denied names still match nothing.
 
 History, kept deliberately rather than deleted — [`mcp-gateway.md`](../mcp-gateway.md) is the

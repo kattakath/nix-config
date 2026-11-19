@@ -979,6 +979,13 @@ in
           # not sign in from a cloud session), so the plugin twins are denied like the above.
           { serverName = "plugin:stripe:stripe"; }
           { serverName = "plugin:apify:apify"; }
+          # GitLab, Grafana Cloud and Linear (operator, 2026-11-19): the claude.ai-synced plugins
+          # bundle the vendor's own HTTP server, so each loaded TWICE beside its connector
+          # (measured: gitlab 46/46, linear 78/78, grafana 134 named tools on both sides).
+          # The connector serves for the same one-sign-in reason as the above.
+          { serverName = "plugin:gitlab:gitlab"; }
+          { serverName = "plugin:grafana-cloud-mcp:grafana-cloud"; }
+          { serverName = "plugin:linear:linear"; }
           # The claude.ai Microsoft 365 connector was denied here 2026-11-01 (tenant blocked
           # consent); lifted 2026-11-13 once the operator re-added it on claude.ai.
         ];

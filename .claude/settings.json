@@ -116,6 +116,15 @@
     },
     {
       "serverName": "plugin:apify:apify"
+    },
+    {
+      "serverName": "plugin:gitlab:gitlab"
+    },
+    {
+      "serverName": "plugin:grafana-cloud-mcp:grafana-cloud"
+    },
+    {
+      "serverName": "plugin:linear:linear"
     }
   ]
 }
