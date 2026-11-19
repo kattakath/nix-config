@@ -2,7 +2,8 @@
 # into the STORE and passes it as `brew bundle --file=`; there is no ~/Brewfile).
 # nix-homebrew (./nix-homebrew.nix) installs brew itself; this module owns only
 # HOW Homebrew is configured — `enable`, `onActivation` (lean cleanup), and
-# `taps`. The concrete WHICH-apps lists (`brews`/`casks`/`masApps`) are set
+# `taps`, plus the one cross-host cask below (`firefox`). The concrete WHICH-apps
+# lists (`brews`/`casks`/`masApps`) are otherwise set
 # PER HOST in hosts/<host>.nix, so each darwin host can carry
 # a different app set while sharing this framework. (Nix list options merge, so
 # lists could never *differ* if they lived here — only grow.)
@@ -79,6 +80,16 @@ _:
     # mutableTaps = true (./nix-homebrew.nix).
 
     # ---- brews / casks / masApps ------------------------------------------
-    # Set per host in hosts/<host>.nix (e.g. hosts/macos.nix).
+    # Per-host lists live in hosts/<host>.nix (e.g. hosts/macos.nix); the list
+    # options MERGE, so what is declared below lands on EVERY darwin host that
+    # imports this module (template consumers included) and is protected from
+    # `cleanup = "zap"` there.
+    #
+    # Firefox: the vendor-signed `.app` from the cask, not nixpkgs. Measured
+    # 2026-11-19 on the pinned nixpkgs for aarch64-darwin: `firefox` and
+    # `firefox-bin` have NO cache.nixos.org entry (a local build; the source
+    # build is hours of Rust/C++), and a Nix-store `.app` is unreliable for
+    # Launch Services/Spotlight. `firefox-esr` is cached but an older line.
+    casks = [ "firefox" ];
   };
 }
