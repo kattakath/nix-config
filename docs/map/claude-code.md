@@ -350,8 +350,8 @@ only difference between "someone else's skill" and "mine" is now who can push to
   **No pin bump follows** since 2026-09-23: the marketplace is an https git source with
   `autoUpdate`, so a merge on `kattakath/skills` `main` ships by itself. A `flake.lock` bump is
   needed **only** when the thing you landed is consumed through the `kattakath-skills` INPUT —
-  i.e. a plugin that `checks.*.mcp-launcher-parity` reads (its only consumer since
-  `page-lab-pick` was deleted 2026-11-14). (`superhook` became a
+  i.e. a plugin that `checks.*.mcp-launcher-parity` or `checks.*.workspace-plugin-parity`
+  reads (the only two consumers since `page-lab-pick` was deleted 2026-11-14). (`superhook` became a
   plugin hook 2026-09-30; `mcp.nix`'s `mcpCatalog` was the other, and it went with `mcp.nix` on
   2026-10-02.)
 
@@ -391,8 +391,9 @@ flake pin**: since 2026-09-23 it is registered as the https git source
 `https://github.com/kattakath/skills.git` with `autoUpdate = true`, and it is one of the declared
 marketplaces in `local.claudePlugins.marketplaces` (`modules/home/default.nix` — read it, not a count
 here); none is a `/nix/store` path today. The `kattakath-skills`
-input survives for ONE consumer, `checks.*.mcp-launcher-parity` — never for the
-marketplace source. (It was `superhook` + `page-lab-pick` + `mcp.nix`'s `mcpCatalog`; superhook
+input survives for TWO consumers, `checks.*.mcp-launcher-parity` and
+`checks.*.workspace-plugin-parity` (kattakath-workspace's generated allowlist + its connector
+deny) — never for the marketplace source. (It was `superhook` + `page-lab-pick` + `mcp.nix`'s `mcpCatalog`; superhook
 became a plugin hook 2026-09-30, `mcpCatalog` died with the gateway 2026-10-02, and
 `page-lab-pick` went with `page-lab` 2026-11-14.) (The renamed-repo and pinned-era history is the quoted
 update block above.)

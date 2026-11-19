@@ -3963,6 +3963,77 @@ in
                 "plugin field, or the plugin, then bump the kattakath-skills pin."
               ];
             };
+
+          # The Workspace MCP portal's tool allowlist has ONE owner, workspace-mcp-apps.nix.
+          # The kattakath-workspace plugin ships a GENERATED copy
+          # (skills/kattakath-workspace/references/allowlist.json, written by the plugin's
+          # scripts/gen-allowlist.sh) that its router, its /status skill and its write guard's
+          # tests read. Two copies drift silently, so this compares them, plus the one name
+          # the two repos must spell identically: the plugin's .mcp.json server key, which
+          # the user-scope deniedMcpServers entry plugin:kattakath-workspace:<key> must match
+          # or the plugin's copy of the connector stops being denied and a second sign-in
+          # appears.
+          #   (a) mapAttrs (_: a: a.tools) of the apps file == the PINNED copy's `apps`;
+          #   (b) the pinned .mcp.json has exactly one server, and macos denies exactly it.
+          # Same cost as mcp-launcher-parity: a change over there turns this RED at the next
+          # pin bump. Land an allowlist change as ONE commit here: the apps edit plus
+          # `nix flake update kattakath-skills` (after the regenerated copy is pushed there).
+          workspace-plugin-parity =
+            let
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              expected =
+                builtins.mapAttrs (_: a: a.tools)
+                  (import ../../infra/cloudflare/workspace-mcp-apps.nix).apps;
+              dir = "${inputs.kattakath-skills}/plugins/kattakath-workspace";
+              allowFile = "${dir}/skills/kattakath-workspace/references/allowlist.json";
+              mcpFile = "${dir}/.mcp.json";
+              readJson = f: if builtins.pathExists f then builtins.fromJSON (builtins.readFile f) else { };
+              pinned = (readJson allowFile).apps or null;
+              keys = lib.attrNames ((readJson mcpFile).mcpServers or { });
+              prefix = "plugin:kattakath-workspace:";
+              denied = lib.filter (lib.hasPrefix prefix) (
+                map (d: d.serverName or "") (hm.programs.claude-code.settings.deniedMcpServers or [ ])
+              );
+              appDiff =
+                let
+                  apps = lib.unique (
+                    lib.attrNames expected ++ lib.attrNames (if pinned == null then { } else pinned)
+                  );
+                in
+                lib.filter (
+                  a: (expected.${a} or null) != ((if pinned == null then { } else pinned).${a} or null)
+                ) apps;
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "workspace-plugin-parity";
+              subject = "the pinned kattakath-workspace plugin matches workspace-mcp-apps.nix and the connector deny";
+              expect = [
+                {
+                  name = "the pinned plugin ships references/allowlist.json with an apps attribute";
+                  ok = pinned != null;
+                }
+                {
+                  name = "allowlist.json apps equal workspace-mcp-apps.nix (apps that differ: ${toString appDiff})";
+                  ok = pinned != null && appDiff == [ ];
+                }
+                {
+                  name = "the pinned .mcp.json declares exactly one server (found: ${toString keys})";
+                  ok = builtins.length keys == 1;
+                }
+                {
+                  name = "macos denies exactly that server as plugin:kattakath-workspace:KEY (denied: ${toString denied})";
+                  ok = builtins.length keys == 1 && denied == [ "${prefix}${builtins.head keys}" ];
+                }
+              ];
+              advice = [
+                "allowlist.json is generated: run the plugin's scripts/gen-allowlist.sh against"
+                "this checkout, push kattakath/skills, then in ONE commit here keep the apps edit"
+                "and run nix flake update kattakath-skills. A red .mcp.json/deny leg means the"
+                "plugin renamed its server key: change the deniedMcpServers entry in"
+                "modules/home/default.nix to plugin:kattakath-workspace:NEW-KEY in the same commit."
+              ];
+            };
         };
 
       # The writer for the generated block `hosts-documented` checks (see `generatedBlock`).
