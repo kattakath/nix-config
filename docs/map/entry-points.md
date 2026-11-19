@@ -75,6 +75,8 @@ CLAUDE.md § Overview and [`hosts.md`](hosts.md).
 | `cf-access-org-apply` | yes | yes |
 | `cf-access-org-import` | yes | yes |
 | `cf-access-org-plan` | yes | yes |
+| `cf-ai-search-apply` | yes | yes |
+| `cf-ai-search-plan` | yes | yes |
 | `cf-mcp-portals-apply` | yes | yes |
 | `cf-mcp-portals-plan` | yes | yes |
 | `cf-tunnel-apply` | yes | yes |
