@@ -47,8 +47,8 @@ re-creates the retired gateway or `mcp-public`** unless the operator asks for on
 
 **`cf-mcp-portals` is the sanctioned Workspace MCP stack (2026-11-14).** It
 (`infra/cloudflare/mcp-portals.nix` + `workspace-mcp-apps.nix`) publishes ONE Cloudflare MCP
-portal, "Kattakath Workspace", holding Google's Workspace MCP servers plus one self-hosted
-Tasks server (`tasks-mcp`, Cloud Run, declared in `infra/gcp/foundation.nix`), gated by
+portal, "Kattakath Workspace", holding Google's Workspace MCP servers plus self-hosted ones
+(Tasks, Forms, Contacts, a Docs reader: Cloud Run, `infra/gcp/self-hosted-mcp.nix`), gated by
 `checks.<system>.mcp-portal-posture`. So `mcp.kattakath.com` is declared again: the CNAME is
 `gatewayRecords` in `infra/cloudflare/kattakath-dns.nix`. Removing a portal app needs
 `CF_MCP_PORTALS_ALLOW_DROPS=1`, named by the operator only.

@@ -36,6 +36,7 @@
   lib,
   operatorEmail,
   gcpProjectId,
+  gcpProjectNumber,
   addonGcpProjectId,
   grafanaUrl,
   # The stack's region (config.fleet.grafanaRegion), shared with fleet-gauges.
@@ -48,6 +49,7 @@ let
     inherit
       operatorEmail
       gcpProjectId
+      gcpProjectNumber
       addonGcpProjectId
       publicSiteUrl
       ;

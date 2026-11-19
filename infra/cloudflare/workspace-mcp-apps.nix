@@ -224,6 +224,8 @@
       selfHosted = {
         service = "tasks-mcp";
         region = "us-central1";
+        # The server's `--tools` family.
+        family = "tasks";
       };
       path = "/mcp";
       scopes = [
@@ -242,6 +244,94 @@
         "list_tasks"
         "get_task"
         "manage_task"
+      ];
+    };
+
+    # The SAME self-hosted pattern as `tasks` (2026-11-18): Google hosts no MCP server for
+    # Forms or for Contacts writes, and Google's Docs server reads a document as ~2 MB of
+    # structure. Each is its own Cloud Run service (one family, one scope set, one blast
+    # radius), rendered by infra/gcp/foundation.nix from `selfHosted`. `scopes` = each
+    # server's own advertised set, measured from its 401 with workspace-mcp 2.5.0.
+    #
+    # Operator decision 2026-11-18: Forms and Contacts get EVERY tool (create, edit,
+    # publish forms; create, edit, delete contacts and groups).
+    forms = {
+      title = "Forms";
+      selfHosted = {
+        service = "forms-mcp";
+        region = "us-central1";
+        family = "forms";
+      };
+      path = "/mcp";
+      scopes = [
+        "https://www.googleapis.com/auth/forms.body"
+        "https://www.googleapis.com/auth/forms.body.readonly"
+        "https://www.googleapis.com/auth/forms.responses.readonly"
+        "https://www.googleapis.com/auth/userinfo.email"
+        "https://www.googleapis.com/auth/userinfo.profile"
+        "openid"
+      ];
+      tools = [
+        "create_form"
+        "get_form"
+        "batch_update_form"
+        "set_publish_settings"
+        "get_form_response"
+        "list_form_responses"
+      ];
+    };
+    contacts = {
+      title = "Contacts";
+      selfHosted = {
+        service = "contacts-mcp";
+        region = "us-central1";
+        family = "contacts";
+      };
+      path = "/mcp";
+      scopes = [
+        "https://www.googleapis.com/auth/contacts"
+        "https://www.googleapis.com/auth/contacts.readonly"
+        "https://www.googleapis.com/auth/userinfo.email"
+        "https://www.googleapis.com/auth/userinfo.profile"
+        "openid"
+      ];
+      tools = [
+        "search_contacts"
+        "get_contact"
+        "list_contacts"
+        "manage_contact"
+        "manage_contacts_batch"
+        "list_contact_groups"
+        "get_contact_group"
+        "manage_contact_group"
+      ];
+    };
+    # A SUPPLEMENT to Google's `docs` server, never a replacement: compact Markdown and
+    # comments, which Google's read_doc lacks. READ-ONLY twice over: the server runs
+    # WORKSPACE_MCP_READ_ONLY (it registers only read tools and asks only read scopes),
+    # and the allowlist lists only reads.
+    docsread = {
+      title = "Docs Reader";
+      selfHosted = {
+        service = "docsread-mcp";
+        region = "us-central1";
+        family = "docs";
+        readOnly = true;
+      };
+      path = "/mcp";
+      scopes = [
+        "https://www.googleapis.com/auth/documents.readonly"
+        "https://www.googleapis.com/auth/drive.readonly"
+        "https://www.googleapis.com/auth/userinfo.email"
+        "https://www.googleapis.com/auth/userinfo.profile"
+        "openid"
+      ];
+      tools = [
+        "get_doc_as_markdown"
+        "get_doc_content"
+        "inspect_doc_structure"
+        "list_document_comments"
+        "search_docs"
       ];
     };
   };

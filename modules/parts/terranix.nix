@@ -1496,6 +1496,7 @@ let
             operatorEmail = googleAccount;
             inherit
               gcpProjectId
+              gcpProjectNumber
               addonGcpProjectId
               grafanaUrl
               grafanaRegion

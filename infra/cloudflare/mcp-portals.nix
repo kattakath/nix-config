@@ -109,6 +109,17 @@ in
     auth_credentials = authCredentials a;
     client_secret = "\${var.google_oauth_client_secret}";
     is_shared_oauth_callback_enabled = true;
+    # The dashboard's "Authenticate server" (Edit, then Save) writes a SERVER-level
+    # `updated_tools` list, and the synced `tools` follow it (measured 2026-11-19 on forms,
+    # contacts and docsread; tasks, authenticated without Save, has none). Undeclared here,
+    # every plan would PUT the server to clear it, re-sending its auth config, which risks
+    # dropping it back to "waiting". The PORTAL's per-server allowlist below
+    # (default_disabled + updated_tools) is what decides exposure, and the posture gate
+    # checks that one.
+    lifecycle.ignore_changes = [
+      "updated_tools"
+      "tools"
+    ];
   }) apps;
 
   # ONE portal, ONE claude.ai connector ("Kattakath Workspace" at https://mcp.<zone>/mcp,

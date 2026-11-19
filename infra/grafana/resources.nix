@@ -14,6 +14,8 @@
 {
   operatorEmail,
   gcpProjectId,
+  # For the self-hosted MCP servers' run.app URLs (self-hosted-mcp.nix).
+  gcpProjectNumber,
   addonGcpProjectId,
   publicSiteUrl,
 }:
@@ -25,6 +27,7 @@ let
     fleet = import ./fleet.nix { inherit h addon; };
     career = import ./career.nix { inherit h; };
     maps = import ./maps.nix { inherit h gcpProjectId; };
+    self-hosted-mcp = import ./self-hosted-mcp.nix { inherit h gcpProjectId gcpProjectNumber; };
     nixpi = import ./nixpi.nix { inherit h publicSiteUrl; };
   };
   # Two levels deep, and a resource address declared by two files THROWS: a plain `//`
