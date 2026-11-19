@@ -203,5 +203,46 @@
         "resolve_maps_urls"
       ];
     };
+    # SELF-HOSTED (2026-11-18): Google serves no Tasks MCP server (not on its
+    # supported-products list; tasksmcp is not enable-able), and cloud routines need
+    # Tasks. So upstream taylorwilsdon/google_workspace_mcp runs on Cloud Run
+    # (infra/gcp/foundation.nix renders it from `selfHosted`) in EXTERNAL OAuth mode:
+    # the portal runs the Google sign-in and stores the grant exactly as for Google's
+    # servers, and sends the user's Google access token as a Bearer, which the server
+    # checks against Google's userinfo. The server holds no token store and no
+    # client secret. The host is the service's run.app URL, composed in
+    # mcp-portals.nix from the project number.
+    #
+    # Operator decision 2026-11-18: READ + WRITE. Tasks are private to the user, so
+    # writing is not outward. `manage_task`/`manage_task_list` also DELETE (one tool,
+    # an `action` argument), and the allowlist cannot split that.
+    # `scopes` = the server's own `scopes_supported` (measured from its 401 and its
+    # protected-resource metadata): tasks for the tools, openid/email/profile for the
+    # userinfo check that validates each token.
+    tasks = {
+      title = "Tasks";
+      selfHosted = {
+        service = "tasks-mcp";
+        region = "us-central1";
+      };
+      path = "/mcp";
+      scopes = [
+        "https://www.googleapis.com/auth/tasks"
+        "https://www.googleapis.com/auth/tasks.readonly"
+        "https://www.googleapis.com/auth/userinfo.email"
+        "https://www.googleapis.com/auth/userinfo.profile"
+        "openid"
+      ];
+      # Every Tasks tool. They sit in TWO tiers upstream (core: get_task, list_tasks,
+      # manage_task; complete: the list tools), so the server runs tier `complete`.
+      tools = [
+        "list_task_lists"
+        "get_task_list"
+        "manage_task_list"
+        "list_tasks"
+        "get_task"
+        "manage_task"
+      ];
+    };
   };
 }

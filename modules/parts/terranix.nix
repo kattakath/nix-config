@@ -56,6 +56,7 @@ let
     gcpAutomationServiceAccount
     addonGcpProjectId
     gcpProjectId
+    gcpProjectNumber
     gcpStateBucket
     gcpStateBucketLocation
     googleAccount
@@ -1146,6 +1147,7 @@ let
         {
           _module.args = {
             projectId = gcpProjectId;
+            projectNumber = gcpProjectNumber;
             addonProjectId = addonGcpProjectId;
             billingAccountId = gcpBillingAccountId;
             operatorAccount = googleAccount;
@@ -1344,6 +1346,7 @@ let
             inherit domainName;
             accountId = cloudflareAccountId;
             accessIdpId = accessOrg.googleIdp.id;
+            projectNumber = gcpProjectNumber;
           };
         }
       ];

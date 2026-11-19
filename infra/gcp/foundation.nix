@@ -26,6 +26,9 @@
 {
   lib,
   projectId,
+  # The project number (modules/parts/identity.nix), for the Tasks server's run.app URL:
+  # the same literal the portal composes it from, so the two cannot disagree.
+  projectNumber,
   addonProjectId,
   billingAccountId,
   operatorAccount,
@@ -47,6 +50,31 @@ let
   # The short name, as `google_service_account` wants it — the resource takes an
   # account_id, not the full email, while every IAM binding takes the email.
   saAccountId = lib.head (lib.splitString "@" automationServiceAccount);
+
+  # The self-hosted Tasks MCP server: its name and region are owned by the portal's
+  # app list, so the URL the portal calls and the service here cannot disagree.
+  tasksMcp = (import ../cloudflare/workspace-mcp-apps.nix).apps.tasks.selfHosted;
+  # Pinned by DIGEST (the 2.5.0 manifest list on ghcr.io, read 2026-11-18), pulled
+  # through the `ghcr` remote repo below: Cloud Run cannot pull from ghcr.io directly.
+  tasksMcpImage = "${tasksMcp.region}-docker.pkg.dev/${projectId}/ghcr/taylorwilsdon/google_workspace_mcp@sha256:fa5fd1afc88113b0d67fb69fe770e964bfc5e971142fadf49676738f2c793989";
+  # Plain env (nothing secret). Each was measured with 2.5.0 on the Mac 2026-11-18.
+  tasksMcpEnv = {
+    MCP_ENABLE_OAUTH21 = "true";
+    # The portal performs the code exchange and sends the access token as a Bearer.
+    EXTERNAL_OAUTH21_PROVIDER = "true";
+    # Multi-user, zero disk writes.
+    WORKSPACE_MCP_STATELESS_MODE = "true";
+    # Required to be non-empty (core/server.py refuses to start without it), never
+    # used in this mode: a ya29.* token is checked at userinfo, with no audience test.
+    GOOGLE_OAUTH_CLIENT_ID = "unused-in-external-mode.apps.googleusercontent.com";
+    # The resource URL its protected-resource metadata advertises.
+    WORKSPACE_EXTERNAL_URL = "https://${tasksMcp.service}-${projectNumber}.${tasksMcp.region}.run.app";
+    # The image's CMD turns these two into `--tools` / `--tool-tier` (upstream
+    # Dockerfile at v2.5.0). Cloud Run's PORT=8080 is read by core/config.py.
+    TOOLS = "tasks";
+    # `complete`, not the default: the task-LIST tools are complete-tier only.
+    TOOL_TIER = "complete";
+  };
 
   # Organization roles only the operator may hold (see "Who may create" below).
   # The attribute name is the resource's address in state: renaming one is a move.
@@ -115,10 +143,10 @@ let
     # containerregistry as their dependencies: measured in the audit log, which
     # shows both being disabled at the 2026-11-07 teardown with no enable event of
     # their own. Declared so a census finds every enabled API here with its reason.
-    "run.googleapis.com" = "the retired Workspace gateway's Cloud Run service (2026-11-14); unused now";
+    "run.googleapis.com" = "the self-hosted Tasks MCP server below (tasks-mcp, 2026-11-18)";
     "orgpolicy.googleapis.com" = "the project-scoped org policies below (default network, default SA)";
     "artifactregistry.googleapis.com" =
-      "the retired gateway's Docker Hub pull-through repo (2026-11-14); unused now";
+      "the ghcr.io pull-through repo the Tasks MCP server's image comes through (2026-11-18)";
     "containerregistry.googleapis.com" =
       "auto-enabled with run/artifactregistry (dependency, 2026-11-07 audit log)";
     "pubsub.googleapis.com" =
@@ -621,6 +649,117 @@ in
     role = "roles/monitoring.viewer";
     member = "serviceAccount:\${google_service_account.grafana_monitoring_reader.email}";
   };
+
+  # ---- The self-hosted Tasks MCP server (2026-11-18) --------------------------
+  # One upstream of the Cloudflare MCP portal (infra/cloudflare/workspace-mcp-apps.nix,
+  # app `tasks`, which owns its name, region, scopes and tool allowlist). Here at the
+  # operator's pick rather than in a stack of its own.
+  #
+  # STATELESS, unlike the 2026-11-07 deployment that was rolled back: the portal runs
+  # the Google sign-in and keeps each user's grant, and forwards the Google access
+  # token as a Bearer (EXTERNAL_OAUTH21_PROVIDER). The server validates it against
+  # Google's userinfo (auth/external_oauth_provider.py, verify_token) and keeps
+  # nothing: no bucket, no volume, no client secret.
+  #
+  # PUBLIC on purpose, like the portal's Google upstreams: Cloudflare cannot present a
+  # Google identity token to Cloud Run. Any valid Google token is accepted, and it can
+  # reach only that token's OWN Tasks; one instance caps what a caller can cost.
+  resource.google_artifact_registry_repository.ghcr = {
+    project = projectId;
+    location = tasksMcp.region;
+    repository_id = "ghcr";
+    format = "DOCKER";
+    mode = "REMOTE_REPOSITORY";
+    description = "Pull-through proxy for ghcr.io (the Tasks MCP server's image)";
+    remote_repository_config.common_repository.uri = "https://ghcr.io";
+  };
+
+  resource.google_service_account.tasks_mcp = {
+    project = projectId;
+    account_id = tasksMcp.service;
+    display_name = "Tasks MCP server (Cloud Run)";
+    description = "Runs the tasks-mcp service. No project roles: reads only its signing-key secret.";
+  };
+
+  # The ONE secret. Upstream refuses to start without a client secret OR this key
+  # ("Public client OAuth 2.1 requires FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY",
+  # measured with 2.5.0), and a token that is not ya29.* falls through to a JWT check
+  # under this key, so it must not be a literal in a public repo. Only the CONTAINER is
+  # declared; the value is added out of band (a random value piped straight into
+  # `gcloud secrets versions add`), so it never reaches state.
+  resource.google_secret_manager_secret.tasks_mcp_jwt_signing_key = {
+    project = projectId;
+    secret_id = "tasks-mcp-jwt-signing-key";
+    replication.auto = { };
+  };
+
+  resource.google_secret_manager_secret_iam_member.tasks_mcp_jwt_signing_key = {
+    project = projectId;
+    secret_id = "\${google_secret_manager_secret.tasks_mcp_jwt_signing_key.secret_id}";
+    role = "roles/secretmanager.secretAccessor";
+    member = "serviceAccount:\${google_service_account.tasks_mcp.email}";
+  };
+
+  resource.google_cloud_run_v2_service.tasks_mcp = {
+    project = projectId;
+    name = tasksMcp.service;
+    location = tasksMcp.region;
+    ingress = "INGRESS_TRAFFIC_ALL";
+    # Stateless, so a replace loses nothing; protection would only make a rename a
+    # two-step (the 2026-11-07 teardown hit it).
+    deletion_protection = false;
+    template = {
+      service_account = "\${google_service_account.tasks_mcp.email}";
+      timeout = "300s";
+      scaling = {
+        min_instance_count = 0;
+        max_instance_count = 1;
+      };
+      containers = [
+        {
+          image = tasksMcpImage;
+          ports.container_port = 8080;
+          resources = {
+            limits = {
+              cpu = "1";
+              memory = "512Mi";
+            };
+            startup_cpu_boost = true;
+            cpu_idle = true;
+          };
+          env = lib.mapAttrsToList (name: value: { inherit name value; }) tasksMcpEnv ++ [
+            {
+              name = "FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY";
+              value_source.secret_key_ref = {
+                secret = "\${google_secret_manager_secret.tasks_mcp_jwt_signing_key.secret_id}";
+                version = "latest";
+              };
+            }
+          ];
+        }
+      ];
+    };
+    # The image is a plain string, so tofu sees no edge to the repo it comes through.
+    depends_on = [
+      "google_artifact_registry_repository.ghcr"
+      "google_secret_manager_secret_iam_member.tasks_mcp_jwt_signing_key"
+    ];
+    # gcloud stamps these on every deploy; they are not configuration.
+    lifecycle.ignore_changes = [
+      "client"
+      "client_version"
+    ];
+  };
+
+  resource.google_cloud_run_v2_service_iam_member.tasks_mcp_public = {
+    project = projectId;
+    name = "\${google_cloud_run_v2_service.tasks_mcp.name}";
+    location = tasksMcp.region;
+    role = "roles/run.invoker";
+    member = "allUsers";
+  };
+
+  output.tasks_mcp_url.value = "\${google_cloud_run_v2_service.tasks_mcp.uri}";
 
   output.wif_provider.value = "\${google_iam_workload_identity_pool_provider.github_actions.name}";
   output.grafana_rollup_writer.value = "\${google_service_account.grafana_rollup_writer.email}";

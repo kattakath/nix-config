@@ -181,6 +181,11 @@ let
   # the KEYCHAIN-backend code path (read from gcloud at runtime there), but
   # terranix renders outside any shell and needs it at eval.
   gcpProjectId = "kattakath-family";
+  # Its project NUMBER, public already (every OAuth client id in the project begins
+  # with it, as accessOrg.googleIdp.clientId below does). A Cloud Run service's URL is
+  # https://<service>-<number>.<region>.run.app, which the MCP portal must know at
+  # render time (infra/cloudflare/mcp-portals.nix, the self-hosted Tasks server).
+  gcpProjectNumber = "305924238191";
 
   # The Workspace add-on's OWN project (an Apps Script project binds to exactly one).
   # Nothing is declared in it: gcp-foundation only grants the Grafana reader there.
@@ -253,7 +258,7 @@ let
     googleIdp = {
       id = "3227ee11-f5a4-40ae-a1a7-612e1f035c1c";
       name = "Kattakath Google Workspace";
-      clientId = "305924238191-0spak05qhr0g7k0h05ubcq2kinmpi3dd.apps.googleusercontent.com";
+      clientId = "${gcpProjectNumber}-0spak05qhr0g7k0h05ubcq2kinmpi3dd.apps.googleusercontent.com";
     };
     # Cloudflare dashboard SSO: the system `dash_sso` Access app that turns the
     # dashboard login into a Google Workspace sign-in. Created by the dashboard's
@@ -376,6 +381,7 @@ in
         gcpAutomationServiceAccount
         addonGcpProjectId
         gcpProjectId
+        gcpProjectNumber
         gcpStateBucket
         gcpStateBucketLocation
         grafanaRegion

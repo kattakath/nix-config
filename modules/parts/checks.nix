@@ -2865,7 +2865,11 @@ in
               badUpstreams = lib.attrNames (
                 lib.filterAttrs (
                   _: s:
-                  builtins.match "https://[a-z0-9-]+\\.googleapis\\.com/mcp(/v1)?" (s.hostname or "") == null
+                  # Google's own servers, or a self-hosted one on Cloud Run (operator's
+                  # pick 2026-11-18: any run.app host, for the Tasks server).
+                  builtins.match
+                    "https://([a-z0-9-]+\\.googleapis\\.com/mcp(/v1)?|[a-z0-9-]+\\.[a-z0-9-]+\\.run\\.app/mcp)"
+                    (s.hostname or "") == null
                   || (s.client_secret or "") != "\${var.google_oauth_client_secret}"
                 ) servers
               );
@@ -2975,11 +2979,11 @@ in
                   ok = authEndpoints != [ ] && badEndpoints == [ ];
                 }
                 {
-                  name = "every server's scope literal parses, and none is a send, settings, full-access or write scope (found: ${toString badScopes})";
+                  name = "every server's scope literal parses, and none is a send, settings, full-access or write scope (Tasks' own `tasks` is the one listed exception) (found: ${toString badScopes})";
                   ok = scopeStrings != [ ] && !(lib.elem null scopeStrings) && badScopes == [ ];
                 }
                 {
-                  name = "every server's upstream is a googleapis.com MCP endpoint and its secret is the variable (broken: ${toString badUpstreams})";
+                  name = "every server's upstream is a googleapis.com or run.app MCP endpoint and its secret is the variable (broken: ${toString badUpstreams})";
                   ok = badUpstreams == [ ];
                 }
                 {
