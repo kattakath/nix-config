@@ -66,10 +66,13 @@ let
     "faeadnfmdfamenfhaipofoffijhlnkif" # Into The Black Hole — True Amoled Black theme
     "fbmkmdnlhacefjljljlbhkodfmfkijdh" # MeTube Downloader
     "pejdijmoenmkgeppbflobdenhhabjlaj" # iCloud Passwords
-    "fcoeoabgfenejglbffodgkkbkcdhcgfn" # Claude in Chrome — the agents' only browser rail
+    "fcoeoabgfenejglbffodgkkbkcdhcgfn" # Claude in Chrome — Claude Code's browser rail
   ];
   created = [
     "ejfnegenodbdcodemkibocefmajjjjbn" # Kapture MCP Browser Automation
+    # Playwright Extension: the rail for every other agent (nixpkgs playwright-mcp
+    # `--extension`). The id is the one the pinned closure's playwright-core expects.
+    "mmlmfjhmonkocbjadbfplnigmagldckm" # Playwright Extension
   ];
   extensions = adopted ++ created;
 
