@@ -215,6 +215,11 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # still load-bearing — the rule only dies when the FILE cannot exist. Delete
     # it after deleting the directory, in that order, never the reverse.
     #
+    # ~/.local/state/cft-profile is the agent's logged-in Chrome for Testing profile. The
+    # agent DRIVES that browser through chrome-devtools-mcp, which reads the profile itself,
+    # so the deny costs the rail nothing and keeps a site's session token out of the
+    # transcript.
+    #
     # The `Read(...)` path globs render from modules/_lib/secret-read-paths.nix (shared
     # with the Bash guard hook); the `assertions` above make an empty render a build error.
   ]

@@ -74,8 +74,9 @@ let
   #   slack-etiquette  the operator's sessions message his colleagues on Slack; the skill
   #             carries when to post, group vs DM, one fact once and preview-free links
   #             (2026-11-09). Workspace IDs stay in the hand-placed folder CLAUDE.md.
-  #   page-tools  the two agent browser rails (Playwright on the real Chrome, chrome-devtools
-  #             on a headless CfT); its launchers come from ./pinned-chrome.nix, which is
+  #   page-tools  the three agent browser rails (Playwright on the real Chrome, chrome-devtools
+  #             on a headless throwaway CfT or a headed persistent one); its launchers come
+  #             from ./pinned-chrome.nix, which is
   #             operator-only too (2026-11-18).
   operatorIds = lib.optionals isMacosHost [
     "ci-watch@kattakath"

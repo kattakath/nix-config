@@ -126,8 +126,9 @@ in the repo can catch that; see that fixture file's header for the measurement.
 - **`pinned-chrome.nix`** — `local.pinnedChrome`, darwin only: a content-hash-pinned Chrome for
   Testing (nixpkgs `playwright-driver.browsers-chromium`) exported as
   `PUPPETEER_EXECUTABLE_PATH`, so a résumé PDF render never changes because the daily Chrome
-  auto-updated. It also ships the two `page-tools` launchers (`playwright-chrome-mcp`,
-  `chrome-devtools-cft-mcp`, which drives this CfT), agy's MCP config and qwen's page-tools install guard. Why: its header.
+  auto-updated. It also ships the three `page-tools` launchers (`playwright-chrome-mcp`, and
+  `chrome-devtools-cft-mcp`/`-cft-profile-mcp`, which drive this CfT throwaway or on a persistent
+  profile), the `cft-profile` login helper, agy's MCP config and qwen's page-tools install guard. Why: its header.
 - **The media stack is a CAPSULE, not a module in this directory.** `media-queue.nix`, the
   media CLIs and the Finder Services left for
   [`kattakath/nix-media-cli`](https://github.com/kattakath/nix-media-cli) on 2026-09-05 and came
