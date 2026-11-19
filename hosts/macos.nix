@@ -131,6 +131,19 @@ in
     (pkgs.callPackage ../packages/fal.nix { })
   ];
 
+  # grok's own fleet-default layer (its docs: /etc/grok/managed_config.toml, "ship a
+  # starting point to a fleet"; ~/.grok/config.toml overrides it). It names the kattakath
+  # marketplace and turns page-tools on, so a fresh Mac's grok gets the browser rails
+  # without a hand-run `grok plugin` step. Root-owned, read-only: defaults, not policy.
+  environment.etc."grok/managed_config.toml".text = ''
+    [[marketplace.sources]]
+    name = "kattakath"
+    git = "https://github.com/kattakath/skills.git"
+
+    [plugins]
+    enabled = ["page-tools"]
+  '';
+
   # System-wide, into /Library/Fonts/Nix Fonts (nix-darwin's fonts.packages,
   # verified 2026-09-30 by building the derivation and checking: pkgs.noto-fonts
   # itself ships NotoSansMalayalam.ttf + NotoSerifMalayalam.ttf directly, no

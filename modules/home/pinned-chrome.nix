@@ -104,5 +104,18 @@ in
         chrome-devtools.command = "chrome-devtools-cft-mcp";
       };
     };
+
+    # qwen reads the page-tools PLUGIN itself (it installs Claude-marketplace plugins as
+    # git-cloned extensions under ~/.qwen/extensions), so no second copy of the server list.
+    # Its extension store is qwen's own state, so this is a guard, like claudeCodePlugins in
+    # ./claude-plugins.nix: install only when missing, with --auto-update so a page-tools
+    # release reaches it without Nix. qwen is machine-wide (hosts/macos.nix).
+    home.activation.qwenPageTools = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      export PATH="${pkgs.git}/bin:$PATH"
+      if [ ! -d "${config.home.homeDirectory}/.qwen/extensions/page-tools" ]; then
+        ${lib.getExe pkgs.qwen-code} extensions install \
+          https://github.com/kattakath/skills:page-tools --auto-update --consent 2>&1 || true
+      fi
+    '';
   };
 }
