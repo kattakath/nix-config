@@ -264,6 +264,34 @@ in
           severity = "warning";
         };
       })
+      # Denial-of-wallet early warning. Each server accepts ANY valid Google token (no
+      # audience or email check upstream in external-OAuth mode), so a stranger can spend
+      # this project's Cloud Run time with their own token. One operator's routines and
+      # chats make tens of calls an hour; 300 is far above that and far below where the
+      # free tier's 2M requests a month would run out (~2,700/h sustained).
+      (mkRule {
+        uid = "self-hosted-mcp-spike";
+        name = "Self-hosted MCP: request spike";
+        summary = "{{ $values.B.Value }} self-hosted MCP requests in the last hour";
+        description = "All calls to the portal's self-hosted MCP servers (${serviceRe}) over 1 h exceeded 300. They accept any valid Google token, so a spike can be a stranger spending this project's Cloud Run time. Check request counts per service on the dashboard and the callers in Cloud Logging. Dashboard: self-hosted-mcp.";
+        datasource = mapsDatasource;
+        model = requests { period = hour; };
+        rangeSeconds = hour;
+        extraData = [
+          (ruleNode {
+            refId = "B";
+            model = reduceLast "A";
+          })
+        ];
+        thresholdOn = "B";
+        op = "gt";
+        threshold = 300;
+        for = "0s";
+        labels = {
+          domain = "gcp";
+          severity = "warning";
+        };
+      })
       (mkRule {
         uid = "self-hosted-mcp-down";
         name = "Self-hosted MCP: /health failing";
