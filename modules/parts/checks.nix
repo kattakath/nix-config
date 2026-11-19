@@ -2774,6 +2774,17 @@ in
           # that list, like claude-managed-settings' deny floor: deriving the expectation from
           # the list it checks would pass on an emptied list.
           #
+          # THE WRITE LEG (operator decision 2026-11-19, ALL, GUARDED): the portal may enable
+          # an outward, destructive or edit tool only when BOTH guards name it: an ask
+          # rule in claude-guardrails that matches its real connector name (the floor that
+          # prompts under bypass), and the pinned kattakath-workspace plugin's write guard,
+          # read from its generated references/guarded.json. Which tools NEED a guard is
+          # decided HERE (outwardVerbs + editVerbs, on the bare upstream name), never from
+          # guarded.json: deriving it from the plugin would pass an unguarded new tool. It
+          # replaced two legs that forbade every outward tool and every write scope; the
+          # scope leg now forbids only what no enabled tool needs (send, settings, full
+          # Drive/Calendar/Chat, Keep).
+          #
           # NOT COVERED: anything live — a dashboard edit, a server's one-time admin
           # authorization, a Google token minted before a scope was narrowed. The daily
           # mcp-portal-probe workflow covers the unauthenticated surface.
@@ -2835,6 +2846,9 @@ in
                 lib.filter (s: s != null) scopeStrings
               );
               auth = "https://www.googleapis.com/auth/";
+              # Scopes no enabled tool needs (2026-11-19): each is wider than the narrowest
+              # one its tools accept (workspace-mcp-apps.nix cites the per-tool pages).
+              # Sending, mail settings, full Drive/Calendar/Chat, and Keep stay out.
               forbiddenScopes = [
                 "https://mail.google.com/"
                 "${auth}gmail.send"
@@ -2843,12 +2857,9 @@ in
                 "${auth}calendar.acls"
                 "${auth}drive"
                 "${auth}chat.messages"
-                "${auth}chat.messages.create"
                 "${auth}chat.memberships"
                 "${auth}chat.spaces"
-                "${auth}documents"
-                "${auth}spreadsheets"
-                "${auth}presentations"
+                "${auth}chat.delete"
                 "${auth}keep"
               ];
               # Whole strings, never substrings: `calendar` is a prefix of the allowed
@@ -2926,15 +2937,50 @@ in
                 "launch_app"
               ];
               missingAsk = lib.filter (r: !(lib.elem r ask)) (map (v: "mcp__*__${v}") outwardVerbs ++ phoneTools);
-              # The two layers must agree: no tool the portal ENABLES may match a verb the
-              # local floor ASKS about, or one layer calls outward what the other permits.
+              # ---- the write leg: every enabled outward/edit tool carries BOTH guards ----
+              # Edits that no outward verb names but that change or hide the user's data.
+              editVerbs = [
+                "unlabel_*"
+                "update_message_labels"
+                "apply_sensitive_*"
+                "mark_as_*"
+                "update_notification_settings"
+                "update_spreadsheet"
+                "insert_dimension"
+              ];
               globRe = g: lib.replaceStrings [ "*" ] [ "[a-z_]*" ] g;
-              enabledTools = map (t: t.name) (
-                lib.filter (t: t.enabled or false) (lib.concatMap (s: s.updated_tools or [ ]) attached)
+              enabledByApp = lib.concatMap (
+                s:
+                map (t: {
+                  app = appOf s;
+                  tool = t.name;
+                }) (lib.filter (t: t.enabled or false) (s.updated_tools or [ ]))
+              ) attached;
+              enabledTools = map (x: x.tool) enabledByApp;
+              needGuard = map (x: "${x.app}_${x.tool}") (
+                lib.filter (
+                  x: lib.any (v: builtins.match (globRe v) x.tool != null) (outwardVerbs ++ editVerbs)
+                ) enabledByApp
               );
-              enabledOutward = lib.filter (
-                t: lib.any (v: builtins.match (globRe v) t != null) outwardVerbs
-              ) enabledTools;
+              # An ask rule's `*` read as "any characters", matched against the name
+              # claude.ai's connector really gives the tool. That is the PERMISSIVE reading,
+              # so a stricter matcher could miss a rule this passes; the guardrails use full
+              # `mcp__*__<app>_<tool>` names, which match under either reading.
+              connectorName = n: "mcp__claude_ai_Kattakath_Workspace__${n}";
+              askMatches =
+                n:
+                lib.any (r: builtins.match (lib.replaceStrings [ "*" ] [ ".*" ] r) (connectorName n) != null) (
+                  lib.filter (lib.hasPrefix "mcp__") ask
+                );
+              noAsk = lib.filter (n: !(askMatches n)) needGuard;
+              guardedFile = "${inputs.kattakath-skills}/plugins/kattakath-workspace/skills/kattakath-workspace/references/guarded.json";
+              # Fail closed: a missing file, or one without a `tools` list, guards nothing.
+              guarded =
+                if builtins.pathExists guardedFile then
+                  (builtins.fromJSON (builtins.readFile guardedFile)).tools or [ ]
+                else
+                  [ ];
+              noHook = lib.filter (n: !(lib.elem n guarded)) needGuard;
             in
             mkHostContract {
               inherit pkgs;
@@ -2954,8 +3000,12 @@ in
                   ok = attached != [ ] && badAttach == [ ];
                 }
                 {
-                  name = "no enabled tool matches a verb the local floor treats as outward (found: ${toString enabledOutward})";
-                  ok = enabledTools != [ ] && enabledOutward == [ ];
+                  name = "every enabled outward/destructive/edit tool has an ask rule matching its connector name (missing: ${toString noAsk})";
+                  ok = enabledTools != [ ] && needGuard != [ ] && noAsk == [ ];
+                }
+                {
+                  name = "every enabled outward/destructive/edit tool is in the pinned write guard's guarded.json (missing: ${toString noHook})";
+                  ok = guarded != [ ] && noHook == [ ];
                 }
                 {
                   name = "one mcp_portal Access app, and EVERY Access app has a policy (none: ${toString unguarded})";
@@ -2974,7 +3024,7 @@ in
                   ok = authEndpoints != [ ] && badEndpoints == [ ];
                 }
                 {
-                  name = "every server's scope literal parses, and none is a send, settings, full-access or write scope (Tasks' own `tasks` is the one listed exception) (found: ${toString badScopes})";
+                  name = "every server's scope literal parses, and none is a send, mail-settings or full Drive/Calendar/Chat/Keep scope (found: ${toString badScopes})";
                   ok = scopeStrings != [ ] && !(lib.elem null scopeStrings) && badScopes == [ ];
                 }
                 {
@@ -2998,7 +3048,9 @@ in
                 "infra/cloudflare/workspace-mcp-apps.nix owns each app's tools and scopes;"
                 "infra/cloudflare/mcp-portals.nix renders the servers, the portal and its Access apps;"
                 "modules/home/claude-guardrails.nix owns the local ask rules."
-                "Each leg is a decision of the 2026-11-14 security audit. To WIDEN one on purpose,"
+                "Each leg is a decision of the 2026-11-14 security audit or the 2026-11-19 ALL, GUARDED"
+                "decision. A red write leg: add the tool's ask rule in claude-guardrails AND a write-guard"
+                "rule in kattakath/skills, then bump the kattakath-skills pin. To WIDEN a leg on purpose,"
                 "change this check in the same commit and say why in its header — a red leg"
                 "deleted to make the build pass is the silent widening this check exists for."
               ];

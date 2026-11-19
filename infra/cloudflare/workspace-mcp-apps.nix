@@ -9,24 +9,30 @@
 #
 # `tools` is the ALLOWLIST every surface sees (phone, web, Mac): each portal lists the
 # server with `default_disabled = true` and enables only these (mcp-portals.nix).
-# Operator decision 2026-11-14 after the security audit: READ + DRAFTS. Every tool
-# Google annotates readOnlyHint, plus Gmail drafts, labels and untrash/unspam, plus
-# Drive create/copy into the user's own Drive. Denied: Chat send, calendar invites
-# and edits, Docs/Sheets/Slides edits, trash, spam, unlabel (outward, injectable into
-# attacker-shared files, or able to hide security alerts). A tool Google ADDS upstream
-# is denied until it is listed here.
+# Operator decision 2026-11-19: ALL, GUARDED. Every tool Google's servers sync is
+# enabled (it was READ + DRAFTS from the 2026-11-14 security audit until then). The
+# guard is two layers, and checks.<system>.mcp-portal-posture fails when an enabled
+# outward, destructive or edit tool lacks either: (1) an explicit
+# `mcp__*__<app>_<tool>` ask rule in modules/home/claude-guardrails.nix, the floor that
+# still prompts under bypassPermissions; (2) a rule in the kattakath-workspace plugin's
+# write guard (kattakath/skills), which names the recipients, labels, ranges and write
+# mode in its prompt. Neither reaches claude.ai web or phone, cloud sessions or routines,
+# where the skill's confirm table is the only guard. A tool Google ADDS upstream stays off until it is listed here.
 #
-# `scopes` is the MINIMUM that covers `tools`, read 2026-11-14 from each tool's
+# `scopes` is the MINIMUM that covers `tools`, read 2026-11-19 from each tool's
 # "Authorization Scopes" on developers.google.com/workspace/<app>/…/reference/mcp/
-# tools_list/<tool> (each tool accepts the scopes listed there, usually several). It is NOT the server's
-# `scopes_supported`, which is the superset and was the first deploy's value.
-# Narrowing does not shrink a token already stored: after a change, revoke the
+# tools_list/<tool> (each tool accepts the scopes listed there, usually several; the
+# narrowest set that satisfies EVERY tool wins). It is NOT the server's
+# `scopes_supported`, which is the superset and was the first deploy's value. A doc page
+# can be wrong (Chat's search_conversations, below), so each change is proven live.
+# A token keeps the scopes it was minted with: after a change, revoke the
 # "Kattakath Family" grant (myaccount → third-party access) and reconnect.
-# Gmail has no draft-only scope that `create_draft` accepts (only mail.google.com,
-# gmail.compose or gmail.modify), and the label tools need gmail.modify anyway, so a
-# LEAKED token could still send over the plain REST API; the allowlist blocks it in
-# Claude. `update_message_labels` is NOT allowed: it can remove INBOX/UNREAD, which
-# hides mail. Residual: adding a CATEGORY_* label moves a thread out of Primary.
+# Gmail: seven tools (trash_*, mark_*_spam, update_message_labels,
+# apply_sensitive_*_label) and the untrash/unspam pair have NO tool page (404,
+# 2026-11-19); their scope is inferred from the REST methods they wrap
+# (users.messages|threads trash/modify accept gmail.modify). Their input schemas are in
+# the tool list Cloudflare synced from Google's server (read the same day). No draft-only scope exists
+# that `create_draft` accepts, so a LEAKED token could still send over the plain REST API.
 #
 # Plain data with no arguments: the zone, the operator and the client id are
 # threaded in by the consumers, so nothing per-person lives here.
@@ -61,15 +67,25 @@
         "untrash_message"
         "unmark_thread_spam"
         "unmark_message_spam"
+        "unlabel_thread"
+        "unlabel_message"
+        "update_message_labels"
+        "trash_thread"
+        "trash_message"
+        "mark_thread_spam"
+        "mark_message_spam"
+        "apply_sensitive_thread_label"
+        "apply_sensitive_message_label"
       ];
     };
     calendar = {
       title = "Calendar";
       upstream = "calendarmcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/calendar.events.readonly"
+        # Every event tool, read and write, accepts calendar.events (suggest_time
+        # included); list_calendars needs a calendarlist scope.
+        "https://www.googleapis.com/auth/calendar.events"
         "https://www.googleapis.com/auth/calendar.calendarlist.readonly"
-        "https://www.googleapis.com/auth/calendar.events.freebusy"
       ];
       tools = [
         "list_events"
@@ -77,6 +93,10 @@
         "list_calendars"
         "suggest_time"
         "search_events"
+        "create_event"
+        "update_event"
+        "delete_event"
+        "respond_to_event"
       ];
     };
     drive = {
@@ -101,33 +121,42 @@
       title = "Docs";
       upstream = "docsmcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/documents.readonly"
+        # update_doc accepts documents, drive or drive.file; drive.file reaches only
+        # files this client opened, so it cannot edit an existing Doc.
+        "https://www.googleapis.com/auth/documents"
       ];
       tools = [
         "read_doc"
+        "update_doc"
       ];
     };
     sheets = {
       title = "Sheets";
       upstream = "sheetsmcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/spreadsheets.readonly"
+        # insert_dimension accepts only drive or spreadsheets (no drive.file).
+        "https://www.googleapis.com/auth/spreadsheets"
       ];
       tools = [
         "get_values"
         "get_spreadsheet"
+        "update_values"
+        "update_formulas"
+        "update_spreadsheet"
+        "insert_dimension"
       ];
     };
     slides = {
       title = "Slides";
       upstream = "slidesmcp.googleapis.com";
       scopes = [
-        "https://www.googleapis.com/auth/presentations.readonly"
+        "https://www.googleapis.com/auth/presentations"
       ];
       tools = [
         "read_presentation"
         "read_slide_page"
         "read_slide_page_thumbnail"
+        "update_presentation"
       ];
     };
     chat = {
@@ -135,15 +164,27 @@
       upstream = "chatmcp.googleapis.com";
       scopes = [
         "https://www.googleapis.com/auth/chat.messages.readonly"
+        # send_message accepts chat.messages or chat.messages.create; .create cannot
+        # edit or delete existing messages, so it is the narrower of the two.
+        "https://www.googleapis.com/auth/chat.messages.create"
         "https://www.googleapis.com/auth/chat.memberships.readonly"
         # Measured 2026-11-14: without it search_conversations gets a 403 insufficient-scope
         # from Google, although its doc page lists memberships.readonly as enough.
         "https://www.googleapis.com/auth/chat.spaces.readonly"
+        # mark_as_read/unread; get/update_notification_settings.
+        "https://www.googleapis.com/auth/chat.users.readstate"
+        "https://www.googleapis.com/auth/chat.users.spacesettings"
       ];
       tools = [
         "search_conversations"
         "list_messages"
         "search_messages"
+        "list_memberships"
+        "get_notification_settings"
+        "send_message"
+        "mark_as_read"
+        "mark_as_unread"
+        "update_notification_settings"
       ];
     };
     # People's MCP server rides the People API's own host, not a `peoplemcp` one.
@@ -309,8 +350,9 @@
         "manage_contact_group"
       ];
     };
-    # A SUPPLEMENT to Google's `docs` server, never a replacement: compact Markdown and
-    # comments, which Google's read_doc lacks. READ-ONLY twice over: the server runs
+    # A SUPPLEMENT to Google's `docs` server, never a replacement (decision D1, revisited
+    # 2026-11-19: Google's `docs` stays, since its update_doc is the one Docs writer):
+    # compact Markdown and comments, which Google's read_doc lacks. READ-ONLY twice over: the server runs
     # WORKSPACE_MCP_READ_ONLY (it registers only read tools and asks only read scopes),
     # and the allowlist lists only reads.
     docsread = {

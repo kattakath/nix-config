@@ -364,9 +364,10 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       # them. A glob in the tool-name position matches every connector's spelling at
       # once (claude.ai `mcp__claude_ai_<Name>__`, plugin `mcp__plugin_…__`, user
       # `mcp__<server>__`); documented: "Deny and ask rules also accept glob patterns
-      # in the tool-name position". The Kattakath gateway already DENIES these
-      # server-side; this is the local floor for every OTHER connector that has them.
-      # Reads stay unprompted, so read-only work is untouched.
+      # in the tool-name position". The glob is the tool-name position only: a verb rule
+      # `mcp__*__trash_*` needs `__trash_` in the name, so it does NOT match an
+      # app-prefixed portal tool (`…__gmail_trash_thread`). Kattakath Workspace's writes
+      # are listed by full name below. Reads stay unprompted, so read-only work is untouched.
     ]
     ++ map (verb: "mcp__*__${verb}") [
       "send_message"
@@ -403,7 +404,7 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     # restoring mail Google filtered, C9 toggling a portal server. The rest (task and
     # single-contact writes, form edits, labels, Drive saves) keep the hook's prompt in
     # default mode and the skill's confirm text in bypass. NOT in the outward-verb list
-    # above: the portal ENABLES these tools, which mcp-portal-posture forbids there.
+    # above, whose bare-verb globs cannot match an app-prefixed name.
     ++ map (tool: "mcp__*__${tool}") [
       "contacts_manage_contacts_batch"
       "forms_set_publish_settings"
@@ -412,6 +413,35 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       "gmail_unmark_thread_spam"
       "gmail_unmark_message_spam"
       "portal_toggle_single_server"
+    ]
+    # ── Every Kattakath Workspace write enabled 2026-11-19 (operator: ALL, GUARDED) ──
+    # Each one asks, also in bypass. mcp-portal-posture fails if the portal enables an
+    # outward, destructive or edit tool that has no rule here AND none in the plugin's
+    # write guard. Full app-prefixed names, for the glob reason above.
+    ++ map (tool: "mcp__*__${tool}") [
+      "gmail_trash_thread"
+      "gmail_trash_message"
+      "gmail_mark_thread_spam"
+      "gmail_mark_message_spam"
+      "gmail_unlabel_thread"
+      "gmail_unlabel_message"
+      "gmail_update_message_labels"
+      "gmail_apply_sensitive_thread_label"
+      "gmail_apply_sensitive_message_label"
+      "calendar_create_event"
+      "calendar_update_event"
+      "calendar_delete_event"
+      "calendar_respond_to_event"
+      "chat_send_message"
+      "chat_mark_as_read"
+      "chat_mark_as_unread"
+      "chat_update_notification_settings"
+      "sheets_update_values"
+      "sheets_update_formulas"
+      "sheets_update_spreadsheet"
+      "sheets_insert_dimension"
+      "docs_update_doc"
+      "slides_update_presentation"
     ]
     # ── High-impact phone actions over ADB (security audit 2026-11-14, operator's pick) ──
     # A session with phone control can change what runs on the phone or move data off
