@@ -1400,6 +1400,60 @@ let
       autoApproveWhy = "Read the plan: a replaced portal or server drops every user's grant for that app.";
     };
 
+  # Renders infra/cloudflare/ai-search.nix: the ONE AI Search instance holding the RAG
+  # corpus (moved off the Mac's ragdb, 2026-11-19). Its own stack: a token no other stack
+  # has (AI Search Edit), and a blast radius, "retrieval goes away", that shares nothing
+  # with the portal's per-user grants. The content is data, uploaded by API, never here.
+  cfAiSearchConfig =
+    { system }:
+    terranix.lib.terranixConfiguration {
+      inherit system;
+      modules = [
+        ../../infra/cloudflare/ai-search.nix
+        (tofuGcsBackend "cf-ai-search")
+        { _module.args.accountId = cloudflareAccountId; }
+      ];
+    };
+
+  mkCfAiSearchTofu =
+    {
+      system,
+      name,
+      action,
+    }:
+    mkAdoptedTofu {
+      inherit system name action;
+      stack = "cf-ai-search";
+      typePrefix = "cloudflare_";
+      envPrefix = "CF_AI_SEARCH";
+      label = "AI Search";
+      plugins = null;
+      emptyStateOnPlan = false;
+      renderer = cfAiSearchConfig;
+      driftEnv.CLOUDFLARE_API_TOKEN = items.cloudflare.aiSearch;
+      vars = "";
+      credentialCheck = ''
+        adc="''${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}/application_default_credentials.json"
+        if [ ! -f "$adc" ]; then
+          echo "ERROR: no Application Default Credentials at $adc (the GCS state backend needs them)" >&2
+          echo "  Inside 'nix develop': gcloud auth application-default login" >&2
+          exit 1
+        fi
+        if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ]; then
+          echo "ERROR: CLOUDFLARE_API_TOKEN must be set (Account > AI Search: Edit):" >&2
+          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=${items.cloudflare.aiSearch} -- nix run .#${name}" >&2
+          exit 1
+        fi
+      '';
+      createLine = "The instance would be CREATED. Expected ONLY on this stack's first apply.";
+      dropLines = [
+        "Applying it would DELETE the instance and EVERY item in it: the whole RAG"
+        "corpus, which lives nowhere else once the local ragdb is retired."
+        "tofu apply has NO rollback."
+      ];
+      autoApproveWhy = "Read the plan: a replaced instance loses every indexed item.";
+    };
+
   # ---- healthchecks.io checks (terranix -> OpenTofu) -----------------------
   # Renders infra/healthchecks/checks.nix: one `healthchecksio_check` per
   # `config.fleet.heartbeats` entry (modules/parts/heartbeats.nix). The SIXTH
@@ -1881,6 +1935,7 @@ in
           gcp-foundation = gcpFoundationConfig { inherit system; };
           gcp-budget = gcpBudgetConfig { inherit system; };
           cf-mcp-portals = cfMcpPortalsConfig { inherit system; };
+          cf-ai-search = cfAiSearchConfig { inherit system; };
           hc-checks = hcChecksConfig { inherit system; };
           grafana = grafanaConfig { inherit system; };
           github = githubConfig { inherit system; };
@@ -1986,6 +2041,16 @@ in
         cf-mcp-portals-apply = mkCfMcpPortalsTofu {
           inherit system;
           name = "cf-mcp-portals-apply";
+          action = "apply";
+        };
+        cf-ai-search-plan = mkCfAiSearchTofu {
+          inherit system;
+          name = "cf-ai-search-plan";
+          action = "plan";
+        };
+        cf-ai-search-apply = mkCfAiSearchTofu {
+          inherit system;
+          name = "cf-ai-search-apply";
           action = "apply";
         };
         # No `hc-checks-destroy`, and no `hc-checks-import`: destroy would silence
@@ -2112,6 +2177,16 @@ in
           type = "app";
           program = "${config.packages.cf-mcp-portals-apply}/bin/cf-mcp-portals-apply";
           meta.description = "tofu apply the Workspace MCP portals stack — refuses a render that drops an object state holds, an apply against empty state, and -auto-approve";
+        };
+        cf-ai-search-plan = {
+          type = "app";
+          program = "${config.packages.cf-ai-search-plan}/bin/cf-ai-search-plan";
+          meta.description = "Render infra/cloudflare/ai-search.nix (terranix) and tofu PLAN the RAG corpus's AI Search instance — read-only (needs ADC and an AI Search CLOUDFLARE_API_TOKEN)";
+        };
+        cf-ai-search-apply = {
+          type = "app";
+          program = "${config.packages.cf-ai-search-apply}/bin/cf-ai-search-apply";
+          meta.description = "tofu apply the AI Search stack — refuses a render that drops the instance (every indexed item goes with it), an apply against empty state, and -auto-approve";
         };
         hc-checks-plan = {
           type = "app";

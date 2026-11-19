@@ -14,6 +14,9 @@
     # The cf-mcp-portals stack: the one token with MCP-portal write (the old mcp-public
     # stack's, hence the item name). `api` above cannot write /access/ai-controls/mcp.
     mcpPortals = "cf:cloudflare.com:mcp-public";
+    # The cf-ai-search stack, the RAG corpus upload and the ircc-whatsapp-bot: AI Search
+    # Edit + Run on the account (no other token reaches /ai-search, measured 2026-11-19).
+    aiSearch = "cf:cloudflare.com:ai-search";
   };
 
   # The operator's classic PAT: the GitHub terranix stack and fleet-gauges' alert counts.

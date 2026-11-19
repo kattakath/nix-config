@@ -18,6 +18,7 @@ let
     "cf-access-org"
     "cf-zones"
     "cf-mcp-portals"
+    "cf-ai-search"
     "gcp-foundation"
     "gcp-budget"
     "hc-checks"
