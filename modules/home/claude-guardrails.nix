@@ -394,6 +394,25 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       "save_automation"
       "submit_feedback"
     ]
+    # ── High-risk Kattakath Workspace writes: the bypass floor (2026-11-19) ──
+    # The kattakath-workspace plugin's PreToolUse write guard returns `ask`, and under
+    # bypassPermissions Claude Code approves a hook `ask` SILENTLY (spike S1, measured
+    # 2026-11-19 on CLI 2.1.323; headless `-p` turns it into a refusal instead). An
+    # explicit ask RULE still prompts in bypass, so the operator's pick (D6) puts one on
+    # the high-risk guard rules only: C3 batch contact changes, C5 publishing a form, C7
+    # restoring mail Google filtered, C9 toggling a portal server. The rest (task and
+    # single-contact writes, form edits, labels, Drive saves) keep the hook's prompt in
+    # default mode and the skill's confirm text in bypass. NOT in the outward-verb list
+    # above: the portal ENABLES these tools, which mcp-portal-posture forbids there.
+    ++ map (tool: "mcp__*__${tool}") [
+      "contacts_manage_contacts_batch"
+      "forms_set_publish_settings"
+      "gmail_untrash_thread"
+      "gmail_untrash_message"
+      "gmail_unmark_thread_spam"
+      "gmail_unmark_message_spam"
+      "portal_toggle_single_server"
+    ]
     # ── High-impact phone actions over ADB (security audit 2026-11-14, operator's pick) ──
     # A session with phone control can change what runs on the phone or move data off
     # it. Taps, swipes and typing stay unprompted (operator: phone tasks must stay
