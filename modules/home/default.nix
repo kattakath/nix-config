@@ -543,10 +543,11 @@ in
     # CONTEXT7_API_KEY). That was a SECOND path to one service while the
     # gateway's mcp__plugin_hm_context7__* existed, keyed from the login
     # Keychain; it died with the gateway 2026-10-02, so
-    # mcp__plugin_context7_context7__* is the only path now — anonymous unless
-    # CONTEXT7_API_KEY is exported into Claude Code's env. There is nothing left
-    # to de-duplicate: the plugin's `.mcp.json` is the ONLY path to Context7, so
-    # it is taken unmodified, which also keeps it a plain upstream pin.
+    # mcp__plugin_context7_context7__* became the only path. Since 2026-11-19
+    # (operator) the claude.ai Context7 DIRECTORY connector serves instead — the
+    # same mcp.context7.com server, reachable from chat, mobile and cloud routines
+    # too — and the plugin's server is denied in `deniedMcpServers` below. The
+    # plugin stays for the skill, the subagent and /context7:docs.
     #
     # NOTE for the upstream-first rule (.claude/rules/upstream-first.md):
     # Context7 serves a CRAWLED snapshot, not this flake's pinned inputs. It is
@@ -986,6 +987,9 @@ in
           { serverName = "plugin:gitlab:gitlab"; }
           { serverName = "plugin:grafana-cloud-mcp:grafana-cloud"; }
           { serverName = "plugin:linear:linear"; }
+          # Context7 (operator, 2026-11-19): the directory connector serves; see
+          # the context7-marketplace comment above.
+          { serverName = "plugin:context7:context7"; }
           # The claude.ai Microsoft 365 connector was denied here 2026-11-01 (tenant blocked
           # consent); lifted 2026-11-13 once the operator re-added it on claude.ai.
         ];
