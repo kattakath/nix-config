@@ -1,4 +1,5 @@
-# A content-hash-pinned Chrome for Testing, exported as PUPPETEER_EXECUTABLE_PATH.
+# A content-hash-pinned Chrome for Testing, exported as PUPPETEER_EXECUTABLE_PATH,
+# plus the two agent browser-rail MCP launchers (below).
 # puppeteer renders the JSON Resume PDFs (packages/jsonresume.nix), and a render must
 # not change because the daily browser auto-updated overnight. So puppeteer gets a
 # browser that moves only with a nixpkgs bump. listing-lens pins the same nixpkgs
@@ -42,6 +43,35 @@ let
     }
     mkdir -p "$out"
   '';
+
+  # ---- the two agent browser rails (page-tools plugin, github:kattakath/skills) ----
+  # Every argument lives HERE, so each client config names only a command and has
+  # nothing to drift. Claude Code, grok and qwen read the plugin's .mcp.json; agy
+  # cannot, so it gets the same two names through programs.antigravity-cli below.
+  #
+  # playwright-chrome-mcp: nixpkgs playwright-mcp in --extension mode drives the
+  #   operator's REAL Chrome through the force-installed Playwright Extension
+  #   (infra/google-workspace/chrome.nix), one tab group per client. Measured
+  #   2026-11-18: trusted clicks, no listening port. Rejected: Kapture (one
+  #   maintainer, an Origin-less loopback port) and CDP autoConnect (whole browser).
+  # chrome-devtools-cft-mcp: Google's chrome-devtools-mcp LAUNCHING the pinned CfT
+  #   above, headless, throwaway profile, over a pipe. Measured the same day: trusted
+  #   clicks. Not in nixpkgs, so it rides a pinned npx spec (the kapture-mcp precedent,
+  #   docs/declarative-gaps-adr.md). It refuses chrome:// URLs by itself.
+  playwrightChromeMcp = pkgs.writeShellApplication {
+    name = "playwright-chrome-mcp";
+    runtimeInputs = [ pkgs.playwright-mcp ];
+    text = ''exec playwright-mcp --extension "$@"'';
+  };
+  chromeDevtoolsCftMcp = pkgs.writeShellApplication {
+    name = "chrome-devtools-cft-mcp";
+    runtimeInputs = [ pkgs.nodejs ];
+    text = ''
+      exec npx -y chrome-devtools-mcp@1.13.0 \
+        --executablePath ${lib.escapeShellArg chromeExecutable} \
+        --isolated --headless --no-usage-statistics "$@"
+    '';
+  };
 in
 {
   options.local.pinnedChrome.enable = lib.mkEnableOption ''
@@ -57,5 +87,21 @@ in
 
     # Puts the layout check in the build graph; it installs nothing.
     home.extraDependencies = [ layoutCheck ];
+
+    home.packages = [
+      playwrightChromeMcp
+      chromeDevtoolsCftMcp
+    ];
+
+    # agy only: the module writes ~/.gemini/config/mcp_config.json. `package = null`
+    # because agy is already machine-wide (hosts/macos.nix environment.systemPackages).
+    programs.antigravity-cli = {
+      enable = true;
+      package = null;
+      mcpServers = {
+        playwright.command = "playwright-chrome-mcp";
+        chrome-devtools.command = "chrome-devtools-cft-mcp";
+      };
+    };
   };
 }
