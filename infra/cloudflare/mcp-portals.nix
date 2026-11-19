@@ -98,29 +98,33 @@ in
     include = "\${[for e in var.allowed_emails : { email = { email = e } }]}";
   };
 
-  resource.cloudflare_zero_trust_access_ai_controls_mcp_server = lib.mapAttrs (app: a: {
-    account_id = accountId;
-    id = app;
-    name = "Kattakath ${a.title}";
-    # Google's Workspace servers serve /mcp/v1; Maps and the self-hosted Tasks server
-    # serve /mcp. A self-hosted app's host is its Cloud Run URL (workspace-mcp-apps.nix).
-    hostname = "https://${upstreamOf a}${a.path or "/mcp/v1"}";
-    auth_type = "oauth";
-    auth_credentials = authCredentials a;
-    client_secret = "\${var.google_oauth_client_secret}";
-    is_shared_oauth_callback_enabled = true;
-    # The dashboard's "Authenticate server" (Edit, then Save) writes a SERVER-level
-    # `updated_tools` list, and the synced `tools` follow it (measured 2026-11-19 on forms,
-    # contacts and docsread; tasks, authenticated without Save, has none). Undeclared here,
-    # every plan would PUT the server to clear it, re-sending its auth config, which risks
-    # dropping it back to "waiting". The PORTAL's per-server allowlist below
-    # (default_disabled + updated_tools) is what decides exposure, and the posture gate
-    # checks that one.
-    lifecycle.ignore_changes = [
-      "updated_tools"
-      "tools"
-    ];
-  }) apps;
+  resource.cloudflare_zero_trust_access_ai_controls_mcp_server = lib.mapAttrs (
+    app: a:
+    {
+      account_id = accountId;
+      id = app;
+      name = "Kattakath ${a.title}";
+      # Google's Workspace servers serve /mcp/v1; Maps and the self-hosted Tasks server
+      # serve /mcp. A self-hosted app's host is its Cloud Run URL (workspace-mcp-apps.nix).
+      hostname = "https://${upstreamOf a}${a.path or "/mcp/v1"}";
+      auth_type = "oauth";
+      auth_credentials = authCredentials a;
+      client_secret = "\${var.google_oauth_client_secret}";
+      is_shared_oauth_callback_enabled = true;
+      # The dashboard's "Authenticate server" (Edit, then Save) writes a SERVER-level
+      # `updated_tools` list, and it WIDENS what the portal exposes: measured 2026-11-19,
+      # docsread showed 7 tools through the portal against an allowlist of 5, its server list
+      # having all 7 enabled. So a self-hosted app's server list is DECLARED, equal to its
+      # allowlist: a dashboard click that widens it shows up as drift on the next plan.
+      # Google's servers have no such list (none was ever saved), so theirs stays unset.
+    }
+    // lib.optionalAttrs (a ? selfHosted) {
+      updated_tools = map (t: {
+        name = t;
+        enabled = true;
+      }) a.tools;
+    }
+  ) apps;
 
   # ONE portal, ONE claude.ai connector ("Kattakath Workspace" at https://mcp.<zone>/mcp,
   # claude.ai's own URL convention, https://mcp.example.com/mcp), every app a server in it.
