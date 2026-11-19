@@ -297,7 +297,7 @@ in
     ./terminal-app.nix # Terminal.app type + colours (all darwin)
     ./fleet-gauges.nix # hourly credential-expiry / security-alert / backup gauges (macos only)
     ./terranix-drift.nix # daily drift check over every terranix stack (macos only)
-    ./pinned-chrome.nix # Nix-pinned Chrome for Testing as puppeteer's browser (macos only)
+    ./pinned-chrome.nix # pinned Chrome for Testing + the page-tools browser-rail launchers (macos only)
     ./claude-otel.nix # local OTel Collector for Claude Code's routing-decision telemetry (macos only)
     # Makes ~/.claude/settings.json LAYERED — a real writable file the app and
     # the operator can edit, with Nix's own keys (the permissions.deny floor,

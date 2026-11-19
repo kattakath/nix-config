@@ -1,6 +1,6 @@
 # Chrome-only browser — design (2026-11-14)
 
-Status: **DRAFT, awaiting operator approval.** Size: a project across two repos
+Status: **SUPERSEDED in part 2026-11-18**: one rail became two (Claude in Chrome first, then the `page-tools` plugin; see its README). Was: **DRAFT, awaiting operator approval.** Size: a project across two repos
 (`kattakath/skills`, then `nix-config`) plus agent memory, landed **big-bang**: each repo in one
 push, skills first.
 
