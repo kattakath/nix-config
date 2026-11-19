@@ -60,7 +60,7 @@ let
   # Plain env (nothing secret).
   envOf = h: if isWorkspace h then workspaceEnv h else nixosEnv;
 
-  # mcp-nixos (server.py main(), 3.0.2 read 2026-11-19): it ignores Cloud Run's PORT and
+  # mcp-nixos (server.py main(), read 2026-11-19 at 3.0.2 and 3.1.1, same names): it ignores Cloud Run's PORT and
   # binds 127.0.0.1:8000 unless told otherwise. Stateless HTTP, because the service scales
   # to zero and a session would not survive it (measured on the Mac: initialize and
   # tools/list both answer with no session id).

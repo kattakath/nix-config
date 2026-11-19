@@ -392,12 +392,17 @@
     # PUBLIC DATA, NO SIGN-IN (operator, 2026-11-19): nixpkgs packages and NixOS /
     # home-manager / nix-darwin options, so a Nix lookup works on every Claude surface
     # instead of only where the nix-flake-kit plugin's local server runs (that copy is
-    # denied in deniedMcpServers). Upstream utensils/mcp-nixos publishes the image
-    # (ghcr.io/utensils/mcp-nixos, Nix-built, entrypoint mcp-nixos) and documents HTTP
-    # mode (README "Option 4", v3.1.1). It holds no secret and reads only public
-    # search APIs, so the portal reaches it `unauthenticated`, and the posture gate
-    # admits that ONLY for an app marked `public`. The portal's own Access gate still
-    # decides who reaches it; one Cloud Run instance and the budget alert cap abuse.
+    # denied in deniedMcpServers once this app answers through the connector). Upstream
+    # utensils/mcp-nixos publishes the image (ghcr.io/utensils/mcp-nixos, Nix-built,
+    # entrypoint mcp-nixos) and documents HTTP mode (README "Option 4", v3.1.1). It holds
+    # no secret and its service account has no roles, so the portal reaches it
+    # `unauthenticated`, and the posture gate admits that ONLY for an app marked `public`.
+    # What it reads: public search APIs, plus two `nix` actions on the CONTAINER's own
+    # disk (`store` reads its /nix/store; `flake-inputs` archives a directory it is given)
+    # — the image's closure only, nothing of ours (infra review 2026-11-19).
+    # Who can call it: anyone. The portal's Access gate covers the portal URL only; the
+    # run.app URL is public (allUsers invoker, no auth). Bounds: one instance, request
+    # billing, the >300/h request-spike rule. The budget only ALERTS; it stops no spend.
     nixos = {
       title = "NixOS";
       public = true;
