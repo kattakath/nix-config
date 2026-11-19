@@ -16,6 +16,12 @@ SELECT content, metadata FROM docs ORDER BY embedding <=> embed($2) LIMIT 8;
 
 No API key, no vector-DB client library, nothing leaves the machine.
 
+> **On this fleet, the RAG corpus no longer lives here (2026-11-19).** It moved to a private
+> Cloudflare AI Search instance ([`infra/cloudflare/ai-search.nix`](../../../infra/cloudflare/ai-search.nix),
+> stack `cf-ai-search`) so retrieval works on every Claude surface. This store keeps the
+> frozen pre-migration copy, read-only, and the IRCC bot's LangGraph checkpoints. The
+> capsule itself is unchanged and still fully local.
+
 > **Provenance.** This was `github.com/kattakath/nix-local-rag`, a standalone MIT
 > flake, until ADR-002 ([`docs/monoflake-capsule-adr.md`](../../../docs/monoflake-capsule-adr.md))
 > collapsed the seven satellites into this repo as *capsules* — this was the last
