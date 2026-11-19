@@ -61,7 +61,8 @@ let
   playwrightChromeMcp = pkgs.writeShellApplication {
     name = "playwright-chrome-mcp";
     runtimeInputs = [ pkgs.playwright-mcp ];
-    text = ''exec playwright-mcp --extension "$@"'';
+    # --output-dir: snapshots and logs otherwise land in the agent's CWD (a repo).
+    text = ''exec playwright-mcp --extension --output-dir "''${XDG_STATE_HOME:-$HOME/.local/state}/playwright-mcp" "$@"'';
   };
   chromeDevtoolsCftMcp = pkgs.writeShellApplication {
     name = "chrome-devtools-cft-mcp";
