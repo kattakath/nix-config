@@ -48,11 +48,9 @@
   ...
 }:
 let
-  inherit (import ./workspace-mcp-apps.nix) apps portalLabel;
+  inherit (import ./workspace-mcp-apps.nix) apps portalLabel runAppHost;
   portalHost = "${portalLabel}.${domainName}";
-  # Cloud Run's deterministic URL: https://<service>-<project number>.<region>.run.app.
-  upstreamOf =
-    a: a.upstream or "${a.selfHosted.service}-${projectNumber}.${a.selfHosted.region}.run.app";
+  upstreamOf = a: a.upstream or (runAppHost projectNumber a.selfHosted);
 
   # Our OAuth client, as Cloudflare's `auth_credentials` JSON. Rendered by Terraform
   # (jsonencode) because the client id is a variable, not a literal.
@@ -104,8 +102,9 @@ in
       account_id = accountId;
       id = app;
       name = "Kattakath ${a.title}";
-      # Google's Workspace servers serve /mcp/v1; Maps and the self-hosted Tasks server
-      # serve /mcp. A self-hosted app's host is its Cloud Run URL (workspace-mcp-apps.nix).
+      # Google's Workspace servers serve /mcp/v1; Maps and every self-hosted
+      # server serve /mcp (each app's `path`). A self-hosted app's host is its Cloud Run
+      # URL (`runAppHost` in workspace-mcp-apps.nix).
       hostname = "https://${upstreamOf a}${a.path or "/mcp/v1"}";
       auth_type = "oauth";
       auth_credentials = authCredentials a;

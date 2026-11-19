@@ -13,8 +13,8 @@ lane rules and spawn-test measurements that outlived it) and
 > **MCP, 2026-10-02 — THE OLD GATEWAY AND ITS PORTAL ARE GONE.** Read this before acting on any
 > MCP sentence anywhere in this repo. There is no shared proxy, nothing on `127.0.0.1:8097`, and no
 > `modules/shared/mcp.nix`. **Since 2026-11-14 ONE portal is back:** the `cf-mcp-portals` stack
-> publishes "Kattakath Workspace" at `mcp.kattakath.com`, holding only Google's Workspace MCP
-> servers. **Every other MCP server comes from an enabled plugin's own `.mcp.json`, spawned per
+> publishes "Kattakath Workspace" at `mcp.kattakath.com`, holding Google Workspace MCP
+> servers (Google-hosted, plus self-hosted ones on Cloud Run). **Every other MCP server comes from an enabled plugin's own `.mcp.json`, spawned per
 > session, nothing shared** — see [`map/claude-code.md`](map/claude-code.md) § MCP after the
 > gateway for both lanes and for what the teardown measured.
 

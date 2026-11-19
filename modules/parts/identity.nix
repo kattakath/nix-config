@@ -183,8 +183,8 @@ let
   gcpProjectId = "kattakath-family";
   # Its project NUMBER, public already (every OAuth client id in the project begins
   # with it, as accessOrg.googleIdp.clientId below does). A Cloud Run service's URL is
-  # https://<service>-<number>.<region>.run.app, which the MCP portal must know at
-  # render time (infra/cloudflare/mcp-portals.nix, the self-hosted Tasks server).
+  # https://<service>-<number>.<region>.run.app, which every stack that addresses
+  # a self-hosted MCP server needs at render time.
   gcpProjectNumber = "305924238191";
 
   # The Workspace add-on's OWN project (an Apps Script project binds to exactly one).

@@ -22,12 +22,10 @@ let
     smProbeIds
     ;
 
-  # The service names come from the portal's app list, the one place they are declared;
-  # the project number makes each one's run.app URL (Cloud Run's deterministic form).
+  # The service names, and the run.app formula, come from the portal's app list.
+  appList = import ../cloudflare/workspace-mcp-apps.nix;
   selfHosted = map (a: a.selfHosted) (
-    builtins.filter (a: a ? selfHosted) (
-      builtins.attrValues (import ../cloudflare/workspace-mcp-apps.nix).apps
-    )
+    builtins.filter (a: a ? selfHosted) (builtins.attrValues appList.apps)
   );
   services = map (x: x.service) selfHosted;
   serviceRe = builtins.concatStringsSep "|" services;
@@ -207,7 +205,7 @@ in
             ];
           }
         ];
-        target = "https://${x.service}-${gcpProjectNumber}.${x.region}.run.app/health";
+        target = "https://${appList.runAppHost gcpProjectNumber x}/health";
         # A cold start (scale from zero) takes seconds; leave room for it.
         timeout = 20000;
       };

@@ -87,16 +87,12 @@ stack hurts you is a shrunken render silently deleting mail, not a bad tunnel. A
 The Zero Trust **organisation** and the account-level Zero Trust objects (the file is the list), and its
 own stack because it sits *above* the other Cloudflare ones rather than beside them:
 `auth_domain` is the sign-in host for **every** Access application in the account, so a bad
-apply takes out nixpi's SSH gate along with anything else gated there. (Until 2026-10-02 the
-"anything else" was the MCP portal, which is what made this stack's blast radius legible in the
-first place.) Few resources is not an argument for folding it into a
+apply takes out nixpi's SSH gate AND the Workspace MCP portal (`cf-mcp-portals`). Few resources is not an argument for folding it into a
 neighbour; the rule keys on consequence, not line count.
 
 **What it is for:** the login page's branding (`login_design` — logo, background, header,
-footer). **Its original audience is gone**: it was the *only* surface in the MCP connector flow
-carrying the operator's mark, and there is no MCP connector flow any more. What remains is the
-sign-in page an operator sees when Access challenges them for `ssh` to the Pi, which is a real if
-much smaller surface. The measurement that justified it is kept because it is about Claude and
+footer). It brands the Access sign-in for the Workspace MCP portal (again since 2026-11-14) and for `ssh`
+to the Pi. The measurement that justified it is kept because it is about Claude and
 Cloudflare, not about this fleet: Claude renders a generic globe for every custom connector —
 `serverInfo.icons` exists in MCP spec 2025-11-25 but Claude does not read it
 ([anthropics/claude-ai-mcp#152](https://github.com/anthropics/claude-ai-mcp/issues/152)), and
@@ -123,7 +119,8 @@ blank the organisation and DELETE the IdP (`prevent_destroy` refuses that).
 ### `infra/gcp/foundation.nix`
 
 The GCP project's declared objects (the file is the list; what stays out is ADR-005 §10), plus
-the organization's `operatorOnlyOrgRoles` bindings (see that block's UNDOING note).
+the organization's `operatorOnlyOrgRoles` bindings (see that block's UNDOING note). It imports
+`self-hosted-mcp.nix`: one Cloud Run service per `selfHosted` portal app.
 
 **Its state is LOCAL but not plaintext.** It cannot live in the bucket it declares, so it sits
 `0600` under `$XDG_STATE_HOME/nix-config-gcp-foundation` — and it still runs
@@ -338,7 +335,8 @@ only ever consumed by the `cachix` CLI at push time.
   GitHub App, Sheets reader and Cloud Monitoring reader keys stay only in Grafana, never state.
   The li-logs token IS in state; `grafana-apply` pipes it to the Keychain.
 - **Maps + add-on:** datasource `gcp-monitoring` (SA `grafana-monitoring-reader`, viewer, both projects),
-  dashboard + rule group `maps-platform`. Queried live: no Grafana series.
+  dashboard + rule group `maps-platform`; `self-hosted-mcp` (5xx, spike, /health + SM checks).
+  Queried live: no Grafana series.
 - **Guards** (the same set as the github stack's): an empty-state guard (with no state, every
   resource must have an import block — `GRAFANA_ALLOW_CREATE`), a drop guard (a render that
   loses an object state holds refuses — `GRAFANA_ALLOW_DROPS`) and no `-auto-approve`.

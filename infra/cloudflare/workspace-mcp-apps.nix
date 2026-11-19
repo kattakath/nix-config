@@ -1,8 +1,7 @@
 # ---- The Workspace MCP apps, as DATA ------------------------------------------
 #
-# ONE list, read by two stacks, so a host cannot exist in one and not the other:
-#   infra/cloudflare/mcp-portals.nix   a Cloudflare MCP server per app, all in ONE portal
-#   infra/cloudflare/kattakath-dns.nix the proxied CNAME the portal hostname needs
+# ONE list, imported by every stack that needs an app's name or host (`git grep
+# workspace-mcp-apps.nix`), so a host cannot exist in one and not another.
 #
 # ONE PORTAL for every app (https://<portalLabel>.kattakath.com/mcp), so claude.ai holds
 # ONE connector, "Kattakath Workspace". Each app is still its own MCP server with its
@@ -36,6 +35,10 @@
   # (https://mcp.example.com/mcp; operator, 2026-11-14). The app names below are the
   # Cloudflare MCP server ids, and so the prefix of every tool name (gmail_search_threads).
   portalLabel = "mcp";
+  # A self-hosted app's host: Cloud Run's deterministic URL form. The ONE copy of the
+  # formula, called by every stack that addresses a self-hosted server (the portal's
+  # upstream, the service's own advertised URL, the Synthetic Monitoring target).
+  runAppHost = projectNumber: h: "${h.service}-${projectNumber}.${h.region}.run.app";
   apps = {
     gmail = {
       title = "Gmail";
@@ -206,7 +209,7 @@
     # SELF-HOSTED (2026-11-18): Google serves no Tasks MCP server (not on its
     # supported-products list; tasksmcp is not enable-able), and cloud routines need
     # Tasks. So upstream taylorwilsdon/google_workspace_mcp runs on Cloud Run
-    # (infra/gcp/foundation.nix renders it from `selfHosted`) in EXTERNAL OAuth mode:
+    # (infra/gcp/self-hosted-mcp.nix renders it from `selfHosted`) in EXTERNAL OAuth mode:
     # the portal runs the Google sign-in and stores the grant exactly as for Google's
     # servers, and sends the user's Google access token as a Bearer, which the server
     # checks against Google's userinfo. The server holds no token store and no

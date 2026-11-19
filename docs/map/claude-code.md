@@ -10,7 +10,7 @@ teardown removed the shared proxy on `127.0.0.1:8097`, its tunnel and portal,
 `fleet.publicMcpServers` and the `mcp-published-parity` check. Since 2026-11-14 the
 `cf-mcp-portals` stack (`infra/cloudflare/mcp-portals.nix` + `workspace-mcp-apps.nix`) publishes
 ONE Cloudflare MCP portal, "Kattakath Workspace", at `https://mcp.kattakath.com/mcp`. It holds
-only Google's Workspace MCP servers, and `checks.<system>.mcp-portal-posture` gates it. Its DNS
+Google Workspace MCP servers (Google-hosted, plus the `selfHosted` apps on Cloud Run), and `checks.<system>.mcp-portal-posture` gates it. Its DNS
 CNAME is `gatewayRecords` in `infra/cloudflare/kattakath-dns.nix`. Every other server reaches a
 session through a plugin, as below.
 

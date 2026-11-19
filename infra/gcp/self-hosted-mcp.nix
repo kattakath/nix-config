@@ -1,8 +1,7 @@
 # ---- The self-hosted MCP servers: Cloud Run upstreams of the Workspace MCP portal ----
 #
 # Imported by ./foundation.nix (gcp-foundation stack, operator ADC). Every portal app in
-# infra/cloudflare/workspace-mcp-apps.nix that carries `selfHosted` (tasks, forms,
-# contacts, docsread) gets ONE Cloud Run service here: one tool family, one scope set,
+# infra/cloudflare/workspace-mcp-apps.nix that carries `selfHosted` gets ONE Cloud Run service here: one tool family, one scope set,
 # one blast radius, each scaling to zero. A module of its own because its resource
 # types (service accounts) are also declared in foundation.nix, and the module system
 # merges the two where one attrset literal could not.
@@ -25,8 +24,9 @@
 let
   # Name, region, tool family and read-only flag are owned by the portal's app list, so
   # the URL the portal calls and the service here cannot disagree.
+  appList = import ../cloudflare/workspace-mcp-apps.nix;
   selfHosted = lib.mapAttrs (_: a: a.selfHosted) (
-    lib.filterAttrs (_: a: a ? selfHosted) (import ../cloudflare/workspace-mcp-apps.nix).apps
+    lib.filterAttrs (_: a: a ? selfHosted) appList.apps
   );
 
   # ONE region for all of them, because they share the one `ghcr` pull-through repo.
@@ -56,7 +56,7 @@ let
       # used in this mode: a ya29.* token is checked at userinfo, with no audience test.
       GOOGLE_OAUTH_CLIENT_ID = "unused-in-external-mode.apps.googleusercontent.com";
       # The resource URL its protected-resource metadata advertises.
-      WORKSPACE_EXTERNAL_URL = "https://${h.service}-${projectNumber}.${h.region}.run.app";
+      WORKSPACE_EXTERNAL_URL = "https://${appList.runAppHost projectNumber h}";
       # The image's CMD turns these two into `--tools` / `--tool-tier` (upstream
       # Dockerfile at v2.5.0). Cloud Run's PORT=8080 is read by core/config.py.
       TOOLS = h.family;
