@@ -69,7 +69,6 @@ let
     "fcoeoabgfenejglbffodgkkbkcdhcgfn" # Claude in Chrome — Claude Code's browser rail
   ];
   created = [
-    "ejfnegenodbdcodemkibocefmajjjjbn" # Kapture MCP Browser Automation
     # Playwright Extension: the rail for every other agent (nixpkgs playwright-mcp
     # `--extension`). The id is the one the pinned closure's playwright-core expects.
     "mmlmfjhmonkocbjadbfplnigmagldckm" # Playwright Extension
@@ -88,6 +87,13 @@ let
     MetricsReportingEnabled = {
       metricsReportingEnabled = "FALSE";
       metricsReportingEnabledCategoryItemPolicyMode = "POLICY_MODE_MANDATORY";
+    };
+    # No remote-debugging switch (chrome://inspect/#remote-debugging, --remote-debugging-*):
+    # it hands any local app the whole browser, cookies included. The agent rails use
+    # the extension debugger API instead, which this policy does not govern.
+    RemoteDebuggingAllowed = {
+      # TYPE_BOOL (the API refused the "FALSE" enum spelling the other settings use).
+      remoteDebuggingAllowed = false;
     };
     # Visited URLs are not sent to Google.
     UrlKeyedAnonymizedDataCollectionEnabled = {
