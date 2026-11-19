@@ -20,8 +20,9 @@ description: >
 > `checks.*.mcp-published-parity` are all **deleted**, and nothing listens on `127.0.0.1:8097`.
 > `mcp.kattakath.com` is declared again since 2026-11-14, but only for the `cf-mcp-portals`
 > stack's "Kattakath Workspace" portal (`infra/cloudflare/mcp-portals.nix` +
-> `workspace-mcp-apps.nix`, gated by `checks.*.mcp-portal-posture`). It holds Google's Workspace
-> MCP servers only, so it is not where a new server goes. There is **ONE** declarative
+> `workspace-mcp-apps.nix`, gated by `checks.*.mcp-portal-posture`). It holds Google Workspace
+> servers only (Google's own, plus a self-hosted Tasks server whose Cloud Run service lives in
+> `infra/gcp/foundation.nix`), so it is not where a non-Workspace server goes. There is **ONE** declarative
 > destination for adoption.
 >
 > **Step 0 — connector first.** If an official claude.ai connector serves the capability, prefer
