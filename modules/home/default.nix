@@ -249,7 +249,7 @@ let
 
   androidEmu = pkgs.callPackage ../../packages/android-emu.nix { inherit androidSdkRoot brewPrefix; };
 
-  # "Focus-or-launch" Spotlight .app bundle for the Android emulator
+  # Spotlight .app bundles for the Android emulator and the Test Browser
   # (macos host only, below) — see packages/spotlight-launchers.nix.
   spotlightLaunchers = pkgs.callPackage ../../packages/spotlight-launchers.nix {
     inherit brewPrefix;
@@ -651,6 +651,14 @@ in
   # approve it in System Settings > Privacy & Security > Automation.
   home.file."Applications/Android Emulator.app" = lib.mkIf isMacosHost {
     source = spotlightLaunchers.androidEmulatorApp;
+    recursive = true;
+  };
+
+  # Spotlight-launchable "Test Browser": the persistent Chrome for Testing profile the
+  # page-tools `cft-profile` rail drives. It runs `cft-profile`, so it exists only
+  # where that command does.
+  home.file."Applications/Test Browser.app" = lib.mkIf config.local.pinnedChrome.enable {
+    source = spotlightLaunchers.testBrowserApp;
     recursive = true;
   };
 

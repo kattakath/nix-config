@@ -31,8 +31,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   `home.packages` also carries `pandoc`/`poppler-utils` (nixpkgs, darwin-only) — together with
   macos's `libreoffice` cask, these satisfy the docx/pptx/xlsx/pdf skills' stated runtime deps
   (LibreOffice/poppler/pandoc), a gap flagged inline at that skills block since it was first
-  wired. Also declares a Spotlight-visible, focus-or-launch `.app` bundle for the Android
-  emulator (`home.file."Applications/Android Emulator.app"`, backed by
+  wired. Also declares Spotlight-visible `.app` bundles for the Android emulator
+  (focus-or-launch) and the Test Browser (`cft-profile`) (`home.file."Applications/<name>.app"`, backed by
   `packages/spotlight-launchers.nix`, macos-only). **qBittorrent** is planted the
   same `recursive = true` way (`home.file."Applications/qBittorrent.app"`, from nixpkgs): NOT the
   Homebrew cask, which Homebrew DISABLED on 2026-09-01 for failing Gatekeeper, and NOT

@@ -100,7 +100,9 @@ Core package set:
 - **`spotlight-launchers.nix`** — macOS-only: from-scratch `.app` bundle generator (original
   in-Nix SVG/icns icons via librsvg+libicns). `mkLauncherApp` gives the Android
   emulator a Spotlight-visible, focus-or-launch identity (consumed by
-  `modules/home/default.nix`'s `home.file."Applications/Android Emulator.app"`).
+  `modules/home/default.nix`'s `home.file."Applications/Android Emulator.app"`). `mkExecApp`
+  (2026-11-19) only execs a command: "Test Browser" runs `cft-profile`, whose Chrome is
+  already single-instance, so it needs no System Events check and no Automation prompt.
   The `mkCommandApp`/`mkAliasApp` makers, their four `Nix *` bundles, the `Terminal` alias and
   `packages/fleet-mark.svg` were REMOVED 2026-11-06 as unused (git history has them).
   **Not Spotlight's "Actions" lane** — that is App Intents (Swift + signing) or Shortcuts.app

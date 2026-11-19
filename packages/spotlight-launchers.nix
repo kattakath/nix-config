@@ -1,6 +1,7 @@
 # Spotlight-indexed .app bundles (macOS host only): `mkLauncherApp`, a
 # "focus-or-launch" wrapper for a GUI process that has no .app of its own (the
-# Android emulator, below).
+# Android emulator, below), and `mkExecApp`, a bundle that just runs a command
+# whose program already focuses itself ("Test Browser", below).
 #
 # The fleet-operation bundles (`Nix Activate`, `Nix Flake Check`, `Nix Open
 # Repo`, `NixOS VM`) and the `Terminal` alias for Ghostty were REMOVED
@@ -207,8 +208,55 @@ let
         launcher
         ;
     };
+  # A bundle whose launcher only execs a command on PATH. For a program that is
+  # already single-instance, where mkLauncherApp's System Events check would add an
+  # Automation prompt and nothing else.
+  mkExecApp =
+    {
+      name,
+      bundleId,
+      command,
+      iconSvg,
+    }:
+    let
+      slug = lib.replaceStrings [ " " ] [ "-" ] (lib.toLower name);
+    in
+    mkAppBundle {
+      inherit name slug bundleId;
+      icns = mkIcns slug iconSvg;
+      launcher = writeShellApplication {
+        name = "launcher";
+        text = ''
+          PATH="${launcherPath}"
+          export PATH
+          exec ${command}
+        '';
+      };
+    };
+
+  # A flask on a blue tile: "the browser for tests". An original glyph, not any
+  # vendor's logo.
+  testBrowserIconSvg = ''
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+      <rect width="1024" height="1024" fill="#1A73E8"/>
+      <path d="M 432 250 L 592 250 L 592 450 L 750 730 A 50 50 0 0 1 706 800 L 318 800 A 50 50 0 0 1 274 730 L 432 450 Z" fill="none" stroke="#FFFFFF" stroke-width="36" stroke-linejoin="round"/>
+      <line x1="400" y1="250" x2="624" y2="250" stroke="#FFFFFF" stroke-width="36" stroke-linecap="round"/>
+      <path d="M 345 620 L 679 620 L 728 710 A 30 30 0 0 1 702 755 L 322 755 A 30 30 0 0 1 296 710 Z" fill="#FFFFFF"/>
+    </svg>
+  '';
 in
 {
+  # The agent's persistent Chrome for Testing profile (modules/home/pinned-chrome.nix's
+  # `cft-profile`). No focus check needed: Chrome's process singleton hands a second
+  # launch on the same --user-data-dir to the running browser, which opens a window there.
+  # Measured 2026-11-19: two launches left one browser process.
+  testBrowserApp = mkExecApp {
+    name = "Test Browser";
+    bundleId = "com.kattakath.test-browser";
+    command = "cft-profile";
+    iconSvg = testBrowserIconSvg;
+  };
+
   androidEmulatorApp = mkLauncherApp {
     name = "Android Emulator";
     bundleId = "com.kattakath.android-emulator";
