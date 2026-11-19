@@ -354,7 +354,7 @@ let
         fi
 
         ${tofuRemoteStatePrelude}
-        tofu init
+        tofu init ''${TOFU_INIT_UPGRADE:+-upgrade}
 
         # DROPPED-RECORD GUARD — the site-free check above is an ABSOLUTE FLOOR,
         # so it only fires when EVERY site is gone. A render that keeps one site
@@ -515,7 +515,7 @@ let
         cp ${cfTunnelConfig { inherit system hostedSites; }} config.tf.json
         chmod 600 config.tf.json
         ${tofuRemoteStatePrelude}
-        tofu init
+        tofu init ''${TOFU_INIT_UPGRADE:+-upgrade}
 
         # Read-only at Cloudflare: an import is a GET plus a state write.
         echo "Importing the live SSH Access policy into state (no Cloudflare writes)..." >&2
@@ -635,7 +635,7 @@ let
         cp ${cfAccessOrgConfig { inherit system; }} config.tf.json
         chmod 600 config.tf.json
         ${tofuRemoteStatePrelude}
-        tofu init
+        tofu init ''${TOFU_INIT_UPGRADE:+-upgrade}
 
         echo "auth_domain this render declares: $(jq -r '
           .resource.cloudflare_zero_trust_organization.fleet.auth_domain // "MISSING"
@@ -666,20 +666,25 @@ let
 
         # ---- The guard that matters: a NULL-WRITE check -----------------------
         # Everything below is one mechanism, so read it once rather than per-test.
-        # The provider's encoder (internal/apijson/encoder.go:406-409 @ 5.25.0)
+        # The provider's encoder (internal/apijson/encoder.go:406-409 @ 5.25.0; the file
+        # is byte-identical at 5.29.0, re-read 2026-11-19)
         # omits a key only when it is null in BOTH plan and state; when it is null
         # in the plan and SET in state it sends an explicit JSON `null`, and
         # Update marshals against prior state (resource.go:129). So for this
         # resource "absent from the render" means DELETE, not "leave alone".
         #
         # `computed_optional` attributes are exempt — the framework refills them
-        # from state — which leaves exactly these six able to be silently deleted.
+        # from state — which leaves exactly these seven able to be silently deleted
+        # (5.29.0 model.go: `mfa_ssh_piv_key_requirements` was RENAMED to
+        # `mfa_piv_key_requirements`, and `service_token_inactivity` is new; both
+        # optional, not computed).
         # They are absent from the render because they are unset live; if anyone
         # sets one in the dashboard, this refuses instead of reverting it.
-        state_json=$(tofu show -json 2>/dev/null || true)
+        state_json=$(tofu show -json 2>show.err || true)
         if [ -z "$state_json" ]; then
           echo "REFUSING: could not read state as JSON, so this run cannot tell" >&2
-          echo "  whether an apply would null out an organisation attribute." >&2
+          echo "  whether an apply would null out an organisation attribute. tofu said:" >&2
+          sed 's/^/    /' show.err | head -20 >&2
           exit 1
         fi
         # NOT `|| true`. A jq that errors here would yield an empty result, which
@@ -690,7 +695,7 @@ let
           ($cfg[0].resource.cloudflare_zero_trust_organization.fleet) as $render
           | [ "session_duration", "user_seat_expiration_inactive_time",
               "warp_auth_session_duration", "custom_pages", "mfa_config",
-              "mfa_ssh_piv_key_requirements" ] as $risky
+              "mfa_piv_key_requirements", "service_token_inactivity" ] as $risky
           | ( .values.root_module.resources // [] )
           | map(select(.type == "cloudflare_zero_trust_organization"))
           | .[0].values // {}
@@ -794,7 +799,7 @@ let
         cp ${cfAccessOrgConfig { inherit system; }} config.tf.json
         chmod 600 config.tf.json
         ${tofuRemoteStatePrelude}
-        tofu init
+        tofu init ''${TOFU_INIT_UPGRADE:+-upgrade}
 
         # Read-only at Cloudflare: the provider's ImportState reads the org with
         # a GET (resource.go:229-270). The registry docs for 5.25.0 claim this
@@ -863,7 +868,7 @@ let
         cp ${cfZonesConfig { inherit system; }} config.tf.json
         chmod 600 config.tf.json
         ${tofuRemoteStatePrelude}
-        tofu init
+        tofu init ''${TOFU_INIT_UPGRADE:+-upgrade}
 
         rendered=$(jq '[.resource.cloudflare_dns_record // {} | keys[]] | length' config.tf.json)
         echo "rendered records: $rendered" >&2
@@ -1204,7 +1209,7 @@ let
         cp ${gcpFoundationConfig { inherit system; }} config.tf.json
         chmod 600 config.tf.json
         ${tofuRemoteStatePrelude}
-        tofu init
+        tofu init ''${TOFU_INIT_UPGRADE:+-upgrade}
 
         # The refusal that matters here is DELETION of the state bucket: it holds
         # every other stack's state, and `prevent_destroy` in the resource only
@@ -1308,7 +1313,7 @@ let
         cp ${gcpBudgetConfig { inherit system; }} config.tf.json
         chmod 600 config.tf.json
         ${tofuRemoteStatePrelude}
-        tofu init
+        tofu init ''${TOFU_INIT_UPGRADE:+-upgrade}
 
         # The budget is ONE object, so the elaborate delta guards the Cloudflare
         # stacks carry would be ceremony here. The one mistake worth refusing is
@@ -1762,8 +1767,10 @@ let
         ${tofuRemoteStatePrelude}
         # -upgrade only with Nix-pinned plugins: there the withPlugins mirror holds one
         # version, so the lock file in this dir is not the pin, and a bare init would
-        # refuse after a nixpkgs bump. A registry provider keeps its lock file.
-        tofu init${lib.optionalString (plugins != null) " -upgrade"}
+        # refuse after a nixpkgs bump. A registry provider keeps its lock file, except
+        # once after a pin bump in infra/provider-pins.nix: TOFU_INIT_UPGRADE=1 re-locks
+        # it (every pin is EXACT, so -upgrade can only select that one version).
+        tofu init${if plugins != null then " -upgrade" else " \${TOFU_INIT_UPGRADE:+-upgrade}"}
 
         ${stateListGuard [ "an apply would delete live ${label} objects. tofu said:" ]}
         grep -E '^${typePrefix}' .state-addrs.raw | sort > .state-addrs || true

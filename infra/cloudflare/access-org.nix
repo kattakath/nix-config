@@ -109,6 +109,14 @@
   # fails by silently sending a null. The pin itself is shared with the other
   # Cloudflare stacks in ../provider-pins.nix, so raising it there re-opens this
   # stack's argument too.
+  #
+  # RE-OPENED 2026-11-19 by the 5.25.0 -> 5.29.0 bump (AI Search needed it). Re-read:
+  # encoder.go identical; resource.go changed one error string; model.go renamed
+  # `mfa_ssh_piv_key_requirements` -> `mfa_piv_key_requirements` and added optional
+  # `service_token_inactivity`, which is SET live ({enabled = false}). Both joined the
+  # wrapper's risky list. NOT yet done: this stack's state still holds the old field
+  # name (the rename kept schema version 500, so no upgrader runs) and `tofu show
+  # -json` fails, so the wrapper REFUSES every run until the state is migrated.
   terraform.required_providers.cloudflare = {
     source = "cloudflare/cloudflare";
     version = "= ${(import ../provider-pins.nix).cloudflare}";

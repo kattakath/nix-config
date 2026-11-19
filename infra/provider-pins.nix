@@ -37,7 +37,14 @@
 # on a throwaway unit on 2026-11-15 (infra/google-workspace/chrome.nix header, with
 # the destroy path that does NOT work). Re-run that test before raising it.
 {
-  cloudflare = "5.25.0";
+  # 5.29.0 since 2026-11-19: 5.25.0 cannot create or read `cloudflare_ai_search_instance`
+  # (model.go declares `vectorize_name`, schema.go does not: upstream #7383, fixed in
+  # 5.29.0). Planned clean the same day on 5.29.0: cf-zones, cf-tunnel, cf-mcp-portals
+  # ("No changes"); cf-ai-search (its first create). cf-access-org is PARTLY re-derived
+  # (encoder.go byte-identical, model rename + one new optional field; see access-org.nix)
+  # and its state is not yet migrated, so that stack refuses until it is.
+  # Re-lock each stack once with TOFU_INIT_UPGRADE=1 (modules/parts/terranix.nix).
+  cloudflare = "5.29.0";
   google = "8.4.0";
   googleworkspace = "1.5.3";
   healthchecksio = "2.3.0";
