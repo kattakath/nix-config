@@ -55,7 +55,14 @@
           "repo"
           "title"
         ];
+    # OFF, and flipping `enabled` alone would expose search, chat AND the MCP endpoint at
+    # once (their own flags default to on): turn each sub-endpoint off before ever doing so.
     public_endpoint_params.enabled = false;
+    # A REPLACE keeps the address, so the wrapper's drop guard (address-based) cannot see
+    # it, and it would delete every item. Only `id`, `account_id` and `type` force one
+    # (provider 5.25.0 schema). Never declare `hybrid_search_enabled` to quiet a diff: it
+    # is RequiresReplaceIfConfigured (infra review 2026-11-19).
+    lifecycle.prevent_destroy = true;
   };
 
   output.ai_search_instance.value = "\${cloudflare_ai_search_instance.rag.id}";
