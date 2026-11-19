@@ -49,7 +49,6 @@ in
         catalogue = ../../.claude/skills/doctors/rules.json;
         inherit repoName;
         repoUrl = "https://github.com/${orgName}/${repoName}";
-        pingKeyItem = (import ../_lib/keychain-items.nix).healthchecksPingKey;
         stateDirName = (import ../_lib/terranix-stacks.nix).doctorStateDirName;
       };
 
@@ -137,7 +136,7 @@ in
             [ "$(doctor-report fingerprint NH-D-stale-count docs/x.md 'the count')" = \
               "$(doctor-report fingerprint NH-D-stale-count docs/x.md 'the count')" ] || fail "fingerprint is not stable"
 
-            # 3. `weekly --no-ping`, the scheduled audit's entry point, against a scratch state
+            # 3. `weekly`, the audit report, against a scratch state
             #    dir. Run names are publish's own <UTC>.<ext>, minted relative to NOW, so the
             #    freshness rule is tested for real. Findings exit 0; a broken run exits 1.
             export DOCTOR_REPORT_DIR=$PWD/state
@@ -149,21 +148,21 @@ in
             ln -s $now.sarif state/hygiene/latest
             cp ${fixtures}/good.health.json state/fleet-doctor/$now.json
             ln -s $now.json state/fleet-doctor/latest
-            expect 0 doctor-report weekly --no-ping
+            expect 0 doctor-report weekly
             grep -q 'new: NH-A-one/00112233aabbccdd' log || { cat log >&2; fail "weekly did not list the new hygiene finding"; }
             grep -q 'no previous run' log || { cat log >&2; fail "weekly did not report the missing fleet-doctor baseline"; }
             # Missing, stale and invalid latest runs are each BROKEN.
             rm state/fleet-doctor/latest
-            expect 1 doctor-report weekly --no-ping
+            expect 1 doctor-report weekly
             stale=$(date -u -d '-3 days' +%Y%m%dT%H%M%SZ)
             cp ${fixtures}/good.health.json state/fleet-doctor/$stale.json
             ln -s $stale.json state/fleet-doctor/latest
-            expect 1 doctor-report weekly --no-ping
+            expect 1 doctor-report weekly
             grep -q 'h old' log || { cat log >&2; fail "weekly did not call the stale run stale"; }
             ln -sfn $now.json state/fleet-doctor/latest
             rm -f state/fleet-doctor/$now.json  # the copied fixture is read-only, like its store source
             cp ${fixtures}/broken-health-count.health.json state/fleet-doctor/$now.json
-            expect 1 doctor-report weekly --no-ping
+            expect 1 doctor-report weekly
             unset DOCTOR_REPORT_DIR
 
             # 4. Every broken fixture is REJECTED (exit 1), each for its one broken clause.

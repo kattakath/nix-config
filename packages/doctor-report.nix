@@ -14,17 +14,14 @@
 #   fingerprint RULE FILE CONSTRUCT   the stable findingId/v1 (never a line number)
 #   skeleton DOCTOR SHA   an empty, catalogue-derived envelope to fill
 #   publish DOCTOR FILE   validate, copy to the state dir, point `latest` at it
-#   weekly [--no-ping]    the scheduled audit's ONE entry point (below)
+#   weekly                validate + diff both `latest` runs, report only (below)
 #
-# `weekly` is what the weekly Claude Desktop task runs after `/fleet-doctor` and `/hygiene`
-# (prompt: docs/doctors-coverage-adr.md § 6). It reads both `latest` runs, refuses a missing,
-# invalid or STALE one (a doctor that died before `publish` leaves last week's `latest`, which
-# still validates), diffs each against that doctor's previous run, and prints counts plus the
-# NEW finding IDs. Then it pings the `nix-config-doctors-weekly` heartbeat through runitor.
-# The exit policy is the inverse of terranix-drift's, on purpose: FINDINGS ARE NOT FAILURES.
-# Verdict 0 (clean) and 2 (findings or vacuous) both exit 0, so runitor pings success; only a
-# broken run exits 1, which runitor sends as /fail. A run that never happens alerts on the
-# monitor's grace. `--no-ping` runs the same report and touches neither `secret` nor runitor.
+# `weekly` is run by hand after `/fleet-doctor` and `/hygiene`. (The weekly Claude Desktop task
+# that ran it, and the heartbeat it pinged, were RETIRED 2026-11-19: docs/doctors-coverage-adr.md
+# § 6.) It reads both `latest` runs, refuses a missing, invalid or STALE one (a doctor that died
+# before `publish` leaves an older `latest`, which still validates), diffs each against that
+# doctor's previous run, and prints counts plus the NEW finding IDs. FINDINGS ARE NOT FAILURES:
+# verdict 0 (clean) and 2 (findings or vacuous) both exit 0; only a broken run exits 1.
 #
 # Upstream-first: SARIF conformance is the OASIS schema run through nixpkgs' check-jsonschema,
 # not a hand-written shape. The health-check draft (-06) publishes no JSON Schema, so its
@@ -40,17 +37,11 @@
   jq,
   check-jsonschema,
   coreutils,
-  runitor,
   catalogue,
   # The skeleton's default repositoryUri and the rules' informationUri base, and the
   # FD-D-hygiene componentId, from config.fleet (modules/parts/doctors.nix).
   repoUrl,
   repoName,
-  # The heartbeat `weekly` pings (modules/parts/heartbeats.nix). Named here, in quotes, so
-  # checks.<system>.heartbeat-workflow-parity's agentPingers leg can see this file names it.
-  slug ? "nix-config-doctors-weekly",
-  # The Keychain item NAME runitor reads PING_KEY from (modules/_lib/keychain-items.nix).
-  pingKeyItem,
   # The state dir's name under XDG_STATE_HOME (modules/_lib/terranix-stacks.nix), shared
   # with fleet-gauges, which reads the latest run.
   stateDirName,
@@ -68,7 +59,6 @@ writeShellApplication {
     jq
     check-jsonschema
     coreutils
-    runitor
   ];
   text = ''
     rules="''${DOCTOR_RULES:-${catalogue}}"
@@ -86,7 +76,7 @@ writeShellApplication {
            doctor-report fingerprint RULE_ID FILE_OR_SUBJECT CONSTRUCT
            doctor-report skeleton hygiene|fleet-doctor SUBJECT_SHA [REPO_URI] [BRANCH]
            doctor-report publish hygiene|fleet-doctor FILE
-           doctor-report weekly [--no-ping]   (validate + diff both latest runs, ping the heartbeat)
+           doctor-report weekly               (validate + diff both latest runs; 1 = a broken run)
     EOF
       exit 1
     }
@@ -321,7 +311,7 @@ writeShellApplication {
       esac
     }
 
-    # The scheduled audit (header). Prints the report; exits 1 only for a broken run.
+    # The audit report (header). Prints it; exits 1 only for a broken run.
     weekly_report() {
       local max_age=''${DOCTOR_MAX_AGE:-86400} now worst=0 d dir latest cur base prev f t age want n v ids old_ids
       now=$(date -u +%s)
@@ -377,10 +367,10 @@ writeShellApplication {
         fi
       done
       if [ "$worst" -ne 0 ]; then
-        echo "doctors-weekly: BROKEN RUN: heartbeat ${slug} gets /fail"
+        echo "doctors-weekly: BROKEN RUN"
         return 1
       fi
-      echo "doctors-weekly: ok (findings are not failures): heartbeat ${slug} gets success"
+      echo "doctors-weekly: ok (findings are not failures)"
     }
 
     cmd=''${1:-}
@@ -468,17 +458,8 @@ writeShellApplication {
         echo "$out"
         ;;
       weekly)
-        case ''${1:-} in
-          --no-ping) [ $# -eq 1 ] || usage; weekly_report ;;
-          "")
-            # Values only through `secret exec`'s environment, never argv; runitor reads
-            # PING_KEY and sends the report (counts and finding IDs only) as the ping body.
-            command -v secret >/dev/null || die "weekly: \`secret\` (the Home Manager profile) is not on PATH; nothing pinged"
-            exec secret exec PING_KEY=${pingKeyItem} -- \
-              runitor -slug "${slug}" -on-nonzero-exit fail -- "$0" weekly --no-ping
-            ;;
-          *) usage ;;
-        esac
+        [ $# -eq 0 ] || usage
+        weekly_report
         ;;
       *) usage ;;
     esac

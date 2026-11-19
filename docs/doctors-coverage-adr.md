@@ -132,7 +132,13 @@ but `narinfo-cache-negative-ttl 0` on the sanctioned nixpi paths only (the devSh
 wrapper and `packages/nixpi-provision.nix`). The cost above therefore applies to those commands,
 not to every build on the Mac.
 
-## 6. Scheduled audits — report-only
+## 6. Scheduled audits — report-only (RETIRED 2026-11-19)
+
+> **RETIRED 2026-11-19.** The operator removed the weekly Desktop task, the
+> `nix-config-doctors-weekly` heartbeat and `doctor-report weekly`'s ping. Why: an audit-only run
+> repairs nothing, and `/hygiene` covers nix-config alone. Both doctors now run on demand, and
+> `doctor-report weekly` still validates and diffs the two `latest` runs, report-only. The text
+> below is the design as it ran, 2026-11-04 → 11-19.
 
 **Decided 2026-11-04: ONE weekly Claude Desktop local task on the Mac runs BOTH doctors in
 `audit` mode** — `/fleet-doctor`, then `/hygiene` — and then `doctor-report weekly`.
@@ -334,7 +340,7 @@ branches; a gauge would make it hourly.
 | **Alerts actually reach the operator** | every move ends in an alert nobody has test-fired | test-fire each new rule once, end to end |
 | A never-pinged hc check stays silent | move 1 (#1080, #1082) now alerts once it is overdue; untested end to end | a deliberately unpinged test check |
 | ~~The cloud lane can run the gates~~ | **settled 2026-11-04: it cannot.** Nix is there, but every github.com input fetch is a 403 (§ 6) | — |
-| The Desktop lane runs the weekly audit | Desktop must be open and the Mac awake (ADR-010 § 4) | the first scheduled run's `nix-config-doctors-weekly` ping |
+| ~~The Desktop lane runs the weekly audit~~ | **moot 2026-11-19: the task is retired** (§ 6) | — |
 
 Would reopen:
 

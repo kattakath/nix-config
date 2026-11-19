@@ -1489,11 +1489,6 @@ in
               agentPingers = {
                 # the launchd agent nix-terranix-drift; its package holds the slug default
                 nix-config-terranix-drift = ../../packages/terranix-drift.nix;
-                # `doctor-report weekly`, run by the operator's weekly Claude Desktop task
-                # (prompt: docs/doctors-coverage-adr.md § 6). The task itself is app state
-                # (ADR-010 § 4), so this leg proves the pinger names the slug, not that the
-                # task exists; the heartbeat's silence proves that.
-                nix-config-doctors-weekly = ../../packages/doctor-report.nix;
               };
               hb = config.fleet.heartbeats;
               agentLegs = lib.concatLists (
