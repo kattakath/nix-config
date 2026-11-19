@@ -990,6 +990,11 @@ in
           # Context7 (operator, 2026-11-19): the directory connector serves; see
           # the context7-marketplace comment above.
           { serverName = "plugin:context7:context7"; }
+          # NixOS (operator, 2026-11-19): the Kattakath Workspace portal's public `nixos` app
+          # (infra/cloudflare/workspace-mcp-apps.nix) serves the same mcp-nixos on every
+          # surface; measured: a fresh session's nixos_nix through the connector answered.
+          # nix-flake-kit keeps its hooks; `mcp-nixos` stays on PATH (mcp-launcher-parity).
+          { serverName = "plugin:nix-flake-kit:nixos"; }
           # The claude.ai Microsoft 365 connector was denied here 2026-11-01 (tenant blocked
           # consent); lifted 2026-11-13 once the operator re-added it on claude.ai.
         ];

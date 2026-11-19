@@ -128,6 +128,9 @@
     },
     {
       "serverName": "plugin:context7:context7"
+    },
+    {
+      "serverName": "plugin:nix-flake-kit:nixos"
     }
   ]
 }
