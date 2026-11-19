@@ -2817,7 +2817,10 @@ in
               accessApps = res.cloudflare_zero_trust_access_application or { };
               portalApps = lib.filter (a: (a.type or "") == "mcp_portal") (lib.attrValues accessApps);
               unguarded = lib.attrNames (lib.filterAttrs (_: a: (a.policies or [ ]) == [ ]) accessApps);
-              allowVar = stack.config.variable.allowed_emails or { default = null; };
+              # The access policy admits exactly the Workspace domain: one include, an
+              # email_domain equal to domainName. Never `everyone`, never another domain.
+              allowPolicy = res.cloudflare_zero_trust_access_policy.allowed or { };
+              allowInclude = allowPolicy.include or [ ];
 
               # ---- DCR: who may register as an MCP client ----
               dcr = map (a: a.oauth_configuration.dynamic_client_registration or { }) portalApps;
@@ -3012,8 +3015,10 @@ in
                   ok = lib.length portalApps == 1 && unguarded == [ ];
                 }
                 {
-                  name = "the email allowlist variable has NO default — a forgotten allowlist must fail the apply";
-                  ok = allowVar ? default == false;
+                  name = "the allow policy admits exactly the Workspace domain (one email_domain include = ${domainName}), never everyone";
+                  ok =
+                    (allowPolicy.decision or null) == "allow"
+                    && allowInclude == [ { email_domain.domain = domainName; } ];
                 }
                 {
                   name = "every DCR callback is https on a literal host or an exact custom scheme (bad: ${toString badUris})";

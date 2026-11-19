@@ -81,19 +81,19 @@ in
       sensitive = true;
       description = "Its secret (Keychain). Write-only at Cloudflare.";
     };
-    allowed_emails = {
-      type = "list(string)";
-      description = "Every email allowed through every portal. A JSON list in the Keychain.";
-    };
   };
 
-  # ONE allow policy, reused by every portal and server app. Emails, not a domain: the
-  # Google IdP admits the whole Workspace domain, and the allowlist is narrower.
+  # ONE allow policy, reused by every portal and server app: EVERY account in the
+  # Workspace domain (operator, 2026-11-19: "all kattakath.com users by default"; it
+  # replaced a hand-kept email list that silently refused a new family member). Each
+  # user still signs in with Google through the Workspace-only IdP and grants each app
+  # on their OWN account, so a user reaches only their own data. The domain comes from
+  # identity (domainName), never a literal.
   resource.cloudflare_zero_trust_access_policy.allowed = {
     account_id = accountId;
-    name = "workspace-mcp-allowed-emails";
+    name = "workspace-mcp-allowed-domain";
     decision = "allow";
-    include = "\${[for e in var.allowed_emails : { email = { email = e } }]}";
+    include = [ { email_domain.domain = domainName; } ];
   };
 
   resource.cloudflare_zero_trust_access_ai_controls_mcp_server = lib.mapAttrs (

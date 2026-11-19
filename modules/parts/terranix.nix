@@ -1375,7 +1375,6 @@ let
         CLOUDFLARE_API_TOKEN = items.cloudflare.mcpPortals;
         TF_VAR_google_oauth_client_id = items.workspaceGateway.oauthClientId;
         TF_VAR_google_oauth_client_secret = items.workspaceGateway.oauthClientSecret;
-        TF_VAR_allowed_emails = items.workspaceGateway.allowedEmails;
       };
       vars = "";
       credentialCheck = ''
@@ -1386,9 +1385,9 @@ let
           exit 1
         fi
         if [ -z "''${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "''${TF_VAR_google_oauth_client_id:-}" ] \
-          || [ -z "''${TF_VAR_google_oauth_client_secret:-}" ] || [ -z "''${TF_VAR_allowed_emails:-}" ]; then
-          echo "ERROR: CLOUDFLARE_API_TOKEN and the three TF_VARs must all be set (secrets and data, kept out of the repo):" >&2
-          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=${items.cloudflare.mcpPortals} TF_VAR_google_oauth_client_id=${items.workspaceGateway.oauthClientId} TF_VAR_google_oauth_client_secret=${items.workspaceGateway.oauthClientSecret} TF_VAR_allowed_emails=${items.workspaceGateway.allowedEmails} -- nix run .#${name}" >&2
+          || [ -z "''${TF_VAR_google_oauth_client_secret:-}" ]; then
+          echo "ERROR: CLOUDFLARE_API_TOKEN and the two TF_VARs must all be set (secrets, kept out of the repo):" >&2
+          echo "  nix develop -c secret exec CLOUDFLARE_API_TOKEN=${items.cloudflare.mcpPortals} TF_VAR_google_oauth_client_id=${items.workspaceGateway.oauthClientId} TF_VAR_google_oauth_client_secret=${items.workspaceGateway.oauthClientSecret} -- nix run .#${name}" >&2
           exit 1
         fi
       '';

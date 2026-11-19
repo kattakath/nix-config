@@ -9,7 +9,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `cf-tunnel` | GCS `cf-tunnel/` | `CLOUDFLARE_API_TOKEN` | **the Pi**: tunnel, ingress, CNAMEs, every zone's TLS floor, the `nixpi_ssh` Access app |
 | `cf-zones` | GCS `cf-zones/` | `CLOUDFLARE_API_TOKEN` | **mail**, silently until a message bounces |
 | `cf-access-org` | GCS `cf-access-org/` | `CLOUDFLARE_API_TOKEN` | **every Access app at once** (`auth_domain`) |
-| `cf-mcp-portals` | GCS `cf-mcp-portals/` | `CLOUDFLARE_API_TOKEN` + `TF_VAR_{google_oauth_client_id,google_oauth_client_secret,allowed_emails}` | every Workspace MCP connector |
+| `cf-mcp-portals` | GCS `cf-mcp-portals/` | `CLOUDFLARE_API_TOKEN` + `TF_VAR_{google_oauth_client_id,google_oauth_client_secret}` | every Workspace MCP connector |
 | `gcp-budget` | GCS `gcp-budget/` | ADC | the spend ALERT (an alert, never a cap) |
 | `gcp-foundation` | **local** (still encrypted) | ADC | the bucket the others live in; the portal's self-hosted MCP servers |
 | `hc-checks` | GCS `hc-checks/` | `HEALTHCHECKSIO_API_KEY` | the dead-man's-switch ALARMS; a quiet one reads as a healthy host |

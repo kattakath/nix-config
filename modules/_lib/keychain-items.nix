@@ -28,7 +28,6 @@
   workspaceGateway = {
     oauthClientId = "gcp:workspace-gateway:oauth-client-id";
     oauthClientSecret = "gcp:workspace-gateway:oauth-client-secret";
-    allowedEmails = "gcp:workspace-gateway:allowed-emails";
   };
 
   # The healthchecks.io project API key (the hc-checks stack).
