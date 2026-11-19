@@ -15,6 +15,10 @@
 # PUBLIC on purpose, like the portal's Google upstreams: Cloudflare cannot present a
 # Google identity token to Cloud Run. Any valid Google token is accepted, and it can
 # reach only that token's OWN data; one instance per service caps what a caller costs.
+#
+# Not every app is workspace-mcp: `selfHosted.server` picks the image, env and probes
+# (`mcp-nixos` since 2026-11-19, a `public` app with no token at all, serving only
+# public nixpkgs/NixOS search data). Only workspace-mcp apps read the signing key.
 {
   lib,
   projectId,
@@ -39,12 +43,37 @@ let
     ) "self-hosted MCP apps must share one region (one ghcr repo)";
     lib.head regions;
 
-  # Pinned by DIGEST (the 2.5.0 manifest list on ghcr.io, read 2026-11-18), pulled
-  # through the `ghcr` remote repo below: Cloud Run cannot pull from ghcr.io directly.
-  image = "${region}-docker.pkg.dev/${projectId}/ghcr/taylorwilsdon/google_workspace_mcp@sha256:fa5fd1afc88113b0d67fb69fe770e964bfc5e971142fadf49676738f2c793989";
+  # Which upstream server an app runs (`selfHosted.server`); workspace-mcp unless named.
+  serverOf = h: h.server or "workspace-mcp";
+  isWorkspace = h: serverOf h == "workspace-mcp";
 
-  # Plain env (nothing secret). Each was measured with 2.5.0 on the Mac 2026-11-18.
-  envOf =
+  # Pinned by DIGEST (each manifest list on ghcr.io, read on the date given), pulled
+  # through the `ghcr` remote repo below: Cloud Run cannot pull from ghcr.io directly.
+  images = {
+    # 2.5.0, read 2026-11-18.
+    workspace-mcp = "${region}-docker.pkg.dev/${projectId}/ghcr/taylorwilsdon/google_workspace_mcp@sha256:fa5fd1afc88113b0d67fb69fe770e964bfc5e971142fadf49676738f2c793989";
+    # 3.1.1 (amd64 + arm64 manifest list), read 2026-11-19. Upstream's own Nix-built
+    # image; its entrypoint is mcp-nixos, configured only by the MCP_NIXOS_* env below.
+    mcp-nixos = "${region}-docker.pkg.dev/${projectId}/ghcr/utensils/mcp-nixos@sha256:195c29fe882a00a689a06d6c9e862e7d021905436acca195618ed56cd6413977";
+  };
+
+  # Plain env (nothing secret).
+  envOf = h: if isWorkspace h then workspaceEnv h else nixosEnv;
+
+  # mcp-nixos (server.py main(), 3.0.2 read 2026-11-19): it ignores Cloud Run's PORT and
+  # binds 127.0.0.1:8000 unless told otherwise. Stateless HTTP, because the service scales
+  # to zero and a session would not survive it (measured on the Mac: initialize and
+  # tools/list both answer with no session id).
+  nixosEnv = {
+    MCP_NIXOS_TRANSPORT = "http";
+    MCP_NIXOS_HOST = "0.0.0.0";
+    MCP_NIXOS_PORT = "8080";
+    MCP_NIXOS_PATH = "/mcp";
+    MCP_NIXOS_STATELESS_HTTP = "true";
+  };
+
+  # Each was measured with 2.5.0 on the Mac 2026-11-18.
+  workspaceEnv =
     h:
     {
       MCP_ENABLE_OAUTH21 = "true";
@@ -74,6 +103,17 @@ let
   secret = "\${google_secret_manager_secret.tasks_mcp_jwt_signing_key.secret_id}";
 
   perApp = f: lib.mapAttrs' (app: h: lib.nameValuePair (addr app) (f app h)) selfHosted;
+  # Only workspace-mcp reads the signing key; nothing else gets access to it.
+  keyed = lib.filterAttrs (_: isWorkspace) selfHosted;
+
+  # A server with a 200 health route gets HTTP probes on it; one without (mcp-nixos: GET
+  # /mcp is 405) gets a TCP check, since Cloud Run counts only 2xx/3xx as healthy.
+  probe =
+    h: extra:
+    let
+      hc = appList.healthOf h;
+    in
+    (if hc.status == 200 then { http_get.path = hc.path; } else { tcp_socket.port = 8080; }) // extra;
 in
 {
   resource = {
@@ -92,7 +132,11 @@ in
         project = projectId;
         account_id = h.service;
         display_name = "${app} MCP server (Cloud Run)";
-        description = "Runs the ${h.service} service. No project roles: reads only the shared signing-key secret.";
+        description =
+          if isWorkspace h then
+            "Runs the ${h.service} service. No project roles: reads only the shared signing-key secret."
+          else
+            "Runs the ${h.service} service. No project roles and no secrets.";
       }
     );
 
@@ -115,7 +159,7 @@ in
         role = "roles/secretmanager.secretAccessor";
         member = "serviceAccount:\${google_service_account.${addr app}.email}";
       }
-    ) selfHosted;
+    ) keyed;
 
     google_cloud_run_v2_service = perApp (
       app: h: {
@@ -134,50 +178,54 @@ in
             max_instance_count = 1;
           };
           containers = [
-            {
-              inherit image;
-              ports.container_port = 8080;
-              resources = {
-                limits = {
-                  cpu = "1";
-                  memory = "512Mi";
-                };
-                startup_cpu_boost = true;
-                cpu_idle = true;
-              };
-              # The server's own GET /health (core/server.py, custom_route; 200 measured
-              # for every family). Cloud Run counts 2xx/3xx as healthy; without a startup
-              # probe it falls back to one TCP check per 240 s
-              # (docs.cloud.google.com/run/docs/configuring/healthchecks).
-              startup_probe = {
-                http_get.path = "/health";
-                period_seconds = 3;
-                timeout_seconds = 2;
-                failure_threshold = 20;
-              };
-              liveness_probe = {
-                http_get.path = "/health";
-                period_seconds = 30;
-                timeout_seconds = 5;
-                failure_threshold = 3;
-              };
-              env = lib.mapAttrsToList (name: value: { inherit name value; }) (envOf h) ++ [
-                {
-                  name = "FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY";
-                  value_source.secret_key_ref = {
-                    inherit secret;
-                    version = "latest";
+            (
+              {
+                image = images.${serverOf h};
+                ports.container_port = 8080;
+                resources = {
+                  limits = {
+                    cpu = "1";
+                    memory = "512Mi";
                   };
-                }
-              ];
-            }
+                  startup_cpu_boost = true;
+                  cpu_idle = true;
+                };
+                # workspace-mcp's own GET /health (core/server.py, custom_route; 200 measured
+                # for every family). Cloud Run counts 2xx/3xx as healthy; without a startup
+                # probe it falls back to one TCP check per 240 s
+                # (docs.cloud.google.com/run/docs/configuring/healthchecks).
+                startup_probe = probe h {
+                  period_seconds = 3;
+                  timeout_seconds = 2;
+                  failure_threshold = 20;
+                };
+                env =
+                  lib.mapAttrsToList (name: value: { inherit name value; }) (envOf h)
+                  ++ lib.optional (isWorkspace h) {
+                    name = "FASTMCP_SERVER_AUTH_GOOGLE_JWT_SIGNING_KEY";
+                    value_source.secret_key_ref = {
+                      inherit secret;
+                      version = "latest";
+                    };
+                  };
+              }
+              # Liveness probes take HTTP or gRPC only (same doc), so a server with no 200
+              # route runs on the startup probe alone.
+              // lib.optionalAttrs ((appList.healthOf h).status == 200) {
+                liveness_probe = probe h {
+                  period_seconds = 30;
+                  timeout_seconds = 5;
+                  failure_threshold = 3;
+                };
+              }
+            )
           ];
         };
         # The image is a plain string, so tofu sees no edge to the repo it comes through.
         depends_on = [
           "google_artifact_registry_repository.ghcr"
-          "google_secret_manager_secret_iam_member.${addr app}_jwt_signing_key"
-        ];
+        ]
+        ++ lib.optional (isWorkspace h) "google_secret_manager_secret_iam_member.${addr app}_jwt_signing_key";
         # gcloud stamps these on every deploy; they are not configuration.
         lifecycle.ignore_changes = [
           "client"

@@ -2805,8 +2805,28 @@ in
               attached = lib.concatMap (p: p.servers or [ ]) portals;
               attachedIds = lib.sort lib.lessThan (map (s: s.server_id or "") attached);
               serverIds = lib.sort lib.lessThan (map (n: "${serverRef}${n}.id}") (lib.attrNames servers));
+              # A `public` app (public data, no secret; operator 2026-11-19) is the ONE class
+              # reached with no upstream credential and no per-user grant. Every other server
+              # stays Google OAuth with on_behalf, as the 2026-11-14 audit decided.
+              publicApps = lib.attrNames (lib.filterAttrs (_: a: a.public or false) mcpApps.apps);
+              isPublic = n: lib.elem n publicApps;
+              oauthServers = lib.filterAttrs (n: _: !(isPublic n)) servers;
+              badPublic = lib.attrNames (
+                lib.filterAttrs (
+                  n: s:
+                  isPublic n
+                  && (
+                    (s.auth_type or null) != "unauthenticated"
+                    || s ? auth_credentials
+                    || s ? client_secret
+                    || builtins.match "https://[a-z0-9-]+\\.[a-z0-9-]+\\.run\\.app/mcp" (s.hostname or "") == null
+                    || !(mcpApps.apps.${n} ? selfHosted)
+                  )
+                  || !(isPublic n) && (s.auth_type or null) != "oauth"
+                ) servers
+              );
               badAttach = lib.filter (
-                s: (s.default_disabled or null) != true || (s.on_behalf or null) != true
+                s: (s.default_disabled or null) != true || (s.on_behalf or null) != !(isPublic (appOf s))
               ) attached;
               # A server id is an HCL reference to `<server>.<app>.id`; name the app, since
               # a dollar-brace inside a leg name is a bash substitution in mkHostContract's echo.
@@ -2839,12 +2859,12 @@ in
                   m = builtins.match ".*${k} = \"([^\"]*)\".*" (s.auth_credentials or "");
                 in
                 if m == null then null else builtins.head m;
-              authEndpoints = lib.mapAttrsToList (_: grab "authorization_endpoint") servers;
+              authEndpoints = lib.mapAttrsToList (_: grab "authorization_endpoint") oauthServers;
               googleAuth = "https://accounts.google.com/o/oauth2/v2/auth?";
               badEndpoints = lib.filter (
                 e: e == null || !(lib.hasPrefix googleAuth e) || !(lib.hasInfix "access_type=offline" e)
               ) authEndpoints;
-              scopeStrings = lib.mapAttrsToList (_: grab "scope") servers;
+              scopeStrings = lib.mapAttrsToList (_: grab "scope") oauthServers;
               scopes = lib.concatMap (s: lib.filter (w: w != "") (lib.splitString " " s)) (
                 lib.filter (s: s != null) scopeStrings
               );
@@ -2880,7 +2900,7 @@ in
                     "https://([a-z0-9-]+\\.googleapis\\.com/mcp(/v1)?|[a-z0-9-]+\\.[a-z0-9-]+\\.run\\.app/mcp)"
                     (s.hostname or "") == null
                   || (s.client_secret or "") != "\${var.google_oauth_client_secret}"
-                ) servers
+                ) oauthServers
               );
 
               # ---- the live probe probes what the render serves ----
@@ -2999,8 +3019,12 @@ in
                     && attachedIds == serverIds;
                 }
                 {
-                  name = "every attached server has default_disabled = true and on_behalf = true (broken: ${toString (map appOf badAttach)})";
+                  name = "every attached server has default_disabled = true, and on_behalf = true unless its app is public (broken: ${toString (map appOf badAttach)})";
                   ok = attached != [ ] && badAttach == [ ];
+                }
+                {
+                  name = "only a `public` self-hosted app is unauthenticated: run.app /mcp, no credential, no secret; every other server is oauth (broken: ${toString badPublic})";
+                  ok = badPublic == [ ];
                 }
                 {
                   name = "every enabled outward/destructive/edit tool has an ask rule matching its connector name (missing: ${toString noAsk})";
@@ -3025,7 +3049,7 @@ in
                   ok = uris != [ ] && badUris == [ ];
                 }
                 {
-                  name = "every server authorizes at Google with access_type=offline (unmatched or wrong: ${toString (lib.length badEndpoints)})";
+                  name = "every oauth server authorizes at Google with access_type=offline (unmatched or wrong: ${toString (lib.length badEndpoints)})";
                   ok = authEndpoints != [ ] && badEndpoints == [ ];
                 }
                 {

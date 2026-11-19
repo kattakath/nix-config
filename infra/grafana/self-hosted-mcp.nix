@@ -175,9 +175,9 @@ in
   };
 
   # ---- Reachability: Grafana Synthetic Monitoring, the same lane as nixpi's public site --
-  # GET /health (the server's own route, 200 when up) from the stack's probes, HOURLY: a
-  # scaled-to-zero service is woken at most once an hour, and 4 checks x 3 probes x 720
-  # runs stay far inside Synthetic Monitoring's free executions.
+  # GET each server's health target (`healthOf`) from the stack's probes, HOURLY: a
+  # scaled-to-zero service is woken at most once an hour, and one check per service x 3
+  # probes x 720 runs stays far inside Synthetic Monitoring's free executions.
   grafana_synthetic_monitoring_check = builtins.listToAttrs (
     map (x: {
       name = "self_hosted_mcp_${builtins.replaceStrings [ "-" ] [ "_" ] x.service}";
@@ -200,12 +200,14 @@ in
                 fail_if_ssl = false;
                 ip_version = "V4";
                 method = "GET";
-                valid_status_codes = [ 200 ];
+                # What the server answers when up (`healthOf`: workspace-mcp's /health is
+                # 200; mcp-nixos has no health route and answers GET /mcp with 405).
+                valid_status_codes = [ (appList.healthOf x).status ];
               }
             ];
           }
         ];
-        target = "https://${appList.runAppHost gcpProjectNumber x}/health";
+        target = "https://${appList.runAppHost gcpProjectNumber x}${(appList.healthOf x).path}";
         # A cold start (scale from zero) takes seconds; leave room for it.
         timeout = 20000;
       };

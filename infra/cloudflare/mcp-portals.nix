@@ -106,10 +106,6 @@ in
       # server serve /mcp (each app's `path`). A self-hosted app's host is its Cloud Run
       # URL (`runAppHost` in workspace-mcp-apps.nix).
       hostname = "https://${upstreamOf a}${a.path or "/mcp/v1"}";
-      auth_type = "oauth";
-      auth_credentials = authCredentials a;
-      client_secret = "\${var.google_oauth_client_secret}";
-      is_shared_oauth_callback_enabled = true;
       # The dashboard's "Authenticate server" (Edit, then Save) writes a SERVER-level
       # `updated_tools` list, and it WIDENS what the portal exposes: measured 2026-11-19,
       # docsread showed 7 tools through the portal against an allowlist of 5, its server list
@@ -117,6 +113,20 @@ in
       # allowlist: a dashboard click that widens it shows up as drift on the next plan.
       # Google's servers have no such list (none was ever saved), so theirs stays unset.
     }
+    # A `public` app (public data, no secret) is reached with NO upstream credential; the
+    # pinned provider (5.25.0) lists auth_type "oauth", "bearer", "unauthenticated". Every
+    # other app is Google OAuth with our client, as before.
+    // (
+      if a.public or false then
+        { auth_type = "unauthenticated"; }
+      else
+        {
+          auth_type = "oauth";
+          auth_credentials = authCredentials a;
+          client_secret = "\${var.google_oauth_client_secret}";
+          is_shared_oauth_callback_enabled = true;
+        }
+    )
     // lib.optionalAttrs (a ? selfHosted) {
       updated_tools = map (t: {
         name = t;
@@ -142,7 +152,9 @@ in
     secure_web_gateway = false;
     servers = lib.mapAttrsToList (app: a: {
       server_id = "\${cloudflare_zero_trust_access_ai_controls_mcp_server.${app}.id}";
-      on_behalf = true;
+      # Per-user Google grants for every OAuth app; a `public` app has no end-user
+      # credential to forward.
+      on_behalf = !(a.public or false);
       default_disabled = true;
       updated_tools = map (t: {
         name = t;

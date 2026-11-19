@@ -45,6 +45,15 @@
   # formula, called by every stack that addresses a self-hosted server (the portal's
   # upstream, the service's own advertised URL, the Synthetic Monitoring target).
   runAppHost = projectNumber: h: "${h.service}-${projectNumber}.${h.region}.run.app";
+  # What a self-hosted server answers when it is up, for its Cloud Run probes and its
+  # Synthetic Monitoring check. workspace-mcp serves GET /health (200); a server without
+  # a health route sets its own `health` (mcp-nixos: GET /mcp is 405, measured).
+  healthOf =
+    h:
+    h.health or {
+      path = "/health";
+      status = 200;
+    };
   apps = {
     gmail = {
       title = "Gmail";
@@ -377,6 +386,34 @@
         "inspect_doc_structure"
         "list_document_comments"
         "search_docs"
+      ];
+    };
+
+    # PUBLIC DATA, NO SIGN-IN (operator, 2026-11-19): nixpkgs packages and NixOS /
+    # home-manager / nix-darwin options, so a Nix lookup works on every Claude surface
+    # instead of only where the nix-flake-kit plugin's local server runs (that copy is
+    # denied in deniedMcpServers). Upstream utensils/mcp-nixos publishes the image
+    # (ghcr.io/utensils/mcp-nixos, Nix-built, entrypoint mcp-nixos) and documents HTTP
+    # mode (README "Option 4", v3.1.1). It holds no secret and reads only public
+    # search APIs, so the portal reaches it `unauthenticated`, and the posture gate
+    # admits that ONLY for an app marked `public`. The portal's own Access gate still
+    # decides who reaches it; one Cloud Run instance and the budget alert cap abuse.
+    nixos = {
+      title = "NixOS";
+      public = true;
+      selfHosted = {
+        service = "nixos-mcp";
+        region = "us-central1";
+        server = "mcp-nixos";
+        health = {
+          path = "/mcp";
+          status = 405;
+        };
+      };
+      path = "/mcp";
+      tools = [
+        "nix"
+        "nix_versions"
       ];
     };
   };
