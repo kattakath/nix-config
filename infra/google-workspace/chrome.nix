@@ -72,8 +72,21 @@ let
     # Playwright Extension: the rail for every other agent (nixpkgs playwright-mcp
     # `--extension`). The id is the one the pinned closure's playwright-core expects.
     "mmlmfjhmonkocbjadbfplnigmagldckm" # Playwright Extension
+    "iejkjpdckomcjdhmkemlfdapjodcpgih" # Proxy Switcher
   ];
   extensions = adopted ++ created;
+
+  # Mandatory for Incognito (chrome.users.apps.MandatoryForIncognitoNavigation, TYPE_BOOL,
+  # from GAM's schema table). It does NOT enable them there — Chrome lets only the user
+  # flip "Allow in Incognito" — it BLOCKS Incognito until each one is allowed. So a broken
+  # or disabled one here also stops Incognito. Operator's choice, 2026-11-18.
+  incognitoMandatory = [
+    "jinjaccalgkegednnccohejagnlnfdag" # Violentmonkey
+    "pejdijmoenmkgeppbflobdenhhabjlaj" # iCloud Passwords
+    "ddkjiahejlhfcafbddmgiahcphecmpfh" # uBlock Origin Lite
+    "mmlmfjhmonkocbjadbfplnigmagldckm" # Playwright Extension
+    "iejkjpdckomcjdhmkemlfdapjodcpgih" # Proxy Switcher
+  ];
 
   # Schema name (without the `chrome.users.` prefix) -> every field of that schema.
   settings = {
@@ -131,7 +144,11 @@ let
           schema_name = installTypeSchema;
           schema_values.appInstallType = builtins.toJSON "FORCED";
         }
-      ];
+      ]
+      ++ lib.optional (lib.elem id incognitoMandatory) {
+        schema_name = "chrome.users.apps.MandatoryForIncognitoNavigation";
+        schema_values.mandatoryForIncognitoNavigation = builtins.toJSON true;
+      };
     };
 
   dataVar = description: {
