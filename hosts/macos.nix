@@ -758,6 +758,10 @@ in
       # status for scripted --convert-to pipelines. First headless run may need a
       # one-time profile warm-up (soffice -env:UserInstallation=file:///tmp/... ).
       "libreoffice"
+      # Linear — the issue tracker's desktop app (Electron, proprietary). Not in
+      # nixpkgs (2026-11-19: no linear-desktop attr), so the cask; auto_updates,
+      # so the cask only bootstraps it.
+      "linear"
       "maccy"
       "microsoft-auto-update"
       "microsoft-teams"
