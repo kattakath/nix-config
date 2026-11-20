@@ -88,6 +88,17 @@ in
                 ragdbUri = hm.config.local.rag.pgvector.databaseUri;
                 # The account the cf-ai-search stack creates the `rag` instance in.
                 aiSearch.accountId = config.fleet.cloudflareAccountId;
+                # Synthesis on this Mac's one `ollama serve` (local.ollamaDaemon), not
+                # api.openai.com (operator 2026-11-19, after the OpenAI key expired). The
+                # 4B instruct model kept the bot's disclaimer and tone in testing; the
+                # 30B abliterated one signed off as "IRCC Support". The tag is pulled by
+                # hand: the daemon module has no declarative model list.
+                openaiBaseUrl =
+                  let
+                    d = hm.osConfig.local.ollamaDaemon;
+                  in
+                  "http://${d.host}:${toString d.port}/v1";
+                model = "qwen3-vl:4b-instruct";
                 keychainServices = {
                   ALLOWED_NUMBERS = items.ircc.allowedNumbers;
                   SERPER_API_KEY = items.serperApi;
