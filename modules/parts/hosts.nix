@@ -89,16 +89,17 @@ in
                 # The account the cf-ai-search stack creates the `rag` instance in.
                 aiSearch.accountId = config.fleet.cloudflareAccountId;
                 # Synthesis on this Mac's one `ollama serve` (local.ollamaDaemon), not
-                # api.openai.com (operator 2026-11-19, after the OpenAI key expired). The
-                # 4B instruct model kept the bot's disclaimer and tone in testing; the
-                # 30B abliterated one signed off as "IRCC Support". The tag is pulled by
-                # hand: the daemon module has no declarative model list.
+                # api.openai.com (operator 2026-11-19, after the OpenAI key expired).
+                # gpt-oss:20b won a 44-question eval through the bot's real graph against
+                # qwen3-vl:4b-instruct: 1 vs 4 answers verified wrong on canada.ca, 0 vs 4
+                # invented URLs, the same disclaimer and off-topic refusals, median 27 s
+                # vs 19 s. The tag is pulled by hand: the daemon module has no model list.
                 openaiBaseUrl =
                   let
                     d = hm.osConfig.local.ollamaDaemon;
                   in
                   "http://${d.host}:${toString d.port}/v1";
-                model = "qwen3-vl:4b-instruct";
+                model = "gpt-oss:20b";
                 keychainServices = {
                   ALLOWED_NUMBERS = items.ircc.allowedNumbers;
                   SERPER_API_KEY = items.serperApi;
