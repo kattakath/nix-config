@@ -368,11 +368,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795155197,
-        "narHash": "sha256-NdnYBxMIcxHTQJRX2VLrHkkPhl+N79MnSFQ+X4lAD1I=",
+        "lastModified": 1795159543,
+        "narHash": "sha256-XM8EMmwyxwbIZWtoDeAb61IG1QXOVjFVo7gLptFqBV4=",
         "owner": "kattakath",
         "repo": "ircc-whatsapp-bot",
-        "rev": "674376c6d12aad0e62323542a318c2c9873325c1",
+        "rev": "7119577af8ca95b2fe8e41695e54124c47dc129e",
         "type": "github"
       },
       "original": {
