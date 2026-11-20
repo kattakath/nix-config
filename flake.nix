@@ -231,6 +231,19 @@
     # that anchor: drop `terranix` and this line fails at LOCK time, not at eval.
     deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems";
 
+    # The IRCC WhatsApp bot: an APP this Mac runs, not fleet plumbing, so it stays its
+    # own flake and is consumed through its own home-manager module (launchd agent,
+    # modules/parts/hosts.nix). `botOnly`: the local-rag capsule already provides the
+    # Postgres its LangGraph checkpoints need.
+    ircc-whatsapp-bot.url = "github:kattakath/ircc-whatsapp-bot";
+    ircc-whatsapp-bot.inputs.nixpkgs.follows = "nixpkgs";
+    ircc-whatsapp-bot.inputs.flake-parts.follows = "flake-parts";
+    ircc-whatsapp-bot.inputs.treefmt-nix.follows = "treefmt-nix";
+    # Its nix-local-rag input is unused under `botOnly` (only the `default` output imports
+    # it); dedupe its pins onto ours rather than lock a second copy of each.
+    ircc-whatsapp-bot.inputs.nix-local-rag.inputs.flake-parts.follows = "flake-parts";
+    ircc-whatsapp-bot.inputs.nix-local-rag.inputs.home-manager.follows = "home-manager";
+
     # (local-rag was an input here until ADR-002 wave 6 ABSORBED it as a capsule
     # — modules/features/local-rag/. The local-first RAG stack: a loopback
     # launchd Postgres+pgvector, a local Ollama embed model, and the in-DB

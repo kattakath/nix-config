@@ -354,6 +354,33 @@
         "type": "github"
       }
     },
+    "ircc-whatsapp-bot": {
+      "inputs": {
+        "flake-parts": [
+          "flake-parts"
+        ],
+        "nix-local-rag": "nix-local-rag",
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "treefmt-nix": [
+          "treefmt-nix"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795136260,
+        "narHash": "sha256-N7jwf7qOyzhmn+gzXAzkHsgSinS4Xzz6xf5ETI2xt/k=",
+        "owner": "kattakath",
+        "repo": "ircc-whatsapp-bot",
+        "rev": "64f4fa86edd3b01539db3458e95bac6017c73d14",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kattakath",
+        "repo": "ircc-whatsapp-bot",
+        "type": "github"
+      }
+    },
     "kattakath-dotgithub": {
       "flake": false,
       "locked": {
@@ -443,6 +470,33 @@
       "original": {
         "owner": "zhaofengli",
         "repo": "nix-homebrew",
+        "type": "github"
+      }
+    },
+    "nix-local-rag": {
+      "inputs": {
+        "flake-parts": [
+          "flake-parts"
+        ],
+        "home-manager": [
+          "home-manager"
+        ],
+        "nixpkgs": [
+          "ircc-whatsapp-bot",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787877557,
+        "narHash": "sha256-rtCMS4qnAprDLSLoXeF2BQyR6xW4ETXQunKHqvZbuy4=",
+        "owner": "kattakath",
+        "repo": "nix-local-rag",
+        "rev": "ff74863574390aa10372d4b81fb33992058950c1",
+        "type": "github"
+      },
+      "original": {
+        "owner": "kattakath",
+        "repo": "nix-local-rag",
         "type": "github"
       }
     },
@@ -595,6 +649,7 @@
         "git-hooks": "git-hooks",
         "home-manager": "home-manager",
         "import-tree": "import-tree",
+        "ircc-whatsapp-bot": "ircc-whatsapp-bot",
         "kattakath-dotgithub": "kattakath-dotgithub",
         "kattakath-skills": "kattakath-skills",
         "nix-darwin": "nix-darwin",

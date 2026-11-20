@@ -4,7 +4,7 @@
 # reached through `config.flake.lib.*` — the public composition seam — rather
 # than through a `let` binding only this file could see. `nixosConfigurations`
 # flake-parts already declares (modules/nixosConfigurations.nix:11).
-{ config, ... }:
+{ config, inputs, ... }:
 let
   inherit (config.flake.lib) mkDarwin mkNixos;
   inherit (config.fleet)
@@ -27,6 +27,9 @@ let
   # ever disagree. Owner and repo come from config.fleet so an org or repo rename
   # moves both halves together.
   operatorFlakeRelPath = "Developer/github.com/${orgName}/${repoName}/flake.nix";
+
+  # Login-Keychain item names (never values).
+  items = import ../_lib/keychain-items.nix;
 
   # This flake's own package outputs, for the operator-only extraModules below.
   flakePackages = config.flake.packages;
@@ -68,6 +71,30 @@ in
             environment.etc."nix-darwin/flake.nix".source = "${
               config.users.users.${loginName}.home
             }/${operatorFlakeRelPath}";
+          }
+        )
+        # The IRCC WhatsApp bot as a launchd agent, through the bot's own module.
+        # Operator-only: its paired WhatsApp session lives in this Mac's stateDir.
+        # The sender allowlist is personal data, so it comes from the login Keychain
+        # at launch, never from Nix (same precedent as workspaceGateway's allowlist).
+        (
+          { loginName, ... }:
+          {
+            home-manager.users.${loginName} = hm: {
+              imports = [ inputs.ircc-whatsapp-bot.homeManagerModules.botOnly ];
+              services.irccWhatsappBot = {
+                enable = true;
+                # The capsule's Postgres holds the LangGraph checkpoints.
+                ragdbUri = hm.config.local.rag.pgvector.databaseUri;
+                # The account the cf-ai-search stack creates the `rag` instance in.
+                aiSearch.accountId = config.fleet.cloudflareAccountId;
+                keychainServices = {
+                  ALLOWED_NUMBERS = items.ircc.allowedNumbers;
+                  SERPER_API_KEY = items.serperApi;
+                  LANGCHAIN_API_KEY = items.langsmithApi;
+                };
+              };
+            };
           }
         )
         # The daily terranix drift agent's package (modules/home/terranix-drift.nix).

@@ -19,6 +19,13 @@
     aiSearch = "cf:cloudflare.com:ai-search";
   };
 
+  # The ircc-whatsapp-bot launchd agent (modules/parts/hosts.nix). The allowlist is
+  # comma-separated phone digits: personal data, so a Keychain item, not a Nix value.
+  ircc.allowedNumbers = "ircc:whatsapp:allowed-numbers";
+  # Serper web search (the bot's CRAG fallback) and LangSmith tracing.
+  serperApi = "serper.dev:api";
+  langsmithApi = "langsmith:smith.langchain.com:api";
+
   # The operator's classic PAT: the GitHub terranix stack and fleet-gauges' alert counts.
   githubPat = "gh:github.com:pat";
 
