@@ -17,8 +17,12 @@
 #     #92252, open), so it forces a re-login, a ~/.claude.json move and a 3.7 GB
 #     transcript move; and Desktop (#101747, #90868), bridge-spawn (#98789), /statusline
 #     (#106764) and scheduled tasks (#100138) recreate ~/.claude anyway.
-#   - bare `claude` routed by cwd (like git includeIf): silent wrong-account switches,
-#     and the most custom logic.
+#   - bare `claude` routed by cwd (like git includeIf) INSIDE THE WRAPPER: silent
+#     wrong-account switches, and the most custom logic. What ships instead (2026-11-24,
+#     operator's call) is an explicit per-repo opt-in: the direnv hook below exports
+#     CLAUDE_CONFIG_DIR when `git config claude.profile` is `work` — the same flag the
+#     status line reads, so routing and the red banner cannot disagree. It acts only in
+#     folders with an allowed .envrc, and a repo's own .envrc still overrides it.
 #   - no bare `claude` (2026-11-09 to 11-12): every app that knows only `claude` broke.
 # Precedent: Anthropic's maintainer suggests exactly this alias pattern (#76656, closed
 # 2026-08-17 as "use CLAUDE_CONFIG_DIR"), and every other multi-account CLI (gcloud,
@@ -212,6 +216,21 @@ in
         type = "command";
         command = lib.getExe statusLine;
       };
+
+      # Plain `claude` in a work repo runs the work profile. direnv sources this
+      # direnvrc before every .envrc (stdlib `__main__`), so it reaches each checkout
+      # and agent worktree with an allowed .envrc, with no per-repo file and no org
+      # name here: the opt-in is `claude.profile = work`, set by the hand-placed
+      # includeIf file that routes the work git identity (worktrees included).
+      # Rejected: a gitignored .envrc.local per repo — measured 2026-11-24, 4 of 6 such
+      # files were never loaded (no .envrc, or one that does not source it), and agent
+      # worktrees never get a copy. Folders with no git repo (a workspace root) still
+      # need their own .envrc.
+      programs.direnv.stdlib = ''
+        if [ "$(${pkgs.git}/bin/git config --get claude.profile 2>/dev/null)" = work ]; then
+          export CLAUDE_CONFIG_DIR=${lib.escapeShellArg cfg.configDir}
+        fi
+      '';
 
     })
   ];

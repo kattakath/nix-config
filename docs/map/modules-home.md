@@ -364,7 +364,8 @@ in the repo can catch that; see that fixture file's header for the measurement.
   policy cache; `CLAUDE.md`, `rules/`, `skills/` and `plugins/` are linked from `~/.claude`,
   and `claude-code-settings.nix` merges the same settings floor into its own `settings.json`.
   A shared status line names the profile and flags a personal session in a repo whose git
-  config sets `claude.profile = work`. Open Design finds Claude through `CLAUDE_BIN`
+  config sets `claude.profile = work`; the same flag makes `programs.direnv.stdlib` export
+  the work `CLAUDE_CONFIG_DIR` under any allowed `.envrc`, so plain `claude` there is work. Open Design finds Claude through `CLAUDE_BIN`
   (`hosts/macos.nix`). **Never `/login` the work account in `claude`**: its
   server-managed policy then governs EVERY personal session. Why this split, and the rejected
   options with evidence: the module header.
