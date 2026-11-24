@@ -400,17 +400,25 @@ let
     # list decides what MAY be added, that one decides what IS added.
     #
     # WHY THE EXACT `git` ENTRIES ARE HERE ALONGSIDE THE WILDCARDS, and do not
-    # delete them as redundant: whether a `github`-form wildcard matches a
-    # marketplace DECLARED as a `git` source (as every non-store one of ours is) is
-    # INFERRED, not measured. It could not be measured — `strictKnownMarketplaces`
-    # enforces only from the real managed file, and CLAUDE_CODE_MANAGED_SETTINGS_PATH
-    # does NOT deliver it: an allowlist naming only a nonexistent owner still
-    # permitted `kattakath/skills` (measured 2026-09-30, isolated CLAUDE_CONFIG_DIR).
-    # So the first activation is the first real test, and these exact entries make
-    # that test SAFE: every marketplace the fleet declares today matches one of them
-    # literally, whatever the wildcards turn out to do. Strings must match BYTE FOR
-    # BYTE — `.git`, a trailing slash and an `ssh://` spelling are different values,
-    # and an entry without `ref` does not cover a source that sets one.
+    # delete them as redundant: a `github`-form wildcard does NOT match a
+    # marketplace DECLARED as a `git` source (as every non-store one of ours is).
+    # MEASURED, not inferred — 2026-11-24, Claude Code 2.1.323, against the real
+    # managed file from an isolated CLAUDE_CONFIG_DIR. With `anthropics/*` on this
+    # list and no exact `git` entry for the repo, `marketplace add` refused both
+    #   https://github.com/anthropics/claude-plugins-official.git
+    #   git@github.com:anthropics/claude-plugins-official.git#main
+    # as "blocked by enterprise policy". So the wildcards admit ONLY the
+    # `owner/repo` (github) form, and every exact entry below is LOAD-BEARING:
+    # delete one and that marketplace is refused.
+    # (The test has to run against the real file. `strictKnownMarketplaces`
+    # enforces only from it, and CLAUDE_CODE_MANAGED_SETTINGS_PATH does NOT deliver
+    # it: an allowlist naming only a nonexistent owner still permitted
+    # `kattakath/skills` — measured 2026-09-30, isolated CLAUDE_CONFIG_DIR.)
+    # Strings must match BYTE FOR BYTE — `.git`, a trailing slash and an `ssh://`
+    # spelling are different values. `ref` is part of the match in both
+    # directions: an entry without `ref` does not cover a source that sets one,
+    # and an entry WITH `ref` refused the same URL added without it (measured the
+    # same day).
     #
     # NEVER let this list reach `[]`, not even transiently: an empty array is not
     # "unset", it is "allow nothing" (upstream's own table), which would block the
