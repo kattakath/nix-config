@@ -664,8 +664,6 @@ let
             # buffer cache), which is what makes this a read of the MEDIA rather than
             # a read of the page cache that still holds what we just wrote.
             #
-            # `head -c "$size"` bounds the read to the image, because the card is
-            # larger and dd would otherwise run to the end of the device.
             # `cmp`, NOT two hashes. It fails at the FIRST differing byte and prints
             # the offset, which is diagnostic — "differs at byte 4198400" tells you
             # where the card went wrong; two mismatched hashes tell you only that it

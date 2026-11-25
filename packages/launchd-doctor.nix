@@ -49,7 +49,7 @@
 # drift check must not do.
 #
 # `--json`: the same findings, machine-readable, one array per section, plus the
-# exit code — `{"sections":{"loaded":[…],…},"rc":N}` on stdout, exit code unchanged.
+# exit code — `{"scope":N,"sections":{"loaded":[…],…},"rc":N}` on stdout, exit code unchanged.
 # The human report is the default and is not touched: in JSON mode it is still
 # produced, line for line, and sent to /dev/null, while each finding ALSO records
 # an object through `note`. One code path, two renderings — a separate JSON pass

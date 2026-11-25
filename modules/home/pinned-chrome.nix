@@ -110,6 +110,8 @@ in
     # Its extension store is qwen's own state, so this is a guard, like claudeCodePlugins in
     # ./claude-plugins.nix: install only when missing, with --auto-update so a page-tools
     # release reaches it without Nix. qwen is machine-wide (hosts/macos.nix).
+    # upstream-first: pinned home-manager/modules has no qwen-code module, and no community
+    # tool owns installing a qwen extension — qwen's own `extensions install` is the tool.
     home.activation.qwenPageTools = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
       export PATH="${pkgs.git}/bin:$PATH"
       if [ ! -d "${config.home.homeDirectory}/.qwen/extensions/page-tools" ]; then

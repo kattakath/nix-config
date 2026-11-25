@@ -148,9 +148,7 @@ in
   flake.nixosConfigurations = {
     # Raspberry Pi 4 — the fleet's LIVE server, carrying its real site list
     # directly (config.fleet.hostedSites, modules/parts/identity.nix) since the
-    # private [redacted] flake was retired 2026-09-15. It used to say
-    # "kattakath.com static landing page" — that apex left nixpi on 2026-09-07
-    # and is a DNS-only CNAME to GitHub Pages now.
+    # private [redacted] flake was retired 2026-09-15.
     # No extraModules: hosts/nixpi.nix imports its own Pi hardware modules via
     # mkNixos specialArgs.
     "nixpi" = mkNixos {

@@ -72,8 +72,6 @@ let
   # are lazy and `lib.mkIf` never forces a dropped branch, so this is touched
   # only on `macos` — the Linux hosts and a standalone evaluation, where
   # `osConfig` has no `local`, never reach it.
-  # Lineage: dedicated ~/Pictures/Screengrab → one all-in ~/Downloads inbox →
-  # split back onto the system defaults behind mkOption (2026-09-05).
   folders = osConfig.local.folders;
 
   # Reverse-DNS namespace derived from the fleet domain (kattakath.com → com.kattakath)

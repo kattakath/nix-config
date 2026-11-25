@@ -12,8 +12,7 @@
 # so every invocation is non-interactively authenticated with no browser OAuth step and no
 # on-disk credential file. The same secret is already used by dontsell-ai/app's Resend
 # integration (Vercel env `RESEND_API_KEY`, sourced from this same Keychain entry).
-# Resilient by design (warns, does not abort) so a missing secret can't break other Keychain-
-# dependent activation steps: `resend` itself will simply fail auth until one is set.
+# A missing secret warns rather than aborts: `resend` itself then fails auth until one is set.
 # The Keychain SERVICE is `resend.com:api` (the <tool>:<host>:<kind> convention), and the
 # lookup below is by service — so `secret set RESEND_API_KEY <key>` would store it under
 # the service `RESEND_API_KEY` and this wrapper would never find it. Bind the env name
