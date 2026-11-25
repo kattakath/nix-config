@@ -205,27 +205,11 @@ in
     '';
 
     launchd.daemons.ollama = {
-      # `command`, NOT `ProgramArguments`, and that is the boot-ordering
-      # exception in .claude/rules/launchd-naming.md — not a style choice.
-      #
-      # /nix is a separate `noauto` APFS volume that determinate-nixd mounts
-      # DURING boot. A daemon with RunAtLoad whose arg0 is a store path loses
-      # that race, launchd logs "Missing executable" and exits 78 EX_CONFIG, and
-      # it then NEVER self-heals: the retry is parked on an "Executable
-      # appearance" event that a volume mount does not fire. Measured on this
-      # machine, the github-runner daemons sat dead that way for 10h52m, and a
-      # `darwin-rebuild switch` did not recover them. No launchd setting fixes
-      # it — StartInterval, KeepAlive and KeepAlive.PathState were each measured
-      # NOT to retry a failed exec.
-      #
-      # nix-darwin's own `command` (modules/launchd/default.nix:90-94) emits
-      # `/bin/sh -c '/bin/wait4path /nix/store && exec …'`, which is the same
-      # shape activate-system and activate-agenix use for the same reason.
-      #
-      # The rule's load-bearing half — an adhoc-signed store arg0 keeping TCC
-      # read access to ~/Desktop, ~/Documents and ~/Downloads — does not apply:
-      # this runs as root and touches only /var/lib/ollama. Only BTM legibility
-      # is lost, and the process after exec is still `ollama`.
+      # `command`, NOT `ProgramArguments`: the boot-ordering exception in
+      # .claude/rules/launchd-naming.md (the measurements live there), not a
+      # style choice. It runs as root against /var/lib/ollama and reads no
+      # TCC-gated folder, so only BTM legibility is lost. The process after exec
+      # is upstream `ollama` itself, not a nix-* wrapper.
       command = "${cfg.package}/bin/ollama serve";
       serviceConfig = {
         RunAtLoad = true;

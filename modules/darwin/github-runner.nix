@@ -394,44 +394,12 @@ let
           exec ${lib.getExe' runner "Runner.Listener"} run --startuptype service
         '';
       };
-      # ARG0 IS DELIBERATELY /bin/sh HERE — the one sanctioned exception to
-      # .claude/rules/launchd-naming.md for a unit this repo authors. Read that
-      # rule's "boot-ordering exception" section before changing this back.
-      #
-      # `/nix` is a SEPARATE `noauto` APFS volume mounted by determinate-nixd.
-      # ProgramArguments[0] lives inside it, so at boot launchd tries to exec a
-      # path that does not exist yet. Measured 2026-09-06:
-      #
-      #   12:33:27.417  launchd: "Missing executable detected" x2 -> exit 78 EX_CONFIG
-      #   12:33:28.393  determinate_nixd: "Unlocking and mounting /nix"   (976 ms LATE)
-      #
-      # It then NEVER self-heals: launchd parks the job on an "Executable
-      # appearance" retry event which does not fire when the file arrives via a
-      # volume mount. Both daemons sat at `runs = 1, state = spawn scheduled`
-      # for a 10h52m uptime, and `darwin-rebuild switch` did not recover them
-      # either (nix-darwin only re-bootstraps daemons whose plist CHANGED).
-      #
-      # NO launchd setting recovers a failed exec. Measured with a throwaway
-      # agent pointing at a missing executable, then creating it:
-      #   StartInterval = 10          -> runs stayed 1 (no retry)
-      #   KeepAlive = true            -> runs stayed 1 (no retry)
-      #   KeepAlive.PathState         -> rejected: dict keys are OR'd, so it
-      #                                  defeats `Crashed = false`, AND it does
-      #                                  not fire on volume mounts either.
-      # The executable must EXIST when launchd first tries. That means arg0 has
-      # to be a path outside /nix, and the only maintained one is a shell doing
-      # wait4path — which is exactly what nix-darwin itself emits.
-      #
-      # upstream option nix-darwin.launchd.daemons.<name>.command exists
-      # (modules/launchd/default.nix:90-94 —
-      #  ProgramArguments = [ "/bin/sh" "-c" "/bin/wait4path /nix/store && exec ${command}" ])
-      # -> using it, rather than hand-rolling a stub outside the store.
-      #
-      # The rule's LOAD-BEARING half does not apply here anyway: it exists so an
-      # adhoc-signed /nix/store arg0 keeps TCC read access to ~/Desktop,
-      # ~/Documents and ~/Downloads. This is a system DAEMON (root, dropping
-      # to `_github-runner`) that only ever touches /var/lib — it reads none of
-      # those. Only BTM legibility is lost, and the exec'd process is still
+      # ARG0 IS DELIBERATELY /bin/sh HERE (via nix-darwin's `command`) — the
+      # boot-ordering exception in .claude/rules/launchd-naming.md, which holds
+      # the measurements; read it before changing this back. What is specific to
+      # this unit: it is a root DAEMON dropping to `_github-runner` that only
+      # ever touches /var/lib, so it reads no TCC-gated folder. Only BTM
+      # legibility is lost, and the exec'd process is still
       # nix-github-runner-<instance>.
       #
       # THE ROOT HALF. It does exactly two things as root: mint the
@@ -707,7 +675,7 @@ in
           # nix-darwin wraps this as
           #   /bin/sh -c '/bin/wait4path /nix/store && exec <command>'
           # so the daemon survives a boot that races the /nix volume mount.
-          # See the long note at runDaemon for why arg0 must leave the store.
+          # Why arg0 must leave the store: the note at runDaemon.
           command = lib.getExe i.runDaemon;
           serviceConfig = {
             RunAtLoad = true;
