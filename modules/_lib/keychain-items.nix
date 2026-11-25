@@ -43,7 +43,7 @@
   # The healthchecks.io project API key (the hc-checks stack).
   healthchecksApi = "hc:healthchecks.io:api";
 
-  # The healthchecks.io project PING key: runitor pings with it (terranix-drift, doctor-report weekly).
+  # The healthchecks.io project PING key: runitor pings with it (terranix-drift).
   healthchecksPingKey = "hc:healthchecks.io:ping-key";
 
   grafana = {

@@ -4,7 +4,8 @@
 **Moves 1–6 (§ 5) LANDED 2026-11-04** (#1080–#1083; per-move status in § 5's table). **§ 7 SHIPPED 2026-11-03** (rule catalogue, output
 formats, the `doctor-report` validator); § 13 records what the implementation had to decide.
 **§ 6 decided 2026-11-04:** one weekly Desktop task runs both audits on the Mac; the cloud lane
-failed its proof run (§ 6, measured).
+failed its proof run (§ 6, measured). **RETIRED 2026-11-19** (§ 6): the Desktop task and its
+heartbeat are gone; `doctor-report weekly` stays, report-only.
 
 **Question.** This repo has two "doctors": `/hygiene` (skill `nix-hygiene`) and `/fleet-doctor`.
 Which past incidents would they have caught, which would only an automatic check catch, and which

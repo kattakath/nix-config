@@ -205,7 +205,7 @@ Smaller, single-purpose CLIs:
   § `plugin-mcp.nix`); and `rogers-gw.nix` (the
   inspection-only gateway CLI) and `launchd-doctor.nix` (the launchd runtime health check),
   both in [`modules-darwin.md`](modules-darwin.md); and `doctor-report.nix` (the doctors'
-  output validator, and with `weekly` the weekly Desktop task's entry point, [`engine.md`](engine.md) § `doctors.nix`;
+  output validator, and `weekly`, a report-only diff of both doctors' latest runs, [`engine.md`](engine.md) § `doctors.nix`;
   the decisions are ADR-013 § 6 and § 13); and `link-hook-types.nix` (the `link-hook-types`
   app that gives editors the hook-types check's `node_modules`) and `hook-types-node-modules.nix`
   (that one `node_modules` tree, shared by the check and the app), both in [`claude-code.md`](claude-code.md).
