@@ -258,7 +258,11 @@ in
             }
             // lib.optionalAttrs (mp.ref != null) { inherit (mp) ref; };
       }
-      // lib.optionalAttrs mp.autoUpdate { autoUpdate = true; }
+      # The real boolean on every https source, never only `true`: settings.json is
+      # deep-merged with Nix winning on its OWN keys, so an omitted key keeps whatever an
+      # earlier generation wrote (measured 2026-11-25: four pinned marketplaces still read
+      # `autoUpdate: true` after the switch that turned it off).
+      // lib.optionalAttrs (lib.hasPrefix "https://" mp.source) { inherit (mp) autoUpdate; }
     ) cfg.marketplaces;
 
     # A CURATED ALWAYS-ON SET — not every declared plugin (#648).
