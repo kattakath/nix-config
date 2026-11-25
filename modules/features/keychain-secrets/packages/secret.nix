@@ -22,6 +22,7 @@
   set-secret,
   pb-conceal,
   indexService,
+  indexGrammar,
 }:
 writeShellApplication {
   name = "secret";
@@ -67,15 +68,7 @@ writeShellApplication {
         "aliases: set-secret == 'secret set'  -  remove-secret == 'secret rm'" >&2
     }
 
-    read_index() {
-      "$security" find-generic-password -a "$account" -s "$index_service" -w "''${kc[@]}" 2>/dev/null || true
-    }
-
-    # Index token halves — see THE INDEX GRAMMAR in packages/set-secret.nix,
-    # which is the canonical definition. Split on the FIRST '='; a bare token
-    # (no '=') is the legacy self-binding form, where ENV == SERVICE.
-    tok_env() { case "$1" in *=*) printf '%s' "''${1%%=*}" ;; *) printf '%s' "$1" ;; esac; }
-    tok_service() { case "$1" in *=*) printf '%s' "''${1#*=}" ;; *) printf '%s' "$1" ;; esac; }
+    ${indexGrammar}
 
     # True iff SERVICE is registered in the index.
     indexed() {

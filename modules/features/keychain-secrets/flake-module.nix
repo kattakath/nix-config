@@ -122,14 +122,28 @@
       # The index item's Keychain service name, ONE binding (./index-service.nix)
       # shared with ./module.nix, so both install byte-identical CLIs.
       indexService = import ./index-service.nix;
-      set-secret = pkgs.callPackage ./packages/set-secret.nix { inherit indexService; };
+      # The CLIs' index parser, one copy (./index-grammar.nix), shared the same way.
+      indexGrammar = import ./index-grammar.nix;
+      set-secret = pkgs.callPackage ./packages/set-secret.nix { inherit indexService indexGrammar; };
       pb-conceal = pkgs.callPackage ./packages/pb-conceal.nix { };
-      secret = pkgs.callPackage ./packages/secret.nix { inherit set-secret pb-conceal indexService; };
+      secret = pkgs.callPackage ./packages/secret.nix {
+        inherit
+          set-secret
+          pb-conceal
+          indexService
+          indexGrammar
+          ;
+      };
       remove-secret = pkgs.callPackage ./packages/remove-secret.nix { inherit set-secret; };
       # ADR-004 Phase 2. Config-free by design (see the package header), so the
       # module installs these exact derivations.
       backend = pkgs.callPackage ./packages/secrets-backend.nix {
-        inherit set-secret secret indexService;
+        inherit
+          set-secret
+          secret
+          indexService
+          indexGrammar
+          ;
       };
       inherit (backend)
         secrets-status
@@ -157,54 +171,70 @@
           ;
       };
 
-      checks = lib.optionalAttrs isDarwin {
-        keychain-secrets-module = import ./checks/module-evaluates.nix {
-          inherit (inputs) home-manager;
-          inherit pkgs;
-          module = ./module.nix;
-        };
+      checks =
+        lib.optionalAttrs isDarwin {
+          keychain-secrets-module = import ./checks/module-evaluates.nix {
+            inherit (inputs) home-manager;
+            inherit pkgs;
+            module = ./module.nix;
+          };
 
-        # The satellite's four package-checks (`inherit (self.packages.…)
-        # secret set-secret remove-secret pb-conceal`), folded into ONE
-        # derivation that depends on every CLI. Same coverage, fewer rows
-        # in `nix flake show`.
-        #
-        # This is not ceremony: each of them is a `writeShellApplication`,
-        # and BUILDING one runs shellcheck over its script. nix-config's darwin
-        # CI leg builds `.#checks.<system>` but none of its packages
-        # (ADR-002 §7.4), so without this the shellcheck coverage the
-        # satellite's own CI had would be silently lost on absorption — the ADR
-        # calls that "the highest-cost silent loss available" and refuses it.
-        keychain-secrets-clis = pkgs.runCommand "keychain-secrets-clis" { } ''
-          for bin in ${secret}/bin/secret ${set-secret}/bin/set-secret \
-                     ${remove-secret}/bin/remove-secret ${pb-conceal}/bin/pb-conceal \
-                     ${secrets-status}/bin/secrets-status ${secrets-rehydrate}/bin/secrets-rehydrate \
-                     ${secrets-push}/bin/secrets-push ${secrets-resolve}/bin/secrets-resolve; do
-            test -x "$bin"
-          done
-          echo ok > "$out"
-        '';
+          # The satellite's four package-checks (`inherit (self.packages.…)
+          # secret set-secret remove-secret pb-conceal`), folded into ONE
+          # derivation that depends on every CLI. Same coverage, fewer rows
+          # in `nix flake show`.
+          #
+          # This is not ceremony: each of them is a `writeShellApplication`,
+          # and BUILDING one runs shellcheck over its script. nix-config's darwin
+          # CI leg builds `.#checks.<system>` but none of its packages
+          # (ADR-002 §7.4), so without this the shellcheck coverage the
+          # satellite's own CI had would be silently lost on absorption — the ADR
+          # calls that "the highest-cost silent loss available" and refuses it.
+          keychain-secrets-clis = pkgs.runCommand "keychain-secrets-clis" { } ''
+            for bin in ${secret}/bin/secret ${set-secret}/bin/set-secret \
+                       ${remove-secret}/bin/remove-secret ${pb-conceal}/bin/pb-conceal \
+                       ${secrets-status}/bin/secrets-status ${secrets-rehydrate}/bin/secrets-rehydrate \
+                       ${secrets-push}/bin/secrets-push ${secrets-resolve}/bin/secrets-resolve; do
+              test -x "$bin"
+            done
+            echo ok > "$out"
+          '';
 
-        # ADR-004 Phase 2's gate, as a standing check: the backend options are INERT for
-        # activation (no gcloud / secrets-* text reaches home.activation under either
-        # backend) and the loader is byte-identical to a config that never heard of a
-        # backend when backend.type = "none". Same argument-passing shape as
-        # module-evaluates.nix, for the capsule-invariant reason stated there.
-        keychain-secrets-backend-inert = import ./checks/backend-inert.nix {
-          inherit (inputs) home-manager;
-          inherit pkgs;
-          module = ./module.nix;
-        };
+          # ADR-004 Phase 2's gate, as a standing check: the backend options are INERT for
+          # activation (no gcloud / secrets-* text reaches home.activation under either
+          # backend) and the loader is byte-identical to a config that never heard of a
+          # backend when backend.type = "none". Same argument-passing shape as
+          # module-evaluates.nix, for the capsule-invariant reason stated there.
+          keychain-secrets-backend-inert = import ./checks/backend-inert.nix {
+            inherit (inputs) home-manager;
+            inherit pkgs;
+            module = ./module.nix;
+          };
 
-        # ./tests/grammar.sh cannot RUN in a derivation — no login Keychain in the
-        # sandbox, as its header and ./checks/grammar-lint.nix both say — but it
-        # can be LINTED, and until 2026-10-02 nothing checked it at all. Same
-        # argument-passing shape as the two above, for the same capsule-invariant
-        # reason: the leaf may not write `../tests/grammar.sh`.
-        keychain-secrets-grammar-lint = import ./checks/grammar-lint.nix {
-          inherit pkgs indexService;
-          script = ./tests/grammar.sh;
+          # ./tests/grammar.sh cannot RUN in a derivation — no login Keychain in the
+          # sandbox, as its header and ./checks/grammar-lint.nix both say — but it
+          # can be LINTED, and until 2026-10-02 nothing checked it at all. Same
+          # argument-passing shape as the two above, for the same capsule-invariant
+          # reason: the leaf may not write `../tests/grammar.sh`.
+          keychain-secrets-grammar-lint = import ./checks/grammar-lint.nix {
+            inherit pkgs indexService;
+            script = ./tests/grammar.sh;
+          };
+        }
+        # Needs no Keychain and no macOS, so it is NOT darwin-gated: the linux leg is
+        # the one CI runs on every push to main.
+        // {
+          keychain-secrets-grammar-parse = import ./checks/grammar-parse.nix {
+            inherit pkgs indexGrammar;
+            clis = [
+              "${set-secret}/bin/set-secret"
+              "${secret}/bin/secret"
+              "${secrets-status}/bin/secrets-status"
+              "${secrets-rehydrate}/bin/secrets-rehydrate"
+              "${secrets-push}/bin/secrets-push"
+              "${secrets-resolve}/bin/secrets-resolve"
+            ];
+          };
         };
-      };
     };
 }

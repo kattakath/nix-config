@@ -43,7 +43,9 @@ let
   # The index item's Keychain service name — one binding for the whole capsule
   # (./index-service.nix), passed to every package that touches the index.
   indexService = import ./index-service.nix;
-  setSecret = pkgs.callPackage ./packages/set-secret.nix { inherit indexService; };
+  # The CLIs' index parser, one copy (./index-grammar.nix), passed down the same way.
+  indexGrammar = import ./index-grammar.nix;
+  setSecret = pkgs.callPackage ./packages/set-secret.nix { inherit indexService indexGrammar; };
   # The pasteboard half `secret copy` pipes to. Installed alongside the CLI so
   # it is usable on its own with any value on stdin, not only via the Keychain.
   pbConceal = pkgs.callPackage ./packages/pb-conceal.nix { };
@@ -51,7 +53,7 @@ let
   secretCmd = pkgs.callPackage ./packages/secret.nix {
     set-secret = setSecret;
     pb-conceal = pbConceal;
-    inherit indexService;
+    inherit indexService indexGrammar;
   };
   # ADR-004 Phase 2: the write/recovery side. Config-free derivations (they read
   # SECRETS_BACKEND* from the environment the loader exports), so these are the
@@ -59,7 +61,7 @@ let
   backendCmds = pkgs.callPackage ./packages/secrets-backend.nix {
     set-secret = setSecret;
     secret = secretCmd;
-    inherit indexService;
+    inherit indexService indexGrammar;
   };
   refsPath = "${config.home.homeDirectory}/${cfg.refsRelPath}";
   loaderPath = "${config.home.homeDirectory}/${cfg.loaderRelPath}";
@@ -107,7 +109,9 @@ let
               [ -n "$__ss_k" ] || continue
               # Split ENV=SERVICE on the FIRST '=' — see THE INDEX GRAMMAR in
               # packages/set-secret.nix, which is the canonical definition. A
-              # bare token (no '=') is the legacy self-binding form.
+              # bare token (no '=') is the legacy self-binding form. The CLIs'
+              # copy is index-grammar.nix; this one is inlined under `__ss_`
+              # names because it runs in the interactive shell itself.
               case "$__ss_k" in
                 *=*)
                   __ss_e="''${__ss_k%%=*}"

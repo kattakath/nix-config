@@ -59,6 +59,7 @@
   coreutils,
   gnugrep,
   indexService,
+  indexGrammar,
 }:
 writeShellApplication {
   name = "set-secret";
@@ -96,12 +97,8 @@ writeShellApplication {
     valid_service() { printf '%s' "$1" | grep -qE '^[A-Za-z_][A-Za-z0-9_.:-]*$'; }
     valid_env() { printf '%s' "$1" | grep -qE '^[A-Za-z_][A-Za-z0-9_]*$'; }
 
-    # Emit the SERVICE half of an index token (see THE INDEX GRAMMAR above).
-    tok_service() { case "$1" in *=*) printf '%s' "''${1#*=}" ;; *) printf '%s' "$1" ;; esac; }
-
-    read_index() {
-      "$security" find-generic-password -a "$account" -s "$index_service" -w "''${kc[@]}" 2>/dev/null || true
-    }
+    # The parser for THE INDEX GRAMMAR above (../index-grammar.nix, passed down).
+    ${indexGrammar}
 
     if [ "''${1:-}" = "-h" ] || [ "''${1:-}" = "--help" ]; then
       usage

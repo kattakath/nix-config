@@ -55,6 +55,7 @@
   set-secret,
   secret,
   indexService,
+  indexGrammar,
 }:
 let
   common = ''
@@ -92,9 +93,7 @@ let
     sha() { openssl dgst -sha256 | awk '{print $NF}'; }
 
     # ---- the index grammar (canonical definition: packages/set-secret.nix) ------------
-    read_index() { "$security" find-generic-password -a "$account" -s "$index_service" -w "''${kc[@]}" 2>/dev/null || true; }
-    tok_env() { case "$1" in *=*) printf '%s' "''${1%%=*}" ;; *) printf '%s' "$1" ;; esac; }
-    tok_service() { case "$1" in *=*) printf '%s' "''${1#*=}" ;; *) printf '%s' "$1" ;; esac; }
+    ${indexGrammar}
     # Emit "SERVICE<TAB>ENV" per indexed item (ENV empty when unbound).
     index_rows() {
       rest="$(read_index)"
