@@ -84,8 +84,10 @@ jobs:
     runs-on: ubuntu-24.04-arm # native aarch64-linux: builds what the Pi runs
     outputs:
       out: ${{ steps.build.outputs.out }}
-    # Cold RPi kernel is the worst case; a warmed closure is minutes.
-    timeout-minutes: 120
+    # Cold RPi kernel is the worst case; a warmed closure is minutes. 120 was too
+    # short: run 45695482053 (2026-11-25) was still compiling linux-rpi at 86 min
+    # when it timed out. 300 keeps headroom under the 360-min hosted-job cap.
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
