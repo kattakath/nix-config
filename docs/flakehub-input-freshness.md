@@ -96,7 +96,7 @@ gh workflow run update-flake-lock.yml
 Watch the run in the BACKGROUND, never in the foreground
 ([`landing-changes.md`](../.claude/rules/landing-changes.md) §1).
 
-A successful run either opens/updates a `chore: bump flake inputs` PR (if any
+A successful run either opens/updates a `…: bump flake inputs` PR (if any
 input moved) or no-ops (if everything was already current). Confirm the opened PR
 **shows `nix-ci` running** on it — that is the whole point of the App token; if
 CI is absent, re-check that both the checkout and the `update-flake-lock` steps

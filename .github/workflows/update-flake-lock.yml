@@ -104,9 +104,13 @@ jobs:
         with:
           inputs: ${{ steps.updatable-inputs.outputs.list }}
           token: ${{ steps.app-token.outputs.token }}
-          pr-title: "chore: bump flake inputs (automated nix flake update)"
+          # Subject per .claude/rules/pr-title.md: the touched components, not `chore:`.
+          # A lock-only bump moves every output built from an input, so it names each
+          # first-level `nix flake show` category with derivations (lib, identity and
+          # templates are input-free data). The squash merge keeps this as the subject.
+          pr-title: "darwinConfigurations, nixosConfigurations, packages, apps, checks, devShells, formatter, deploy: bump flake inputs (automated nix flake update)"
           pr-labels: dependencies
-          commit-msg: "chore: bump flake inputs"
+          commit-msg: "darwinConfigurations, nixosConfigurations, packages, apps, checks, devShells, formatter, deploy: bump flake inputs"
 
       # WHY ARMING LIVES HERE AND NOT IN auto-merge.yml. That workflow does fire on
       # this PR, but its `if:` accepts only PRs whose author is `ismailkattakath` —
