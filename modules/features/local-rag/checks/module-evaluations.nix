@@ -58,7 +58,7 @@ let
 in
 {
   # A throwaway macOS home-manager config with BOTH services enabled, asserting
-  # the options single-source correctly and the three launchd agents
+  # the options single-source correctly and the two launchd agents
   # materialise — without forcing a build of the (large) postgres / ollama
   # package closures themselves.
   #
@@ -76,12 +76,10 @@ in
   #     silent change to port/role/db name fails HERE rather than on the next
   #     query quietly returning nothing — and that the two exports cannot
   #     DESYNC, which a hand-written second copy of the URI would do.
-  #   * `launchd.agents.ollama.config.StandardOutPath` proves the log override
-  #     merges onto UPSTREAM's `services.ollama` agent rather than forking it —
-  #     upstream declares no StandardOutPath of its own. This is the shape that
-  #     would have caught the `launchd.agents.ollama-local` typo ADR-002 §8
-  #     found: a stale agent name silently creating a DEAD agent, invisible to
-  #     `nix flake check`.
+  #   * `services.ollama.enable` is false and there is no `launchd.agents.ollama`:
+  #     the capsule serves NO ollama. The one server is the machine-wide
+  #     `local.ollamaDaemon`, and a second on 11434 would mean one wins and the
+  #     other flaps under KeepAlive.
   module-evaluates =
     let
       inherit (hm.config)
@@ -92,17 +90,14 @@ in
         ;
     in
     pkgs.runCommand "local-rag-eval" { } ''
-      test "${pkgs.lib.boolToString services.ollama.enable}" = "true"
+      test "${pkgs.lib.boolToString services.ollama.enable}" = "false"
+      test "${pkgs.lib.boolToString (launchd.agents ? ollama)}" = "false"
       test "${services.ollama.host}" = "127.0.0.1"
       test "${toString services.ollama.port}" = "11434"
       test "${local.rag.ollama.embedModel}" = "nomic-embed-text"
       test "${toString local.rag.ollama.embedDim}" = "768"
       test "${local.rag.pgvector.databaseUri}" = "postgresql://mcp@127.0.0.1:5433/ragdb"
       test "${home.sessionVariables.RAGDB_URI}" = "postgresql://mcp@127.0.0.1:5433/ragdb"
-      test "${pkgs.lib.boolToString launchd.agents.ollama.enable}" = "true"
-      # Proves the log override merges onto UPSTREAM's agent rather than
-      # forking it — upstream declares no StandardOutPath of its own.
-      test "${launchd.agents.ollama.config.StandardOutPath}" = "${homeDir}/Library/Logs/ollama-local.log"
       test "${pkgs.lib.boolToString launchd.agents.ollama-local-pull.enable}" = "true"
       test "${pkgs.lib.boolToString launchd.agents.postgres-pgvector.enable}" = "true"
       echo ok > "$out"
@@ -118,9 +113,8 @@ in
   # `programs.localRag.enable`; each gates itself on `enable && isDarwin`
   # instead. That design is only correct if an unset switch really is inert,
   # which is what this asserts — including the `home.packages` comparison
-  # against a config that never imported the module at all, since
-  # `services.ollama.enable = true` would otherwise drag ollama into every
-  # host's profile.
+  # against a config that never imported the module at all, so no package
+  # leaks into a host's profile.
   inert =
     let
       c = hmOff.config;

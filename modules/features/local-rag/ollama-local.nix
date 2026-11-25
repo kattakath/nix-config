@@ -1,25 +1,17 @@
 # home-manager module: local.rag.ollama
 #
-# The EMBEDDING half of the local RAG stack. Ollama itself is NOT hand-rolled
-# here: home-manager already ships `services.ollama`, whose darwin path emits a
-# `launchd.agents.ollama` running `ollama serve` with `OLLAMA_HOST` bound from
-# its own `host`/`port`, `KeepAlive`, `ProcessType = "Background"`, and
-# `home.packages`. This module turns that on and adds the one thing upstream
-# has no opinion about — making sure an EMBED model is actually present, since
-# nothing in a pgvector store can generate embeddings on its own and
-# `local.rag.pgvector` (./pgvector-local.nix) calls Ollama over
-# loopback HTTP from an in-DB `embed()` function.
+# The EMBEDDING half of the local RAG stack. It does NOT serve Ollama: the one
+# `ollama serve` on this fleet is the machine-wide `local.ollamaDaemon`
+# (modules/darwin/ollama-daemon.nix), so every account shares one process and
+# one model store. This module adds the one thing no server module has an
+# opinion about — making sure an EMBED model is actually present, since nothing
+# in a pgvector store can generate embeddings on its own and
+# `local.rag.pgvector` (./pgvector-local.nix) calls Ollama over loopback HTTP
+# from an in-DB `embed()` function.
 #
-#   upstream option home-manager.services.ollama exists -> using it
-#   (pinned home-manager modules/services/ollama.nix:110-126 — launchd.agents.ollama
-#   with EnvironmentVariables/KeepAlive/ProcessType, plus home.packages; options
-#   host/port at :28-44; auto-imported by modules/modules.nix:95, which readDir's
-#   ./services)
-#
-# So bind address and port are `services.ollama.host` / `.port` — set them
-# there, not here. They stay loopback (127.0.0.1) by upstream default; widening
-# them is on you, Ollama has no auth. Extra server env goes through upstream's
-# `services.ollama.environmentVariables` (:73), not a wrapper script.
+# The server's COORDINATES are home-manager's own `services.ollama.host` /
+# `.port` (upstream option exists -> using it, as plain data; its `enable` stays
+# off). modules/home/default.nix threads the daemon's host/port into them.
 #
 # grepped home-manager/modules/services/ollama.nix for pull/model/embed — no
 # option exists -> the pull agent below is custom, because upstream's HM module
@@ -45,30 +37,9 @@ in
 {
   options.local.rag.ollama = {
     enable = lib.mkEnableOption ''
-      the local RAG embedding runtime: home-manager's `services.ollama` plus a
-      one-shot agent that pulls `embedModel` (darwin)
+      the local RAG embedding runtime: a one-shot agent that pulls `embedModel`
+      into the ollama server at `services.ollama.host`/`.port` (darwin)
     '';
-
-    manageServer = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = ''
-        Whether this capsule stands up the ollama SERVER itself, via
-        home-manager's `services.ollama` (a per-user `launchd.agents.ollama`).
-
-        Set false when something else already serves ollama on
-        `services.ollama.host`/`.port` — on this fleet that is the machine-wide
-        `local.ollamaDaemon` (modules/darwin/ollama-daemon.nix), which exists so
-        a SECOND account shares one server and one model store instead of
-        duplicating 31 GB per login.
-
-        The rest of the capsule is unaffected: `embedModel` is still pulled, and
-        the pull agent still targets host/port — it simply talks to a server it
-        no longer owns. Leaving this true alongside the system daemon would put
-        two `ollama serve` processes on the same port, where one wins and the
-        other flaps under KeepAlive.
-      '';
-    };
 
     embedModel = lib.mkOption {
       type = lib.types.str;
@@ -121,28 +92,6 @@ in
       };
     in
     {
-      services.ollama.enable = cfg.manageServer;
-
-      # Upstream sets no StandardOutPath, so the server's log would vanish into
-      # launchd's sink. Merge the historical path back onto upstream's own
-      # agent rather than forking it — `launchd.agents.<name>.config` is a
-      # submodule that declares the key.
-      # grepped home-manager/modules/services/ollama.nix for Standard*Path — no
-      # option exists -> custom, because losing `ollama serve`'s log is an
-      # operator-visible regression.
-      # (pinned home-manager modules/launchd/default.nix — `config` is
-      # `submodule (import ./launchd.nix)`, which declares `StandardOutPath`)
-      #
-      # Gated with the server itself: with `manageServer = false` there is no
-      # `launchd.agents.ollama` to attach a log path to, and configuring one
-      # would resurrect the agent as an empty unit.
-      launchd.agents.ollama = lib.mkIf cfg.manageServer {
-        config = {
-          StandardOutPath = "${logDir}/ollama-local.log";
-          StandardErrorPath = "${logDir}/ollama-local.log";
-        };
-      };
-
       # Retry-until-success, using launchd's own keys rather than a second retry
       # loop of ours.
       #
@@ -155,7 +104,7 @@ in
       # already waits 120 x 1s for
       # the server, so this is not a missing wait. It is a pull that exhausted a
       # two-minute budget on a cold login — the machine-wide daemon
-      # (`local.ollamaDaemon`, since `manageServer = false` here) was still coming
+      # (`local.ollamaDaemon`) was still coming
       # up — and then had no second chance until the next login.
       #
       # KeepAlive.SuccessfulExit = false is launchd's "restart until it exits 0",

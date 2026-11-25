@@ -240,8 +240,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   POWER BUDGET (`OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=10m`).
   Those moved here from `services.ollama.environmentVariables` in `modules/home/default.nix` —
   they had to, because that option only ever reaches home-manager's own agent, so the block
-  went inert the moment the capsule stopped managing the server. The local-rag capsule gained
-  `local.rag.ollama.manageServer` (set false) so it does not stand up a competitor on 11434.
+  went inert the moment the capsule stopped managing the server. The local-rag capsule serves no
+  ollama of its own, so nothing competes on 11434.
 
 - **`clat-guard.nix`** (macos only, `local.clatGuard`, since 2026-10-16) — undoes macOS
   switching on **CLAT46 / 464XLAT** by itself on dual-stack Wi-Fi with no NAT64 behind it, which

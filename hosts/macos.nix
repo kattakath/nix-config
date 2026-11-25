@@ -80,9 +80,8 @@ in
   # ONE ollama for the whole machine. The per-user agent could not be shared:
   # it lives in a single login session and keeps its models in that user's home,
   # so a second account meant either a duplicate 31 GB store or a server that
-  # vanished whenever the operator logged out. `modules/home/default.nix` sets
-  # `local.rag.ollama.manageServer = false` so the capsule stops standing up a
-  # competing one — two servers on 11434 means one wins and the other flaps.
+  # vanished whenever the operator logged out. The local-rag capsule serves no
+  # ollama of its own, only pulls its embed model into this one.
   local.ollamaDaemon.enable = true;
 
   # Undo macOS 27 turning on CLAT46 where no NAT64 exists (IPv4 dead, IPv6 fine).

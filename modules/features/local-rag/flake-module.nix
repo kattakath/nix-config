@@ -73,9 +73,8 @@
 #                                             darwin-system-26.11.4cff07d.drv
 #
 # i.e. the wrap does NOT bite here — this capsule contributes nothing to
-# `home.packages` directly (its packages arrive via upstream's own
-# `services.ollama` and via `local.rag.pgvector`, both from inside the two
-# modules), so the extra level of `imports` leaves the collected order where it
+# `home.packages` directly (its packages arrive via `local.rag.pgvector`, from
+# inside the module), so the extra level of `imports` leaves the collected order where it
 # was. `capsuleModules` is chosen anyway, for two reasons that are not
 # "it measured different":
 #

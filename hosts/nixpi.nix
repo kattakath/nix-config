@@ -206,8 +206,6 @@
   # `const char *next_path` in tools/lib/bpf/libbpf.c (fetched and read
   # 2026-10-21), which is exactly the line that patch changes.
 
-  networking.useDHCP = true;
-
   # NO IPv6 TEMPORARY ADDRESSES. Privacy extensions (RFC 4941) hide a CLIENT from
   # tracking; a server named in DNS gains nothing from them — and here they piled up.
   # dhcpcd adds each interface's SLAAC address with `mngtmpaddr`, so the KERNEL mints

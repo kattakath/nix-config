@@ -2,8 +2,8 @@
 
 A local-first RAG (retrieval-augmented generation) stack for macOS, declared as
 home-manager `launchd` user agents: a loopback-only **Postgres + pgvector +
-pgsql-http**, a loopback-only **Ollama** (home-manager's own `services.ollama`),
-and a one-shot agent that pulls the embed model. Bootstrap SQL wires them together
+pgsql-http**, and a one-shot agent that pulls the embed model into a loopback-only
+**Ollama** it does not serve (on this fleet, the machine-wide `local.ollamaDaemon`). Bootstrap SQL wires them together
 with an in-DB `public.embed(text)` `SECURITY DEFINER` function that calls
 Ollama over loopback HTTP, plus a `public.docs` table (content + jsonb
 metadata + a vector column) and an HNSW cosine index — so ingest and retrieval
@@ -47,7 +47,6 @@ imports it **unconditionally** and enables it on `macos` only:
 
 ```nix
 local.rag.ollama.enable = isMacosHost;
-local.rag.ollama.manageServer = false; # the server is the machine-wide local.ollamaDaemon
 local.rag.pgvector.enable = isMacosHost;
 ```
 
@@ -72,8 +71,8 @@ Both default to loopback-only, no auth needed:
     # embedDim = 768;           # must match embedModel's output dimension
   };
 
-  # The Ollama SERVER is home-manager's own `services.ollama`, which
-  # `ollamaLocal` enables for you. Its coordinates live there, not here:
+  # The capsule serves no Ollama; it reads the server's coordinates from
+  # home-manager's own `services.ollama` (whose `enable` it leaves off):
   # services.ollama = {
   #   host = "127.0.0.1";       # default
   #   port = 11434;             # default
@@ -94,9 +93,9 @@ embed function's URL and the `vector(...)` column width), so it's enough to
 change them in one place: `services.ollama`'s `host`/`port` for the URL,
 `ollamaLocal`'s `embedModel`/`embedDim` for the model and column width. The
 `pgvectorLocal` module imports `ollamaLocal` itself, so it evaluates standalone
-even if you only reference the postgres module directly — but you need
-`ollamaLocal.enable = true` too for `embed()` to actually have something to
-call at runtime.
+even if you only reference the postgres module directly — but `embed()` needs an
+Ollama server at those coordinates (and `ollamaLocal.enable = true` to pull the
+model) to actually have something to call at runtime.
 
 ## Usage
 

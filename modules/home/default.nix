@@ -411,12 +411,6 @@ in
   # RAG stack (Ollama + pgvector) backs the postgres MCP server — real Mac only.
 
   local.rag.ollama.enable = isMacosHost;
-  # The SERVER moved to a machine-wide daemon (`local.ollamaDaemon`,
-  # modules/darwin/ollama-daemon.nix) so every account shares one process and
-  # one 31 GB model store. The capsule keeps everything else — the embed model,
-  # its dimension, and the one-shot pull agent, which now targets a server it
-  # does not own.
-  local.rag.ollama.manageServer = false;
   # ONE endpoint: both capsules default to 127.0.0.1:11434 independently and may
   # not reach out, so the daemon's coordinates are threaded in here. No `or`
   # fallback — isMacosHost implies hosts/macos.nix, which imports the daemon.

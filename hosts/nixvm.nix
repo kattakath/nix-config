@@ -40,9 +40,6 @@
 
   networking.hostName = "nixvm";
 
-  # DHCP on all interfaces (QEMU user-mode networking hands out a 10.0.2.x lease).
-  networking.useDHCP = true;
-
   # The base (non-vmVariant) config is kept a valid, bootable NixOS system so its
   # toplevel evaluates (CI) and `build.vm` has a coherent substrate — the build-vm
   # variant supplies the actual root qcow2 at run time (overriding fileSystems).
