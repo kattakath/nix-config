@@ -18,17 +18,8 @@ ast-grep structural lint (`checks.<system>.ast-grep`), the `path:N` citation lin
 
 **The ast-grep floor is SIX rules, and every one `severity: error` — a match FAILS the
 build, it is not a review finding.** "Report-only" means only that it never rewrites a
-file (unlike treefmt); see `sgconfig.yml`. `ls ast-grep/rules/` is the authoritative
-inventory — re-read it each pass rather than trusting this list, which has drifted before:
-
-| Rule (`ast-grep/rules/<id>.yml`) | Catches |
-|---|---|
-| `nix-hardcoded-home-path` | `/Users/<name>` or `/home/<name>` inside a Nix **string** (a `users.users.<n>.home` declaration is exempt by shape) |
-| `launchd-bare-interpreter-arg0` | `Program`/`ProgramArguments` arg0 ending in `/bin/{sh,bash,python3,node,env,…}` instead of a `nix-<kebab>` wrapper |
-| `hook-json-parse-must-be-guarded` | a `JSON.parse` in `.claude/hooks/*.js` that no `try` encloses |
-| `capsule-must-not-reach-out` | ANY `..` in a **path literal** under `modules/features/**` — escaping or not. `../module.nix` from a `checks/` leaf stays inside the capsule and still fails: a leaf takes what it needs as an ARGUMENT |
-| `home-must-not-cross-layers` | `modules/home/` reaching UP via `..` into `features`/`parts`/`hosts`/`infra` |
-| `activation-must-not-touch-secrets` | an `activation*` binding naming `secrets-{rehydrate,push,resolve,status}` or `gcloud {secrets,auth}` (ADR-004) |
+file (unlike treefmt); see `sgconfig.yml`. `ls ast-grep/rules/` is the inventory, and
+[`entry-points.md`](../../../docs/map/entry-points.md)'s ast-grep table describes each rule.
 
 **This skill:** judgmental hygiene — architecture, host scope, docs↔code,
 abandoned experiments, comment rot — then **fix** and **re-gate**.
@@ -201,7 +192,7 @@ because CLAUDE.md is near its 40k budget. A path missing from both is itself a f
 - [ ] `NH-E-etc-hack` — no new `environment.etc` hacks for things nix-darwin models.
 - [ ] `NH-E-determinate-drift` — Determinate Nix (darwin): no `nix.enable = true` / no hand-written `nix.custom.conf`. On the NixOS hosts the nixosModule keeps `nix.*` live, so `nix.settings` there is correct, not drift.
 - [ ] `NH-E-hand-rolled-systems` — **flake-parts everywhere, including here.** The small supporting flakes
-      (the kattakath-owned inputs in `flake.nix`) use flake-parts,
+      (the kattakath-owned inputs in `flake.nix` that are flakes, not `flake = false`) use flake-parts,
       not hand-rolled `forAll`/`forAllSystems` boilerplate — ADR-001
       (`docs/flake-architecture-strategy-adr.md`). `nix-mcp-gateway` used to be on
       this list and is **archived** (2026-09-12, an unadopted extraction candidate —

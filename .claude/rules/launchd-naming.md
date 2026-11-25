@@ -190,16 +190,16 @@ for p in "$HOME"/Library/LaunchAgents/*.plist /Library/LaunchAgents/*.plist /Lib
 done
 ```
 
-**Expected hits, in full** — this audit prints **nine** `BARE-INTERP` lines on `macos`
-today from the **eight** rows below, and every one of them is fine. Eight rows, nine lines: the
-runner row is a glob, one line per instance — count the rows and you will come up one short.
+**Expected hits, in full** — every `BARE-INTERP` line this audit prints on `macos` must match
+a row below, and every row is fine. The runner row is a glob that prints one line per
+`local.macosGithubRunner.count` instance, so the lines can outnumber the rows.
 
 | Label | Why it is `/bin/sh` |
 |---|---|
 | `org.nixos.activate-system` | upstream nix-darwin (§ Known upstream exceptions) |
 | `org.nixos.activate-agenix` | upstream agenix (§ Known upstream exceptions) |
 | `systems.determinate.nix-installer.nix-hook` | the Determinate installer (§ Known upstream exceptions) |
-| `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above. **This row is `local.macosGithubRunner.count` lines, not one** — today `…-dontsell-ai-01` and `…-02`, which is why the lines outnumber the rows by one. |
+| `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above. **This row is `local.macosGithubRunner.count` lines, not one** (`…-dontsell-ai-NN`), which is why the lines can outnumber the rows. |
 | `org.nixos.ollama` | **ours, and deliberate** — same exception (`local.ollamaDaemon`, 2026-09-15). A `RunAtLoad` daemon serving from a store path; it runs as root against `/var/lib/ollama` and reads none of the TCC folders, so only BTM legibility is lost and the process after `exec` is still `ollama`. |
 | `org.nixos.ollama-metal-guard` | **ours, and deliberate** — same exception and the same module (`modules/darwin/ollama-daemon.nix`'s `launchd.daemons.ollama-metal-guard`). It was live on disk but missing from this table until 2026-09-22, which is how the prose count read "six" against a seven-line audit. |
 | `org.nixos.file-rotation-logs-system` | **ours, and deliberate — as of 2026-09-29.** It was NOT `sh` before, and that was the bug: a `RunAtLoad` daemon with a `/nix/store` `ProgramArguments[0]` sat at `runs = 1, exit 78 EX_CONFIG, job state = spawn failed`, so the root log rotator never ran once and `/var/log/ollama-daemon.log` reached 16 MB. Switched to `launchd.daemons.<name>.command` (`modules/darwin/logging.nix`). Root daemon writing `/var/log`; reads no TCC folder, so only BTM legibility is lost. |
