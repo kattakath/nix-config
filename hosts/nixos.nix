@@ -303,8 +303,10 @@ in
         "x-scheme-handler/http" = "firefox.desktop";
         "x-scheme-handler/https" = "firefox.desktop";
       };
-      # Browser decision (2026-10-17): Firefox + Tor Browser — tested in the
-      # guest and KEPT. Brave alone was the fallback had Tor Browser failed.
+      # Browser decision (2026-10-17): Firefox + Tor Browser — KEPT. Tor Browser
+      # was tested in the guest as the alpha; the stable nixpkgs build it runs
+      # now has NOT been re-tested (docs/map/hosts.md). Brave alone was the
+      # fallback had Tor Browser failed.
 
       # GNOME Web would be a second browser nobody chose; GNOME Tour is the
       # first-login welcome window (seen on the first boot), the same first-run

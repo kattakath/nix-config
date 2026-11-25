@@ -115,9 +115,10 @@
       # no `-i`, so a port added here answers on every interface the host has.
       # nixpi's LAN recovery path therefore goes through
       # `networking.firewall.interfaces.<iface>` instead (lan-recovery.nix), never
-      # through this list.
+      # through this list. UDP 5353 (mDNS) lands on it from avahi below:
+      # `services.avahi.openFirewall` defaults to true in the pinned nixpkgs
+      # (avahi-daemon.nix), so the port is open exactly while avahi is.
       allowedTCPPorts = [ ];
-      allowedUDPPorts = [ 5353 ]; # mDNS
     };
 
     # mDNS — makes <hostname>.local resolvable on the LAN without a DNS server.
