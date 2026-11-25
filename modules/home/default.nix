@@ -42,8 +42,10 @@
   # Source-only nixpkgs checkout read for ONE package recipe (claudeCode below).
   nixpkgs-claude-code,
   # The reviewed commit of each third-party marketplace (flake.lock's `marketplace-*`
-  # inputs, via compose.nix). Defaulted so a consumer without those inputs evaluates.
-  marketplaceRevs ? { },
+  # inputs, via compose.nix — the only caller, so it is always supplied). Indexed
+  # directly below, never `or null`: a key that drifts from compose.nix's map fails
+  # eval instead of silently unpinning that marketplace.
+  marketplaceRevs,
   # The ABSORBED local-rag capsule (local.rag.ollama +
   # local.rag.pgvector — the loopback RAG stack) — a MODULE, not a flake,
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
@@ -551,7 +553,7 @@ in
     # a lead; the citable grep still has to run against flake.lock.
     context7-marketplace = {
       source = lib.mkDefault "https://github.com/upstash/context7.git";
-      ref = marketplaceRevs.context7-marketplace or null;
+      ref = marketplaceRevs.context7-marketplace;
     };
 
     # This operator's OWN published marketplace, github:kattakath/skills, as a
@@ -567,11 +569,9 @@ in
     # the remote decides what it contains. ADR-003 §10 records that
     # this moves the version decision out of flake.lock for plugins.
     #
-    # The `kattakath-skills` flake input still exists for ONE consumer,
-    # `checks.<system>.mcp-launcher-parity`, which checks that each `nix-mcp-*`
-    # launcher this fleet builds is run by its pinned plugin. No plugin or skill is
-    # read from the input, and no home-manager module takes it at all: the check
-    # lives in the flake engine and reads `inputs.kattakath-skills` directly.
+    # The `kattakath-skills` flake input still exists, but only for checks: grep
+    # `inputs.kattakath-skills` in modules/parts/checks.nix for the list. No plugin
+    # or skill is read from it here, and no home-manager module takes it at all.
     #
     # Adding or changing a plugin = a merge IN THAT REPO; nothing to list here.
     kattakath = {
@@ -623,7 +623,7 @@ in
     # positive reason to consume this as a marketplace rather than vendor it.
     trailofbits = {
       source = lib.mkDefault "https://github.com/trailofbits/skills.git";
-      ref = marketplaceRevs.trailofbits or null;
+      ref = marketplaceRevs.trailofbits;
     };
 
     # Upstream marketplace that replaces a cherry-picked `agent-skills-*` skill (2026-11-07,
@@ -632,7 +632,7 @@ in
     # postgres-pro).
     fullstack-dev-skills = {
       source = lib.mkDefault "https://github.com/Jeffallan/claude-skills.git";
-      ref = marketplaceRevs.fullstack-dev-skills or null;
+      ref = marketplaceRevs.fullstack-dev-skills;
     };
 
     # Grafana Labs' own marketplace (Apache-2.0, 2026-11-13). The grafana-cloud-mcp
@@ -641,7 +641,7 @@ in
     # (wshobson/agents, more installs, unofficial). Enable `grafana-core` at runtime.
     grafana-skills = {
       source = lib.mkDefault "https://github.com/grafana/skills.git";
-      ref = marketplaceRevs.grafana-skills or null;
+      ref = marketplaceRevs.grafana-skills;
     };
   };
 

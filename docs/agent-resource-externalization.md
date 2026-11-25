@@ -8,8 +8,8 @@
 > that repo's `validate.yml` `promote-stable` job moves `stable` to each main push whose `gate` is green. Its top-level `skills/` are
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
-> as `kattakath-skills` for ONE consumer, `checks.<system>.mcp-launcher-parity` (grep
-> `kattakath-skills` in `modules/`) — narrowed 2026-10-02, when `mcp.nix`'s `mcpCatalog` went
+> as `kattakath-skills` for checks only (grep `inputs.kattakath-skills` in
+> `modules/parts/checks.nix` for the list) — narrowed 2026-10-02, when `mcp.nix`'s `mcpCatalog` went
 > with the gateway (`superhook` had already become a plugin hook 2026-09-30), and again
 > 2026-11-14, when the `page-lab-pick` PATH package went with `page-lab`. It was **four consumers, not the "two PATH
 > packages" this document said until 2026-09-30**. A plugin's `bin/` reaches the Bash tool's
