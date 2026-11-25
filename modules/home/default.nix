@@ -1423,8 +1423,7 @@ in
         # ---- Splits: the UNFOCUSED pane's text dims, the ground stays put -------
         # Ghostty only ever modifies the UNFOCUSED split — there is no
         # "focused-background" key.
-        # 0.5: a lighter dim than the 0.35 previously set here. The floor is
-        # 0.15, which Ghostty itself calls weird-looking.
+        # The floor is 0.15, which Ghostty itself calls weird-looking.
         unfocused-split-opacity = 0.5;
         # NO FILL, deliberately. Unset, it defaults to `background`, so the
         # unfocused GROUND is unchanged and only the text dims -- 17.58:1 down to

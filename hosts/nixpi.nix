@@ -372,7 +372,7 @@
   # loopback probe matches what the firewall already admits.
   #
   # The check is `fleet.heartbeats.nixpi-serving` (modules/parts/heartbeats.nix:
-  # period 300 s = `interval` below, grace 900 s = 3x). The slug is named HERE, not
+  # period 300 s = the module's `interval` default, asserted equal; grace 900 s = 3x). The slug is named HERE, not
   # defaulted in the module — which check a host feeds is the host's fact.
   local.heartbeat = {
     enable = true;

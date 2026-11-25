@@ -290,6 +290,23 @@ in
         assertion = cfg.slug == null || fleetHeartbeats ? ${cfg.slug};
         message = "local.serviceHeartbeat.slug = \"${toString cfg.slug}\" is not in fleet.heartbeats (modules/parts/heartbeats.nix); known: ${lib.concatStringsSep ", " (builtins.attrNames fleetHeartbeats)}.";
       }
+      {
+        # The cadence lives twice — this timer and the registry's `period` — so a
+        # changed interval must fail here rather than leave the monitor's period and
+        # grace silently stale. Only `<n>s`/`<n>min` are parsed; anything else fails.
+        assertion =
+          let
+            period = (fleetHeartbeats.${cfg.slug} or { }).period or null;
+            m = builtins.match "([0-9]+)(s|min)" cfg.interval;
+            secs =
+              if m == null then
+                null
+              else
+                lib.toInt (builtins.elemAt m 0) * (if builtins.elemAt m 1 == "min" then 60 else 1);
+          in
+          cfg.slug == null || period == null || secs == period;
+        message = "local.serviceHeartbeat.interval = \"${cfg.interval}\" must be `<n>s` or `<n>min` and equal fleet.heartbeats.${toString cfg.slug}.period (modules/parts/heartbeats.nix); change both together.";
+      }
     ];
 
     systemd.services.service-heartbeat = {

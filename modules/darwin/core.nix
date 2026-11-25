@@ -21,7 +21,7 @@ let
   # `defaults write` REPLACES the whole key, so IconViewSettings is reproduced
   # verbatim (current values) to avoid wiping icon-view defaults. Both the modern
   # ExtendedListViewSettingsV2 (what Finder reads first) and the legacy
-  # ListViewSettings are set so they stay consistent.
+  # ListViewSettings are set; the legacy one is derived from the modern list.
   listCol = ascending: identifier: visible: width: {
     inherit
       ascending
@@ -39,79 +39,36 @@ let
     useRelativeDates = 1;
     viewOptionsVersion = 1;
   };
+  listCols = [
+    (listCol 1 "name" 1 300)
+    (listCol 0 "dateModified" 0 181)
+    (listCol 0 "dateCreated" 0 181)
+    (listCol 0 "size" 0 97)
+    (listCol 1 "kind" 1 115)
+    (listCol 1 "label" 1 100) # Tags
+    (listCol 1 "version" 0 75)
+    (listCol 1 "comments" 0 300)
+    (listCol 0 "dateLastOpened" 1 200)
+    (listCol 0 "shareOwner" 0 200)
+    (listCol 0 "shareLastEditor" 0 200)
+  ];
   finderViewSubsettings = {
     ExtendedListViewSettingsV2 = listViewTop // {
-      columns = [
-        (listCol 1 "name" 1 300)
-        (listCol 0 "dateModified" 0 181)
-        (listCol 0 "dateCreated" 0 181)
-        (listCol 0 "size" 0 97)
-        (listCol 1 "kind" 1 115)
-        (listCol 1 "label" 1 100) # Tags
-        (listCol 1 "version" 0 75)
-        (listCol 1 "comments" 0 300)
-        (listCol 0 "dateLastOpened" 1 200)
-        (listCol 0 "shareOwner" 0 200)
-        (listCol 0 "shareLastEditor" 0 200)
-      ];
+      columns = listCols;
     };
+    # The legacy key is the same table keyed by identifier, with its position as
+    # `index` — derived, so the two cannot drift. It never carried the two share*
+    # columns, hence the first nine only.
     ListViewSettings = listViewTop // {
-      columns = {
-        name = {
-          ascending = 1;
-          index = 0;
-          visible = 1;
-          width = 300;
-        };
-        dateModified = {
-          ascending = 0;
-          index = 1;
-          visible = 0;
-          width = 181;
-        };
-        dateCreated = {
-          ascending = 0;
-          index = 2;
-          visible = 0;
-          width = 181;
-        };
-        size = {
-          ascending = 0;
-          index = 3;
-          visible = 0;
-          width = 97;
-        };
-        kind = {
-          ascending = 1;
-          index = 4;
-          visible = 1;
-          width = 115;
-        };
-        label = {
-          ascending = 1;
-          index = 5;
-          visible = 1;
-          width = 100;
-        };
-        version = {
-          ascending = 1;
-          index = 6;
-          visible = 0;
-          width = 75;
-        };
-        comments = {
-          ascending = 1;
-          index = 7;
-          visible = 0;
-          width = 300;
-        };
-        dateLastOpened = {
-          ascending = 0;
-          index = 8;
-          visible = 1;
-          width = 200;
-        };
-      };
+      columns = lib.listToAttrs (
+        lib.imap0 (index: c: {
+          name = c.identifier;
+          value = {
+            inherit (c) ascending visible width;
+            inherit index;
+          };
+        }) (lib.take 9 listCols)
+      );
     };
     # Icon-view defaults carried through unchanged (colors are plist <real>s).
     IconViewSettings = {

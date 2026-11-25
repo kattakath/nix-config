@@ -1,7 +1,7 @@
 # osConfig -> bool: is this Home Manager profile running on the operator's Mac?
 #
 # ONE definition for the home modules that gate macos-only behaviour on it
-# (default.nix, macos-user-agents.nix, tor-browser-backup-exclusion.nix); each used to spell the same test itself.
+# (grep is-macos-host for them); each used to spell the same test itself.
 #
 # Reads `local.operatorHost` (modules/darwin/operator-host.nix), set only in
 # hosts/macos.nix — NOT `networking.hostName == "macos"`, which a template

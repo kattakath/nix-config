@@ -127,7 +127,7 @@ in
     heartbeats = {
       # WIRED: modules/nixos/service-heartbeat.nix on nixpi (under runitor).
       #
-      # period 300 = `local.serviceHeartbeat.interval` (5min). grace 900 = 3x that,
+      # period 300 = `local.serviceHeartbeat.interval` (5min; the module asserts they match). grace 900 = 3x that,
       # per the interval option's own advice: a single missed ping must not page
       # anyone. Silence means nixpi is not SERVING — see the module header for why
       # absence is the signal.

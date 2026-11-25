@@ -28,8 +28,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   declared in the nix-darwin layer because the paths are a macOS system fact and a
   home-manager copy of the default would be the second source of truth it exists to
   prevent.
-- **`homebrew.nix`** — the declarative Homebrew **framework**: owns only
-  `enable`/`onActivation` with `cleanup = "zap"`/`taps`. The actual
+- **`homebrew.nix`** — the declarative Homebrew **framework**: owns
+  `enable`/`onActivation` with `cleanup = "zap"`/`taps`, plus one cross-host cask (`firefox`; why in its header). The rest of the
   `brews`/`casks`/`masApps` lists live **per host** in `hosts/<host>.nix` so each darwin
   host carries its own app set. **A formula Homebrew MIGRATES to a cask breaks activation:** the
   stale `brews` entry fails `brew bundle`, which aborts the whole `darwin-rebuild switch`

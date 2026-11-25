@@ -19,18 +19,8 @@
 #    alone, and the two `media-describe` derivations were quietly different. Its
 #    own header records that. Do not re-inline it into either caller.
 #
-# 2. THE INNER `nix-<name>` WRAPPER STAYS. ./module.nix builds its own
-#    `nix-<name>` wrapper (`mkAgentProgram`) and sets `ProgramArguments`
-#    itself rather than taking home-manager's `/bin/sh -c "wait4path … && exec"`
-#    shape. That is not style: `.claude/rules/launchd-naming.md` measured that an
-#    adhoc-signed /nix/store arg0 may READ the TCC-protected user folders while
-#    Apple's own /bin/sh gets EPERM, so a `/bin/sh` arg0 means the worker runs,
-#    logs nothing useful, and quietly does no work on the very folders it exists
-#    for. `checks.media-cli-module` asserts the arg0 is both `nix-*` AND a store
-#    path, which is what keeps "module-evaluates" a meaningful gate rather than a
-#    tautology. (It also means this module needs no vendored launchd fork — it
-#    works against UPSTREAM home-manager, needing no fork at all — which is why
-#    it was unaffected when the vendored one was retired 2026-09-14.)
+# 2. THE INNER `nix-<name>-run` WRAPPER STAYS — why, and how it nests under the
+#    engine launcher's `nix-<name>`, is in ./module.nix's header (`mkAgentProgram`).
 #
 # 3. THE launchd COMMENT BLOCK IN ./module.nix IS THE ARGUMENT, NOT DECORATION.
 #    The `QueueDirectories` / `ProcessType` / `KeepAlive` / `RunAtLoad` /
