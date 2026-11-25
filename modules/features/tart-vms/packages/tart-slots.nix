@@ -26,8 +26,8 @@
 # process (cleanup).
 # Requires: TR_SLOTS_DIR TR_SLOTS_MAX TART (tart binary path) in scope.
 # Optional: TR_SLOT_WAIT (seconds; each lane sets its own default).
-{ writeText }:
-writeText "tart-slots.sh" ''
+{ writeShellLib }:
+writeShellLib "tart-slots.sh" ''
   # A `vm` marker names a guest that does not exist YET. GitLab's prepare
   # stage takes the slot and only then runs `tart clone`, so between
   # slot_acquire_vm and the clone completing there is a window where

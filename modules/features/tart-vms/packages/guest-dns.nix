@@ -22,8 +22,8 @@
 # surface has none), `tart run` has no DNS flag (`--net-softnet` still rides vmnet), and
 # the cirruslabs images take DNS from DHCP. So the guest is set after boot, with the
 # guest's own `networksetup`.
-{ writeText }:
-writeText "tart-guest-dns.sh" ''
+{ writeShellLib }:
+writeShellLib "tart-guest-dns.sh" ''
   if sudo -n true 2>/dev/null; then
     /usr/sbin/networksetup -listallnetworkservices | tail -n +2 | sed 's/^\*//' |
       while IFS= read -r svc || [ -n "$svc" ]; do

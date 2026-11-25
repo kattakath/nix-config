@@ -37,7 +37,8 @@
   stdenvNoCC,
   fetchurl,
   writeShellApplication,
-  writeText,
+  writeTextFile,
+  shellcheck-minimal,
   coreutils,
   gnugrep,
   tart,
@@ -68,8 +69,9 @@ let
     };
   };
 
-  slotsLib = import ./tart-slots.nix { inherit writeText; };
-  guestDns = import ./guest-dns.nix { inherit writeText; };
+  writeShellLib = import ./write-shell-lib.nix { inherit writeTextFile shellcheck-minimal; };
+  slotsLib = import ./tart-slots.nix { inherit writeShellLib; };
+  guestDns = import ./guest-dns.nix { inherit writeShellLib; };
 
   exe = lib.getExe executor;
   tartBin = lib.getExe tart;

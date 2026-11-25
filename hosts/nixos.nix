@@ -147,6 +147,9 @@ in
           Type = "oneshot";
           RemainAfterExit = true;
         };
+        # Lint the script (writeShellApplication), as the firmware-secrets capsule's
+        # units do; per unit, since the global switch lints every nixpkgs unit too.
+        enableStrictShellChecks = true;
         script = ''
           ${lib.getExe' config.nix.package.out "nix-store"} --load-db < /nix-path-registration
           touch /etc/NIXOS

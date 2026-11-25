@@ -80,6 +80,11 @@ let
         Type = "oneshot";
         RemainAfterExit = true;
       };
+      # upstream's per-unit switch: renders `script` through writeShellApplication
+      # (shellcheck + nounset + pipefail) instead of an unlinted `set -e` script.
+      # Per unit, not the global `systemd.enableStrictShellChecks`, which would lint
+      # every nixpkgs unit too.
+      enableStrictShellChecks = true;
       script = ''
         src=${cfg.firmwareDir}/${f.source}
         dst=${f.target}

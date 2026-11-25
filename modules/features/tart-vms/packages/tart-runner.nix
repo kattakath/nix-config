@@ -46,7 +46,8 @@
 {
   lib,
   writeShellApplication,
-  writeText,
+  writeTextFile,
+  shellcheck-minimal,
   coreutils,
   gnugrep,
   gnused,
@@ -59,15 +60,16 @@
 }:
 let
   tartBin = lib.getExe tart;
+  writeShellLib = import ./write-shell-lib.nix { inherit writeTextFile shellcheck-minimal; };
   # The host-wide slot semaphore — SHARED with the GitLab executor shims
   # (packages/gitlab-tart.nix); packages/tart-slots.nix is the one protocol.
-  slotsLib = import ./tart-slots.nix { inherit writeText; };
+  slotsLib = import ./tart-slots.nix { inherit writeShellLib; };
   # Guest DNS, shared with packages/gitlab-tart.nix (packages/guest-dns.nix says why).
-  guestDns = import ./guest-dns.nix { inherit writeText; };
+  guestDns = import ./guest-dns.nix { inherit writeShellLib; };
 
   # The ONE way anything here talks to api.github.com, so "no secret in argv"
   # is a property of the helper rather than of each call site.
-  ghLib = writeText "tart-runner-gh.sh" ''
+  ghLib = writeShellLib "tart-runner-gh.sh" ''
     # `curl -H "Authorization: Bearer $tok"` is the obvious spelling and the
     # wrong one: every argument of an exec'd process is world-readable through
     # `ps -ww`, which on a shared Mac hands an installation token — or a JIT
