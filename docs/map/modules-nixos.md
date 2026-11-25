@@ -147,7 +147,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   `services.openssh.listenAddresses = mkForce [ 0.0.0.0, :: ]` and
   `networking.firewall.interfaces.<iface>.allowedTCPPorts = services.openssh.ports` for each
   declared interface. Entry point is **mDNS** — `ssh ismail@nixpi.local`, already published by
-  avahi with UDP 5353 already open in `core.nix` — so no address is written down on either side.
+  avahi, which opens UDP 5353 itself (`services.avahi.openFirewall`) — so no address is written down on either side.
   - **The NAME is published from `end0` ONLY** (`services.avahi.settings.server.allow-interfaces`, `hosts/nixpi.nix`,
     since 2026-10-17). With both interfaces on one LAN, avahi lost a probe race against **itself**
     after a router blip and renamed the host `nixpi-3` — and avahi never reverts, so `nixpi.local`
