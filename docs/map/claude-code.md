@@ -368,21 +368,9 @@ this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-ad
 
 ### The operator's marketplace (EXTRACTED 2026-09-12)
 
-> **Update, 2026-09-23 — delivered as a git marketplace, not the pin.** The repo is now
-> [`github:kattakath/skills`](https://github.com/kattakath/skills) (renamed from `kattakath/ai`).
-> `modules/home/default.nix` registers it as `https://github.com/kattakath/skills.git` with
-> `ref = "stable"` and `autoUpdate = true` (`local.claudePlugins.marketplaces.<name>.{ref,autoUpdate}`,
-> rendered into `extraKnownMarketplaces`). Each plugin bumps its semver `version` on every change;
-> that repo's `validate.yml` `promote-stable` job moves `stable` to each main push whose `gate` is green. Its top-level `skills/` are
-> published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
-> gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
-> as `kattakath-skills`, for its consumers in `modules/` (grep `kattakath-skills`) — and, until 2026-10-02,
-> `mcp.nix`'s `mcpCatalog`, which went with that module. A
-> plugin's `bin/` reaches the Bash tool's PATH but **not**
-> a hook's (measured), which is why `page-lab-pick` was a package until 2026-11-14. `superhook` WAS the
-> second such package until 2026-09-30, on the stronger claim that a hook wrapper cannot be a
-> plugin hook at all — that claim was **measured false** (see § `.claude/hooks/` above), and it
-> now ships as a plugin hook. The rest of this section is the pinned-era record.
+> **Update, 2026-09-23 — delivered as a git marketplace, not the pin.** The one copy of
+> this note is [`agent-resource-externalization.md`](../agent-resource-externalization.md)'s
+> opening blockquote; the rest of this section is the pinned-era record.
 
 The operator's OWN Claude Code plugin marketplace is
 [`github:kattakath/skills`](https://github.com/kattakath/skills) — **not a tree in this repo** since

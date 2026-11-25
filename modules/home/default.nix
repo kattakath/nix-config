@@ -619,7 +619,7 @@ in
     #   Jeffallan/claude-skills -> "fullstack-dev-skills"     (1 plugin, 2026-11-07)
     #   grafana/skills        -> "grafana-skills"             (7 plugins, 2026-11-13)
 
-    # Trail of Bits (CC-BY-SA-4.0), no flake input. 44 plugins. See the licence note above — share-alike is a
+    # Trail of Bits (CC-BY-SA-4.0), pinned by its marketplace-trailofbits input. 44 plugins. See the licence note above — share-alike is a
     # positive reason to consume this as a marketplace rather than vendor it.
     trailofbits = {
       source = lib.mkDefault "https://github.com/trailofbits/skills.git";

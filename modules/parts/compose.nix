@@ -108,7 +108,7 @@ let
             nixpkgs-claude-code
             # kattakath-skills is DELIBERATELY ABSENT from this seam (removed
             # 2026-10-02, when its last home-manager consumer died). The pin is still
-            # load-bearing — modules/parts/checks.nix (mcp-launcher-parity) — but it
+            # load-bearing — modules/parts/checks.nix (grep `inputs.kattakath-skills`) — but it
             # reads `inputs.kattakath-skills` directly in the FLAKE ENGINE, where
             # `inputs` is already in scope. It is not a home-manager module, so nothing reached
             # through here; an extraSpecialArg no module declares is dead weight that
