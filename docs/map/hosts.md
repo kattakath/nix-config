@@ -103,7 +103,7 @@ they bite any future second account:
   aborting anew.
 
 - **`macos.nix`** — the darwin client host. Imports `../modules/darwin/github-runner.nix` and
-  enables `local.macosGithubRunner` with `count = 2` for the **`dontsell-ai`** org (see [`modules-darwin.md`](modules-darwin.md)
+  enables `local.macosGithubRunner` (its `count` is set here) for the **`dontsell-ai`** org (see [`modules-darwin.md`](modules-darwin.md)
   § `github-runner.nix`) — nix-config's *own* CI is fully GitHub-hosted and uses no runner, but
   this Mac is not runner-free. Also configures **`local.tart.githubRunners.*`** (the `tart-vms` capsule's
   `capsuleModules.darwin.tart-github-runner`, in `mkDarwin`'s BASE module list): ephemeral **Tart-VM-per-job**

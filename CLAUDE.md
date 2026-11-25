@@ -178,8 +178,8 @@ the `docs/map/` file [`docs/repo-map.md`](docs/repo-map.md) routes each path to.
 
 **Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in
 `github:kattakath/skills`, installed as an **auto-updating git marketplace** (a green merge
-ships via `stable`, no pin bump here) and pinned as `kattakath-skills` for two checks,
-`mcp-launcher-parity` and `workspace-plugin-parity`, which DO need this pin bumped; **zero userscripts** (published to Greasy Fork, so an installed
+ships via `stable`, no pin bump here) and pinned as `kattakath-skills` for checks only (grep `inputs.kattakath-skills` in
+`modules/parts/checks.nix`), which DO need this pin bumped; **zero userscripts** (published to Greasy Fork, so an installed
 copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
@@ -323,7 +323,7 @@ How a host gets composed — change these knobs, not the hosts' internals:
 - **Binary cache:** the public `kattakath` Cachix cache is consumed tokenless by every host
   (`modules/nixos/nix-cache.nix`); only CI and the operator's Keychain hold the write token.
 - **`macos` runs self-hosted CI runners — two kinds, neither for this repo's CI.**
-  (1) `local.macosGithubRunner` (`modules/darwin/github-runner.nix`, `count = 2`): bare-metal
+  (1) `local.macosGithubRunner` (`modules/darwin/github-runner.nix`; count in `hosts/macos.nix`): bare-metal
   ephemeral org runners for **`dontsell-ai`**'s nix/cachix/pgvector-heavy CI. (2) `local.tart.githubRunners.*`
   (the `tart-vms` capsule's `github-runner.nix`, configured in `hosts/macos.nix`): **ephemeral
   Tart-VM-per-job** runners for `dontsell-ai` (label
