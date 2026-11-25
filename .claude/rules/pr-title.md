@@ -39,8 +39,8 @@ logical change is one commit, rebased onto `origin/main` and pushed. Independent
 separate commits and separate pushes, so a red one points at one cause. A change that depends
 on another lands after it, in the same push or the next one. There is no parent PR to wait on.
 
-**Open a PR only when:** Ismail asks for one; the author is a bot, Dependabot or a fork; or a
-change needs `build-darwin` (PR-only) BEFORE it reaches `main`. When you do, the machinery
+**Open a PR only when** the global § Landing on the fleet lists the case, or (this repo
+only) a change needs `build-darwin` (PR-only) BEFORE it reaches `main`. When you do, the machinery
 from before still applies: `auto-merge.yml` arms every non-draft operator PR, so park work in
 flight as a **draft**. A draft does not leave a merge queue it already joined. History and the
 measurements: [`docs/pr-wait-research.md`](../../docs/pr-wait-research.md).

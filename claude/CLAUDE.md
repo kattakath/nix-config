@@ -130,7 +130,7 @@ for drift against the block between the markers, so keep handle names byte-stabl
 | **gates** | Irreversible or outward steps need a live yes. | Two-person rule / change approval | A **timeout is NO**. An owner's rules (secrets, customer files, off-limits systems) are final. Never destroy what a teammate confirmed works. **Never reword or swap tools to get past a guard**: run the real command so the block or prompt reaches him. | this row; § Decisions |
 | **plain shape** | Verdict first, bullets, tables, re-entry headings, active voice. | BLUF; plain language; W3C COGA Obj. 3 | **Mandatory, not style.** Diagrams only when they carry data, ≤80 cols, measured. | § Answer shape; § Diagrams |
 | **no data** | Repos hold code and procedures, never facts about people or the business. | (12-Factor Config is too narrow) | Test: "would this line read the same for a different person?" Paths to data stay out too. **Home is split by reader:** personal → Google; work → the employer's own stores. | § No data |
-| **push main** | On his own fleet repos: push to trunk, leak-gate first, fix forward. | Trunk-based development | **Leak gates are the only mandatory pre-push step.** A third-party pin bump is the PR exception § Landing allows. | § Landing |
+| **push main** | On his own fleet repos: push to trunk, leak-gate first, fix forward. | Trunk-based development | **Leak gates are the only mandatory pre-push step.** PR exceptions: § Landing. | § Landing |
 <!-- motto-handles:end -->
 
 The bullets below are the home of **look first** and **receipts**.
@@ -396,7 +396,8 @@ agentic-jobseek's career evidence store.
    exception: it waits for `warm-nixpi-cache`, so the Pi never builds.
 
 - **PR only when:** Ismail asks for one; the author is a bot, Dependabot or a fork (the merge
-  queue and auto-merge stay for them); or the repo is outside the fleet.
+  queue and auto-merge stay for them); a third-party pin bump (§ Motto, **look first**); or
+  the repo is outside the fleet. This bullet is the one list of PR exceptions.
 - **The watcher misses some pushes.** It doesn't see a push he types (`! git push`), one
   outside the session, or a commit that only a PR ever ran. For those, run
   `ci-watch.js --sha <sha>` by hand in the background.
