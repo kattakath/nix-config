@@ -97,6 +97,16 @@ let
     "chat.googleapis.com" = "operator Workspace use (Chat API), kept on by choice";
     "people.googleapis.com" = "operator Workspace use (People API), kept on by choice";
     "workspacestudio.googleapis.com" = "Workspace Studio flows, kept on by choice";
+    # Enabled outside this repo (compute 2026-11-20, cloudbilling 2026-11-25) and kept
+    # on by choice. Declaring compute activates the depends_on hook on the service
+    # map below, which orders it after the org policies that block its default
+    # network and default SA. oslogin is not optional while compute is on: Google
+    # refuses to disable it (measured 2026-11-18).
+    "cloudbilling.googleapis.com" =
+      "Cloud Billing Catalog API: operator SKU price lookups, kept on by choice";
+    "compute.googleapis.com" =
+      "operator-enabled, kept on by choice; default network and SA blocked by the org policies below";
+    "oslogin.googleapis.com" = "required by compute: Google refuses to disable it while compute is on";
     # Google's hosted Chat MCP server (Developer Preview; project enrolled 2026-11-14),
     # reached as a claude.ai custom connector. People's MCP server rides people.googleapis.com.
     "chatmcp.googleapis.com" = "Google's Chat MCP server for the claude.ai Chat connector";
@@ -293,7 +303,7 @@ in
 
   # ---- Default service accounts: no Editor ----------------------------------
   # Google grants the default compute SA roles/editor on the whole project. Nothing
-  # here uses it (Compute, Cloud Build, App Engine and Functions are all off), so
+  # here uses it (Compute's API is on, but no VM runs; Cloud Build, App Engine and Functions are off), so
   # it was project-wide write power held by an
   # identity no workload needs. NOT `google_project_default_service_accounts`
   # (DEPRIVILEGE): it finds default SAs by DISPLAY NAME ("compute engine default
