@@ -185,7 +185,8 @@ Capsule README (the why; `ls` the directory for its files): [`modules/features/k
 - **`tests/grammar.sh`** came over verbatim (executable bit intact). It is a **live-Keychain
   functional test**, deliberately not RUN by any flake check (the build sandbox has no
   Keychain) — which is exactly why nothing else would have carried it. A check does LINT it:
-  `checks.aarch64-darwin.keychain-secrets-grammar-lint`.
+  `checks.aarch64-darwin.keychain-secrets-grammar-lint`. The CLIs' one parser,
+  `index-grammar.nix`, IS run, on a fixture: `checks.<system>.keychain-secrets-grammar-parse`.
 - **`SECURITY.md` did not come as a file.** Half of it was a "report a vulnerability" pointer for
   strangers; the real half — the store is **AMBIENT**, so any process in the tree including an AI
   agent can read every exported value with `env` — is merged into
