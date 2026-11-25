@@ -13,10 +13,8 @@ the index routes that path to.
 
 ## Motto — ground every development decision in this repo here first
 
-> **Off-the-shelf over hand-rolled.**
-> **Proven patterns over reinvented wheels.**
-> **Community Legos over proprietary monoliths.**
-> **Every choice carries its evidence — the math, the data, or the precedent — and why it beats the alternatives.**
+The motto (`motto` + ten handles) lives ONCE: global [`claude/CLAUDE.md`](claude/CLAUDE.md)
+§ Motto. Here: only what it means in this repo.
 
 Before writing custom Nix, a custom script, or a custom protocol: is there an existing
 nixpkgs/nix-darwin/home-manager option, a standard Unix/POSIX mechanism, or an established
@@ -119,7 +117,7 @@ nix run .#nixpi-provision                     # Plant/update token + Wi-Fi on a 
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-tunnel-{import,plan,apply} # nixpi's tunnel + ingress + CNAME; `import` the SSH policy FIRST
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-zones-{plan,apply}         # kattakath.com DNS records + redirects
 CLOUDFLARE_API_TOKEN=<scoped> nix run .#cf-access-org-{import,plan,apply}  # Zero Trust org; `import` FIRST or plan/apply refuse
-nix run .#cf-mcp-portals-{plan,apply}  # Workspace MCP portal: run it bare, its ERROR prints the secret exec line
+nix run .#cf-{mcp-portals,ai-search}-{plan,apply}  # MCP portal; RAG corpus. Run bare: its ERROR prints the secret exec line
 nix run .#gcp-{foundation,budget}-{plan,apply}        # APIs/SA/bucket; spend ALERT
 secret exec HEALTHCHECKSIO_API_KEY=hc:healthchecks.io:api -- nix run .#hc-checks-{plan,apply}
 nix run .#grafana-{plan,apply}   # 3 Keychain creds: run it bare, its ERROR prints the secret exec line
@@ -169,7 +167,7 @@ the `docs/map/` file [`docs/repo-map.md`](docs/repo-map.md) routes each path to.
 | `modules/nixos/` | `core.nix` (user + keys-only sshd, **loopback-bound BY DEFAULT**, `openFirewall = false`, a firewall that opens **no** TCP port globally, avahi, nix-ld, zram, GC), `uplink-watchdog.nix` (hotspot failover when the Rogers uplink dies — NOT a connector watchdog), `nix-cache.nix` (the substituters — NixOS-only; the Mac uses `determinateNix.customSettings`), `lan-recovery.nix` (`local.lanRecovery` — the SECOND ingress: wildcard sshd bind + its port per-interface; on for `nixpi` (`end0`/`wlan0`) and `nixos`, so `nixvm`'s base toplevel stays loopback-only), `service-heartbeat.nix` + `heartbeat.nix` (`local.serviceHeartbeat`/`local.heartbeat` — nixpi's dead man's switch: no ping means not SERVING), `alloy-shipper.nix` (`local.alloyShipper` — nixpi's metrics + WARN+ journal to Grafana Cloud, WAL in `/run`). `nixpi`'s posture is GATED **both ways** — `checks.<system>.nixpi-security-posture` fails on a firewall WIDENING *and* on the LAN path's REMOVAL (built on BOTH systems; the edits are made on the Mac). It cannot test reachability — every leg was green through the 2026-10-01 total outage. |
 | `modules/_lib/` | Shared DATA, not modules, never auto-imported: `nix-ld-libraries.nix` (`modules/nixos/` + `packages/`), `secret-read-paths.nix` (the deny-list paths), `tor-browser-alpha.nix`, `is-macos-host.nix`, `brew-prefix.nix`, `derived-names.nix` (`googleAccount`, `nixpiSshHostname`), `keychain-items.nix` (Keychain item names), `gcloud-scope.nix`, `log-redactions.nix`, `redaction-canary.nix`, `nixpi-units.nix`, `terranix-stacks.nix`, `li-runs-pipeline.nix` (li run-log allowlist). |
 | `packages/` | Package definitions — some exported as flake apps/packages, others `callPackage`d by `modules/home/`: devcontainer image, `nixpi-*` provisioning, `activate` (the self-elevating rebuild above), `spotlight-launchers` (the Android Emulator focus-or-launch bundle only; history in [`packages.md`](docs/map/packages.md)), plus single-purpose CLIs. `claude-state-gc` reports (and with `--prune` removes) the Claude Code runtime state no rebuild touches — orphaned plugin cache versions, interrupted-update clones; DRY RUN by default, never prunes transcripts. `launchd-doctor` reports what `nix flake check` structurally cannot: drift **both ways** — declared-but-not-loaded, and loaded-but-in-no-generation, which nix-darwin’s single-transition removal loop orphans permanently — plus non-zero exits, log growth, disabled fleet labels and log orphans. grok, agy and qwen are nixpkgs' `grok-build`/`antigravity-cli`/`qwen-code`, SHARED via `environment.systemPackages`. `acpx.nix` rides the same lane but is FOSS, built from source via `fetchPnpmDeps`, and it pins `nodejs_22` itself (ADR-007). Root `bootstrap.sh` is the no-Nix stage 1; the media/photo CLIs live in the `media-cli` capsule. |
-| `infra/` | terranix (Nix → Terraform JSON). Stacks: `cloudflare/{nixpi-tunnel,zones,access-org,mcp-portals}.nix` (+ `kattakath-{dns,redirects}.nix`), `gcp/{foundation,budget}.nix`, `healthchecks/checks.nix` (checks from `fleet.heartbeats`), `grafana/stack.nix` (the Grafana Cloud stack) `github/stack.nix` (rulesets, variables, a deploy environment) and `google-workspace/chrome.nix` (Chrome policy), all adopted by `import`. Applied only via the `cf-*`/`gcp-*`/`hc-*`/`grafana-*`/`github-*`/`gws-chrome-*` apps; state in GCS for all but `gcp-foundation`, which is local (§ Important Notes). |
+| `infra/` | terranix (Nix → Terraform JSON). Stacks: `cloudflare/{nixpi-tunnel,zones,access-org,mcp-portals}.nix` (+ `kattakath-{dns,redirects}.nix`), `gcp/{foundation,budget}.nix`, `healthchecks/checks.nix` (checks from `fleet.heartbeats`), `grafana/stack.nix` (the Grafana Cloud stack) `github/stack.nix` (rulesets, variables, a deploy environment), `google-workspace/chrome.nix` (Chrome policy) and `cloudflare/ai-search.nix` (RAG corpus); table: [`infra.md`](docs/map/infra.md). Applied only via the `cf-*`/`gcp-*`/`hc-*`/`grafana-*`/`github-*`/`gws-chrome-*` apps; state in GCS for all but `gcp-foundation`, which is local (§ Important Notes). |
 | `secrets/` | agenix recipients (`secrets.nix`, the list) + the operator pubkey + the ciphertexts — one operator-only, the rest host-decrypted on `macos`. Details in § Security. |
 | `sites/` | The Caddy-served site trees: `snoringirl` (`config.fleet.hostedSites[].root`, a **directory** literal, so every byte lands in the LIVE closure — [`store-copied-trees`](.claude/rules/store-copied-trees.md)). |
 | `templates/` | `nix flake init -t` starter that consumes this engine's `lib.mkDarwin` (`identity` + `extraModules`) instead of forking `hosts/`. |
@@ -211,8 +209,8 @@ the whole tree into the store — check for stray `.DS_Store`/etc. before commit
 `*-digest.js` SessionStart nudges. **Neither gate is wired in `.claude/settings.json`** —
 `superhook`'s wrappers and `nix-flake-kit`'s `autostage-nix`/`nix-home-path-lint` all arrive
 as PLUGIN hooks, finding these scripts BY CONVENTION. **Do not re-add any of them here, or each
-fires TWICE.** The exception is `pretooluse-write-target.js` (Write|Edit ASK on system paths,
-`../` escapes, login files): superhook does not wrap it, so it IS wired in `settings.json`.
+fires TWICE.** The exceptions are `pretooluse-write-target.js` (Write|Edit ASK on system paths,
+`../` escapes, login files) and the two `*-digest.js`: superhook wraps none, so they ARE wired in `settings.json`.
 `.claude/hooks/tests/*.sh` covers every gate and the digests, and is **gated by `gate`**
 (`claude-config-lint.yml`) — it BLOCKS a merge, because a throw
 fails OPEN. Mechanism:
