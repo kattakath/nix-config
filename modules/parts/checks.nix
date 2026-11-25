@@ -1334,7 +1334,7 @@ in
             pkgs.runCommand "li-runs-allowlist"
               {
                 nativeBuildInputs = [
-                  pkgs.opentelemetry-collector-contrib
+                  (import ../_lib/otelcol-contrib.nix pkgs)
                   pkgs.python3
                 ];
                 CONFIG = builtins.toJSON config;

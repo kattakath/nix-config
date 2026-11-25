@@ -391,6 +391,8 @@ The layer exists for its files' shape rather than their count:
   leave (fail-closed `keep_keys`). Two consumers, so the test and the shipper cannot drift:
   `modules/home/claude-otel.nix` splices it into the collector config, and
   `checks.<system>.li-runs-allowlist` feeds fixture lines through the same attrsets.
+- **`modules/_lib/otelcol-contrib.nix`** — `pkgs -> drv`, the ONE otelcol-contrib both of those
+  run, built on Go 1.26 until nixpkgs' copy builds on Go 1.27 (the header names the drop condition).
 - **`modules/_lib/gcloud-scope.nix`** — shell text: the two `export`s that scope gcloud AND
   Terraform's ADC to this repo's own config dir. Read by the devShell (`modules/parts/devshell.nix`,
   which keeps the measured why) and handed to `packages/terranix-drift.nix` by `terranix.nix`.

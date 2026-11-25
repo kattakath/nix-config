@@ -262,7 +262,7 @@ in
           }
         )
       );
-      otelcol = lib.getExe' pkgs.opentelemetry-collector-contrib "otelcol-contrib";
+      otelcol = lib.getExe' (import ../_lib/otelcol-contrib.nix pkgs) "otelcol-contrib";
       # launchd-naming: modules/home/launchd-launcher.nix wraps this agent as arg0
       # nix-claude-otel-collector, so the inner script must NOT take that name too
       # (launchd-naming.md item 1: one name, two store paths).
