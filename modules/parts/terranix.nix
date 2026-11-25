@@ -1770,6 +1770,13 @@ let
         # refuse after a nixpkgs bump. A registry provider keeps its lock file, except
         # once after a pin bump in infra/provider-pins.nix: TOFU_INIT_UPGRADE=1 re-locks
         # it (every pin is EXACT, so -upgrade can only select that one version).
+        # With Nix-pinned plugins the lock file is also DROPPED first: it records the
+        # mirror binary's h1 hash, and a nixpkgs rebuild of the SAME provider version
+        # changes that hash, which -upgrade does not re-record (measured 2026-11-25: the
+        # github stack's Nov-3 lock refused integrations/github 6.13.0, "doesn't match
+        # any of the checksums previously recorded"). The mirror is the pin; the lock
+        # pins nothing there, and init rewrites it.
+        ${lib.optionalString (plugins != null) "rm -f .terraform.lock.hcl"}
         tofu init${if plugins != null then " -upgrade" else " \${TOFU_INIT_UPGRADE:+-upgrade}"}
 
         ${stateListGuard [ "an apply would delete live ${label} objects. tofu said:" ]}
