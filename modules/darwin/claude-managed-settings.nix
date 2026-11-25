@@ -245,6 +245,10 @@ let
     #   rank 2  /Library/Managed Preferences/ DOES NOT EXIST on this Mac
     #   rank 3  managed-settings.json present, no managed-settings.d/
     # So rank 3 is the only managed source present and first-wins cannot fire.
+    # (Since 2026-11-24 a managed-settings.d/ exists too, hand-placed and owned
+    # OUTSIDE this repo. It is the same rank 3: merged after this file, lists
+    # union. Across ranks, though, strictKnownMarketplaces is "taken whole from
+    # the highest-ranked source that sets it" — managed-settings docs, merge table.)
     # The dependency is the ACCOUNT TIER, not this config — the day this account
     # becomes Team or Enterprise, rank 1 starts being fetched and the floor can be
     # skipped without anyone touching the repo.
@@ -314,7 +318,9 @@ let
       # bound secret into every shell, so a bare `env` prints them. EXACT match
       # only: `Bash(env *)` would deny `env FOO=bar cmd`. The measurement that an
       # exact entry still fires inside `env | grep X`, `true && env` and
-      # `echo $(env)` lives beside the twin list in claude-guardrails.nix.
+      # `echo $(env)` lives beside the twin list in claude-guardrails.nix — and
+      # so does the 2.1.330 finding that `Bash(export)` now also denies
+      # `export X=1; …`, kept deliberately (use `X=1 cmd` / `env X=1 cmd`).
       "Bash(env)"
       "Bash(printenv)"
       "Bash(set)"

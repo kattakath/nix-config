@@ -183,6 +183,11 @@ lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
     #            typeset -x | grep X · typeset -p | grep X
     #   ALLOWED  printenv NAME · env X=1 /usr/bin/true · set -o pipefail; echo ok ·
     #            export X=1; echo ok   (the over-block controls: all pass)
+    # RE-MEASURED 2026-11-25, claude-code 2.1.330, live session: `export X=1;
+    # true` and `export X=1 && echo` are now DENIED by `Bash(export)` — the
+    # matcher reduces `export NAME=val` to bare `export`. Kept anyway: a bare
+    # `export` prints every exported secret, and no exact rule can separate the
+    # two forms. Set a variable with `X=1 cmd` or `env X=1 cmd` (both allowed).
     #   ALLOWED  /usr/bin/env · bash -c env   (the by-path / by-subshell class
     #            the header already names as out of reach — a FLOOR, not a wall)
     # So the matcher splits on `|`, `&&`, `;` and `$(…)`, drops redirections and
