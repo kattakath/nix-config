@@ -45,6 +45,15 @@ let
       builtins.length cloudflareItems
     )
   );
+  # One fine-grained PAT per GitHub owner (one covers exactly one owner), same index
+  # pairing as CF_TOKEN_<n>. No owner = no GH_TOKEN_<n> (the flake-check build).
+  ghOwners = githubOrgs ++ githubUsers;
+  ghItems = map items.githubPat ghOwners;
+  ghEnv = builtins.concatStringsSep " " (
+    builtins.genList (i: "GH_TOKEN_${toString i}=${builtins.elemAt ghItems i}") (
+      builtins.length ghItems
+    )
+  );
   secretBin = if homeProfileDir == null then "secret" else "${homeProfileDir}/bin/secret";
   words = builtins.concatStringsSep " ";
   optEnv = name: v: if v == null then "" else "export ${name}=${v}";
@@ -52,7 +61,8 @@ in
 writeShellApplication {
   name = "fleet-gauges";
   text = ''
-    export CF_TOKEN_NAMES="${words cloudflareItems}" GH_TOKEN_NAME=${items.githubPat}
+    export CF_TOKEN_NAMES="${words cloudflareItems}"
+    export GH_TOKEN_OWNERS="${words ghOwners}" GH_TOKEN_NAMES="${words ghItems}"
     export GH_ORGS="${words githubOrgs}" GH_USERS="${words githubUsers}" GCOM_REGIONS="${words gcomRegions}"
     ${optEnv "SD_RELEASE_REPO" sdReleaseRepo}
     ${optEnv "LAUNCHD_DOCTOR" (
@@ -63,15 +73,15 @@ writeShellApplication {
     export TERRANIX_DRIFT_SUMMARY="''${XDG_STATE_HOME:-$HOME/.local/state}/${driftStateDirName}/summary.json"
     # The doctors' published runs; an operator-set DOCTOR_REPORT_DIR wins, as it does in doctor-report.
     export DOCTOR_REPORT_DIR="''${DOCTOR_REPORT_DIR:-''${XDG_STATE_HOME:-$HOME/.local/state}/${doctorStateDirName}}"
-    # shellcheck disable=SC2086 # cfEnv is a fixed list of ENV=item words
+    # shellcheck disable=SC2086 # cfEnv and ghEnv are fixed lists of ENV=item words
     exec ${secretBin} exec \
       GRAFANA_OTLP_ENDPOINT=${items.grafana.otlp.endpoint} \
       GRAFANA_OTLP_INSTANCE=${items.grafana.otlp.instance} \
       GRAFANA_OTLP_TOKEN=${items.grafana.otlp.token} \
       GCOM_TOKEN=${items.grafana.cloudToken} \
-      GH_TOKEN=${items.githubPat} \
       HC_API_KEY=${items.healthchecksApi} \
       ${cfEnv} \
+      ${ghEnv} \
       -- ${script}/bin/fleet-gauges-run
   '';
 }

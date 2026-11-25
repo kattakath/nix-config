@@ -90,7 +90,7 @@ deleted.
   Keychain. Which var each stack needs is the Credential column of
   [`docs/map/infra.md`](../../docs/map/infra.md); the exact command, Keychain item names
   included, is printed by the stack's own `*-plan` when run without it (its unset-credential
-  guard). That covers `grafana` (two vars) and `github` (`GITHUB_TOKEN`) too.
+  guard). That covers `grafana` (three vars) and `github` (`GITHUB_TOKEN` + `TF_VAR_github_user_token`, one PAT per owner) too.
 - A **GCP** stack reads **ADC**, never a token (`gcloud auth application-default login`).
 
 Run anything terranix inside `nix develop`, or tofu picks the wrong ADC.

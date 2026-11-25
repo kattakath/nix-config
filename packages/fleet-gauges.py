@@ -5,7 +5,7 @@ source that errors is skipped and counted in fleet_gauges_source_errors, never f
 
   fleet_credential_expiry_timestamp_seconds{credential,provider}
       Grafana Cloud access tokens (GCOM API), Cloudflare API tokens (/user/tokens/verify)
-      and the GitHub PAT (the github-authentication-token-expiration header). A
+      and each owner's GitHub PAT (the github-authentication-token-expiration header). A
       credential with no expiry emits nothing.
   fleet_credential_active{credential,provider}
       1/0 = the Cloudflare token verifies as active / does not.
@@ -51,9 +51,10 @@ source that errors is skipped and counted in fleet_gauges_source_errors, never f
       that recovers reads 0 instead of keeping its last bad value.
 
 Environment (supplied by `secret exec`, never argv): GRAFANA_OTLP_ENDPOINT,
-GRAFANA_OTLP_INSTANCE, GRAFANA_OTLP_TOKEN, GCOM_TOKEN, GH_TOKEN, HC_API_KEY, and
-CF_TOKEN_<n> pairs named by CF_TOKEN_NAMES (space-separated Keychain item names, same
-order). Scope, from the Nix module (space-separated, unset = probe none): GCOM_REGIONS,
+GRAFANA_OTLP_INSTANCE, GRAFANA_OTLP_TOKEN, GCOM_TOKEN, HC_API_KEY, CF_TOKEN_<n> pairs
+named by CF_TOKEN_NAMES (space-separated Keychain item names, same order), and
+GH_TOKEN_<n> pairs, one fine-grained PAT per owner, named by GH_TOKEN_NAMES and owned
+by GH_TOKEN_OWNERS (same order; an owner without a token is not probed). Scope, from the Nix module (space-separated, unset = probe none): GCOM_REGIONS,
 GH_ORGS, GH_USERS, SD_RELEASE_REPO (owner/repo), LAUNCHD_DOCTOR (an executable path),
 DOCTOR_REPORT_DIR (the doctors' state dir).
 Prints counts only; never a token.
@@ -146,18 +147,30 @@ def cloudflare_tokens():
             fail(f"cloudflare:{name}", e)
 
 
+def github_tokens():
+    # owner -> (Keychain item name, token). One fine-grained PAT per owner: such a token
+    # covers exactly one resource owner, so each call below uses its owner's.
+    owners = os.environ.get("GH_TOKEN_OWNERS", "").split()
+    names = os.environ.get("GH_TOKEN_NAMES", "").split()
+    out = {}
+    for i, (owner, name) in enumerate(zip(owners, names)):
+        tok = os.environ.get(f"GH_TOKEN_{i}")
+        if tok:
+            out[owner] = (name, tok)
+    return out
+
+
 def github():
-    tok = os.environ.get("GH_TOKEN")
-    if not tok:
-        return
-    try:
-        _, hdrs = http("https://api.github.com/user", tok, "token", headers=True)
-        exp = hdrs.get("github-authentication-token-expiration")
-        if exp:
-            ts = datetime.datetime.strptime(exp.replace(" UTC", " +0000"), "%Y-%m-%d %H:%M:%S %z").timestamp()
-            gauge("fleet_credential_expiry_timestamp_seconds", ts, credential=os.environ.get("GH_TOKEN_NAME", "github"), provider="github")
-    except Exception as e:  # noqa: BLE001
-        fail("github:pat", e)
+    tokens = github_tokens()
+    for name, tok in tokens.values():
+        try:
+            _, hdrs = http("https://api.github.com/user", tok, "token", headers=True)
+            exp = hdrs.get("github-authentication-token-expiration")
+            if exp:
+                ts = datetime.datetime.strptime(exp.replace(" UTC", " +0000"), "%Y-%m-%d %H:%M:%S %z").timestamp()
+                gauge("fleet_credential_expiry_timestamp_seconds", ts, credential=name, provider="github")
+        except Exception as e:  # noqa: BLE001
+            fail(f"github:{name}", e)
 
     # Orgs and users walk the same filtered repo list, so both owners count the same
     # thing: public, non-fork, non-archived repos (the org-wide alerts endpoint would
@@ -165,6 +178,9 @@ def github():
     owners = [(o, f"https://api.github.com/orgs/{o}/repos?type=all&per_page=100") for o in GH_ORGS] + \
         [(u, f"https://api.github.com/users/{u}/repos?type=owner&per_page=100") for u in GH_USERS]
     for owner, repos_url in owners:
+        if owner not in tokens:
+            continue
+        tok = tokens[owner][1]
         try:
             repos = [r["name"] for r in pages(repos_url, tok)
                      if not (r.get("fork") or r.get("private") or r.get("archived"))]
@@ -187,9 +203,11 @@ def github():
             except Exception as e:  # noqa: BLE001
                 fail(f"github:{owner}:{kind}", e)
 
-    if SD_RELEASE_REPO:
+    sd_owner = SD_RELEASE_REPO.split("/")[0]
+    if SD_RELEASE_REPO and sd_owner in tokens:
         try:
-            rel = http(f"https://api.github.com/repos/{SD_RELEASE_REPO}/releases/tags/installer-latest", tok, "token")
+            rel = http(f"https://api.github.com/repos/{SD_RELEASE_REPO}/releases/tags/installer-latest",
+                       tokens[sd_owner][1], "token")
             stamps = [iso_to_epoch(a["updated_at"]) for a in rel.get("assets", []) if SD_IMAGE.match(a.get("name", ""))]
             if stamps:
                 gauge("nixpi_sd_release_age_seconds", time.time() - max(stamps))

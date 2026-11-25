@@ -33,11 +33,12 @@ let
   grafanaCloudTokenItem = items.grafana.cloudToken;
   grafanaLiLogsTokenItem = items.grafana.otlp.liLogsToken;
 
-  # The GitHub stack's credential (ADR-012 step 3): the operator's classic PAT, which reads
-  # rulesets and Actions variables across both owners (measured 2026-11-03). It is broader
-  # than a plan needs; the least-privilege swap is a fine-grained token per owner with
-  # Administration + Variables (read for plan, write for apply).
-  githubTokenItem = items.githubPat;
+  # The GitHub stack's credentials (ADR-012 step 3): one fine-grained PAT per owner, since
+  # a fine-grained token covers exactly one. Each needs Administration + Variables WRITE
+  # even for a plan: the API returns a ruleset's `bypass_actors` only to a writer, so a
+  # read-only token plans a phantom diff. The org token also feeds gws-chrome.
+  githubOrgTokenItem = items.githubPat orgName;
+  githubUserTokenItem = items.githubPat userName;
 
   # One copy: the grafana provider's URL is also nix-config's GRAFANA_URL Actions variable.
   grafanaUrl = "https://kattakath.grafana.net";
@@ -1609,7 +1610,8 @@ let
 
   # TWO credentials, neither a new secret: the operator's ADC (the `google` provider
   # mints the Chrome-policy token from it INSIDE the plan — the stack file says how),
-  # and GITHUB_TOKEN, which `gh` uses to read the two per-tenant ids below.
+  # and GITHUB_TOKEN (the org's fine-grained PAT), which `gh` uses to read the two
+  # per-tenant ids below.
   mkGwsChromeTofu =
     {
       system,
@@ -1626,12 +1628,12 @@ let
       label = "Chrome browser policy";
       plugins = null;
       renderer = gwsChromeConfig;
-      driftEnv.GITHUB_TOKEN = githubTokenItem;
+      driftEnv.GITHUB_TOKEN = githubOrgTokenItem;
       autoApproveWhy = "Read the plan: every row here is force-installed on every enrolled browser.";
       credentialCheck = ''
         if [ -z "''${GITHUB_TOKEN:-}" ]; then
           echo "ERROR: GITHUB_TOKEN must be set." >&2
-          echo "  nix develop -c secret exec GITHUB_TOKEN=${githubTokenItem} -- nix run .#${name}" >&2
+          echo "  nix develop -c secret exec GITHUB_TOKEN=${githubOrgTokenItem} -- nix run .#${name}" >&2
           echo "  It reads two Actions variables on ${orgName}/${repoName}." >&2
           exit 1
         fi
@@ -1884,23 +1886,29 @@ let
       label = "GitHub";
       plugins = p: [ p.integrations_github ];
       renderer = githubConfig;
-      driftEnv.GITHUB_TOKEN = githubTokenItem;
+      # Two fine-grained PATs, one per owner: GITHUB_TOKEN (the org, the default provider)
+      # and TF_VAR_github_user_token (the `github.user` alias, infra/github/stack.nix).
+      driftEnv = {
+        GITHUB_TOKEN = githubOrgTokenItem;
+        TF_VAR_github_user_token = githubUserTokenItem;
+      };
       credentialCheck = ''
-        if [ -z "''${GITHUB_TOKEN:-}" ]; then
-          echo "ERROR: GITHUB_TOKEN must be set." >&2
-          echo "  nix develop -c secret exec GITHUB_TOKEN=${githubTokenItem} -- nix run .#${name}" >&2
-          echo "  It must read rulesets (Administration) and Actions variables on both owners." >&2
+        if [ -z "''${GITHUB_TOKEN:-}" ] || [ -z "''${TF_VAR_github_user_token:-}" ]; then
+          echo "ERROR: GITHUB_TOKEN (${orgName}) and TF_VAR_github_user_token (${userName}) must both be set." >&2
+          echo "  nix develop -c secret exec GITHUB_TOKEN=${githubOrgTokenItem} TF_VAR_github_user_token=${githubUserTokenItem} -- nix run .#${name}" >&2
+          echo "  Each needs Administration + Variables (write: bypass_actors) on its owner." >&2
           exit 1
         fi
         export GH_TOKEN="$GITHUB_TOKEN"
       '';
-      # `gh` reads the same token for the data-valued variables (infra/github/stack.nix
-      # header). A missing one fails here, which the drift check classes as an error.
+      # `gh` reads the data-valued variables with the token of the owner it reads
+      # (infra/github/stack.nix header): the org's by default, the user's for the one
+      # user repo. A missing one fails here, which the drift check classes as an error.
       vars = ''
         TF_VAR_ci_bot_client_id=$(gh variable get CI_BOT_CLIENT_ID --org ${orgName})
         TF_VAR_rollup_sheet_id=$(gh variable get ROLLUP_SHEET_ID -R ${orgName}/${repoName})
         TF_VAR_rollup_wif_provider=$(gh variable get ROLLUP_WIF_PROVIDER -R ${orgName}/${repoName})
-        TF_VAR_resume_json_gist=$(gh variable get RESUME_JSON_GIST -R ${userName}/${resumeSiteRepo})
+        TF_VAR_resume_json_gist=$(GH_TOKEN="$TF_VAR_github_user_token" gh variable get RESUME_JSON_GIST -R ${userName}/${resumeSiteRepo})
         TF_VAR_gws_customer_id=$(gh variable get GWS_CUSTOMER_ID -R ${orgName}/${repoName})
         TF_VAR_gws_chrome_org_unit_id=$(gh variable get GWS_CHROME_ORG_UNIT_ID -R ${orgName}/${repoName})
         export TF_VAR_ci_bot_client_id TF_VAR_rollup_sheet_id TF_VAR_rollup_wif_provider TF_VAR_resume_json_gist
@@ -2225,12 +2233,12 @@ in
         github-plan = {
           type = "app";
           program = "${config.packages.github-plan}/bin/github-plan";
-          meta.description = "Render infra/github/stack.nix (terranix) and tofu PLAN the fleet repos' rulesets (merge queue included) and Actions variables — read-only, run it before github-apply (needs GITHUB_TOKEN)";
+          meta.description = "Render infra/github/stack.nix (terranix) and tofu PLAN the fleet repos' rulesets (merge queue included) and Actions variables — read-only, run it before github-apply (needs GITHUB_TOKEN + TF_VAR_github_user_token)";
         };
         github-apply = {
           type = "app";
           program = "${config.packages.github-apply}/bin/github-apply";
-          meta.description = "tofu apply the GitHub stack — refuses a render that drops an object state holds, an empty state without imports, and -auto-approve (needs GITHUB_TOKEN)";
+          meta.description = "tofu apply the GitHub stack — refuses a render that drops an object state holds, an empty state without imports, and -auto-approve (needs GITHUB_TOKEN + TF_VAR_github_user_token)";
         };
         gws-chrome-plan = {
           type = "app";

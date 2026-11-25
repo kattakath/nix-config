@@ -252,11 +252,14 @@ in
   terraform.required_providers.github.source = "integrations/github";
 
   # The default provider is the org; `github.user` is the operator's personal account.
+  # One fine-grained token per owner (a fine-grained PAT covers exactly one): the default
+  # reads GITHUB_TOKEN from the environment, the alias takes its own via a TF variable.
   provider.github = checked [
     { owner = orgOwner; }
     {
       alias = "user";
       owner = userOwner;
+      token = "\${var.github_user_token}";
     }
   ];
 
@@ -267,6 +270,8 @@ in
     resume_json_gist = dataVar "website's RESUME_JSON_GIST (repo variable).";
     gws_customer_id = dataVar "The Workspace customer id (repo variable GWS_CUSTOMER_ID).";
     gws_chrome_org_unit_id = dataVar "The enrolled-browsers unit id (repo variable GWS_CHROME_ORG_UNIT_ID).";
+    # A credential, not data, in the same sensitive-string shape (TF_VAR_github_user_token).
+    github_user_token = dataVar "The ${userOwner} owner's fine-grained PAT (Keychain).";
   };
 
   import =

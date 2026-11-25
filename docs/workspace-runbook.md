@@ -268,13 +268,14 @@ the rest of this section is what stays by hand.
 
 ```bash
 # Inside the devShell: it scopes ADC to this repo, and a bare run reads the global one.
-nix develop -c secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrome-plan    # read-only
-nix develop -c secret exec GITHUB_TOKEN=gh:github.com:pat -- nix run .#gws-chrome-apply   # asks for a typed yes
+nix develop -c secret exec GITHUB_TOKEN=gh:github.com:pat-kattakath -- nix run .#gws-chrome-plan    # read-only
+nix develop -c secret exec GITHUB_TOKEN=gh:github.com:pat-kattakath -- nix run .#gws-chrome-apply   # asks for a typed yes
 ```
 
 - **Credentials, no new secret.** The `google` provider mints a short-lived token for
-  `ws-domain-admin` from the operator's ADC, inside the plan. `GITHUB_TOKEN` lets `gh` read the
-  two per-tenant ids (`GWS_CUSTOMER_ID`, `GWS_CHROME_ORG_UNIT_ID`). Neither id is committed.
+  `ws-domain-admin` from the operator's ADC, inside the plan. `GITHUB_TOKEN` (the org's
+  fine-grained PAT) lets `gh` read the two per-tenant ids (`GWS_CUSTOMER_ID`,
+  `GWS_CHROME_ORG_UNIT_ID`). Neither id is committed.
 - **The role is unit-restricted, and that was measured** (2026-11-15): reading the unit's
   policy returns 200, the same read on the root unit returns 403. If the second one ever
   returns 200, stop: the other accounts are then inside this credential's reach.

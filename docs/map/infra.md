@@ -15,8 +15,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `gcp-foundation` | **local** (still encrypted) | ADC | the bucket the others live in; the portal's self-hosted MCP servers |
 | `hc-checks` | GCS `hc-checks/` | `HEALTHCHECKSIO_API_KEY` | the dead-man's-switch ALARMS; a quiet one reads as a healthy host |
 | `grafana` | GCS `grafana/` | `GRAFANA_AUTH` + `GRAFANA_SM_ACCESS_TOKEN` + gcom token | Grafana alerting, datasources, dashboard, probe (ADR-011). A dropped datasource takes its key with it |
-| `gws-chrome` | GCS `gws-chrome/` | ADC (as `ws-domain-admin`) + `GITHUB_TOKEN` (tenant ids) | Chrome's forced extensions + 3 settings on the enrolled-browser unit; a dropped row is NOT uninstalled |
-| `github` | GCS `github/` | `GITHUB_TOKEN` | fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |
+| `gws-chrome` | GCS `gws-chrome/` | ADC (as `ws-domain-admin`) + `GITHUB_TOKEN` (org PAT; tenant ids) | Chrome's forced extensions + 3 settings on the enrolled-browser unit; a dropped row is NOT uninstalled |
+| `github` | GCS `github/` | `GITHUB_TOKEN` + `TF_VAR_github_user_token` (a PAT per owner) | fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |
 
 The stack set itself is `nix eval .#apps.<system> --apply builtins.attrNames` (every stack has
 a `*-plan`). **Credentials:** a token is an env var `secret exec` fills from the Keychain; a `*-plan` run

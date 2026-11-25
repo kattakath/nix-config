@@ -26,8 +26,11 @@
   serperApi = "serper.dev:api";
   langsmithApi = "langsmith:smith.langchain.com:api";
 
-  # The operator's classic PAT: the GitHub terranix stack and fleet-gauges' alert counts.
-  githubPat = "gh:github.com:pat";
+  # One fine-grained PAT per GitHub resource owner (a fine-grained token covers exactly
+  # one), named by the owner: `githubPat orgName`, `githubPat userName`. Read by the
+  # github + gws-chrome terranix stacks and fleet-gauges. Replaced the one classic
+  # `gh:github.com:pat` on 2026-11-25.
+  githubPat = owner: "gh:github.com:pat-${owner}";
 
   # The cf-mcp-portals stack (infra/cloudflare/mcp-portals.nix) reads all three as tofu
   # variables: the Google OAuth client id (per-person data, not a secret), its secret
