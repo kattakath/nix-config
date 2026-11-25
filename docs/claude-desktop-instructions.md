@@ -33,10 +33,12 @@ Paste verbatim:
 
 ```text
 Principles (ground every task in these)
-- Off-the-shelf over hand-rolled. Proven patterns over reinvented wheels.
-  Community Legos over proprietary monoliths.
+- Off-the-shelf over hand-rolled -- and look before concluding nothing
+  is off the shelf. Proven patterns over reinvented wheels. Community
+  Legos over proprietary monoliths.
+- One source of truth; a second copy is a bug with a delayed fuse.
 - Every choice carries its evidence -- the math, the data, or the
-  precedent -- and why it beats the alternatives. Name at least one
+  precedent -- checked at the source, not from memory. Name at least one
   rejected option and why it lost.
 - Separate derived from assumed: label what is proven vs. fitted vs. a
   judgement call, and flag the weakest assumption.
