@@ -578,6 +578,11 @@ in
       "android-commandlinetools"
       # adb/fastboot — the bridge mobile-mcp drives to automate a physical phone.
       "android-platform-tools"
+      # Applite — a GUI for BROWSING casks (homebrew/cask, MIT, ~7k stars; picked
+      # 2026-11-25 over the unsigned, quarantine-stripping BrewStore tap). What it
+      # installs is not declared here, so `cleanup = "zap"` removes it at the next
+      # activation: a keeper still goes into this list.
+      "applite"
       "blackhole-2ch"
       "bruno"
       # CapCut — video editor (proprietary, ByteDance); not in nixpkgs, so the cask.
