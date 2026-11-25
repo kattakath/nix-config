@@ -59,7 +59,7 @@ in
     operator
     macos
   ];
-  # The fleet-wide CI GitHub App ("ismailkattakath-ci", appId 4849830, PUBLIC
+  # The fleet-wide CI GitHub App ("ismailkattakath-ci", `fleetAppId` in hosts/macos.nix, PUBLIC
   # so it installs beyond its owning personal account) — ONE key serves every
   # install: kattakath + a client org + dontsell-ai and the personal
   # account. Powers local.tart.githubRunners.* — the ephemeral Tart-VM-per-job
