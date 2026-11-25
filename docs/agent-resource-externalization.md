@@ -42,7 +42,7 @@ community resource.
 Lock nodes at the time: **56 → 59**.
 
 > **Update, 2026-09-14 — the userscript half went one step further, out of Nix entirely.**
-> Both userscript pins are gone (nix-config `535f1ef`, [redacted] `c013aa5`), along with every
+> Both userscript pins are gone (nix-config `9067dca7`, [redacted] `c013aa5`), along with every
 > script declaration and **all three** lint gates (`checks.<system>.userscripts` here;
 > `checks.userscripts-lint` + `checks.userscripts-meta` there). The scripts are **published to
 > Greasy Fork** instead. The reason is the one thing extraction could not fix: this

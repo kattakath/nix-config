@@ -261,7 +261,7 @@ in
             # XDG, never inside the worktree: this directory holds live
             # credentials and must not sit where `git add -A` can reach it.
             #
-            # devShell-only on purpose. This repo dropped its `.envrc` in 2fa73b9
+            # devShell-only on purpose. This repo dropped its `.envrc` in a0c12251
             # and docs/map/entry-points.md says so, so the scoping rides `nix develop`
             # rather than re-introducing direnv auto-load.
             #

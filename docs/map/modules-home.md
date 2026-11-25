@@ -63,7 +63,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   above is kept as the record of what it did, not as a description of a file that exists. It
   remains the SOURCE OF RECORD for every server's real command and version pins, which is where `plugin-mcp.nix` reads them from rather than
   re-deriving them off an upstream README — recover it with
-  `git show 4f9ea50^:modules/shared/mcp.nix`, never from an upstream default.
+  `git show $(git log --diff-filter=D -1 --format=%h -- modules/shared/mcp.nix)^:modules/shared/mcp.nix` (#734), never from an upstream default.
 - **`plugin-mcp.nix`** — the LIVE MCP lane, and the whole pattern in one module
   (its sibling `gmail-mcp.nix` was retired 2026-11-01 — the claude.ai Gmail connector replaced it).
   Claude Code spawns a plugin-declared stdio server per session; a plugin's `.mcp.json`

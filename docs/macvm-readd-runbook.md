@@ -12,7 +12,7 @@ the durable re-add path (it survives refactors where a `git revert` would not).
 | ALL generic Tart machinery — lifecycle CLI (`tart-vm`), plug-and-play `bootstrap`, packer golden-image `bake`, `tart-guest-agent` packaging | **`modules/features/tart-vms/`, in THIS repo.** It was `github:kattakath/nix-tart-vms` until ADR-002 wave 5 absorbed it as a capsule; the origin repo is archived. |
 | The `local.tart.vms.<name>` darwin module (`modules/features/tart-vms/darwin.nix`) | **git history** — retired 2026-11-02 for having no consumer. `git log --diff-filter=D -- modules/features/tart-vms/darwin.nix` names the retiring commit; `git show <sha>^:modules/features/tart-vms/darwin.nix` restores it. |
 | A baked, operator-neutral **golden image** (`tahoe-golden`) | `~/.tart/vms/` on the macos host (imperative artifact — check `tart list` before assuming) |
-| The removed thin layer, verbatim | git history — the removal commit is `dea51c7` (#459); `git show dea51c7^:hosts/macvm.nix` etc. |
+| The removed thin layer, verbatim | git history — the removal commit is #459: `git log --diff-filter=D -1 --format=%h -- hosts/macvm.nix` names it, then `git show <sha>^:hosts/macvm.nix` etc. |
 
 ## Re-add procedure
 
@@ -44,7 +44,7 @@ the durable re-add path (it survives refactors where a `git revert` would not).
    legacy `MACVM_*` env names).
 
 4. **Home/host trimmings back** (the "left with the macvm host" comments that
-   marked each removal site were deleted; `git show dea51c7` shows every
+   marked each removal site were deleted; `git show <sha>` (#459, above) shows every
    site): the `vpn` operator +
    its `home.packages` gate, `macvmTartStart` + the Spotlight "Mac VM"
    launcher, the ssh `Host macvm` block, the macvm screencapture shared-inbox
@@ -58,7 +58,7 @@ the durable re-add path (it survives refactors where a `git revert` would not).
    to edit. Both halves live in THIS flake now, and step 2 already covers them:
    the host attribute goes in `flake.darwinConfigurations`
    (`modules/parts/hosts.nix`), and the `#macvm` activation app goes back beside
-   `apps.macos` in `modules/parts/packages.nix` (`git show dea51c7 --
+   `apps.macos` in `modules/parts/packages.nix` (`git show <sha> --
    flake.nix` shows the app as it was, before outputs moved to `modules/parts/`).
 
 6. **VM itself**: `tart clone tahoe-golden macvm` (if the golden image

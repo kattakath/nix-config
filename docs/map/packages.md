@@ -212,7 +212,7 @@ Smaller, single-purpose CLIs:
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
   packages for their respective assets.
 
-## Userscripts — REMOVED from the fleet entirely (2026-09-14, commit `535f1ef`)
+## Userscripts — REMOVED from the fleet entirely (2026-09-14, commit `9067dca7`)
 
 **The fleet declares zero userscripts, and gates none.** That commit deleted the
 `kattakath-userscripts` input, every `userScripts.scripts` entry of the then-browser module and

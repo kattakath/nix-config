@@ -220,7 +220,7 @@ rewrites a file):
 | `nix-hardcoded-home-path` | nix | CLAUDE.md § Conventions "Paths — two axes" (runtime half) | The gate half of the [`nix-flake-kit`](https://github.com/kattakath/skills/tree/main/plugins/nix-flake-kit) plugin's `nix-home-path-lint` hook, which is PostToolUse and so only ever sees *Claude's* writes — a human or flake-bump commit slipped through. Matches `string_fragment` nodes only, so comments and Nix source path literals are exempt by construction rather than by heuristic. Keep the regex in sync with the hook. |
 | `launchd-bare-interpreter-arg0` | nix | [`.claude/rules/launchd-naming.md`](../../.claude/rules/launchd-naming.md) | Flags `ProgramArguments[0]` / `Program` pointing at a bare `sh`/`bash`/`python3`/`node`/… so Background Task Manager can't list a fleet agent as generic persistence. Only sees units authored *here*; the three known upstream `/bin/sh` daemons live in no `.nix` file and must not be renamed. |
 | `capsule-must-not-reach-out` | nix | ADR-002's capsule boundary ([`engine.md`](engine.md) § `modules/features/`) | Scoped by `files:` to `modules/features/**`; flags ANY `..` in a `path_expression` — even one that stays inside the capsule. The file-layer half of the boundary — `checks.<system>.capsule-registry` is the option-layer half. Blind to overlays, `specialArgs` and runtime-built store paths (ADR-002 §7.6, §9.3). |
-| `home-must-not-cross-layers` | nix | the `modules/home/` layer boundary (`662db6a`, 2026-09-14) | The Home Manager profile may reach **down** into the content trees its rule's `note:` lists — never **across** into `modules/features/`, nor **up** into `modules/parts/`, `hosts/` or `infra/`. |
+| `home-must-not-cross-layers` | nix | the `modules/home/` layer boundary (`9ffb8d00`, 2026-09-14) | The Home Manager profile may reach **down** into the content trees its rule's `note:` lists — never **across** into `modules/features/`, nor **up** into `modules/parts/`, `hosts/` or `infra/`. |
 | `activation-must-not-touch-secrets` | nix | ADR-004 §2.5 ([`secrets-recovery-and-identity-adr.md`](../secrets-recovery-and-identity-adr.md)) | A `home.activation` / `system.activationScripts` / `system.userActivationScripts` string that names `secrets-{rehydrate,push,resolve,status}` or `gcloud secrets`/`gcloud auth`. Activation must never touch a secret backend; the CLIs are operator-invoked after `gcloud auth login`. Eval-time twin: `checks.aarch64-darwin.keychain-secrets-backend-inert`. |
 | `hook-json-parse-must-be-guarded` | javascript | the "never wedge a turn" invariant every `.claude/hooks/*.js` header states | An unguarded `JSON.parse` of untrusted event JSON throws and surfaces as a hook error. Scoped by `files:` to the hooks. |
 
@@ -330,7 +330,7 @@ deploy-rs.lib` — deploy-rs exports `lib` for four systems, and that idiom woul
 
 Entered with `nix develop` (in the devcontainer or on a nix host). There is **no**
 `.envrc`/direnv auto-load — run `nix develop` explicitly. (`programs.direnv` + `nix-direnv` ARE
-enabled fleet-wide in `modules/home/default.nix`; this repo alone opts out, since `2fa73b9`.)
+enabled fleet-wide in `modules/home/default.nix`; this repo alone opts out, since `a0c12251`.)
 
 **The shell sets `CLOUDSDK_CONFIG`** to `$XDG_CONFIG_HOME/gcloud-nix-config`, so `gcloud` run
 here uses an account and project scoped to this repo rather than whatever is globally
