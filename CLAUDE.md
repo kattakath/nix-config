@@ -177,8 +177,8 @@ the `docs/map/` file [`docs/repo-map.md`](docs/repo-map.md) routes each path to.
 | `docs/` | Runbooks + design docs — indexed at the bottom of this file. |
 
 **Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in
-`github:kattakath/skills`, installed as an **auto-updating git marketplace** (a merge there
-ships, no pin bump here) and pinned as `kattakath-skills` for two checks,
+`github:kattakath/skills`, installed as an **auto-updating git marketplace** (a green merge
+ships via `stable`, no pin bump here) and pinned as `kattakath-skills` for two checks,
 `mcp-launcher-parity` and `workspace-plugin-parity`, which DO need this pin bumped; **zero userscripts** (published to Greasy Fork, so an installed
 copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).

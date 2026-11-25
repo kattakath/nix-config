@@ -93,6 +93,14 @@ let
         # hard-fails on the first such collision.
         backupFileExtension = "hm-bak";
         extraSpecialArgs = idArgs // {
+          # Reviewed commit per third-party marketplace, keyed by its marketplace name;
+          # flake.lock is the one copy (the `marketplace-*` inputs).
+          marketplaceRevs = {
+            context7-marketplace = inputs.marketplace-context7.rev;
+            trailofbits = inputs.marketplace-trailofbits.rev;
+            fullstack-dev-skills = inputs.marketplace-fullstack-dev-skills.rev;
+            grafana-skills = inputs.marketplace-grafana-skills.rev;
+          };
           inherit
             agent-skills-excalidraw
             agent-skills-mac-automation

@@ -348,7 +348,7 @@ only difference between "someone else's skill" and "mine" is now who can push to
   as a `kattakath/skills` PR. It mechanises § "Adding to an extracted repo" in
   [`agent-resource-externalization.md`](../agent-resource-externalization.md).
   **No pin bump follows** since 2026-09-23: the marketplace is an https git source with
-  `autoUpdate`, so a merge on `kattakath/skills` `main` ships by itself. A `flake.lock` bump is
+  `autoUpdate` on its `stable` branch, so a green merge on `kattakath/skills` `main` ships by itself. A `flake.lock` bump is
   needed **only** when the thing you landed is consumed through the `kattakath-skills` INPUT —
   i.e. a plugin that `checks.*.mcp-launcher-parity` or `checks.*.workspace-plugin-parity`
   reads (the only two consumers since `page-lab-pick` was deleted 2026-11-14). (`superhook` became a
@@ -370,10 +370,10 @@ this repo**. Do not re-create one; CLAUDE.md's "Gone on purpose — do not re-ad
 
 > **Update, 2026-09-23 — delivered as a git marketplace, not the pin.** The repo is now
 > [`github:kattakath/skills`](https://github.com/kattakath/skills) (renamed from `kattakath/ai`).
-> `modules/home/default.nix` registers it as `https://github.com/kattakath/skills.git` with `autoUpdate = true`
-> (`local.claudePlugins.marketplaces.<name>.autoUpdate`, which renders
-> `extraKnownMarketplaces.<name>.autoUpdate`). Its plugins carry no `version`, so every commit on
-> its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
+> `modules/home/default.nix` registers it as `https://github.com/kattakath/skills.git` with
+> `ref = "stable"` and `autoUpdate = true` (`local.claudePlugins.marketplaces.<name>.{ref,autoUpdate}`,
+> rendered into `extraKnownMarketplaces`). Each plugin bumps its semver `version` on every change;
+> that repo's `validate.yml` `promote-stable` job moves `stable` to each main push whose `gate` is green. Its top-level `skills/` are
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
 > as `kattakath-skills`, for its consumers in `modules/` (grep `kattakath-skills`) — and, until 2026-10-02,

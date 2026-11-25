@@ -277,6 +277,27 @@
       url = "github:NixOS/nixpkgs/nixpkgs-unstable";
       flake = false;
     };
+    # ---- Third-party Claude Code MARKETPLACES, pinned (operator 2026-11-25: a third-party
+    # marketplace pins a reviewed ref, bumped by PR). flake = false and never evaluated:
+    # only `.rev` is read, as the marketplace's `ref` (modules/home/default.nix). The weekly
+    # update-flake-lock bot PR bumps them with every other root input, so the bump IS the
+    # review. Our own `kattakath` marketplace is not here: it tracks its `stable` branch.
+    marketplace-context7 = {
+      url = "github:upstash/context7";
+      flake = false;
+    };
+    marketplace-trailofbits = {
+      url = "github:trailofbits/skills";
+      flake = false;
+    };
+    marketplace-fullstack-dev-skills = {
+      url = "github:Jeffallan/claude-skills";
+      flake = false;
+    };
+    marketplace-grafana-skills = {
+      url = "github:grafana/skills";
+      flake = false;
+    };
     # ---- Third-party skills no plugin can serve — unlicensed, or whose plugin fails to load
     # (2026-11-07: every other one moved to a plugin). Wired into programs.claude-code.skills.
     agent-skills-mac-automation = {

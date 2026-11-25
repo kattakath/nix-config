@@ -129,6 +129,22 @@ in
             '';
           };
 
+          ref = lib.mkOption {
+            type = lib.types.nullOr lib.types.str;
+            default = null;
+            example = "stable";
+            description = ''
+              The git `ref` of an https:// marketplace source: a branch, a tag, or a
+              full 40-hex commit SHA (code.claude.com/docs/en/plugins/marketplace-reference,
+              "Marketplace sources"). null = the repository's default branch.
+
+              A SHA pins the catalog: refreshes and auto-updates cannot move it, so a
+              third-party marketplace moves only when the SHA is bumped (here, by the
+              flake.lock bot PR). A SHA needs Claude Code >= 2.1.324, asserted below.
+              A branch is a release channel: auto-update follows its new commits.
+            '';
+          };
+
           autoUpdate = lib.mkOption {
             type = lib.types.bool;
             default = false;
@@ -193,6 +209,18 @@ in
           local.claudePlugins.marketplaces.${name}.autoUpdate needs an https:// source;
           a /nix/store path has nothing to fetch, so it would silently never update.
         '';
+      }) cfg.marketplaces
+      ++ lib.mapAttrsToList (name: mp: {
+        assertion = mp.ref != null -> lib.hasPrefix "https://" mp.source;
+        message = "local.claudePlugins.marketplaces.${name}.ref needs an https:// source; a store path has no ref.";
+      }) cfg.marketplaces
+      # A SHA ref is loadable only from Claude Code 2.1.324 (marketplace-reference,
+      # "Marketplace sources"); an older CLI fails to load the marketplace at all.
+      ++ lib.mapAttrsToList (name: mp: {
+        assertion =
+          mp.ref != null && builtins.match "[0-9a-f]{40}" mp.ref != null
+          -> lib.versionAtLeast config.local.claudeProfiles.package.version "2.1.324";
+        message = "local.claudePlugins.marketplaces.${name}.ref is a commit SHA, which needs Claude Code >= 2.1.324 (have ${config.local.claudeProfiles.package.version}); bump nixpkgs-claude-code.";
       }) cfg.marketplaces;
 
     # EVERY declared marketplace lands here — this is the whole point of the
@@ -227,7 +255,8 @@ in
             {
               source = "git";
               url = mp.source;
-            };
+            }
+            // lib.optionalAttrs (mp.ref != null) { inherit (mp) ref; };
       }
       // lib.optionalAttrs mp.autoUpdate { autoUpdate = true; }
     ) cfg.marketplaces;

@@ -41,6 +41,9 @@
   agent-skills-vercel-agent,
   # Source-only nixpkgs checkout read for ONE package recipe (claudeCode below).
   nixpkgs-claude-code,
+  # The reviewed commit of each third-party marketplace (flake.lock's `marketplace-*`
+  # inputs, via compose.nix). Defaulted so a consumer without those inputs evaluates.
+  marketplaceRevs ? { },
   # The ABSORBED local-rag capsule (local.rag.ollama +
   # local.rag.pgvector — the loopback RAG stack) — a MODULE, not a flake,
   # since ADR-002 wave 6 brought it in-tree as modules/features/local-rag/.
@@ -548,13 +551,13 @@ in
     # a lead; the citable grep still has to run against flake.lock.
     context7-marketplace = {
       source = lib.mkDefault "https://github.com/upstash/context7.git";
-      autoUpdate = true;
+      ref = marketplaceRevs.context7-marketplace or null;
     };
 
     # This operator's OWN published marketplace, github:kattakath/skills, as a
-    # GIT source with auto-update, not a pinned store path. Content ships from that repo alone: its
-    # plugins carry no `version`, so every commit on its `main` is a new version,
-    # and Claude Code's background refresh delivers it with the "updated" notice.
+    # GIT source with auto-update, not a pinned store path. Content ships from that repo alone:
+    # each plugin's semver `version` is bumped on every change, and Claude Code's background
+    # refresh delivers a new version from `stable` with the "updated" notice.
     # The gate is that repo's own CI (`claude plugin validate`, script checks).
     #
     # WHY NOT THE flake.lock PIN it used until 2026-09-23. A store path is a
@@ -573,6 +576,10 @@ in
     # Adding or changing a plugin = a merge IN THAT REPO; nothing to list here.
     kattakath = {
       source = lib.mkDefault "https://github.com/kattakath/skills.git";
+      # The `stable` release channel: kattakath/skills' validate.yml `promote-stable`
+      # fast-forwards it to every main push whose `gate` is green, so a red push never
+      # reaches this Mac. Operator 2026-11-25: own marketplaces auto-update on `stable`.
+      ref = "stable";
       autoUpdate = true;
     };
 
@@ -589,12 +596,12 @@ in
     # resolvable. Enabling is the operator's `/plugin` toggle (runtime state, not Nix). Remove a
     # skills-only input only after its plugin is enabled AND seen in a session.
     #
-    # `autoUpdate = true` on every https marketplace (operator decision 2026-11-12: "the
-    # plugins are curated by me; even if they're from other marketplaces, everyone should
-    # get them auto-updated"). The curation is the gate: which marketplaces are declared
-    # here, and which plugins get enabled. Accepted cost: whatever lands on an upstream
-    # `main` reaches this Mac on a background refresh without a per-commit review.
-    # Measured 2026-11-12: with it unset, a marketplace silently stayed 4 releases behind.
+    # PINNED, not auto-updated (operator 2026-11-25, superseding the 2026-11-12
+    # "auto-update everything"): a third-party marketplace pins a reviewed commit, its
+    # `marketplace-*` flake input's rev, and moves only when the weekly update-flake-lock
+    # bot PR bumps that input. That PR is the per-commit review the old setting skipped,
+    # and its weekly cadence answers the reason the old one existed (measured
+    # 2026-11-12: unpinned and un-updated, a marketplace silently fell 4 releases behind).
     #
     # LICENCE, and why marketplace-not-vendor is the RIGHT shape here:
     # `trailofbits/skills` is CC-BY-SA-4.0 — a share-alike licence. Consuming it as
@@ -616,7 +623,7 @@ in
     # positive reason to consume this as a marketplace rather than vendor it.
     trailofbits = {
       source = lib.mkDefault "https://github.com/trailofbits/skills.git";
-      autoUpdate = true;
+      ref = marketplaceRevs.trailofbits or null;
     };
 
     # Upstream marketplace that replaces a cherry-picked `agent-skills-*` skill (2026-11-07,
@@ -625,7 +632,7 @@ in
     # postgres-pro).
     fullstack-dev-skills = {
       source = lib.mkDefault "https://github.com/Jeffallan/claude-skills.git";
-      autoUpdate = true;
+      ref = marketplaceRevs.fullstack-dev-skills or null;
     };
 
     # Grafana Labs' own marketplace (Apache-2.0, 2026-11-13). The grafana-cloud-mcp
@@ -634,7 +641,7 @@ in
     # (wshobson/agents, more installs, unofficial). Enable `grafana-core` at runtime.
     grafana-skills = {
       source = lib.mkDefault "https://github.com/grafana/skills.git";
-      autoUpdate = true;
+      ref = marketplaceRevs.grafana-skills or null;
     };
   };
 

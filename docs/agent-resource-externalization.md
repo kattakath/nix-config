@@ -2,10 +2,10 @@
 
 > **Update, 2026-09-23 — delivered as a git marketplace, not the pin.** The repo is now
 > [`github:kattakath/skills`](https://github.com/kattakath/skills) (renamed from `kattakath/ai`).
-> `modules/home/default.nix` registers it as `https://github.com/kattakath/skills.git` with `autoUpdate = true`
-> (`local.claudePlugins.marketplaces.<name>.autoUpdate`, which renders
-> `extraKnownMarketplaces.<name>.autoUpdate`). Its plugins carry no `version`, so every commit on
-> its `main` is a release, gated by that repo's own `validate.yml`. Its top-level `skills/` are
+> `modules/home/default.nix` registers it as `https://github.com/kattakath/skills.git` with
+> `ref = "stable"` and `autoUpdate = true` (`local.claudePlugins.marketplaces.<name>.{ref,autoUpdate}`,
+> rendered into `extraKnownMarketplaces`). Each plugin bumps its semver `version` on every change;
+> that repo's `validate.yml` `promote-stable` job moves `stable` to each main push whose `gate` is green. Its top-level `skills/` are
 > published as marketplace-root plugins, so the `programs.claude-code.skills` cherry-picks are
 > gone, and the Brain Signals kit moved there as the `brain-signals` plugin. The input survives
 > as `kattakath-skills` for ONE consumer, `checks.<system>.mcp-launcher-parity` (grep

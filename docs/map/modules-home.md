@@ -372,7 +372,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
 - **`claude-plugins.nix`** — `local.claudePlugins.marketplaces`, the **N-marketplace** Claude
   Code plugin mechanism. An `attrsOf submodule` keyed by marketplace name, each carrying a
   `source` (a `/nix/store` path or an `https://` git URL — asserted, so an impure
-  `toString ../plugins` fails loudly) and an `autoUpdate` flag (https only). **No plugin list
+  `toString ../plugins` fails loudly) an optional `ref` (branch, tag or SHA; third-party marketplaces pin their `marketplace-*` input's rev) and an `autoUpdate` flag (https only). **No plugin list
   since 2026-11-07:** Nix registers stores only; the always-on set is literal ids
   (`alwaysOnIds`), asserted to name a declared marketplace. **A `repin` option existed until 2026-09-30** and is GONE — nothing outside
   the module ever set it, and the teardown it named is deleted (see the two bullets below).

@@ -413,6 +413,70 @@
         "type": "github"
       }
     },
+    "marketplace-context7": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1795608029,
+        "narHash": "sha256-xDOXOVGEYAKvSy5ttSbtbvFXkF32tYMfRoxyMHuEEko=",
+        "owner": "upstash",
+        "repo": "context7",
+        "rev": "6335fd8458bb942205c24c8b89e8bc97b0950804",
+        "type": "github"
+      },
+      "original": {
+        "owner": "upstash",
+        "repo": "context7",
+        "type": "github"
+      }
+    },
+    "marketplace-fullstack-dev-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1795458254,
+        "narHash": "sha256-ZMJUB/i3PUiv7T8HXSXb40+i88Qzz0yVKFVFw4OX9wA=",
+        "owner": "Jeffallan",
+        "repo": "claude-skills",
+        "rev": "d98d06edb54c25cfb94017c0ef830342a34a43ba",
+        "type": "github"
+      },
+      "original": {
+        "owner": "Jeffallan",
+        "repo": "claude-skills",
+        "type": "github"
+      }
+    },
+    "marketplace-grafana-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793134833,
+        "narHash": "sha256-PAeYV+ZJWO6eoz+w2v0TsD3TYbkfWnvVrx3yHXmtkNU=",
+        "owner": "grafana",
+        "repo": "skills",
+        "rev": "8fb72a527961f05e708f53d2a0500709e12d7970",
+        "type": "github"
+      },
+      "original": {
+        "owner": "grafana",
+        "repo": "skills",
+        "type": "github"
+      }
+    },
+    "marketplace-trailofbits": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1794505727,
+        "narHash": "sha256-8NBnk9sFW1IMkd+qmTvLKweh3CkeJaALEZBLs3GaxlM=",
+        "owner": "trailofbits",
+        "repo": "skills",
+        "rev": "149d7b21f4067765b82e67029730b42d228ef4b4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "trailofbits",
+        "repo": "skills",
+        "type": "github"
+      }
+    },
     "nix": {
       "inputs": {
         "bdwgc": "bdwgc",
@@ -593,11 +657,11 @@
     "nixpkgs-claude-code": {
       "flake": false,
       "locked": {
-        "lastModified": 1794644783,
-        "narHash": "sha256-3GnIGIy15bMduoS9RnWqKTmsJLWThla42UFtm0S7+us=",
+        "lastModified": 1795371335,
+        "narHash": "sha256-oa2P5WZer1A4wuhatl92JyHHEjrrOdIyuvTuI5LUi9Q=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "5d2b81a7a3be3e2f832879028e4d60abbf58e9a0",
+        "rev": "619c39f6eac5d1ed6b8f073a9414baf7034b2356",
         "type": "github"
       },
       "original": {
@@ -652,6 +716,10 @@
         "ircc-whatsapp-bot": "ircc-whatsapp-bot",
         "kattakath-dotgithub": "kattakath-dotgithub",
         "kattakath-skills": "kattakath-skills",
+        "marketplace-context7": "marketplace-context7",
+        "marketplace-fullstack-dev-skills": "marketplace-fullstack-dev-skills",
+        "marketplace-grafana-skills": "marketplace-grafana-skills",
+        "marketplace-trailofbits": "marketplace-trailofbits",
         "nix-darwin": "nix-darwin",
         "nix-homebrew": "nix-homebrew",
         "nix-plist-manager": "nix-plist-manager",
