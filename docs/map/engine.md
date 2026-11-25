@@ -374,9 +374,6 @@ The layer exists for its files' shape rather than their count:
 - **`modules/_lib/nixpi-units.nix`** — nixpi's systemd units worth a panel or an alert, ONE list
   for two consumers: `hosts/nixpi.nix` ships all of them to Grafana, and the `grafana` stack's
   "service not active" rule alerts on `longRunning` only (a timer oneshot is idle between runs).
-- **`modules/_lib/tor-browser-alpha.nix`** — an overlay pointing `tor-browser` at the aarch64
-  ALPHA build, because the pinned nixpkgs' stable one THROWS at eval on aarch64-linux. Imported
-  by `hosts/nixos.nix` only (nixvm's desktop, its other consumer, was deleted 2026-10-17).
 - **`modules/_lib/derived-names.nix`** — the names derived from the identity once
   (`googleAccount`, `nixpiSshHostname`), read by `identity.nix`, `deploy.nix`, the nixpi tunnel
   and home-manager instead of each re-deriving them.

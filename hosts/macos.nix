@@ -819,18 +819,10 @@ in
       # `conflicts_with cask: "tor-browser@alpha"` — stable and alpha cannot
       # coexist on this Mac, so do not add the alpha cask alongside.
       #
-      # WHY A CASK AND NOT NIXPKGS, and the contrast worth knowing: upstream
-      # ships ONE unsuffixed universal .dmg for macOS but only -x86_64/-i686
-      # tarballs for Linux, so stable Tor Browser has Apple Silicon support on
-      # macOS and NONE on Linux. That asymmetry is why the `nixos` guest needs an
-      # overlay onto the current aarch64 ALPHA (modules/_lib/tor-browser-alpha.nix,
-      # used by `nixos`) while this host needs only a cask.
-      #
-      # grepped the pinned nixpkgs for a Darwin route — none exists:
-      # pkgs/by-name/to/tor-browser/package.nix:107 declares `sources` with
-      # only x86_64-linux (:108) and i686-linux (:118), and
-      # `meta.platforms = lib.attrNames sources` (:345), so there is no Darwin
-      # packaging at ANY arch at this pin. The cask is the off-the-shelf
+      # WHY A CASK AND NOT NIXPKGS: grepped the pinned nixpkgs for a Darwin
+      # route — none exists. nixpkgs' tor-browser package.nix has no darwin key
+      # in its `sources`, and `meta.platforms = lib.attrNames sources`, so there
+      # is no Darwin packaging at ANY arch at this pin. The cask is the off-the-shelf
       # community mechanism; re-deriving dmg extraction and codesign handling in
       # Nix is the hand-rolled path the motto weighs against.
       "tor-browser"
