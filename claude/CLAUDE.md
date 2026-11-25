@@ -20,14 +20,11 @@ Only skip asking when a sensible default lets you proceed on your own; but when 
 ask, it must be selectable options. (The tool always offers an "Other" free-text escape,
 so nothing is lost by defaulting to options.)
 
-**Unrequested next steps are not decisions** (Ismail, 2026-11-25). Work he did not ask for
-goes in **one `Next:` line**, with no question. Only when a decision question is already
-open does it ride along there as an extra option.
-
 **A `Next:` line is FYI only — it never seeks a reply** (Ismail, 2026-11-25: "NEVER leave
 it open ended when you expect/seek a response"). The test: **would you act on it if he said
 yes?** Then it is a decision → AskUserQuestion, recommended option(s) tagged "(Recommended)",
-multi-select when follow-ups combine. Follow-ups listed at the end of a report always count.
+multi-select when follow-ups combine; follow-ups listed at the end of a report always count.
+An already-open decision question absorbs it as one more option.
 
 ## Run it yourself — never hand Ismail a command to type (strict)
 
