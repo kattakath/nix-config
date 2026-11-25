@@ -200,9 +200,8 @@ because CLAUDE.md is near its 40k budget. A path missing from both is itself a f
 - [ ] `NH-E-script-not-wsa` — `writeShellApplication` for scripts; shellcheck via that path.
 - [ ] `NH-E-etc-hack` — no new `environment.etc` hacks for things nix-darwin models.
 - [ ] `NH-E-determinate-drift` — Determinate Nix (darwin): no `nix.enable = true` / no hand-written `nix.custom.conf`. On the NixOS hosts the nixosModule keeps `nix.*` live, so `nix.settings` there is correct, not drift.
-- [ ] `NH-E-hand-rolled-systems` — **flake-parts everywhere, including here.** The small supporting flakes that
-      remain (any new one — the last existing member, ircc-whatsapp-bot, was
-      unwired on 2026-09-12) use flake-parts,
+- [ ] `NH-E-hand-rolled-systems` — **flake-parts everywhere, including here.** The small supporting flakes
+      (the kattakath-owned inputs in `flake.nix`) use flake-parts,
       not hand-rolled `forAll`/`forAllSystems` boilerplate — ADR-001
       (`docs/flake-architecture-strategy-adr.md`). `nix-mcp-gateway` used to be on
       this list and is **archived** (2026-09-12, an unadopted extraction candidate —

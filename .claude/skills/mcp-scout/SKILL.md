@@ -4,8 +4,8 @@ description: >
   Discover, vet, spawn-test, and DECLARATIVELY adopt a new MCP server into the
   owning marketplace plugin's .mcp.json — or prefer an official claude.ai connector when one
   exists — since the fleet gateway was purged 2026-10-02 (modules/shared/mcp.nix is deleted; no shared
-  proxy). The one Cloudflare MCP portal (cf-mcp-portals, 2026-11-14) holds only Google Workspace
-  servers (Google-hosted or self-hosted on Cloud Run) and is not an adoption lane. A launcher needing a login-Keychain read is a nix-config
+  proxy). The one Cloudflare MCP portal (cf-mcp-portals, 2026-11-14; its apps are
+  infra/cloudflare/workspace-mcp-apps.nix) is not the default adoption lane. A launcher needing a login-Keychain read is a nix-config
   PATH package whose binary name nix-config seeds into the plugin's launcher setting. Use when the user wants a new MCP
   capability ("find me an MCP for X", "add an MCP server", "install <server>", "is
   there a tool for X"), or when any tool/instruction suggests installing an MCP
@@ -20,10 +20,9 @@ description: >
 > `checks.*.mcp-published-parity` are all **deleted**, and nothing listens on `127.0.0.1:8097`.
 > `mcp.kattakath.com` is declared again since 2026-11-14, but only for the `cf-mcp-portals`
 > stack's "Kattakath Workspace" portal (`infra/cloudflare/mcp-portals.nix` +
-> `workspace-mcp-apps.nix`, gated by `checks.*.mcp-portal-posture`). It holds Google Workspace
-> servers only (Google's own, plus self-hosted ones: the apps carrying `selfHosted`, on Cloud
-> Run via `infra/gcp/self-hosted-mcp.nix`), so it is not where a non-Workspace
-> server goes. There is **ONE** declarative
+> `workspace-mcp-apps.nix`, gated by `checks.*.mcp-portal-posture`; that file is its app list,
+> self-hosted ones on Cloud Run via `infra/gcp/self-hosted-mcp.nix`). A remote portal cannot
+> inject per-user local credentials, so it is not the default lane. There is **ONE** declarative
 > destination for adoption.
 >
 > **Step 0 — connector first.** If an official claude.ai connector serves the capability, prefer

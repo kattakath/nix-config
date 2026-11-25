@@ -145,7 +145,8 @@ with unique unmerged commits, or any dirty `git status`, → report only.
 ### B. Per-repo: open PRs — `FD-B-*`
 
 ```bash
-gh pr list --repo <owner>/<repo> --state open   # ${repo#github.com/} of a manifest line \
+# <owner>/<repo> = ${repo#github.com/} of a manifest line
+gh pr list --repo <owner>/<repo> --state open \
   --json number,title,isDraft,mergeStateStatus,statusCheckRollup,autoMergeRequest
 ```
 
