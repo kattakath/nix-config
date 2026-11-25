@@ -64,7 +64,7 @@ activation into `/run/agenix/<name>` by the host itself.
 | `chrome-enrollment-token.age` | `local.chromeEnterprise` (`modules/darwin/chrome-enterprise.nix`) — the only one with a custom `path`: agenix links it to `/Library/Google/Chrome/CloudManagementEnrollmentToken`, where Chrome reads it as the login user | the bare enrollment token, one line |
 
 **The two `gh-app-*` files hold identical key material, and that is deliberate — not duplication
-to clean up.** Both authenticate as the `ismailkattakath-ci` App (appId 4849830), but an agenix
+to clean up.** Both authenticate as the `ismailkattakath-ci` App (`fleetAppId` in `hosts/macos.nix`), but an agenix
 secret has exactly **one** owner, and the consumers run as different users (root, for the runner
 daemons, vs. the login user, whose Tart agents need a GUI session for Virtualization.framework).
 Rotating the App key therefore means re-encrypting **both**, with `age -R` and a recipient-tag

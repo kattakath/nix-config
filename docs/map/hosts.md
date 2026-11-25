@@ -109,7 +109,7 @@ they bite any future second account:
   `capsuleModules.darwin.tart-github-runner`, in `mkDarwin`'s BASE module list): ephemeral **Tart-VM-per-job**
   GitHub Actions runners for `dontsell-ai` (label
   `dontsell-vm` — the bare-metal pair keeps that org's nix-toolchain CI), one fleet GitHub App
-  (`ismailkattakath-ci`, appId 4849830 — it replaced the retired `kattakath-fleet-ci` on
+  (`ismailkattakath-ci`, `fleetAppId` — it replaced the retired `kattakath-fleet-ci` on
   2026-09-06; key = agenix `gh-app-fleet-key.age`, host-decrypted), digest-pinned
   Cirrus runner image, and Apple's 2-concurrent-VM budget shared by a slot semaphore. The base
   clone and the host-key pin are content-keyed by `oci@digest`, so a digest bump renames both;

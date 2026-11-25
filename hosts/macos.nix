@@ -161,7 +161,7 @@ in
   # let two run at once instead of the whole backlog draining one job at a time
   # through a single runner (12 cores / 36GB on this Mac — comfortable headroom).
   #
-  # appId/installationId: the "ismailkattakath-ci" App (4849830) — the SAME App
+  # appId/installationId: the "ismailkattakath-ci" App (`fleetAppId`) — the SAME App
   # the Tart lane below uses. Neither value is secret on its own.
   #
   # One App for both lanes: a second, narrower dontsell-ai App (retired
@@ -190,7 +190,7 @@ in
   # ---- Ephemeral Tart-VM CI runners (local.tart.githubRunners.*, the tart-vms capsule) --
   # Every job gets a disposable macOS VM; the VM is the isolation boundary.
   # All instances share ONE fleet GitHub App ("ismailkattakath-ci", public,
-  # appId 4849830, owned by the OPERATOR's personal account, not an org) and
+  # `fleetAppId`, owned by the OPERATOR's personal account, not an org) and
   # its single agenix-delivered key below; each scope has its own
   # installationId.
   #
@@ -218,7 +218,7 @@ in
   # That is independent REVOCATION only — the permission blast radius above is
   # unchanged, because it is a property of the App, not of the key.
   #
-  # The bare-metal dontsell lane above now uses this SAME App (4849830); its
+  # The bare-metal dontsell lane above now uses this SAME App (`fleetAppId`); its
   # own "dontsell-ai" App (4689619) was retired the same day — see that block.
   #
   # The two bare-metal dontsell runners

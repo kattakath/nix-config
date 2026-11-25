@@ -62,7 +62,7 @@ every auto-merged PR on `main` silently, killing `flakehub-publish.yml` and
 Requires per repo: the App **installed on that repository**, plus
 `vars.CI_BOT_CLIENT_ID` and `secrets.CI_BOT_APP_PRIVATE_KEY`. Both are supplied
 **org-wide** on `kattakath` rather than per repo — the `ismailkattakath-ci` App
-(appId 4849830, which replaced the retired org-owned `kattakath-ci` on 2026-09-06) is
+(`fleetAppId` in `hosts/macos.nix`, which replaced the retired org-owned `kattakath-ci` on 2026-09-06) is
 installed on the org with `repository_selection: all`, and the client id is an org
 variable (visibility: all). A new flake in this org therefore inherits everything
 except its own `auto-merge.yml`.

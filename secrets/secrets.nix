@@ -40,7 +40,7 @@ in
   #
   # 2026-09-06: the App behind this key changed. It was "dontsell-ai" (4689619,
   # org-owned, Self-hosted-runners RW only); it is now "ismailkattakath-ci"
-  # (4849830) — the SAME App as gh-app-fleet-key below. The old one was retired
+  # (`fleetAppId`, hosts/macos.nix) — the SAME App as gh-app-fleet-key below. The old one was retired
   # because ismailkattakath-ci was already installed on dontsell-ai with
   # repos=all, so a second narrower credential for the same job protected
   # nothing that was still unprotected.
@@ -75,7 +75,7 @@ in
   # and every lane is org-scoped).
   #
   # SPLIT 2026-09-06 — agenix and the org secret are now DIFFERENT App keys.
-  # The App issues up to TWO private keys; both authenticate as 4849830, and
+  # The App issues up to TWO private keys; both authenticate as that App, and
   # each is revocable without touching the other:
   #   agenix (this file + gh-app-dontsell-ai-key)  pub-sha256 inRKykzB+W3Ppu…
   #   kattakath org secret CI_BOT_APP_PRIVATE_KEY  pub-sha256 QXTEhxCXS1TgXP…
