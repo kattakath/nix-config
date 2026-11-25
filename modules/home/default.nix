@@ -791,7 +791,11 @@ in
       gitTidy # `git-tidy` — switch to the default branch, fast-forward, delete branches whose GitHub PR merged (gh-poi, so squash merges count) (packages/git-tidy.nix)
     ]
     ++ lib.optionals isMacosHost [
-      inngest # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew; nixpkgs has it)
+      # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew;
+      # nixpkgs has it). On Go 1.26: the same cockroachdb/swiss `!go1.27` pin as
+      # modules/_lib/otelcol-contrib.nix (whose header carries the evidence and the drop
+      # condition). A no-op under a Go-1.26 default.
+      (inngest.override { buildGoModule = buildGo126Module; })
       stripe-cli # Stripe CLI (`stripe`) — API calls, webhook forwarding (`stripe listen`), event triggers; auth is a one-time `stripe login` browser OAuth (config in ~/.config/stripe, never in git/store — same one-time-CLI-login convention as gh/hf/docker).
       wp-cli # WordPress CLI (`wp`) — manage WordPress installs/plugins/themes/db from the shell; nixpkgs-native (bundles its own PHP), so no Homebrew `wp-cli` formula or `curl … wp-cli.phar` install (single source per the reuse/declarative convention)
     ]
