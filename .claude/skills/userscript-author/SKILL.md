@@ -36,7 +36,7 @@ Nix declaration.
 [here]   → publish to the fork → install once → it self-updates
 ```
 
-## What this repo stopped doing, and why (2026-09-14, commit 535f1ef)
+## What this repo stopped doing, and why (2026-09-14, commit 9067dca7)
 
 One commit removed **all three at once**: the `kattakath-userscripts` input, every
 `userScripts.scripts` entry of the then-browser module, and `checks.<system>.userscripts`.

@@ -8,7 +8,7 @@
 # exists to prevent. The fix is always the same: point arg0 at a
 # `pkgs.writeShellScriptBin "nix-<activity>"` wrapper and move the
 # exec logic inside it (canonical example: modules/features/media-cli/module.nix's
-# `nix-<activity>` wrappers, each wired straight into ProgramArguments[0]).
+# mkAgentProgram, which builds `nix-<name>-run` for ProgramArguments).
 #
 # Scope note: this catches launchd units THIS repo authors in Nix. It cannot see
 # the three known upstream `/bin/sh` daemons (org.nixos.activate-system,
