@@ -86,8 +86,8 @@ Every capsule is entered **only** through `flake-module.nix`. From there it publ
 | `flake.modules.<class>.<name>` | flake-parts' own module registry (`extras/modules.nix:32-73`) | `cloudflared-connector`, `firmware-secrets` (both NixOS) | pure reuse; the `_class` stamp comes free |
 | `capsuleModules.<class>.<name>` | `lazyAttrsOf raw` — a definition passed through **UNWRAPPED** (`modules/parts/capsules.nix`) | `keychain-secrets`, `media-cli`, `local-rag`, `cloud-cli` (home-manager), `tart-vms` (darwin) | **measured, not stylistic.** `flake.modules`' element type is `types.deferredModule`, whose merge always wraps in `{ imports = [ … ]; }` (pinned nixpkgs `lib/types.nix`, `deferredModuleWith`), and flake-parts wraps again for any class but `generic`. For a NixOS module that is invisible. For a **home-manager** module it is not: `home.packages` is a LIST, merged in module-collection order = `buildEnv`'s `paths` order = **who wins a filename collision**. Routing `keychain-secrets` through `flake.modules` moved its four CLIs ahead of postgresql and `nix-bedrock-gate` and **changed `darwin-system`'s drvPath**, with byte-identical package derivations. |
 
-A capsule may also export flake **packages** from its `flake-module.nix` (`tart-vms` does —
-`packer-plugin-tart`, `gitlab-tart-executor`, `tart-gitlab-print-config`); that file is the list, not this map.
+A capsule may also export flake **packages** from its `flake-module.nix`; each capsule's
+`flake-module.nix` is the list, not this map.
 
 `flake.modules` is deliberately **not** re-exported as a public flake output (`touchup.nix`) —
 the satellites published `nixosModules.*` to strangers; in-tree the only consumer is
@@ -279,7 +279,8 @@ Capsule README (the why; `ls` the directory for its files): [`modules/features/m
 Capsule README (the why; `ls` the directory for its files): [`modules/features/local-rag/README.md`](../../modules/features/local-rag/README.md).
 
 - **Owns:** `local.rag.ollama` + `local.rag.pgvector` — a loopback-only
-  Postgres + pgvector + pgsql-http and a loopback-only Ollama, wired by bootstrap SQL into an
+  Postgres + pgvector + pgsql-http, plus a one-shot agent that pulls the embed model into the
+  machine-wide `local.ollamaDaemon` (the capsule serves no Ollama), wired by bootstrap SQL into an
   in-DB `public.embed(text)` `SECURITY DEFINER` function, a `public.docs` table and an HNSW
   cosine index. Ingest and retrieval are both **plain SQL**; no API key, nothing leaves the
   machine.

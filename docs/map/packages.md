@@ -210,7 +210,10 @@ Smaller, single-purpose CLIs:
   app that gives editors the hook-types check's `node_modules`) and `hook-types-node-modules.nix`
   (that one `node_modules` tree, shared by the check and the app), both in [`claude-code.md`](claude-code.md).
 - **`design-tokens/`** / **`email-signature/`** — small self-contained build-script-backed
-  packages for their respective assets.
+  packages for their respective assets. `nix run .#design-tokens` writes SCSS/CSS/JS into
+  `~/.local/share/design-tokens/`; `nix run .#email-signature` writes
+  `~/.local/share/email-signature/signature.html`. Both are also on PATH; flags in each
+  directory's `default.nix`.
 
 ## Userscripts — REMOVED from the fleet entirely (2026-09-14, commit `9067dca7`)
 

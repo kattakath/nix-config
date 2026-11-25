@@ -82,7 +82,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   and the question it asked no longer exists.** It weighed ContextForge as a **PORTAL-layer**
   candidate, not as `mcp-proxy`'s successor; both the proxy and that portal are destroyed, so
   there is no succession to decide. Kept for the comparison itself (a portal is live again since
-  2026-11-14, for Google's Workspace servers only), and for the finding that closed it: a remote portal structurally **cannot**
+  2026-11-14), and for the finding that closed it: a remote portal structurally **cannot**
   inject per-user credentials into a local child — the one axis the Cloudflare portal lost on, and
   the exact thing `local.pluginMcp` does by keeping the launcher local);
   [`ADR-007`](../agent-interop-adr.md) (decided, **partially implemented**: **ACP** — Zed's
