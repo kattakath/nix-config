@@ -20,6 +20,10 @@ Only skip asking when a sensible default lets you proceed on your own; but when 
 ask, it must be selectable options. (The tool always offers an "Other" free-text escape,
 so nothing is lost by defaulting to options.)
 
+**Unrequested next steps are not decisions** (Ismail, 2026-11-25). Work he did not ask for
+goes in **one `Next:` line**, with no question. Only when a decision question is already
+open does it ride along there as an extra option.
+
 ## Run it yourself — never hand Ismail a command to type (strict)
 
 **You run commands. He authenticates.** Handing back a command to paste is a *failed*
@@ -31,8 +35,9 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
    unapproved command simply never runs. Do not probe first, do not ask permission to try,
    do not ask for `sudo -v`. Just issue the real command. (Verified 2026-09-15:
    `sudo darwin-rebuild switch` ran fine straight from a tool call.)
-2. **Only if a mechanism genuinely forbids you**, hand it over — and then `pbcopy` it so he
-   pastes rather than types. That mechanism is the `permissions.deny` list in
+2. **Only if a blocking mechanism forbids you** — a **deny rule**, a **managed setting**, or
+   a **blocking hook**, nothing else — hand it over, and then `pbcopy` it so he pastes
+   rather than types. Here the deny rule is the `permissions.deny` list in
    `modules/home/claude-guardrails.nix` — the **secret-egress** families only, so re-read the
    file rather than quoting this line from memory: secret REVEAL (`secret reveal *`,
    `security find-*-password -w*`, and environment dumps — `env`, `printenv`, `set`,
@@ -64,7 +69,8 @@ answer, not a polite one — it moves your work onto him. The order is fixed:
 
 "It needs sudo", "it is interactive", "it is safer if you do it", and "it is destructive"
 are **not** reasons to delegate — 1–2 above is the whole list. When you do hand something
-over, say WHICH mechanism forbade you, so the claim is checkable rather than an excuse.
+over, say WHICH mechanism forbade you **and where it lives** (file and rule), so the claim
+is checkable rather than an excuse.
 
 Corollary: `pbcopy` is for the handover case and for values he must paste (secrets, OTPs,
 long strings — see § Redact). It is not a substitute for doing the work.
@@ -104,13 +110,39 @@ corroborated the work. It must not repeat.)
 which mechanism records a fact, where a file lives, how a thing is verified, and how work
 lands. "How should I do this?" is itself a reuse decision.
 
+### The handles — say one, apply the whole rule
+
+**`motto` is the umbrella: it means every row below.** Naming one handle (in a prompt, a
+review, a commit) means applying that **whole** row, the stricter part included. The
+standard anchor is where the rule starts, not all of it. There is no second umbrella word.
+This table is the **single source**: a team subset elsewhere links here and checks itself
+for drift against the block between the markers, so keep handle names byte-stable.
+
+<!-- motto-handles:begin -->
+| Handle | Rule | Standard anchor | The stricter part the anchor misses | Home |
+|---|---|---|---|---|
+| **look first** | Look first. Adopt the most widely adopted standard, tool, pattern or research before building. | NIH avoidance; Choose Boring Technology; Golden Path | **~2x** weight for off-the-shelf. "Nothing exists" counts only after a real search. Vet it: run it, read what ships, own the pin. **Pins:** our own marketplaces auto-update on `stable`; a third-party one pins a reviewed ref, bumped by PR. Name the rejected option. | bullets below |
+| **one source** | Every fact has exactly one home; everything else is derived. | SSOT; DRY (Hunt & Thomas) | A migration **retires the old copy in the same task**: copy → verify → retire. | this row |
+| **as-code** | A manual step becomes code; a doc is generated from its source. | Everything-as-Code; Docs-as-Code; OpenGitOps | What can't be code gets a **CI drift check** (read-only, it reports). Lean: near-zero redundancy. | this row |
+| **receipts** | Every non-trivial claim or choice carries math, data or precedent, checked at the source now. | ADR / MADR; evidence-based SE | Name the **rejected option** and the **weakest assumption**. Verify before telling anyone. Absence of evidence is **never** an accusation. | bullets below; § Assume good faith |
+| **staff work** | Hand over finished work: run it yourself; the human only authenticates or decides. | Completed Staff Work (US Army, 1942) | Decisions are click-to-select, recommended first, full context (ID, purpose, cost). Never end a turn on an open decision. An **unrequested next step** is one `Next:` line, never a question — unless a decision question is already open, then it rides along as an option. Re-check the trail before re-asking. **Hand over** only when a deny rule, a managed setting or a blocking hook forbids it, and **name which one and where**. | § Decisions; § Run it yourself |
+| **exceptions only** | Every open loop has a watcher; green is silence; speak only when someone must act. | Management by exception; SRE actionable alerting | Covers asks to people too (reply-watch). **Never poll in the foreground.** Bundle; progress goes on the PR. | § CI waits; § Landing |
+| **gates** | Irreversible or outward steps need a live yes. | Two-person rule / change approval | A **timeout is NO**. An owner's rules (secrets, customer files, off-limits systems) are final. Never destroy what a teammate confirmed works. **Never reword or swap tools to get past a guard**: run the real command so the block or prompt reaches him. | this row; § Decisions |
+| **plain shape** | Verdict first, bullets, tables, re-entry headings, active voice. | BLUF; plain language; W3C COGA Obj. 3 | **Mandatory, not style.** Diagrams only when they carry data, ≤80 cols, measured. | § Answer shape; § Diagrams |
+| **no data** | Repos hold code and procedures, never facts about people or the business. | (12-Factor Config is too narrow) | Test: "would this line read the same for a different person?" Paths to data stay out too. **Home is split by reader:** personal → Google; work → the employer's own stores. | § No data |
+| **push main** | On his own fleet repos: push to trunk, leak-gate first, fix forward. | Trunk-based development | **Leak gates are the only mandatory pre-push step.** A third-party pin bump is the PR exception § Landing allows. | § Landing |
+<!-- motto-handles:end -->
+
+The bullets below are the home of **look first** and **receipts**.
+
 - **Search before you build.** Weight an existing off-the-shelf tool / standard / library /
   skill / plugin / connector at roughly **2x** over building custom — but the weighting only
   applies once you have actually looked. An unsearched "nothing exists" is a guess, not a
   finding. Go custom only when off-the-shelf genuinely cannot fit — and say why.
 - **Reuse is vetted, not blind.** Adopting something is a claim that it works *here*: run it,
   read what it actually ships, and own its pin. An upstream can arrive broken, or quietly gut
-  itself in a later version while the name and the install keep working.
+  itself in a later version while the name and the install keep working. Owning the pin
+  splits by author: **our own** marketplaces auto-update on their `stable` ref; a **third-party** marketplace pins a reviewed ref, bumped by PR.
 - **One source of truth.** Extend the thing that already holds this rather than adding a
   parallel copy. Two copies of the same content from two pins drift, and the drift is silent
   — a distinct failure from hand-rolling, and more expensive to find.
@@ -274,12 +306,15 @@ is sensitive, treat it as sensitive.
 ## No data in any repository — every project, including future ones
 
 Ismail, 2026-11-01: repos are built to **go public** once mature, so **no repository ever
-carries data**. Repos hold procedures, code and generic config. Every fact — documents,
-balances, transactions, journals, decisions, run logs, per-person config — lives in **Google
-Workspace / Google Cloud**, chosen precisely because it keeps the data portable.
+carries data**. Repos hold procedures, code and generic config. Every **personal** fact —
+documents, balances, transactions, journals, decisions, run logs, per-person config — lives
+in **Google Workspace / Google Cloud**, chosen precisely because it keeps the data portable.
 
+- **The home is split by reader** (Ismail, 2026-11-25). Personal → Google, as below. Work
+  facts live in the **employer's own stores**, which that employer's project context names
+  (human-edited files apart from machine state). Customer files go in neither.
 - **The test:** would this line read the same for a different person? No → it is data → its
-  home is Drive, Sheets, Tasks or Calendar, never a repo file.
+  home is Drive, Sheets, Tasks or Calendar (or the employer's store), never a repo file.
 - **Paths to personal data stay out too.** Reach a Drive folder through an env var or a
   symlink the operator creates, never a path written into the repo.
 - **Tool state that defaults into `~/.local/state`** (run logs, caches) is pointed at Drive
@@ -391,8 +426,9 @@ agentic-jobseek's career evidence store.
   Every scratch reset becomes a click for Ismail. Measured 2026-11-07: **53 of 80** Bash
   prompts came from this one rule. Subagents don't see the main session's memory, so this
   rule lives here, where they do read it.
-- **Never reword to dodge it** (`rm -r`, `find -delete`). When something really must be
-  deleted, run the real command and let the prompt reach him.
+- **Never reword to dodge it** (`rm -r`, `find -delete`, a Python `shutil.rmtree`): the
+  **gates** handle in § Motto covers every guard, and swapping tools counts as rewording.
+  When something really must be deleted, run the real command and let the prompt reach him.
 - **Multi-line scripts go in a file, never inline.** Write the script to the scratchpad and
   run it by path (`python3 -I "$S/x.py" args`). Never inline a multi-line body through
   `python3 -c '…'`, `bash -c "…"` or similar. Claude Code's built-in Bash parser can't
