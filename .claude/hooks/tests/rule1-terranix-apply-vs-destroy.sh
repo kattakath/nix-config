@@ -99,6 +99,7 @@ ckn "dead-man alarm"                "$NR .#hc-checks-apply"
 ckn "contact point"                 "$NR .#grafana-apply"
 ckn "branch protection"             "$NR .#github-apply"
 ckn "stays forced"                  "$NR .#gws-chrome-apply"
+ckn "whole RAG corpus"              "$NR .#cf-ai-search-apply"
 ckn "branch protection"             "secret exec GITHUB_TOKEN=gh:github.com:pat -- $NR .#github-apply -- /abs/x.tfplan"
 
 echo "== the nudge survives the same evasions the decision does =="

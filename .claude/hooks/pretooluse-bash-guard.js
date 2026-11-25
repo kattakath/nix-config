@@ -246,6 +246,7 @@ const TERRANIX_APPLY_WORST_CASE = {
   grafana: "a render dropping an object DELETES it in Grafana Cloud (alert rules, the contact point, a datasource whose key exists nowhere else)",
   github: "a dropped ruleset DELETES a fleet repo's branch protection, and a stale template pin rolls every ruleset back",
   "gws-chrome": "every row is force-installed on every enrolled browser, and a dropped row stays forced while state says it is gone",
+  "cf-ai-search": "a replaced or dropped instance DELETES every indexed item, the whole RAG corpus, which lives nowhere else",
 };
 
 // The DESTROY half of that family, split out 2026-09-22 so `apply` can relax
