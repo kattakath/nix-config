@@ -298,14 +298,6 @@ in
         runnerName = "macos-tart";
         runnerId = 54669377;
         tokenFile = config.age.secrets."gitlab-runner-token".path;
-        # gitlab-runner 19.5.x's kubernetes TEST files fail to compile on darwin
-        # (`undefined: newTestExecutorWithKubeClient`, measured 2026-11-25 on the
-        # nixpkgs-weekly lock of PR #1137), so its checkPhase cannot build. Skip the
-        # tests only, and only from 19.5 on: under an older lock this is a no-op (same
-        # drvPath). DROP once nixpkgs' gitlab-runner builds its checks on darwin again.
-        package = pkgs.gitlab-runner.overrideAttrs (
-          old: lib.optionalAttrs (lib.versionAtLeast old.version "19.5") { doCheck = false; }
-        );
         concurrent = 2;
         # A pipeline written for the SHELL runner this replaced names no `image:`
         # in its jobs; every one failed in prepare

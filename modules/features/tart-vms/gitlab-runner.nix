@@ -153,8 +153,16 @@ in
     };
     package = lib.mkOption {
       type = lib.types.package;
-      default = pkgs.gitlab-runner;
-      defaultText = "pkgs.gitlab-runner";
+      # gitlab-runner 19.5.x's kubernetes TEST files fail to compile on darwin
+      # (`undefined: newTestExecutorWithKubeClient`, measured 2026-11-25 on the
+      # nixpkgs-weekly lock of PR #1137), so its checkPhase cannot build. Skip the
+      # tests only, and only from 19.5 on: under an older lock this is a no-op (same
+      # drvPath). In the DEFAULT, not the host, so this capsule's own eval checks
+      # build too. DROP once nixpkgs' gitlab-runner builds its checks on darwin again.
+      default = pkgs.gitlab-runner.overrideAttrs (
+        old: lib.optionalAttrs (lib.versionAtLeast old.version "19.5") { doCheck = false; }
+      );
+      defaultText = "pkgs.gitlab-runner (tests skipped from 19.5 on)";
     };
   };
 
