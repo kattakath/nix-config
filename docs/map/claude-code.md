@@ -131,8 +131,8 @@ file's `paths:` frontmatter is the source of truth.
 - [`pr-title.md`](../../.claude/rules/pr-title.md) — a commit subject (and the rare PR title) is
   the comma-separated list of the components the change touches (first-level `nix flake show`
   output category for flake outputs, or a top-level dot-folder with its dot stripped). Also
-  states the default shape: **one commit per change, pushed to `main`**; a PR only for bots,
-  forks, on request, or a change that needs `build-darwin` first.
+  states the default shape: **one commit per change, pushed to `main`**; a PR only in the cases
+  global § Landing lists, plus (here) a change that needs `build-darwin` first.
 - [`landing-changes.md`](../../.claude/rules/landing-changes.md) — how a change LANDS: a
   direct push to `main` after the leak gates, with the `ci-watch` plugin reporting only
   failures. Holds this repo's local checks and traps. The procedure itself is in the global
@@ -408,7 +408,7 @@ input's **store path**, which carried none of the relative-literal trap the olde
 any file in any flake. Today the source is the https URL, so neither trap applies.
 
 `modules/home/claude-plugins.nix` contributes only the **declaration** for this marketplace:
-its `extraKnownMarketplaces` entry (`{ source = "git"; url = …; autoUpdate = true; }`) and the
+its `extraKnownMarketplaces` entry (`{ source = { source = "git"; url; ref = "stable"; }; autoUpdate = true; }`) and the
 `<plugin>@kattakath` keys of `enabledPlugins` — only for the always-on set, never one per
 catalogue entry (the `enabledPlugins`
 comment in that file says why). It does **not** register or install them — the
