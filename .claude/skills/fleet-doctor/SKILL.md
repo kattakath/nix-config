@@ -289,7 +289,10 @@ the model picks either copy. The fleet removes known twins with NAME denies
 fails SILENTLY if upstream renames the server key, and this step is the guard. Report only:
 
 ```bash
-claude mcp list 2>/dev/null | grep -cE '^plugin:(aws-core|aws-serverless|cloudflare|slack|neon):'   # must print 0
+denied=$(nix eval --raw "$snap#darwinConfigurations.macos.config.home-manager.users.$(id -un).programs.claude-code.settings.deniedMcpServers" \
+  --apply 'l: builtins.concatStringsSep "|" (map (d: builtins.elemAt (builtins.split ":" d.serverName) 2) l)')
+[ -n "$denied" ] || echo 'VACUOUS: deniedMcpServers did not evaluate'
+claude mcp list 2>/dev/null | grep -cE "^plugin:($denied):"                    # must print 0
 claude mcp list 2>/dev/null | grep -c  '^plugin:[^:]*:aws-mcp:'               # must print 0
 claude mcp list 2>/dev/null | grep -c  '^claude\.ai AWS MCP:'                  # must print 0 or 1 (at most one AWS path)
 ```
@@ -300,11 +303,13 @@ account, and an agent session never runs it, not even to list servers (operator'
 
 A missing command prints nothing to grep, and `grep -c` then prints 0 — a pass that checked
 nothing. `vacuousWhen` below covers it: a profile whose `mcp list` printed zero servers is
-VACUOUS, not clean.
+VACUOUS, not clean. So is an empty `$denied`: the pattern `^plugin:():` matches nothing.
 
-The first line asks whether the server-denied plugins (every `serverName` in
-`deniedMcpServers`; keep this list in step with it) start ANY server, not whether a
+The first `grep` asks whether the server-denied plugins start ANY server, not whether a
 name is gone: a renamed server key would slip past a name check but still shows up here.
+The plugin list is DERIVED: `$denied` is the `<plugin>` field of every
+`plugin:<plugin>:<server>` entry in `deniedMcpServers`, read at the subject SHA, so a new
+deny needs no edit here.
 Non-zero means a deny no longer matches, so read that profile's `mcp list` and update the
 `serverName` entry.
 

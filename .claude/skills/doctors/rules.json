@@ -550,7 +550,7 @@
       "checkKey": "macos:mcp-twins",
       "detect": "the three mcp list | grep -c lines in fleet-doctor § E4, run on the default profile only (claude; must print 0, 0, and 0 or 1). The work profile is never run by an agent session",
       "evidence": ["the line and its count", "the server name that slipped the deny"],
-      "vacuousWhen": "a profile's mcp list printed zero servers (or the command is missing)"
+      "vacuousWhen": "a profile's mcp list printed zero servers (or the command is missing), or deniedMcpServers evaluated to an empty plugin list"
     },
     {
       "id": "FD-E6-drift",
