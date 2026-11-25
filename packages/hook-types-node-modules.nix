@@ -5,9 +5,9 @@
 # of a GC-rooted out-link.
 #
 # Pins, and why each:
-#   SDK 0.3.300  its package.json `claudeCodeVersion` is 2.1.300, the `claude-code`
-#                nixpkgs ships at this pin: the types describe the CLI the fleet
-#                actually runs. Bump it WITH the claude-code bump.
+#   SDK 0.3.330  its package.json `claudeCodeVersion` is 2.1.330, the `claude-code`
+#                the nixpkgs-claude-code input ships: the types describe the CLI the
+#                fleet actually runs. Bump it WITH that input's claude-code bump.
 #   @types/node  24.19.2 — the node 24 line nixpkgs' `nodejs` is on.
 # Both tarballs are fixed-output fetches whose hash IS the registry's own
 # `dist.integrity` (sha512 SRI), so the pin is checkable with `npm view`.
@@ -33,8 +33,8 @@ let
       inherit hash;
     };
   agentSdk =
-    npmTarball "@anthropic-ai/claude-agent-sdk" "0.3.300"
-      "sha512-3NGPEUj+VTMQAQ0vaUUQtrce6rNb9a4XhY8QKIOLUp9mDkdbwrrjjD9oMKcDpcLhFKqZdTc02RBUo55GrbY9CA==";
+    npmTarball "@anthropic-ai/claude-agent-sdk" "0.3.330"
+      "sha512-7om9Xus6tfkeCUCfzg6ilJuN6Z7okkEvJ0mx+ukXa/Id5U/6BGtPkOYni+3ebedwa3b9SVF7A05+ln+/9EoU/w==";
   typesNode =
     npmTarball "@types/node" "24.19.2"
       "sha512-93d49wCWJkCyN87MxLpNN6KXPCwFw7bVUg79mGUV1OS40JGWwVCr8n61DXCSqz7CV6/VfPkb7xec7uP2M+QHWQ==";
