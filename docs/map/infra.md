@@ -53,6 +53,8 @@ block does.
 `modules/_lib/keychain-items.nix`. Dropping an
 app needs the operator's `CF_MCP_PORTALS_ALLOW_DROPS=1`.
 
+`cf-ai-search-{plan,apply}`: the same — run it bare and its ERROR prints the `secret exec` line.
+
 State is the shared, versioned bucket `kattakath-tofu-state` (named once, as
 `fleet.gcpStateBucket`), **encrypted** with a passphrase
 read from the login Keychain at run time via `TF_ENCRYPTION` (ADR-005 phase 1 —
