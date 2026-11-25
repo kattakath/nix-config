@@ -19,7 +19,8 @@
 #       operation to DELETE a key (`enable` on an enabled key is a no-op, and the
 #       only removal is hand-editing disabled.<uid>.plist), so an `enabled`
 #       leftover is untouchable and printing it is noise wearing a remedy
-#   (e) fleet-shaped logs in ~/Library/Logs that no installed unit writes
+#   (e) fleet-shaped logs in ~/Library/Logs that no installed plist writes (any
+#       plist in the scanned dirs, not only fleet ones, claims its own logs)
 #   (f) UNBOUNDED power assertions — a `caffeinate` holding one with no release
 #       condition at all. Not a launchd unit, and the one section here that is
 #       not; it is here because a leaked wake assertion has exactly the shape
@@ -284,9 +285,17 @@ writeShellApplication {
 
     # ---- (e) fleet-shaped logs no installed unit writes ----------------------
     echo "--- ~/Library/Logs: fleet-shaped, written by no installed unit ---"
+    # A log is CLAIMED by any plist in the scanned dirs, fleet-labelled or not: a
+    # hand-placed non-fleet agent whose StandardOutPath/StandardErrorPath is a
+    # kebab-case ~/Library/Logs file is that agent's live log, not fleet litter.
+    # (a)-(d) stay fleet-only; only this ownership lookup widens. No label is
+    # printed for a non-fleet plist — the log is simply skipped.
     declare -a declared=()
-    for p in "''${plists[@]}"; do
-      while IFS= read -r f; do [ -n "$f" ] && declared+=("$f"); done < <(logs_of "$p")
+    for d in "$HOME/Library/LaunchAgents" /Library/LaunchAgents /Library/LaunchDaemons; do
+      [ -d "$d" ] || continue
+      while IFS= read -r p; do
+        while IFS= read -r f; do [ -n "$f" ] && declared+=("$f"); done < <(logs_of "$p")
+      done < <(find "$d" -maxdepth 1 -name '*.plist')
     done
     while IFS= read -r f; do
       for d in "''${declared[@]:-}"; do [ "$d" = "$f" ] && continue 2; done
