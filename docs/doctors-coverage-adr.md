@@ -207,8 +207,8 @@ Report only what step 3 prints as new findings or BROKEN, one line each. If noth
 ```
 
 **Why step 2 fans out (2026-11-04).** The first unattended run, one agent doing the whole
-checklist, reported 1 finding at `0b00126`; an interactive run with one auditor per dimension
-reported 9 at `b0bf99b` 15 minutes later, a tree that differs only by an ADR edit. A judged
+checklist, reported 1 finding at `f2fda769`; an interactive run with one auditor per dimension
+reported 9 at `881b3207` 15 minutes later, a tree that differs only by an ADR edit. A judged
 rule's depth varies with the agent's attention, and a deterministic output format does not make
 coverage deterministic, so the weekly run uses the same fan-out the interactive pass does.
 
@@ -385,7 +385,7 @@ Where § 7–9 were silent, the implementation chose the simplest option. Each i
 | The workflow | `nix-hygiene-pass` takes `{mode, root}`; its Fix phase runs only in `fix`; auditors return `ruleId` and per-rule `coverage` | it was the last path that fixed by default |
 | The scheduled run's entry point (2026-11-04) | a `weekly` subcommand of `doctor-report`, not a new app | it reuses `validate`, `diff` and the state dir; a second package would be a second copy of them. The runitor + `secret exec` ping is `terranix-drift`'s, with the exit inverted: findings exit 0 |
 | FD-D-hygiene's finding IDs (2026-11-04) | **Wrap**, never re-hash: `FD-D-hygiene/<the SARIF's findingId/v1>` per failing result, `FD-D-hygiene/<NH rule>/vacuous` per `notApplicable` rule, printed by `doctor-report hygiene-for` | one finding, one ID: the old `FD-D-hygiene/<hash of the NH id>` lost the NH id, so the two doctors' diffs could not be matched. The wrap keeps the one `<ruleId>/` clause in `validate`; stripping the prefix gives the SARIF's ID. The `/vacuous` ID keeps an all-vacuous hygiene run (verdict 2) from reading as FD-D `pass` |
-| FD-D-hygiene's subject (2026-11-04) | `hygiene-for SHA` exits **3** when the SARIF's `revisionId` is another SHA, printing the `skipped: hygiene run is for <sha12>, subject is <sha12>` object; `validate HEALTH SARIF` rejects an FD-D carrying findings from such a run | a real run at `6983a14` reported 17 FD-D findings from a hygiene run at `512c20a`, all 17 already fixed by #1086 and #1087. `weekly` does not cross-check, because the two `latest` runs may legitimately be for different SHAs |
+| FD-D-hygiene's subject (2026-11-04) | `hygiene-for SHA` exits **3** when the SARIF's `revisionId` is another SHA, printing the `skipped: hygiene run is for <sha12>, subject is <sha12>` object; `validate HEALTH SARIF` rejects an FD-D carrying findings from such a run | a real run at `52fb17ef` reported 17 FD-D findings from a hygiene run at `38657cff`, all 17 already fixed by #1086 and #1087. `weekly` does not cross-check, because the two `latest` runs may legitimately be for different SHAs |
 | "Previous run" and freshness | previous = the newest `<UTC>.<ext>` name sorting before `latest`'s; a `latest` older than 24 h is broken | the file name is `publish`'s own record of the run time; a symlink's mtime moves on every `ln -sfn` |
 
 **Weakest assumption.** The SARIF schema's `uri` format goes unchecked: nixpkgs'

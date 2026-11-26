@@ -4289,6 +4289,16 @@ in
                   exit 1
                 fi
                 void=" ${lib.concatStringsSep " " void} "
+                # REACHABLE from a remote ref, not merely present: a local clone keeps
+                # unreachable pre-rewrite objects, so `git cat-file -e` passed four dead SHAs
+                # on the Mac that CI's fresh clone rejected (2026-11-25).
+                tmpd=$(mktemp -d)
+                trap 'rm -r "$tmpd"' EXIT
+                git rev-list --remotes > "$tmpd/reachable.txt"
+                if [ ! -s "$tmpd/reachable.txt" ]; then
+                  echo "docs-shas-resolve: no remote refs to judge against (git fetch first)." >&2
+                  exit 1
+                fi
                 seen=0
                 dead=()
                 # `abc1234` in backticks, or "commit(s) abc1234"; at least one digit AND one
@@ -4299,7 +4309,7 @@ in
                   case "$sha" in *[a-f]*) ;; *) continue ;; esac
                   seen=$((seen + 1))
                   case "$void" in *" $sha "*) continue ;; esac
-                  git cat-file -e "$sha^{commit}" 2>/dev/null || dead+=("$file: $sha")
+                  grep -q "^$sha" "$tmpd/reachable.txt" || dead+=("$file: $sha")
                 done < <(git ls-files -z '*.md' | grep -zv '^.claude/worktrees/' |
                   xargs -0 grep -o -H -E '`[0-9a-f]{7,40}`|commits? [0-9a-f]{7,40}\b' |
                   sed -E 's/^([^:]*):.*[` ]([0-9a-f]{7,40})`?$/\1:\2/' | sort -u)
