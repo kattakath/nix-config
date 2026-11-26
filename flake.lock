@@ -183,6 +183,23 @@
         "url": "https://install.determinate.systems/determinate-nixd/tag/v3.24.3/x86_64-linux"
       }
     },
+    "files": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1795632906,
+        "narHash": "sha256-KRk/zJl8iqm7MFY9qRYaOEadxaSoG8hYRlcQDNCVhVs=",
+        "owner": "mightyiam",
+        "repo": "files",
+        "rev": "3c14e6fc4450ffa0ea73ef1ac1613cdc7c5e9d50",
+        "type": "github"
+      },
+      "original": {
+        "owner": "mightyiam",
+        "repo": "files",
+        "rev": "3c14e6fc4450ffa0ea73ef1ac1613cdc7c5e9d50",
+        "type": "github"
+      }
+    },
     "flake-compat": {
       "flake": false,
       "locked": {
@@ -359,20 +376,17 @@
         "flake-parts": [
           "flake-parts"
         ],
-        "nix-local-rag": "nix-local-rag",
         "nixpkgs": [
           "nixpkgs"
         ],
-        "treefmt-nix": [
-          "treefmt-nix"
-        ]
+        "repo-kit": "repo-kit"
       },
       "locked": {
-        "lastModified": 1795175501,
-        "narHash": "sha256-AuDlNRBwz18eB8lXu9C50H78ZeTmWNYyegDfO3RqW8I=",
+        "lastModified": 1795723131,
+        "narHash": "sha256-Ijq2UtyaPSzQEX+pwD6rjf1rTod0TFa4+//0sTD7ofY=",
         "owner": "kattakath",
         "repo": "ircc-whatsapp-bot",
-        "rev": "2ed9257eac1a009f3894d6ad9d7cc61959a3222b",
+        "rev": "8d266baa33e7355c75e210b1d316c87ed0e3883d",
         "type": "github"
       },
       "original": {
@@ -537,33 +551,6 @@
         "type": "github"
       }
     },
-    "nix-local-rag": {
-      "inputs": {
-        "flake-parts": [
-          "flake-parts"
-        ],
-        "home-manager": [
-          "home-manager"
-        ],
-        "nixpkgs": [
-          "ircc-whatsapp-bot",
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1787877557,
-        "narHash": "sha256-rtCMS4qnAprDLSLoXeF2BQyR6xW4ETXQunKHqvZbuy4=",
-        "owner": "kattakath",
-        "repo": "nix-local-rag",
-        "rev": "ff74863574390aa10372d4b81fb33992058950c1",
-        "type": "github"
-      },
-      "original": {
-        "owner": "kattakath",
-        "repo": "nix-local-rag",
-        "type": "github"
-      }
-    },
     "nix-plist-manager": {
       "inputs": {
         "nixpkgs": [
@@ -699,6 +686,33 @@
       "original": {
         "type": "tarball",
         "url": "https://flakehub.com/f/DeterminateSystems/nixpkgs-weekly/0.1"
+      }
+    },
+    "repo-kit": {
+      "inputs": {
+        "files": "files",
+        "flake-parts": [
+          "flake-parts"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "treefmt-nix": [
+          "treefmt-nix"
+        ]
+      },
+      "locked": {
+        "lastModified": 1795691613,
+        "narHash": "sha256-nJhll/Xza4oPeq6gFSDge66Z3ApWB+fA2t8d11wIh4k=",
+        "owner": "ismailkattakath",
+        "repo": "repo-kit",
+        "rev": "3b0b55ef58b50b30ba525849a3904383cabda082",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ismailkattakath",
+        "repo": "repo-kit",
+        "type": "github"
       }
     },
     "root": {
