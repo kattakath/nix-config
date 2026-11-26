@@ -93,6 +93,16 @@ is this real, what fixes it — never into choosing what to check or how severe 
 The run's own exit code is the verdict's. A rule the run never reached has no result, and
 `validate` rejects the file: unaudited is not clean.
 
+**Skip what a gate already proves** ([ADR-014](../../../docs/docs-as-code-adr.md) § 3):
+
+- Never read or audit text between `<!-- BEGIN GENERATED: <name>` and `<!-- END GENERATED:
+  <name> -->`. `hosts-documented` proves every such span equals its render.
+- A fact that a `checks.<system>.*` gate proves is § F's finding when the gate is red, not a
+  hand audit's. Read the gate's failure instead of re-deriving the fact from prose.
+- **Token accounting (ADR-014 § 6):** set `runs[0].properties.claudeSessionId` to this
+  session's UUID, the session segment of your scratchpad path. It joins the run to
+  `claude_code_token_usage_tokens_total` by `session_id`.
+
 ## Path → responsibility map
 
 | Path | Owns | Typical flake output |

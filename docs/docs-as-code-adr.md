@@ -83,7 +83,7 @@ checks inventory is still never generated.
 4. **B — SHIPPED:** `values-once`, first entry `fleetAppId` (the most-copied literal). An entry
    reads its value from the evaluated config, never from a second literal. Add one entry per
    binding that hygiene finds copied.
-5. **Audit wiring:** `nix-hygiene` (the skill and the `nix-hygiene-pass` workflow) skips
+5. **Audit wiring — SHIPPED:** `nix-hygiene` (the skill and the `nix-hygiene-pass` workflow) skips
    marked spans. Each run records its Claude Code `session.id` in the SARIF `run.properties`.
    Every `rules.json` key stays, because `doctor-report validate` requires them.
 
