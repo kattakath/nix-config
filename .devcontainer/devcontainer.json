@@ -52,8 +52,7 @@
         "jnoortheen.nix-ide",
         "gruntfuggly.triggertaskonsave",
         "fuadpashayev.bottom-terminal",
-        "shd101wyy.markdown-preview-enhanced",
-        "ms-azuretools.vscode-containers"
+        "shd101wyy.markdown-preview-enhanced"
       ],
       "settings": {
         // nixd/nixfmt resolve from the baked PATH.

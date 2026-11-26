@@ -49,7 +49,7 @@ let
   # (modules/parts/devshell.nix) fetches it from Anthropic on `nix develop`.
   extraTools = with pkgs; [
     nix
-    nodejs_22
+    nodejs-slim_22 # `node` only: the hooks need no npm/corepack (image -12.4 MiB, measured)
     gh
     bashInteractive
     coreutils
