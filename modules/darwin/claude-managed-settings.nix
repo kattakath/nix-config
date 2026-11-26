@@ -203,6 +203,11 @@
 let
   cfg = config.local.claudeManagedSettings;
 
+  # One source: the marketplaces the primary user's settings.json already declares.
+  userMarketplaces =
+    config.home-manager.users.${config.system.primaryUser}.programs.claude-code.settings.extraKnownMarketplaces
+      or { };
+
   systemDir = "/Library/Application Support/ClaudeCode";
   target = "${systemDir}/managed-settings.json";
   ownedMarker = "${systemDir}/.nix-config-owned";
@@ -460,31 +465,16 @@ let
         repo = "trailofbits/*";
       }
 
-      # Every git-source marketplace modules/home/default.nix declares, spelled
-      # exactly as it declares them, so nothing in flight depends on the wildcard
-      # inference. A marketplace declared there but missing here is REFUSED at
-      # `marketplace add` ("blocked by enterprise policy") — measured 2026-10-26.
-      {
-        source = "git";
-        url = "https://github.com/kattakath/skills.git";
-      }
-      {
-        source = "git";
-        url = "https://github.com/upstash/context7.git";
-      }
-      {
-        source = "git";
-        url = "https://github.com/trailofbits/skills.git";
-      }
-      {
-        source = "git";
-        url = "https://github.com/Jeffallan/claude-skills.git";
-      }
-      {
-        source = "git";
-        url = "https://github.com/grafana/skills.git";
-      }
-
+    ]
+    # Every git-source marketplace the operator's Home Manager profile declares,
+    # DERIVED from the very `extraKnownMarketplaces` it renders
+    # (modules/home/claude-plugins.nix), so the spelling matches byte for byte, `ref`
+    # included. A declared marketplace missing here is REFUSED at `marketplace add`
+    # ("blocked by enterprise policy", measured 2026-10-26), and the hand-spelled
+    # list this replaced did exactly that: it had no `ref`, so the 2026-11-25 pins
+    # (`stable` + four SHAs) left 32 plugins "added but ignored" in BOTH profiles.
+    ++ lib.filter (src: src.source == "git") (lib.mapAttrsToList (_: mp: mp.source) userMarketplaces)
+    ++ [
       # The store-path marketplace, and the ~/.claude/skills/ auto-load.
       {
         source = "pathPattern";
