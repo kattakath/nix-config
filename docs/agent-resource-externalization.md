@@ -37,7 +37,7 @@ community resource.
 | `page-lab`, `llmstxt`, `superhook`, `nix-flake-kit` plugins **and** `rag`, `nix-dev-toolkit`, `android-phone` skills | `github:kattakath/ai` | `kattakath-ai` — **one repo per owner since 2026-09-14** (`claude-plugins` renamed, `claude-skills` absorbed then archived) |
 | public userscripts | `github:kattakath/userscripts` | ~~`kattakath-userscripts`~~ — **pin dropped 2026-09-14** |
 | private userscripts | `[redacted]/userscripts` | ~~pinned by **[redacted]**~~ — **pin dropped 2026-09-14** |
-| `seargraph` agent | `ismailkattakath/SEARGraph` `.claude/agents/` | nothing — see § Deletions |
+| `seargraph` agent | a private project's `.claude/agents/` | nothing — see § Deletions |
 
 Lock nodes at the time: **56 → 59**.
 
@@ -224,7 +224,7 @@ factoring working: `superhook` supervises, the guard decides.
   *scoping*: `programs.claude-code.agents` installs globally, a plugin is per-project. The
   reasoning was right and the mechanism was wrong — **a project's own `.claude/agents/` is
   the canonical way to scope an agent**, and needs no plugin, no marketplace entry and no
-  Nix wiring. The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`. Net:
+  Nix wiring. The file now lives in that private project's `.claude/agents/`. Net:
   one fewer plugin, one fewer agent in the global list, one fewer thing to pin.
 
 ## One footgun this closes for free

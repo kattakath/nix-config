@@ -429,7 +429,7 @@ Two of them carry write-ups worth keeping:
   2026-11-14 with the ungoogled-chromium browser it attached to.
 
 **`seargraph` was deleted, not moved into that repo (2026-09-12).** It was the
-`seargraph-langgraph` subagent (LangGraph pipeline design for the private SEARGraph project:
+`seargraph-langgraph` subagent (LangGraph pipeline design for a private project:
 fidelity metrics, constrained optimization, iterative refinement, character embeddings),
 wrapped in a plugin as a SCOPING choice — corrected 2026-09-06, the earlier claim that "only a
 plugin can ship a subagent" is false. The pinned home-manager DOES expose
@@ -440,7 +440,7 @@ What that option cannot do is scope the agent: it installs GLOBALLY into `~/.cla
 The scoping reasoning was right and the mechanism was wrong. **A project's own
 `.claude/agents/` is the canonical way to scope an agent** — no plugin, no marketplace entry,
 no Nix wiring, and it cannot be loaded in sessions that have nothing to do with that project.
-The file now lives at `SEARGraph/.claude/agents/seargraph-langgraph.md`.
+The file now lives in that private project's `.claude/agents/`.
 
 Adding one = a `plugins/<name>/` tree
 and a `marketplace.json` entry **in that repo** — nothing to list here. Turning the plugin on

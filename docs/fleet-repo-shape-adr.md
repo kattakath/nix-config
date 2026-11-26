@@ -109,7 +109,7 @@ and which community standards measure it?
 |---|---|
 | website | Rebuild in Astro (draft PR #1); design-system folds in |
 | workspace-studio | Rename to `free-rag` |
-| SEARGraph | Rename to `sear-graph`, archive (private) |
+| One private research repo | Rename to kebab-case, archive (private) |
 | design-system | Make public after a history scan for secrets and data |
 | dotfiles, the 4 `*-prerewrite-backup` repos | Archive, each confirmed before acting |
 | nix-config, skills, userscripts, agentic-jobseek, scrape-harness | The reference shapes |
