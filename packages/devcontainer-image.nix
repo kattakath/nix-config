@@ -63,6 +63,12 @@ let
     gzip
     xz
     openssh
+    # Fleet Shape Program phase 6 (ADR-016 § 3: `.envrc` = `use flake` + `.env`). nix-direnv
+    # replaces direnv's own `use flake` with a CACHED one: the stock loader re-evaluated the
+    # flake on every reload, the VS Code restart loop that got direnv removed on 2026-06-22
+    # (a0c12251).
+    direnv
+    nix-direnv
   ];
 
   basePackages = devPackages ++ extraTools;
@@ -262,6 +268,20 @@ dockerTools.streamLayeredImage {
              nix/var/nix/daemon-socket
     chmod 0755 nix/var/nix/daemon-socket
 
+    # --- direnv: config OUTSIDE $HOME (DIRENV_CONFIG, below) -------------------
+    # A dotfiles repo or a home volume replaces ~/.bashrc and ~/.config, so the hook and
+    # the nix-direnv loader live in /etc. bashInteractive is built with
+    # SYS_BASHRC=/etc/bashrc, read by every interactive non-login shell (a VS Code
+    # terminal). No whitelist on purpose: trust is per workspace (`direnv allow` from the
+    # consumer's devcontainer.json), never a blanket prefix in a public image.
+    mkdir -p etc/direnv
+    cat > etc/direnv/direnvrc <<'DIRENVRC'
+    source ${pkgs.nix-direnv}/share/nix-direnv/direnvrc
+    DIRENVRC
+    cat > etc/bashrc <<'BASHRC'
+    [[ $- == *i* ]] && eval "$(${pkgs.direnv}/bin/direnv hook bash)"
+    BASHRC
+
     # --- baked nix.conf: multi-user daemon + flakes + public Cachix (read) ----
     # sandbox=false: the build sandbox doesn't work nested in a container.
     # build-users-group= (EMPTY): with NIX_REMOTE=daemon and an empty group,
@@ -296,11 +316,18 @@ dockerTools.streamLayeredImage {
           updateRemoteUserUID = false;
           overrideCommand = false;
           init = true;
+          # The direnv extension, version-pinned (third-party, reaches every consumer),
+          # told the binary's absolute path: an extension host that cannot find direnv on
+          # its PATH was the other half of the 2026-06-22 removal.
+          customizations.vscode = {
+            extensions = [ "mkhl.direnv@0.17.0" ];
+            settings."direnv.path.executable" = "${pkgs.direnv}/bin/direnv";
+          };
         }
       ];
       "org.opencontainers.image.source" = "https://github.com/${orgName}/${repoName}";
       "org.opencontainers.image.description" =
-        "Nix devcontainer: multi-user Nix with a warm store, node, gh. claude-code arrives via nix develop.";
+        "Nix devcontainer: multi-user Nix with a warm store, node, gh, direnv + nix-direnv. claude-code arrives via nix develop.";
     };
 
     # Container/entrypoint runs as ROOT so the nix-daemon starts privileged.
@@ -333,6 +360,8 @@ dockerTools.streamLayeredImage {
       "GIT_SSL_CAINFO=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
       "LANG=C.UTF-8"
       "DEVCONTAINER=true"
+      # direnv's config dir (internal/cmd/config.go reads DIRENV_CONFIG before XDG).
+      "DIRENV_CONFIG=/etc/direnv"
       # nix-ld env contract for FOREIGN (non-Nix) glibc binaries (the VS Code
       # Server's node, prebuilt language servers): the /lib*/ld-linux-*.so.*
       # symlink (fakeRootCommands) lets the kernel EXEC them; these vars let the

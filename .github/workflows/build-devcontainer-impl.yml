@@ -132,6 +132,40 @@ jobs:
             echo "=== smoke test passed ==="
           '
 
+      # Fleet Shape Program phase 6: direnv must load a devShell through NIX-DIRENV, not
+      # direnv's stock `use flake` (both write .direnv/flake-profile; only nix-direnv writes
+      # .direnv/flake-inputs/ and reports a cache hit). The second load reporting a cache hit
+      # is the regression test for the 2026-06-22 VS Code restart loop. Also asserts the
+      # interactive-shell hook (/etc/bashrc) and the label's pinned extension + binary path.
+      - name: Guard — direnv + nix-direnv load and cache a devShell
+        run: |
+          set -euo pipefail
+          META="$(docker inspect -f '{{index .Config.Labels "devcontainer.metadata"}}' nix-config-devcontainer:latest)"
+          EXE="$(jq -er '.[0].customizations.vscode.settings["direnv.path.executable"]' <<<"$META")"
+          jq -e '.[0].customizations.vscode.extensions | index("mkhl.direnv@0.17.0")' <<<"$META" >/dev/null \
+            || { echo "✗ label lacks the pinned mkhl.direnv extension"; exit 1; }
+          CID=$(docker run -d -v "$PWD:/workspaces/nix-config" nix-config-devcontainer:latest)
+          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 50); do docker exec "$CID" test -S /nix/var/nix/daemon-socket/socket && break; sleep 0.2; done
+          docker exec "$CID" test -x "$EXE" || { echo "✗ direnv.path.executable $EXE is not executable"; exit 1; }
+          # shellcheck disable=SC2016  # expands INSIDE the container, not on the runner
+          docker exec -u 1000:1000 "$CID" bash -lc '
+            set -e
+            [ "$DIRENV_CONFIG" = /etc/direnv ] || { echo "✗ DIRENV_CONFIG is ${DIRENV_CONFIG:-unset}"; exit 1; }
+            [ "$(bash -ic "type -t _direnv_hook" 2>/dev/null)" = function ] \
+              || { echo "✗ an interactive bash has no direnv hook (/etc/bashrc)"; exit 1; }
+            git config --global --add safe.directory /workspaces/nix-config
+            mkdir -p /tmp/dprobe && cd /tmp/dprobe
+            echo "use flake /workspaces/nix-config#default" > .envrc
+            direnv allow .
+            direnv exec . true 2> first.log || { cat first.log; exit 1; }
+            [ -d .direnv/flake-inputs ] || { cat first.log; echo "✗ not nix-direnv (no .direnv/flake-inputs)"; exit 1; }
+            direnv exec . true 2> second.log || { cat second.log; exit 1; }
+            grep -q "Using cached dev shell" second.log \
+              || { cat second.log; echo "✗ second load re-evaluated the flake (no cache hit)"; exit 1; }
+            echo "✓ hook in interactive bash; nix-direnv loaded the devShell and the reload hit its cache"
+          '
+
       # REGRESSION GUARD: prove a FOREIGN,
       # standard-FHS glibc binary — the REAL VS Code Server node, whose ELF
       # PT_INTERP is the standard loader path and which links libstdc++ — actually
