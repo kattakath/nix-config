@@ -1515,6 +1515,9 @@ in
                 # What it cannot report is its own silence; making it a pinger needs a
                 # fleet.heartbeats entry and an hc-checks apply (FOLLOW-UP).
                 "mcp-portal-probe.yml" = "a failed run is the alert; a heartbeat waits on an hc-checks apply";
+                # Housekeeping with no outcome to watch: a missed weekly prune only lets GHCR versions
+                # accumulate until the next run, and a failed run emails the owner.
+                "prune-devcontainer.yml" = "housekeeping; a missed run only defers deleting old image versions";
               };
               cronFiles = builtins.filter (n: lib.hasInfix "cron:" (builtins.readFile (dir + "/${n}"))) (
                 lib.attrNames (
