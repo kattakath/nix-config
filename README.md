@@ -1,7 +1,5 @@
 # nix-config
 
-> One declarative Nix flake for my aarch64 fleet — my Mac, a Raspberry Pi server, two NixOS VMs, and a prebuilt devcontainer.
-
 <!-- CI. nix-ci runs on every push to main (the default landing lane), so its badge follows
      push runs on main. -->
 [![nix-ci](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml/badge.svg?branch=main&event=push)](https://github.com/kattakath/nix-config/actions/workflows/nix-ci.yml?query=branch%3Amain+event%3Apush)
@@ -12,226 +10,142 @@
 [![nixpi heartbeat](https://img.shields.io/endpoint?url=https%3A%2F%2Fhealthchecks.io%2Fbadge%2F528186e9-b02b-4c28-ae0e-64e2f1%2F-EhhE_KW%2Fnixpi.shields&label=nixpi%20heartbeat)](#monitoring)
 [![scheduled jobs](https://img.shields.io/endpoint?url=https%3A%2F%2Fhealthchecks.io%2Fbadge%2F528186e9-b02b-4c28-ae0e-64e2f1%2FNK2O36pY%2Fnix-config.shields&label=scheduled%20jobs)](#monitoring)
 [![FlakeHub](https://img.shields.io/endpoint?url=https://flakehub.com/f/kattakath/nix-config/badge)](https://flakehub.com/flake/kattakath/nix-config)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![Built with Nix](https://img.shields.io/badge/built%20with-Nix-5277C3.svg?logo=nixos&logoColor=white)](https://nixos.org)
+[![License](https://img.shields.io/github/license/kattakath/nix-config)](./LICENSE)
 
-A single Nix flake that manages complete, reproducible system configurations across a small aarch64-only fleet and one container image. There is one source of truth for everything — packages, dotfiles, services, and system settings — and per-platform differences live in composable modules rather than ad-hoc shell scripts.
+> One declarative Nix flake for an aarch64 fleet: a nix-darwin Mac, a Raspberry Pi server, NixOS VMs and a devcontainer.
 
-## What it manages
+Packages, dotfiles, services and system settings all come from this one flake. Platform
+differences live in composable modules, never in ad-hoc shell. User environments layer on with
+[Home Manager](https://github.com/nix-community/home-manager). Every host is aarch64; the
+devcontainer image is the one multi-arch output, so it also runs on x86_64 Codespaces.
 
-| Host | Type | System | Machine | Role |
-|------|------|--------|---------|------|
-| `macos` | [nix-darwin](https://github.com/nix-darwin/nix-darwin) | `aarch64-darwin` | Apple Silicon Mac | Client only — no remote/incoming traffic |
-| `nixpi` | NixOS | `aarch64-linux` | Raspberry Pi 4 | **LIVE server** — Access-gated SSH over a Cloudflare Tunnel connector, a LAN path (`nixpi.local`), + Caddy |
-| `nixvm` | NixOS | `aarch64-linux` | Disposable QEMU dev VM on the Mac | **Headless** since 2026-10-06 (SSH on `127.0.0.1:2222`) via `nix run .#nixvm` — not installed; its root disk persists in `$XDG_STATE_HOME/nixvm` |
-| `nixos` | NixOS | `aarch64-linux` | Long-lived UTM guest on the Mac (QEMU + virgl) | GNOME desktop, driven by `nixos-vm` (`create` boots a seed image, `switch` installs the desktop) |
-| `devcontainer` | OCI image | `aarch64-linux` + `x86_64-linux` | Dev container (multi-arch manifest, published to GHCR) | — |
+## Table of contents
 
-User environments are layered on with [Home-Manager](https://github.com/nix-community/home-manager), and the devcontainer image is prebuilt and published to GHCR so it starts with a warm Nix store. This is an **aarch64-only** fleet — there is no x86_64 *host* anywhere. The devcontainer image is the one exception: it is published multi-arch (arm64 + amd64) so it also runs on x86_64 GitHub Codespaces.
+- [Security](#security)
+- [Background](#background)
+- [Install](#install)
+- [Usage](#usage)
+- [How CI works](#how-ci-works)
+- [Monitoring](#monitoring)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Bootstrap or recover a Mac (the first thing on a clean machine)
+## Security
 
-On a new or freshly-reset Mac there is no Nix yet, so a single zero-dependency script
-([`bootstrap.sh`](./bootstrap.sh)) does the irreducible minimum — installs Determinate
-Nix, then hands off to the flake. Run it straight from the repo over TLS, like
-Determinate's own installer:
+No plaintext secret lives in this repo: the Nix store is world-readable. Service credentials
+are committed encrypted with [agenix](https://github.com/ryantm/agenix); personal tokens stay
+in the macOS login Keychain.
+
+- How to report a vulnerability, and the secrets model: [SECURITY.md](./SECURITY.md).
+- The mechanism behind each secret: [`docs/secrets-and-keychain.md`](docs/secrets-and-keychain.md).
+
+## Background
+
+The hosts, packages and apps this flake exports are listed in the generated inventory,
+[`docs/map/entry-points.md`](docs/map/entry-points.md). The architecture, path by path, starts
+at [`docs/repo-map.md`](docs/repo-map.md).
+
+- **`claude/`** is content this repo installs into the operator's home.
+- **`.claude/` and `CLAUDE.md`** configure agent sessions working in this repo.
+
+## Install
+
+### Bootstrap a Mac
+
+A new or freshly reset Mac has no Nix yet. The zero-dependency [`bootstrap.sh`](./bootstrap.sh)
+installs Determinate Nix, clones the flake, checks your login against the flake's `loginName`
+and activates `#macos`:
 
 ```bash
-# Dry run — reports exactly what it would do, changes nothing:
+# Dry run: reports what it would do, changes nothing. Run it first on a reset Mac.
 curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash -s -- --check
 
 # Real run:
 curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
 ```
 
-It installs Determinate Nix, clones the flake, verifies your macOS login equals the flake's
-`loginName` (hard-fails with fork instructions if not), and activates `#macos`. That first
-activation plants `/etc/nix-darwin` and puts `activate` on `PATH`, so every later rebuild is
-a bare `activate` from any directory.
-
-**It does not touch your SSH keys.** Key custody is your choice, and this fleet's posture is
-that a lost machine's keypair stays lost — every agenix secret is re-issuable by the vendor
-that minted it (Cloudflare, GitHub, GitLab). On a Mac whose old key is gone: generate a new
-one, re-upload the pubkey wherever passwordless auth is wanted, repoint
-`secrets/operator-key.nix`, and re-encrypt the vault. Checklist:
+After that first activation, every rebuild is a bare `activate`. It does **not** manage SSH
+keys. The full walk-through, including a Mac whose old key is gone:
 [`docs/new-mac-runbook.md`](docs/new-mac-runbook.md).
-
-Prefer not to trust the raw URL? Clone the repo first and run the on-disk copy,
-`./bootstrap.sh`. (It still needs network: it downloads the Determinate installer and
-`nix run`s the flake — it is not fully offline.)
 
 ### Fork this for your own fleet
 
-This is personal config with `loginName = "ismail"` baked into `modules/parts/identity.nix` (it is
-your POSIX account — `/Users/<loginName>` and `home-manager.users.<loginName>`).
-
-**The quick way — no fork at all.** Scaffold a tiny consumer flake that uses this
-repo as its engine (`lib.mkDarwin` + your own identity + your own host deltas):
-
-```bash
-mkdir my-fleet && cd my-fleet
-nix flake init -t github:kattakath/nix-config
-```
-
-Then follow the scaffolded [`templates/default/README.md`](./templates/default/README.md):
-edit the identity, `git init && git add -A`, `nix run .#macos`.
-
-**The full fork** (when you want to diverge from the engine itself, or use
-`bootstrap.sh` against your own copy):
-
-1. **Fork** the repo on GitHub.
-2. In `modules/parts/identity.nix`, set `loginName` to **your macOS login** (`id -un`), and set `orgName` /
-   `userName` / `domainName` to your own. Commit and push. (Running the offline copy? Also
-   set `FLAKE_DEFAULT` in `bootstrap.sh`.)
-3. On your fresh Mac, run **pointing at your fork**:
-
-   ```bash
-   curl -fsSL https://raw.githubusercontent.com/<you>/nix-config/main/bootstrap.sh \
-     | bash -s -- --flake=github:<you>/nix-config
-   ```
-
-   It activates `#macos`; your keys are yours to generate and register.
-
-The `loginName` guard is what makes this safe: if your login does not match the flake's
-`loginName`, bootstrap stops **before** activating and tells you to fork and set `loginName` —
-rather than half-activating home-manager for a user that does not exist.
-
-> **Trust model.** You are piping remote code into `bash`, and it uses `sudo`. The anchor is
-> the repo over TLS from `raw.githubusercontent.com` (**your own fork**, in the fork flow —
-> pin a commit SHA in place of `/main/` for a stronger guarantee). `bootstrap.sh` is the exact
-> bytes CI shellchecks (the `bootstrap-lint` derivation); a truncated download runs nothing
-> (it is brace-guarded). **No secret
-> transits the pipe** — nothing here reads a secret at all, `osascript` never touches a
-> secret, and privilege escalation goes through `sudo` / Touch ID.
-
-## Quick start
-
-Everything below assumes [Nix with flakes enabled](https://nixos.org/download).
-
-```bash
-# Evaluate every output + run formatting / lint / pre-commit checks (the test suite).
-# Flakes only see tracked files, so stage first:
-git add -A && nix flake check
-
-# Enter the dev shell (nixd LSP, treefmt, home-manager; installs NO git hooks — `nix flake check` runs them).
-nix develop
-
-# Format + lint-fix all .nix files via treefmt (nixfmt + statix + deadnix).
-nix fmt
-
-# List every exported configuration and package.
-nix flake show
-```
-
-### Activate a host
-
-```bash
-activate                                     # macOS (Apple Silicon) — self-elevating darwin-rebuild switch
-nix run github:kattakath/nix-config#macos    # macOS FIRST activation only, before `activate` exists
-nix run --inputs-from . nixpkgs#nixos-rebuild-ng -- switch --flake .#nixpi --target-host ismail@nixpi.kattakath.com --sudo
-                                             # Raspberry Pi 4 — builds HERE (substituting from Cachix),
-                                             # activates THERE; the Pi never builds.
-nix develop -c deploy --targets .#nixpi      # Same Pi, with deploy-rs magic rollback: an activation
-                                             # that leaves the Pi unreachable reverts itself instead
-                                             # of needing an SD-card reflash.
-```
-
-Both `.#macos` and `.#nixpi` here are also the **real** hosts — the private composition flake
-that used to supply personal Home Manager modules and the Pi's real sites was retired
-2026-09-15 and folded directly into this repo (`hosts/macos.nix`, `modules/parts/identity.nix`).
-
-### Bring up the dev VM
-
-`nixvm` is not installed anywhere — it exists only as a disposable **headless** VM (since
-2026-10-06; SSH on `127.0.0.1:2222`, a QEMU console window as break-glass), with no disk layout
-to partition:
-
-```bash
-nix run .#nixvm
-```
-
-Its `aarch64-linux` guest builds locally on Determinate's native Linux builder (or
-substitutes from Cachix), so no provisioning, builder VM, or self-hosted runner is involved.
-
-**It is disposable, not ephemeral.** The Nix store is a fresh image on every boot, but the
-*root* filesystem is a qcow2 that is created once and reused — so `/home`, and anything you
-signed into there, survives a reboot. `nix run .#nixvm` pins that image to
-`${XDG_STATE_HOME:-$HOME/.local/state}/nixvm/nixvm.qcow2` and prints the path on each boot,
-so you get one VM no matter which directory you run from; deleting that file is the reset.
-(Running `./result/bin/run-nixvm-vm` by hand instead takes upstream's default — `nixvm.qcow2`
-in the current directory, which means a *separate* VM per directory. `*.qcow2` is gitignored,
-so a stray image in the repo root cannot be swept into a commit by `git add -A`.)
+Start a consumer flake with `nix flake init -t github:kattakath/nix-config`, or fork the repo
+and set your own identity. Both paths, and the trust model of `curl | bash`:
+[`docs/how-to/fork-this-fleet.md`](docs/how-to/fork-this-fleet.md).
 
 ### Use the devcontainer
-
-The devcontainer image is prebuilt and published — pull it directly:
 
 ```bash
 docker pull ghcr.io/kattakath/devcontainer:latest
 ```
 
-Or just open the repo in a devcontainer-aware editor; `.devcontainer/devcontainer.json` references the same published image.
+Or open the repo in a devcontainer-aware editor: `.devcontainer/devcontainer.json` references
+the same published image.
 
-## Repository layout
+## Usage
 
-```
-bootstrap.sh    No-Nix curl entrypoint: install Determinate Nix, then hand off to the flake
-flake.nix       Entry point: inputs/pins and ONE `flake-parts.lib.mkFlake` call — every output itself lives in modules/parts/
-flake.lock      Pinned input revisions (bumped via `nix flake update`, never hand-edited); its node count is held down by a deliberate `follows` diet plus ADR-002's capsule absorption
-treefmt.nix     Single source of truth for formatting + lint (drives nix fmt, CI, and the hook)
-hosts/          Per-host entry profiles: macos.nix, nixpi.nix, nixvm.nix, nixos.nix — plus identity-free generic-darwin.nix / generic-linux.nix, which `checks.<system>.template-consumer` builds on
-modules/        parts/ (the flake engine), features/ (capsules — absorbed satellite flakes, one dir each, each owning its own module + packages + checks), and the reusable modules split by platform (darwin/ nixos/ home/), plus _lib/ (shared data)
-packages/       Nix-built artifacts with no capsule owner (devcontainer image, SD-card provisioning apps, single-purpose CLIs). A capsule's own packages live under modules/features/<name>/packages/
-templates/      Flake template for `nix flake init -t github:kattakath/nix-config` — a starter consumer fleet flake
-infra/          terranix (Nix → Terraform JSON): Cloudflare edge, GCP, healthchecks.io, Grafana Cloud and GitHub rulesets/variables, applied only through the flake's own `*-plan` / `*-apply` apps and checked daily for drift (stack table: docs/map/infra.md)
-sites/          Static site trees Caddy serves on nixpi via config.fleet.hostedSites
-secrets/        agenix recipients + five ciphertexts (see § Secrets below) — no plaintext
-ast-grep/       Six structural-lint rules + a matching test fixture each, gated by `checks.<system>.ast-grep`. Its config must sit at the repo root as sgconfig.yml: ast-grep finds it by walking UP from the working directory
-scripts/        drv-snapshot.sh — the ADR-002 acceptance harness ("moved code, changed no build"; CI runs it on PRs labelled no-build-change), deliberately not a flake package. grafana-rollup.py — the daily KPI rollup the grafana-rollup workflow runs
-docs/           Runbooks and ADRs, every file indexed and annotated in docs/map/docs-index.md; docs/map/ holds the eleven-file fleet map behind the docs/repo-map.md index
-claude/         The GLOBAL (all-projects) agent context this repo INSTALLS on macos — not config for working here. CLAUDE.md goes to ~/.claude/CLAUDE.md via programs.claude-code.context; rules/ likewise
-CLAUDE.md       Agent context for working in THIS repo (project-scoped). Under a hard 40,000-byte gate, `checks.<system>.claude-md-budget` — which also carries a per-file ceiling for the index and every docs/map/ file
-.claude/        Repo-local Claude Code agents, commands, hooks, skills, and rules
-.worktreeinclude  Read by Claude Code itself, not by this repo: gitignored files to copy into a new worktree
+Everything below assumes [Nix with flakes enabled](https://nixos.org/download).
+
+```bash
+git add -A && nix flake check   # The test suite. Flakes only see tracked files, so stage first.
+nix develop                     # Dev shell: nixd, treefmt, home-manager (no git hooks).
+nix fmt                         # Format + lint-fix every .nix file via treefmt.
+nix flake show                  # List every exported configuration and package.
 ```
 
-The two Claude entries are the pair most often confused: **`claude/` is content this repo ships to the
-operator's home; `.claude/` and `CLAUDE.md` configure sessions working in this repo.**
+### Activate a host
 
-Platform branching lives in `modules/` behind `lib.mkIf`, so host profiles stay declarative and platform-agnostic.
+```bash
+activate                                     # macOS: a self-elevating darwin-rebuild switch
+nix run github:kattakath/nix-config#macos    # macOS FIRST activation only, before `activate` exists
+nix develop -c deploy --targets .#nixpi      # Raspberry Pi: builds HERE, activates THERE, and
+                                             # rolls itself back if the Pi becomes unreachable
+```
+
+The Pi never builds: CI warms its closure in Cachix, and the Mac substitutes it. Every
+activation form, and why: [`docs/map/hosts.md`](docs/map/hosts.md).
+
+### Bring up the dev VM
+
+```bash
+nix run .#nixvm   # a headless VM; SSH on 127.0.0.1:2222
+```
+
+Its root disk **persists** between boots; only the Nix store image is rebuilt. Where the disk
+lives and how to reset it: [`docs/map/hosts.md`](docs/map/hosts.md).
 
 ## How CI works
 
-CI runs on **GitHub Actions** ([`nix-ci.yml`](./.github/workflows/nix-ci.yml)): one native GitHub-hosted leg per target system (`ubuntu-24.04-arm`, `macos-latest`; no QEMU). Each leg builds the flake's `checks` and *evaluates* host toplevels **without building them**; the linux leg evaluates every host, `macos` included, and the darwin leg is advisory on every PR. Branch protection requires one aggregate check, `gate`, and PRs land through a merge queue. Details: [`docs/map/ci.md`](docs/map/ci.md).
+- **Changes land by a direct push to `main`.** `nix-ci` runs the full linux suite on that push,
+  behind one aggregate `gate` job, and the `ci-watch` plugin reports only failures.
+- **Bot and fork PRs** run the same suite and merge through a merge queue.
+- **The darwin leg** runs only on PRs and is advisory; `activate` is the darwin check.
+- **Each leg builds the flake's `checks`.** The linux leg also evaluates every host toplevel,
+  `macos` included, without building it.
+- **Publishing:** `warm-nixpi-cache` pushes the Pi's closure to Cachix, `build-devcontainer`
+  publishes the image to GHCR, `build-installers` publishes the Pi's SD image, and
+  `flakehub-publish` releases each push to `main` to
+  [FlakeHub](https://flakehub.com/flake/kattakath/nix-config) over OIDC.
 
-- [`build-devcontainer`](https://github.com/kattakath/nix-config/actions/workflows/build-devcontainer.yml) builds, smoke-tests, and publishes the multi-arch (arm64 + amd64) devcontainer image to GHCR as a manifest list.
-- [`build-installers`](https://github.com/kattakath/nix-config/actions/workflows/build-installers.yml) builds and publishes the `nixpi` SD image to a rolling pre-release.
-- [`warm-nixpi-cache`](https://github.com/kattakath/nix-config/actions/workflows/warm-nixpi-cache.yml) builds the `nixpi` toplevel on a native arm runner and pushes it to Cachix on every change to its closure, so the Pi only ever downloads and never builds.
-- [`gitleaks`](https://github.com/kattakath/nix-config/actions/workflows/gitleaks.yml) scans the full history for leaked secrets as `nix-ci`'s `gitleaks` job, which `gate` requires — so on every push to `main`, every merge-queue entry and every fork PR — plus weekly and on dispatch. The **gitleaks badge** above shows only the weekly scheduled run; the gating runs report under `nix-ci`.
-- [`flakehub-publish`](https://github.com/kattakath/nix-config/actions/workflows/flakehub-publish.yml) publishes each push to `main` as a rolling release to [FlakeHub](https://flakehub.com/flake/kattakath/nix-config) via [`flakehub-push`](https://github.com/DeterminateSystems/flakehub-push). Auth is OIDC (`id-token: write`) — no long-lived token. Per FlakeHub's [trusted-platform model](https://docs.determinate.systems/flakehub/publishing/), flakes publish only from CI, never ad-hoc from a laptop.
+Every workflow, job and required check: [`docs/map/ci.md`](docs/map/ci.md).
 
 ## Monitoring
 
-Silence is the alarm. Every scheduled thing pings a [healthchecks.io](https://healthchecks.io) check,
-declared in Nix (`fleet.heartbeats`, applied by the `hc-checks` stack), and a missed or failed ping
-emails the operator. The two status badges at the top read those checks live:
+Silence is the alarm. Every scheduled job pings a [healthchecks.io](https://healthchecks.io)
+check declared in Nix (`fleet.heartbeats`), and a missed or failed ping emails the operator.
 
-- **nixpi heartbeat** — the Pi's dead man's switch: it pings only while its public site is actually
-  serving (`modules/nixos/service-heartbeat.nix`, via runitor).
-- **scheduled jobs** — this repo's own schedules: the weekly gitleaks history scan and flake-lock
-  update, the daily Grafana KPI rollup, and the daily drift check that plans every terranix stack
-  and fails on any difference between code and live infrastructure (ADR-012).
+- **nixpi heartbeat** is the Pi's dead man's switch: it pings only while the public site serves.
+- **scheduled jobs** covers this repo's own scheduled workflows.
 
-Metrics and logs go to Grafana Cloud (ADR-011, [`docs/observability-hub-adr.md`](docs/observability-hub-adr.md));
-the alert rules there are themselves declared in the `grafana` stack.
-
-## Secrets
-
-No plaintext secrets live in this repo. **Five** committed secrets are encrypted with [agenix](https://github.com/ryantm/agenix) (recipients declared in `secrets/secrets.nix`), on **two different models**. `nixpi`'s Cloudflare Tunnel token (`secrets/cloudflared-token.age`) is encrypted to the **operator's key alone** — an **operator-only vault**: the operator decrypts it on the Mac and plants it on the SD card's FAT `FIRMWARE` partition, from where it is copied into a `/run` file at boot, and it is **never** decrypted on `nixpi` (a fresh SD flash rotates the host key, which would break host-key decryption and kill the only remote path in). The other **four** — the self-hosted runners' GitHub **App** key, ONE key in two copies (`secrets/gh-app-dontsell-ai-key.age` owned by root for the runner daemons, `secrets/gh-app-fleet-key.age` by the login user for the Tart agents), the GitLab runner token (`secrets/gitlab-runner-token.age`) and Chrome's enrollment token (`secrets/chrome-enrollment-token.age`) — are encrypted to the operator **plus the `macos` host key**, so they *are* host-decrypted into `/run/agenix/` at activation — safe there because that host key is stable, and the App key only ever mints short-lived (~1 h) tokens, so no long-lived PAT sits behind the runners. Personal tokens stay out of Nix and git entirely (macOS Keychain / CLI logins). The Cachix substituter is public and read-only (URL + public key, no token). See [SECURITY.md](./SECURITY.md) for the full model.
+Metrics and logs go to Grafana Cloud:
+[`docs/observability-hub-adr.md`](docs/observability-hub-adr.md).
 
 ## Contributing
 
-Contributions and issues are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the workflow and the git-purity rule, and the [Code of Conduct](https://github.com/kattakath/.github/blob/main/.github/CODE_OF_CONDUCT.md) (the org-wide default).
+Issues and contributions are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the
+workflow, and the org-wide
+[Code of Conduct](https://github.com/kattakath/.github/blob/main/.github/CODE_OF_CONDUCT.md).
 
 ## License
 

@@ -67,6 +67,8 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   `checks.<system>.local-rag-upstream-seam`; carries its own proven-vs-unmeasured table.
 - [`docs/secrets-and-keychain.md`](../secrets-and-keychain.md) — the agenix vault,
   the login-Keychain loader, the `secret` CLI.
+- [`docs/how-to/fork-this-fleet.md`](../how-to/fork-this-fleet.md) — the README's fork
+  how-to: the `nix flake init -t` consumer flake, the full fork, the `curl | bash` trust model.
 - **ADRs, in order** — [`ADR-001`](../flake-architecture-strategy-adr.md) (flake-parts for the
   small supporting flakes; **superseded in part**, and its objection 3 still stands);
   [`ADR-002`](../monoflake-capsule-adr.md) (decided **and implemented**: absorbed all seven
