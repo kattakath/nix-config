@@ -378,7 +378,9 @@ None is read by any flake output.
 Points VS Code / Codespaces at the prebuilt devcontainer IMAGE — it builds nothing itself. The
 image is `modules/parts/devcontainer.nix` (`withSystem "x86_64-linux"`, see
 [engine.md](engine.md)) and `packages/devcontainer-image.nix`, published by
-`.github/workflows/build-devcontainer*.yml`.
+`.github/workflows/build-devcontainer*.yml`. The image's own label carries the user, entrypoint
+and init settings; how other fleet repos consume it (`:1`, Compose for services):
+[ADR-015](../fleet-devcontainer-adr.md).
 
 ### `scripts/drv-snapshot.sh`
 

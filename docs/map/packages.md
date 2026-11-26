@@ -46,7 +46,7 @@ Core package set:
 - **`devcontainer-image.nix`** — MULTI-ARCH devcontainer OCI image (arm64+amd64,
   `dockerTools.streamLayeredImage`), published to GHCR as a manifest list; arch-parameterized
   loader path inside. It is a **CI/Codespaces artifact, not a local-Mac path**: the `vscode`
-  user is pinned to uid/gid 1000 (`updateRemoteUserUID: false`, because fakeNss's
+  user is pinned to uid/gid 1000 (`updateRemoteUserUID: false` in its `devcontainer.metadata` label, because fakeNss's
   `/etc/passwd` is read-only), so on a Linux host every file it writes into a mounted workspace
   is owned by uid 1000 — not the Mac account (`ismail` 501).
 - **`nixpi-provision.nix`** — macOS-only: the four
