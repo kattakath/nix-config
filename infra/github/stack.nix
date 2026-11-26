@@ -18,8 +18,9 @@
 # `-generate-config-out` omits them), so a drift in those three is invisible here.
 # WORSE ON UPDATE: an in-place ruleset update is a full PUT without them, and GitHub then
 # sets require_extra_approval_for_unattributed_changes to TRUE (measured 2026-11-26 on
-# free-rag's rename; it was false). After any apply that updates a ruleset, PUT that field
-# back to false (`gh api -X PUT repos/<o>/<r>/rulesets/<id>`, the `rules` array only).
+# free-rag's rename; it was false). github-apply's postApply (modules/parts/terranix.nix,
+# mkGithubTofu) reads every rendered ruleset back and PUTs those fields to the template's
+# values, so a clean re-plan plus that step's "0 restored" is the full check.
 #
 # RENAMES: a changed repo name or slug is a REPLACE, which prevent_destroy turns into a plan
 # error. Rename on GitHub first, then list it in `renamedRepos`, which renders the `moved`

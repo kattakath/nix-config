@@ -1943,6 +1943,42 @@ let
           exit 1
         fi
       '';
+      # UNMODELLED RULESET FIELDS (infra/github/stack.nix header): provider 6.13.0 updates a
+      # ruleset with a full PUT that omits three pull_request fields, and GitHub then sets
+      # require_extra_approval_for_unattributed_changes to true (measured 2026-11-26). The
+      # plan cannot show it, so after every apply each rendered ruleset is read back and any
+      # of those fields that differs from the pinned template is PUT back; an unchanged
+      # ruleset gets no write. Not apply-ruleset.sh --apply: it also PATCHes repo settings
+      # and QUEUE_ENABLED, which this stack pins. Retire this when the provider models the
+      # fields (integrations/terraform-provider-github#3664).
+      postApply = ''
+        rs_want=$(jq -c '[.rules[] | select(.type == "pull_request") | .parameters
+          | with_entries(select(.key | IN("required_reviewers", "dismissal_restriction",
+              "require_extra_approval_for_unattributed_changes")))][0] // {}' \
+          "${inputs.kattakath-dotgithub}/rulesets/main.json")
+        if [ "$rs_want" != "{}" ]; then
+          rs_restored=0
+          while IFS=$'\t' read -r rs_prov rs_repo rs_id; do
+            rs_owner=${orgName}
+            rs_tok=$GITHUB_TOKEN
+            if [ "$rs_prov" = "github.user" ]; then
+              rs_owner=${userName}
+              rs_tok=$TF_VAR_github_user_token
+            fi
+            rs_live=$(GH_TOKEN=$rs_tok gh api "repos/$rs_owner/$rs_repo/rulesets/$rs_id" --jq .rules)
+            rs_fixed=$(jq -c --argjson w "$rs_want" \
+              'map(if .type == "pull_request" then .parameters += $w else . end)' <<<"$rs_live")
+            if [ "$(jq -c . <<<"$rs_live")" != "$rs_fixed" ]; then
+              GH_TOKEN=$rs_tok gh api -X PUT "repos/$rs_owner/$rs_repo/rulesets/$rs_id" \
+                --input - --silent <<<"{\"rules\": $rs_fixed}"
+              echo "restored $rs_owner/$rs_repo ruleset $rs_id to the template's $rs_want" >&2
+              rs_restored=$((rs_restored + 1))
+            fi
+          done < <(jq -r '.import[] | select(.to | startswith("github_repository_ruleset."))
+            | [(.provider // "org"), (.id | split(":")[0]), (.id | split(":")[1])] | @tsv' config.tf.json)
+          echo "ruleset post-check: $rs_restored restored (fields the provider does not model)" >&2
+        fi
+      '';
     };
 
 in
