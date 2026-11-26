@@ -76,6 +76,12 @@ jobs:
           nix run --inputs-from . nixpkgs#gitleaks -- \
             detect --source . --redact --verbose --exit-code 1
 
+      # ADR-014 § 4 E: every commit SHA a markdown file cites must exist. It lives in this
+      # job because it needs the same full-history checkout, and a flake check cannot run
+      # it (`self` has no .git). The app is defined in modules/parts/checks.nix.
+      - name: Cited SHAs resolve
+        run: nix run .#docs-shas-resolve
+
       # Dead man's switch (healthchecks.io, project `fleet`; registry: fleet.heartbeats).
       # SCHEDULE ONLY, on purpose: the check proves the cron still fires, and a
       # manual workflow_dispatch run would mask a dead scheduler.

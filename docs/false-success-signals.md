@@ -99,17 +99,17 @@ Measured on `#683`, whose timeline carries two bot closures and two manual reope
 
 | Squash commit | How the example appeared | Closed the issue? |
 |---|---|---|
-| `83629cf` (#713) | `Does NOT claim to fix` + the number — negated, unquoted | **YES** — 12:53:18Z |
+| `4ab509ee` (#713) | `Does NOT claim to fix` + the number — negated, unquoted | **YES** — 12:53:18Z |
 | `7362596` (#714) | the same sentence in **plain double quotes** | **YES** — 13:10:42Z |
-| `361091c` (#697) | an ordinary unquoted `Closes` + number, meant to close | **YES** — as intended |
+| `22efe137` (#697) | an ordinary unquoted `Closes` + number, meant to close | **YES** — as intended |
 
 And the two forms that did **not** fire — which is what makes the safe rule measured rather than
 merely reasoned:
 
 | Evidence | Form | Result |
 |---|---|---|
-| `847f86b8` (#720) | the reference **omitted entirely** | **no close** — zero matches for the number anywhere in its commit message |
-| #697's body + `361091c` | `…carried a closing keyword for issue 674` — **no `#`, and the verb not adjacent** | **no link, no close.** Its `closingIssuesReferences` is `[682]` alone; 674 was closed 20 minutes earlier **by a person, with no commit attached** |
+| `f96129e9` (#720) | the reference **omitted entirely** | **no close** — zero matches for the number anywhere in its commit message |
+| #697's body + `22efe137` | `…carried a closing keyword for issue 674` — **no `#`, and the verb not adjacent** | **no link, no close.** Its `closingIssuesReferences` is `[682]` alone; 674 was closed 20 minutes earlier **by a person, with no commit attached** |
 
 So three things are measured and settled:
 
@@ -132,7 +132,7 @@ from before it says nothing about phrasing.
 A natural next move is "put the reference in backticks". **This file does not have evidence for
 that**, and the near-miss is worth recording:
 
-- The third doc PR (`847f86b8`, #720) closed nothing — but its commit message **does not mention the
+- The third doc PR (`f96129e9`, #720) closed nothing — but its commit message **does not mention the
   issue at all**. It is evidence that *omitting* the reference works, **not** that backticking does.
   Reaching for it as a positive control would have been this file's own shape: a confirmation that
   proves something adjacent to the claim.

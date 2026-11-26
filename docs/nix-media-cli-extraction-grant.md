@@ -12,7 +12,7 @@
 conversation, memory, or session context is required. Paste it whole into a fresh
 session/agent.
 
-**Grounded as of**: `kattakath/nix-config` @ `959d747` (2026-09-05, `main`). Repo state
+**Grounded as of**: `kattakath/nix-config` @ `4425e319` (2026-09-05, `main`). Repo state
 may have drifted since — **verify every claim below against the live repo before
 acting on it**; nothing here is a substitute for grep/read.
 
@@ -73,7 +73,7 @@ All under `kattakath/nix-config`:
 | `packages/media-queue.nix` | The durable, priority-tiered, pause/resume-capable launchd work queue: `media-enqueue`, `media-worker`, `media-queue-pause`, `media-queue-resume`, `media-queue-status`, `media-queue-top`, `media-queue-power-monitor`. |
 | `modules/shared/media-queue.nix` | Home Manager wiring: the `launchd.agents.*` definitions (`QueueDirectories`, `StartInterval`, load control) that actually run `media-worker`/`media-queue-power-monitor`. |
 
-**Host gating** (verified current, commit `959d747`, 2026-09-05): the entire stack —
+**Host gating** (verified current, commit `4425e319`, 2026-09-05): the entire stack —
 `media-queue.nix` import, the Finder Quick Actions activation, and the
 `mediaToolkit`/`auge`/`exiftool`/`rclipCli` packages — is `isMacosHost`-only in
 `modules/shared/home.nix`. `macvm` (the Tart guest) gets none of it; its disk was
@@ -284,7 +284,7 @@ has ever carried). A new `nix-media-cli` input should follow the identical patte
 
 ---
 
-## 7. Verified CLI surface (as of `959d747`)
+## 7. Verified CLI surface (as of `4425e319`)
 
 | Command | Usage | Notes |
 |---|---|---|
@@ -316,7 +316,7 @@ For **every** file/CLI above:
    (`~/Library/Logs/nix-media-queue.log`), scratch files, Ollama HTTP calls.
 4. **Failure mode** — retry-with-backoff? dead-letter (`failed/`)? silent no-op?
 5. **Host scope** — `macos` only, or does it (still) run on `macvm` too? (Verified
-   `isMacosHost`-only as of `959d747` — confirm this hasn't drifted.)
+   `isMacosHost`-only as of `4425e319` — confirm this hasn't drifted.)
 
 ---
 
@@ -374,7 +374,7 @@ For **every** file/CLI above:
 
 - **Verify, don't assume.** Every file reference, CLI flag, and dependency edge in
   this document must be re-grepped/re-read against the live repo — it may have
-  drifted since `959d747` (2026-09-05).
+  drifted since `4425e319` (2026-09-05).
 - **Cite sources for every Nix-ecosystem claim**, per this repo's own
   `.claude/rules/upstream-first.md`: grep the pinned input before proposing
   anything, quote the result line (`✅ upstream option X exists → using it`, or

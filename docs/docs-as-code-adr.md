@@ -66,9 +66,9 @@ what drifted, not by rule:
 |---|---|---|---|
 | **A** | Generated inventories, N named blocks | the existing `generatedBlock` (ADR-012); Diagrams-as-Code for any diagram built from the same data | **yes** |
 | **B** | A declared literal (e.g. `fleetAppId`) may appear only in its binding; the check greps the tracked tree | a grep in a `runCommand`, like `line-refs-cite-constructs` | **yes** |
-| **C** | Restating is a review finding (`NH-C-fact-twice`), fixed by deleting or pointing | `doc-fix-delete-or-point`; DRY (Hunt & Thomas) | rule only |
-| **D** | Retired names in a tombstone list; a check fails on a live mention outside history docs | Vale's `existence` rule (Vale 3.27.0 is in nixpkgs) | deferred |
-| **E** | Every cited commit SHA must resolve | `git cat-file -e` | deferred |
+| **C** | A paragraph in one live doc that near-copies one in another fails (`docs-near-duplicates`) | jscpd's method (shingles); `doc-fix-delete-or-point` | **shipped** |
+| **D** | Retired names in a tombstone list | Vale's `existence` rule | **rejected on data** (§ 7) |
+| **E** | Every cited commit SHA must resolve (`nix run .#docs-shas-resolve`, in CI's gitleaks job) | `git cat-file -e` | **shipped** |
 
 **Out of scope: an options reference.** ADR-002 § 9.5 measured `nixosOptionsDoc` and held it
 back: at `warningsAreErrors = false` it is a gate that cannot fail, and `home-manager.users`
@@ -98,6 +98,14 @@ checks inventory is still never generated.
    `invocations`, which bounds its token window (§ 6).
    Every `rules.json` key stays, because `doctor-report validate` requires them.
 
+6. **C and E — SHIPPED** (the operator chose to build the deferred three; D failed its
+   noise probe). `docs-near-duplicates` covers the live docs only: 6-word shingles,
+   Jaccard 0.5. The whole-repo scan found 8 pairs, all outside that scope (capsule README
+   boilerplate, one retired doc), and 0 inside it. `docs-shas-resolve` found 19 of 27
+   cited SHAs dead from the 2026-11-13 history rewrite. 8 were remapped by UTC author
+   date plus subject and rewritten. 11 could not be, and they sit on a void list that
+   only shrinks.
+
 ## 6. Acceptance — measured per run, before the fleet rollout
 
 | Metric | Baseline | How |
@@ -115,7 +123,8 @@ rise in tokens.
 |---|---|---|
 | A docs site (mdBook, Docusaurus) | It renders docs; it does not make them true | a reader outside the operator needs a site |
 | An AI drift checker in CI | Non-deterministic, and it costs the tokens this ADR cuts | never for facts; maybe for prose, if § 6 shows C stays large |
-| jscpd for duplicate paragraphs | Not in nixpkgs. An npm fetch is an unvetted download | it lands in nixpkgs, or a nixpkgs tool covers markdown |
+| jscpd for duplicate paragraphs | Not in nixpkgs, and an npm fetch is an unvetted download. PMD CPD (7.28.0, in nixpkgs) has no markdown language | it lands in nixpkgs; then `scripts/near-duplicates.py` retires |
+| D, a retired-names list (Vale `existence`) | Measured: most mentions of a retired name are correct history. `mcp-public` 127 mentions, 86 with no retirement word on the line; `doctor-report weekly` is still a live subcommand | a tombstone that never appears in history docs |
 | `nixosOptionsDoc` options reference | ADR-002 § 9.5 (above) | it can fail on a missing description |
 | cog, embedme or a similar embedder | A second toolchain beside a flake that already evaluates everything | never, while the flake is the source |
 

@@ -88,6 +88,7 @@ CLAUDE.md § Overview and [`hosts.md`](hosts.md).
 | `claude-otel-doctor` | yes |  |
 | `design-tokens` | yes |  |
 | `docs-generate` | yes | yes |
+| `docs-shas-resolve` | yes | yes |
 | `doctor-report` | yes | yes |
 | `email-signature` | yes |  |
 | `gcp-budget-apply` | yes | yes |

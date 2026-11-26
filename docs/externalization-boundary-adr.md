@@ -185,8 +185,8 @@ never this table (§10.1). **The servers row has no in-repo source any more** �
 | **MCP servers** (27 → **0** Nix-owned) | ~~**STAY Nix-owned**~~ — *scoped 2026-09-30 (§10.6), **RETRACTED 2026-10-02** (§10.8): the gateway is destroyed and every server is plugin-owned* | A server that exits at startup **darked the entire gateway** — every client, every server. **That blast radius no longer exists**, because the shared process does not: a plugin-owned server is spawned per session by one client and darks one session's one server. The discriminator did not change; its answer did |
 
 The MCP row is not hypothetical. On **2026-09-14** a bumped `mcp-servers-nix` built a broken
-`mcp-server-memory`, which took the whole darwin system down; commit `ea4e755` rolled the input
-back and `136f14f` moved memory/sequential-thinking/fetch onto nixpkgs builds. The recovery
+`mcp-server-memory`, which took the whole darwin system down; commit `68fdf205` rolled the input
+back and `373ae405` moved memory/sequential-thinking/fetch onto nixpkgs builds. The recovery
 levers used — **pin the input, override the package** — are exactly the levers a runtime-installed
 server does not have.
 

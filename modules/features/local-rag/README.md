@@ -166,7 +166,7 @@ is taught to use the resulting `embed()`/`docs` interface.
 
 It travelled out and back: extracted from this repo on 2026-08 (the last
 pre-extraction, MCP-coupled versions were `modules/shared/postgres-pgvector.nix`
-and `modules/shared/ollama.nix`, at commit `739f8c2`), and absorbed again by
+and `modules/shared/ollama.nix`, at commit `9e314419`), and absorbed again by
 ADR-002 wave 6. It was the only satellite with a second consumer —
 `ircc-whatsapp-bot` pinned it too, which is why that unpin (ircc grew a
 `botOnly` output) was a wave-0 prerequisite rather than part of the absorption

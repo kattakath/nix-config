@@ -1874,6 +1874,15 @@ in
                 echo "values-once: ${lib.concatMapStringsSep ", " (e: e.name) entries} each written once" > "$out"
               '';
 
+          # ADR-014 § 4 C, mechanized. A paragraph in one live agent-facing doc that is a
+          # near-copy of one in another fails; scope, method and the measurement that set the
+          # threshold are in the script's header. Pure Python over the source, no network.
+          docs-near-duplicates =
+            pkgs.runCommand "docs-near-duplicates" { nativeBuildInputs = [ pkgs.python3 ]; }
+              ''
+                python3 -I ${../../scripts/near-duplicates.py} ${self} > "$out"
+              '';
+
           # SUBJECTS include docs/map/ since the 2026-10-02 split. `readDir
           # ../../docs` filtered on `t == "regular"`, and `map` is a DIRECTORY —
           # so the eleven domain files would have escaped this check entirely, by
@@ -4239,6 +4248,78 @@ in
 
       # The writer for every generated span `hosts-documented` checks (see `generatedBlocks`).
       # It splices the SAME render the check compares against, so the two cannot disagree.
+      # ADR-014 § 4 E. Every commit SHA a markdown file cites must resolve in this repo's
+      # history. NOT a flake check: a check builds from `self`, which has no .git. CI runs this
+      # app in gitleaks.yml's full-history checkout; /hygiene runs it from the snapshot.
+      #
+      # VOID: SHAs the 2026-11-13 history rewrite destroyed that could not be remapped. GitHub
+      # no longer serves them, or they were PR-branch commits a squash merge replaced. The 8
+      # that could be remapped (same UTC author date AND subject) were rewritten in place.
+      # This list only shrinks: a NEW dead SHA fails.
+      apps.docs-shas-resolve =
+        let
+          void = [
+            "095fef2f"
+            "3e8100d5"
+            "3f606dc"
+            "78f956b3"
+            "7b4c5ec4"
+            "848a6c0e"
+            "c013aa5"
+            "d5bd9cd"
+            "ef34387ddd751e1ab8857adf4676492d32eb24ec"
+            "efb6d0d5"
+            "ff0e21a4"
+          ];
+        in
+        {
+          type = "app";
+          program = lib.getExe (
+            pkgs.writeShellApplication {
+              name = "docs-shas-resolve";
+              runtimeInputs = [
+                pkgs.git
+                pkgs.gnugrep
+                pkgs.coreutils
+              ];
+              text = ''
+                cd "$(git rev-parse --show-toplevel)"
+                if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+                  echo "docs-shas-resolve: shallow clone, cannot judge history (fetch-depth: 0)." >&2
+                  exit 1
+                fi
+                void=" ${lib.concatStringsSep " " void} "
+                seen=0
+                dead=()
+                # `abc1234` in backticks, or "commit(s) abc1234"; at least one digit AND one
+                # letter, so a plain number or word is not a SHA.
+                # shellcheck disable=SC2016  # the backticks are literal markdown, not expansions
+                while IFS=: read -r file sha; do
+                  case "$sha" in *[0-9]*) ;; *) continue ;; esac
+                  case "$sha" in *[a-f]*) ;; *) continue ;; esac
+                  seen=$((seen + 1))
+                  case "$void" in *" $sha "*) continue ;; esac
+                  git cat-file -e "$sha^{commit}" 2>/dev/null || dead+=("$file: $sha")
+                done < <(git ls-files -z '*.md' | grep -zv '^.claude/worktrees/' |
+                  xargs -0 grep -o -H -E '`[0-9a-f]{7,40}`|commits? [0-9a-f]{7,40}\b' |
+                  sed -E 's/^([^:]*):.*[` ]([0-9a-f]{7,40})`?$/\1:\2/' | sort -u)
+                if [ "$seen" -eq 0 ]; then
+                  echo "docs-shas-resolve: VACUOUS - no cited SHA found" >&2
+                  exit 1
+                fi
+                if [ ''${#dead[@]} -gt 0 ]; then
+                  echo "docs-shas-resolve: cited commit(s) that do not exist in this repo:" >&2
+                  printf '  %s\n' "''${dead[@]}" >&2
+                  echo "Cite the commit's subject or its PR number, or fix the SHA." >&2
+                  exit 1
+                fi
+                echo "docs-shas-resolve: $seen cited SHAs, every live one resolves (${toString (lib.length void)} known void)"
+              '';
+            }
+          );
+          meta.description = "Check every commit SHA cited in markdown resolves (ADR-014; needs a full-history clone)";
+        };
+
       apps.docs-generate = {
         type = "app";
         program = lib.getExe (

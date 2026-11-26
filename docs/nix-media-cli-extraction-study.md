@@ -11,7 +11,7 @@
 > proposal has since landed (the CLIs are `media-*`).
 
 The answer to [`nix-media-cli-extraction-grant.md`](nix-media-cli-extraction-grant.md).
-Grounded at `959d747` (2026-09-05, `main`); every claim below was re-verified against
+Grounded at `4425e319` (2026-09-05, `main`); every claim below was re-verified against
 the tree, and the corrections in § 1 are the ones the grant got wrong.
 
 ## Verdict

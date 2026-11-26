@@ -214,7 +214,7 @@ The adversarial reviewer found a live, unrelated bug: `launchd.agents.ollama-loc
 home-manager's `launchd.agents.ollama`, so `OLLAMA_NUM_PARALLEL`, `OLLAMA_MAX_LOADED_MODELS` and
 `OLLAMA_KEEP_ALIVE` **had never been in effect**. `ProcessType = "Background"` survived only
 because home-manager's own module sets it, which is why the 2026-09-05 power measurement still
-looked right — it tested the half that worked. Fixed standalone in `8aa4d9c`.
+looked right — it tested the half that worked. Fixed standalone in `47140b21`.
 
 That failure class — a stale agent name silently creating a dead agent, invisible to
 `nix flake check` — is exactly what a 28k-line tree multiplies, and is the argument for the

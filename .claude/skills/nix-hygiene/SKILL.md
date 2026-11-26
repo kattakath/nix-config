@@ -247,6 +247,7 @@ git add -A   # fmt may rewrite
 git status --porcelain '*.nix'   # clean of ?? 
 nix flake check --all-systems --no-build   # evaluates BOTH systems; a bare check on the Mac omits aarch64-linux
 nix flake check                  # THE suite (builds); or scoped nix eval of affected toplevels
+nix run .#docs-shas-resolve      # cited SHAs resolve; needs git history, so not a flake check
 ```
 
 If the scope touches what the linux-only checks cover, also run the `nix build --no-link
