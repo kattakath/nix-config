@@ -329,9 +329,9 @@ deploy-rs.lib` — deploy-rs exports `lib` for four systems, and that idiom woul
 
 ### devShell
 
-Entered with `nix develop` (in the devcontainer or on a nix host). There is **no**
-`.envrc`/direnv auto-load — run `nix develop` explicitly. (`programs.direnv` + `nix-direnv` ARE
-enabled fleet-wide in `modules/home/default.nix`; this repo alone opts out, since `a0c12251`.)
+Loaded by direnv from `.envrc` (`use flake`, cached by nix-direnv), or entered with
+`nix develop`. The 2026-06-22 opt-out (`a0c12251`) ended 2026-11-26: the image now bakes
+nix-direnv (the restart loop) and the extension gets direnv's absolute path (not found).
 
 **The shell sets `CLOUDSDK_CONFIG`** to `$XDG_CONFIG_HOME/gcloud-nix-config`, so `gcloud` run
 here uses an account and project scoped to this repo rather than whatever is globally
@@ -370,7 +370,7 @@ rare fresh-machine `nix develop` is the worse trade.
 
 Editor and tooling convenience only — workspace extension recommendations and tasks, and the
 list of untracked files Claude Code copies into a new worktree. The GitHub community files
-(README, CONTRIBUTING, CODE_OF_CONDUCT, SECURITY, LICENSE) and `.gitignore` sit beside them.
+(README, CONTRIBUTING, SECURITY, LICENSE; the Code of Conduct is the org default) and `.gitignore` sit beside them.
 None is read by any flake output.
 
 ### `.devcontainer/devcontainer.json`

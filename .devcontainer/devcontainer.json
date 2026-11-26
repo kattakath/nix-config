@@ -13,11 +13,12 @@
   //
   // Published under the short, unnamespaced ghcr.io/kattakath/devcontainer
   // name (this is the repo's sole/default devcontainer).
-  // `:latest` on purpose (ADR-012 § 5): this repo IS the publisher, and :latest is
-  // the image built from main's own inputs. A `:<sha12>` pin would need a bot
-  // committing back after every publish and would go stale without one.
+  // `:1`, the major tag every fleet consumer pins (ADR-015). This repo IS the publisher,
+  // and every publish re-tags :1 (with :latest) to the image built from main's own
+  // inputs, so it never lags. A `:<sha12>` pin would need a bot committing back after
+  // every publish and would go stale without one (ADR-012 § 5).
   "name": "nix-config (prebuilt Nix devcontainer image)",
-  "image": "ghcr.io/kattakath/devcontainer:latest",
+  "image": "ghcr.io/kattakath/devcontainer:1",
     
   // Literal on purpose: packages/devcontainer-image.nix (workdir) and build-devcontainer-impl.yml
   // bake the same path, and the localWorkspaceFolderBasename variable is a worktree's name in a worktree.
@@ -38,6 +39,9 @@
   // must not inspect the workspace first, or a git WORKTREE (whose .git points at a host
   // path absent in the container) fails the command itself.
   "postStartCommand": "git -C / config --global --add safe.directory ${containerWorkspaceFolder}",
+  // Trust THIS workspace's .envrc once, at create; the image bakes direnv + nix-direnv
+  // with no whitelist, so a nested clone or any other .envrc still asks.
+  "postCreateCommand": "direnv allow ${containerWorkspaceFolder}",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind",
 
   // IMPORTANT: no mount over /nix — that would shadow the baked, warm store the
@@ -79,11 +83,10 @@
           "nix: lint": ["**/*.nix"]
         },
 
-        // Default terminal enters the flake devShell so the pinned
-        // nixd/nixfmt/statix/deadnix are on PATH (the on-convention alternative
-        // to direnv). Because the closure is baked, `nix develop` is instant.
-        // "zsh" is the recovery shell if a broken flake eval fails the devShell.
-        "terminal.integrated.defaultProfile.linux": "nix develop",
+        // Default terminal is plain bash: the image's direnv hook loads the devShell
+        // from .envrc (cached by nix-direnv), the same environment the direnv extension
+        // gives tasks and tools. `nix develop` stays as an explicit profile.
+        "terminal.integrated.defaultProfile.linux": "bash",
         "terminal.integrated.profiles.linux": {
           "bash": { "path": "bash" },
           "nix develop": {

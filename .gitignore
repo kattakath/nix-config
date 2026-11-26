@@ -44,9 +44,8 @@ __pycache__/
 # Nix build artifacts
 result
 result-*
-# nix-direnv's cache dir — direnv itself was removed from this repo, but the
-# devcontainer (or any stray nix-direnv run) can still regenerate .direnv/.
-# Ignored as a generated artifact so `git add -A` never sweeps it into a commit.
+# nix-direnv's cache dir (.envrc: `use flake`). Ignored as a generated artifact so
+# `git add -A` never sweeps it into a commit.
 .direnv/
 
 # Disk / VM images — built locally, never committed
@@ -87,3 +86,4 @@ config.tf.json
 
 # Wave-harness captures (scripts/drv-snapshot.sh) — per-wave, machine-local.
 .baseline/
+.envrc.local

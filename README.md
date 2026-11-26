@@ -231,7 +231,7 @@ No plaintext secrets live in this repo. **Five** committed secrets are encrypted
 
 ## Contributing
 
-Contributions and issues are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the workflow and the git-purity rule, and [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md).
+Contributions and issues are welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the workflow and the git-purity rule, and the [Code of Conduct](https://github.com/kattakath/.github/blob/main/.github/CODE_OF_CONDUCT.md) (the org-wide default).
 
 ## License
 
