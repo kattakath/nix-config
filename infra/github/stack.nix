@@ -31,6 +31,11 @@
 #     the repo. The ruleset's allowed_merge_methods = ["squash"] already enforces the merge
 #     method on the default branch; apply-ruleset.sh keeps setting the three repo flags.
 #   - Organization rulesets: the API answers 403 on the Free plan.
+#   - Org package-creation policy and package visibility: neither has a REST endpoint (the
+#     OpenAPI description has only GET/DELETE/restore on a package). Set by hand on
+#     2026-11-25: org Settings > Packages allows Public + Private, and the
+#     `devcontainer` container package is PUBLIC (irreversible; it bakes nothing
+#     non-redistributable since then, which ci-closures-redistributable keeps true).
 #
 # VARIABLE VALUES: derivable ones are declared (QUEUE_ENABLED, GRAFANA_URL, ROLLUP_WRITER_SA).
 # The rest are per-person data (the no-data rule): the wrapper reads each from GitHub at run
