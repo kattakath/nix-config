@@ -80,7 +80,9 @@ checks inventory is still never generated.
    against `modules/_lib/terranix-stacks.nix`, both ways, and the prose stays hand-written.
    `CLAUDE.md`'s `infra/` row now points at it instead of listing stacks, which saved 268 bytes.
    A row-set gate is the lighter form of A: use it wherever a hand table has prose columns.
-4. **B:** value-once for `fleetAppId`, the most-copied literal.
+4. **B — SHIPPED:** `values-once`, first entry `fleetAppId` (the most-copied literal). An entry
+   reads its value from the evaluated config, never from a second literal. Add one entry per
+   binding that hygiene finds copied.
 5. **Audit wiring:** `nix-hygiene` (the skill and the `nix-hygiene-pass` workflow) skips
    marked spans. Each run records its Claude Code `session.id` in the SARIF `run.properties`.
    Every `rules.json` key stays, because `doctor-report validate` requires them.

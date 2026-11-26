@@ -1833,6 +1833,47 @@ in
                 echo "infra.md: all ${toString (lib.length names)} terranix stacks have a row, and every row is a stack" > "$out"
               '';
 
+          # ADR-014 § 4 B — value once. A literal that has a binding is written ONLY in that
+          # binding; docs and comments name the binding. Each entry reads its value from the
+          # evaluated config (never a second literal here), and the check fails if the value,
+          # as a whole word, appears in any tracked file but `home`, or twice in `home`.
+          # fleetAppId first: hygiene found its digits ~10 times (NH-C-fact-twice, 2026-11).
+          values-once =
+            let
+              entries = [
+                {
+                  name = "fleetAppId";
+                  home = "hosts/macos.nix";
+                  value = toString self.darwinConfigurations.macos.config.local.macosGithubRunner.appId;
+                }
+              ];
+            in
+            pkgs.runCommand "values-once"
+              {
+                nativeBuildInputs = [
+                  pkgs.gnugrep
+                  pkgs.coreutils
+                ];
+              }
+              ''
+                cd ${self}
+                bad=
+                ${lib.concatMapStrings (e: ''
+                  hits=$(grep -rnwF --exclude-dir=.git -- ${lib.escapeShellArg e.value} . | grep -v -F -- "./${e.home}:" || true)
+                  inHome=$(grep -cwF -- ${lib.escapeShellArg e.value} ${lib.escapeShellArg e.home} || true)
+                  if [ -n "$hits" ] || [ "$inHome" != 1 ]; then
+                    echo "values-once: ${e.name}'s value must appear once, in ${e.home} (found $inHome there)." >&2
+                    [ -n "$hits" ] && printf '%s\n' "$hits" | sed 's/^/  copy: /' >&2
+                    bad=1
+                  fi
+                '') entries}
+                if [ -n "$bad" ]; then
+                  echo "Name the binding instead of writing its value." >&2
+                  exit 1
+                fi
+                echo "values-once: ${lib.concatMapStringsSep ", " (e: e.name) entries} each written once" > "$out"
+              '';
+
           # SUBJECTS include docs/map/ since the 2026-10-02 split. `readDir
           # ../../docs` filtered on `t == "regular"`, and `map` is a DIRECTORY —
           # so the eleven domain files would have escaped this check entirely, by
