@@ -150,6 +150,9 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   hourly `fleet-gauges` alerts. Doctor runs default to `audit`, read `origin/<default>`, exit
   0/2/1 and report `vacuous`; output is SARIF 2.1.0 (hygiene, not uploaded) and the expired
   health-check draft's `pass`/`warn`/`fail` (fleet-doctor). § 6 (scheduled audits) is RETIRED; both doctors run by hand.)
+  [`ADR-014`](../docs-as-code-adr.md) (**DECIDED 2026-11-25**: docs as code. A fact lives in the
+  flake; prose points or explains. Generated spans are marked, gated and skipped by audits. § 5 is
+  the nix-config pilot; § 6 gates the fleet rollout.)
 - [`docs/workspace-runbook.md`](../workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](../identity-and-offboarding.md) — the single lever:
