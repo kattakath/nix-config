@@ -105,15 +105,24 @@ let
   nixLdLibraries = import ../modules/_lib/nix-ld-libraries.nix pkgs;
   nixLdLibraryPath = lib.makeLibraryPath nixLdLibraries;
 
-  # Real `vscode` user only. fakeNss yields a READ-ONLY /etc/passwd — hence
-  # updateRemoteUserUID:false in the JSON. No nixbld build users: with an empty
-  # build-users-group (below) the daemon builds as its own uid (root).
+  # The `vscode` user plus Nix's build users. fakeNss yields a READ-ONLY /etc/passwd
+  # (hence updateRemoteUserUID:false in the JSON); Nix only READS it. Build users are
+  # the official NixOS/nix docker.nix layout, copied exactly: nixbld1..32, uid 30000+n,
+  # gid 30000, home /var/empty, shell /bin/false, and the group line LISTS its members
+  # (Nix's user-lock.cc reads gr_mem, not primary gids). Builds then run as a nixbld
+  # uid, never root, so an unsandboxed builder cannot create /homeless-shelter, the
+  # check that otherwise fails every later build (unix-derivation-builder.cc).
+  buildUsers = map (n: "nixbld${toString n}") (lib.range 1 32);
   nss = pkgs.fakeNss.override {
     extraPasswdLines = [
       "${username}:x:${toString uid}:${toString gid}:${username}:/home/${username}:${pkgs.bashInteractive}/bin/bash"
-    ];
+    ]
+    ++ lib.imap1 (
+      n: u: "${u}:x:${toString (30000 + n)}:30000:Nix build user ${toString n}:/var/empty:/bin/false"
+    ) buildUsers;
     extraGroupLines = [
       "${username}:x:${toString gid}:"
+      "nixbld:x:30000:${lib.concatStringsSep "," buildUsers}"
     ];
   };
 
@@ -284,17 +293,18 @@ dockerTools.streamLayeredImage {
     BASHRC
 
     # --- baked nix.conf: multi-user daemon + flakes + public Cachix (read) ----
-    # sandbox=false: the build sandbox doesn't work nested in a container.
-    # build-users-group= (EMPTY): with NIX_REMOTE=daemon and an empty group,
-    # builds run as the daemon's own uid (root), removing the whole nixbld
-    # failure class — sound for a daemon serving TRUSTED clients (trusted-users).
+    # sandbox=false: Docker's default seccomp profile blocks the namespaces the
+    # sandbox needs, without --privileged (the official docker.nix sets it too).
+    # build-users-group=nixbld: builds run as a nixbld uid (fakeNss above), as in
+    # the official image. An EMPTY group built as root, and a root cargo build left
+    # /homeless-shelter behind, which then failed every later build (2026-11-26).
     # trusted-users lets vscode add substituters / import paths interactively.
     # The Cachix key is public-read (verification key, mirrored in
     # modules/nixos/nix-cache.nix) — no token baked in.
     mkdir -p etc/nix
     cat > etc/nix/nix.conf <<'NIXCONF'
     experimental-features = nix-command flakes
-    build-users-group =
+    build-users-group = nixbld
     sandbox = false
     trusted-users = root vscode
     extra-substituters = ${cachixUrl}

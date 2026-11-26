@@ -209,6 +209,20 @@ jobs:
 
           echo "$OUT" | grep -Eq '^v[0-9]' \
             || { echo "✗ node produced no version string — libstdc++ likely unresolved"; exit 1; }
+
+          # nix-ld#46, the case that bit us: a FOREIGN parent (VS Code node, as node-pty
+          # spawns terminals) must hand its children no LD_LIBRARY_PATH, so a devShell on
+          # an OLDER nixpkgs still runs (nix-ld 2.x's entry trampoline restores the env).
+          # The pin is the one listing-lens and scrape-harness bus-errored on 2026-11-26.
+          for _ in $(seq 1 50); do docker exec "$CID" test -S /nix/var/nix/daemon-socket/socket && break; sleep 0.2; done
+          docker exec -u 1000:1000 "$CID" "$BUNDLED" -e '
+            const { execSync } = require("child_process");
+            if (/^LD_LIBRARY_PATH=/m.test(execSync("env", { encoding: "utf8" }))) {
+              console.error("✗ a child of the foreign node inherited LD_LIBRARY_PATH"); process.exit(1);
+            }
+            execSync("nix shell github:NixOS/nixpkgs/d176bec6d3f7dc613eb18ae8cec9397610ef826f#coreutils -c wc --version", { stdio: "inherit" });
+          ' || { echo "✗ nix-ld#46: a foreign parent broke an older-nixpkgs child"; exit 1; }
+          echo "✓ children of the foreign node get no LD_LIBRARY_PATH and run an older-nixpkgs binary"
           echo "=== foreign-glibc execution guard passed (${{ matrix.arch }}) ==="
 
       # REGRESSION GUARD: prove /usr/bin/env
@@ -262,29 +276,36 @@ jobs:
           done
           echo "=== nix-ld library contract guard passed (${{ matrix.arch }}) ==="
 
-      # REGRESSION GUARD — no global LD_LIBRARY_PATH. The loader path is the nix-ld SHIM
-      # (NixOS's own design), so foreign-binary libs never leak into Nix programs. A
-      # global LD_LIBRARY_PATH once forced the image's glibc on a devShell from an OLDER
-      # nixpkgs, which died with a bus error (2026-11-26). The older pin below is the one
-      # listing-lens and scrape-harness hit it on; fetched from cache.nixos.org, not built.
-      - name: Guard — a binary from an older nixpkgs runs (no global LD_LIBRARY_PATH)
+      # REGRESSION GUARD — builds run as a nixbld build user, never root (the official
+      # NixOS/nix docker.nix layout). Without a sandbox Nix sets HOME=/homeless-shelter
+      # and refuses EVERY later build if that path exists; only a ROOT builder can
+      # create it (a root cargo build did, 2026-11-26). The probe tries to, then reports
+      # its uid: it must be 30001..30032 and /homeless-shelter must not exist.
+      - name: Guard — builds run as a nixbld user and cannot create /homeless-shelter
         run: |
           set -euo pipefail
           CID=$(docker run -d nix-config-devcontainer:latest)
           trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
           for _ in $(seq 1 50); do docker exec "$CID" test -S /nix/var/nix/daemon-socket/socket && break; sleep 0.2; done
-          # shellcheck disable=SC2016  # expands INSIDE the container, not on the runner
-          docker exec -u 1000:1000 "$CID" bash -lc '
-            set -e
-            [ -z "${LD_LIBRARY_PATH:-}" ] || { echo "✗ the image exports a global LD_LIBRARY_PATH"; exit 1; }
-            for l in /lib/ld-linux-* /lib64/ld-linux-*; do
-              [ -e "$l" ] || continue
-              # readlink -f lands on bin/nix-ld: libexec/nix-ld in the package is itself a symlink to it.
-              case "$(readlink -f "$l")" in *-nix-ld-*/bin/nix-ld) ;; *) echo "✗ $l is not the nix-ld shim ($(readlink -f "$l"))"; exit 1 ;; esac
-            done
-            nix shell github:NixOS/nixpkgs/d176bec6d3f7dc613eb18ae8cec9397610ef826f#coreutils -c wc --version | head -1
-          '
-          echo "✓ no global LD_LIBRARY_PATH; loader is the nix-ld shim; an older-nixpkgs binary runs"
+          docker exec -i -u 1000:1000 "$CID" bash -l <<'PROBE'
+          set -euo pipefail
+          cat > /tmp/probe.nix <<'NIX'
+          derivation {
+            name = "build-user-probe";
+            system = builtins.currentSystem;
+            seed = toString builtins.currentTime;
+            builder = "/bin/sh";
+            # Shell builtins only: a builder has no PATH. `: > $HOME` tries to create it;
+            # the uid comes from /proc/self/status.
+            args = [ "-c" "(: > $HOME) 2>/dev/null; while read -r k v _; do [ \"$k\" = Uid: ] && echo \"$v\" > $out; done < /proc/self/status; [ -s $out ]" ];
+          }
+          NIX
+          out="$(nix build --impure --no-link --print-out-paths -f /tmp/probe.nix)"
+          u="$(cat "$out")"
+          [ "$u" -ge 30001 ] && [ "$u" -le 30032 ] || { echo "✗ the build ran as uid $u, not a nixbld build user"; exit 1; }
+          [ ! -e /homeless-shelter ] || { echo "✗ /homeless-shelter exists after a build"; exit 1; }
+          echo "✓ the build ran as nixbld uid $u and left no /homeless-shelter"
+          PROBE
 
       # REGRESSION GUARD — daemon stale-socket self-heal. A crashed nix-daemon
       # leaves the socket INODE behind; the entrypoint now probes real liveness
