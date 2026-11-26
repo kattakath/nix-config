@@ -1957,26 +1957,43 @@ let
               "require_extra_approval_for_unattributed_changes")))][0] // {}' \
           "${inputs.kattakath-dotgithub}/rulesets/main.json")
         if [ "$rs_want" != "{}" ]; then
+          # The list is read into a variable first, so a failing jq stops here (errexit)
+          # instead of feeding the loop nothing and reporting a clean "0 restored".
+          rs_list=$(jq -r '.import[] | select(.to | startswith("github_repository_ruleset."))
+            | [(.provider // "org"), (.id | split(":")[0]), (.id | split(":")[1])] | @tsv' config.tf.json)
+          rs_fail() {
+            echo "ERROR: the apply LANDED, but the ruleset post-check stopped at $1." >&2
+            echo "  Rulesets after it are unchecked. Re-run github-apply: a no-change apply re-runs the check." >&2
+            exit 1
+          }
+          rs_checked=0
           rs_restored=0
           while IFS=$'\t' read -r rs_prov rs_repo rs_id; do
+            [ -n "$rs_id" ] || continue
             rs_owner=${orgName}
             rs_tok=$GITHUB_TOKEN
             if [ "$rs_prov" = "github.user" ]; then
               rs_owner=${userName}
               rs_tok=$TF_VAR_github_user_token
             fi
-            rs_live=$(GH_TOKEN=$rs_tok gh api "repos/$rs_owner/$rs_repo/rulesets/$rs_id" --jq .rules)
+            rs_live=$(GH_TOKEN=$rs_tok gh api "repos/$rs_owner/$rs_repo/rulesets/$rs_id" --jq .rules) ||
+              rs_fail "reading $rs_owner/$rs_repo ruleset $rs_id"
             rs_fixed=$(jq -c --argjson w "$rs_want" \
               'map(if .type == "pull_request" then .parameters += $w else . end)' <<<"$rs_live")
             if [ "$(jq -c . <<<"$rs_live")" != "$rs_fixed" ]; then
               GH_TOKEN=$rs_tok gh api -X PUT "repos/$rs_owner/$rs_repo/rulesets/$rs_id" \
-                --input - --silent <<<"{\"rules\": $rs_fixed}"
+                --input - --silent <<<"{\"rules\": $rs_fixed}" ||
+                rs_fail "writing $rs_owner/$rs_repo ruleset $rs_id"
               echo "restored $rs_owner/$rs_repo ruleset $rs_id to the template's $rs_want" >&2
               rs_restored=$((rs_restored + 1))
             fi
-          done < <(jq -r '.import[] | select(.to | startswith("github_repository_ruleset."))
-            | [(.provider // "org"), (.id | split(":")[0]), (.id | split(":")[1])] | @tsv' config.tf.json)
-          echo "ruleset post-check: $rs_restored restored (fields the provider does not model)" >&2
+            rs_checked=$((rs_checked + 1))
+          done <<<"$rs_list"
+          if [ "$rs_checked" -eq 0 ]; then
+            echo "ERROR: the ruleset post-check found no rulesets in the render, so it checked nothing." >&2
+            exit 1
+          fi
+          echo "ruleset post-check: $rs_checked checked, $rs_restored restored (fields the provider does not model)" >&2
         fi
       '';
     };

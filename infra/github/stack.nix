@@ -20,7 +20,9 @@
 # sets require_extra_approval_for_unattributed_changes to TRUE (measured 2026-11-26 on
 # free-rag's rename; it was false). github-apply's postApply (modules/parts/terranix.nix,
 # mkGithubTofu) reads every rendered ruleset back and PUTs those fields to the template's
-# values, so a clean re-plan plus that step's "0 restored" is the full check.
+# values, so a clean re-plan plus that step's "N checked, 0 restored" is the full check. It
+# runs only after a SUCCESSFUL apply: if tofu fails partway, rulesets it already updated stay
+# flipped until a re-run of github-apply (a no-change apply still runs the step).
 #
 # RENAMES: a changed repo name or slug is a REPLACE, which prevent_destroy turns into a plan
 # error. Rename on GitHub first, then list it in `renamedRepos`, which renders the `moved`
