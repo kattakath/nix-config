@@ -37,6 +37,12 @@
   // Literal on purpose: packages/devcontainer-image.nix (workdir) and build-devcontainer-impl.yml
   // bake the same path, and the localWorkspaceFolderBasename variable is a worktree's name in a worktree.
   "workspaceFolder": "/workspaces/nix-config",
+
+  // The bind-mounted checkout is owned by the HOST user. When that UID is not 1000
+  // (a Linux host, a CI runner) git and Nix's libgit2 refuse it as "not owned by
+  // current user", and `nix develop` fails. updateRemoteUserUID stays false (fakeNss
+  // makes /etc/passwd read-only), so trust the one workspace folder instead.
+  "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind",
 
   // IMPORTANT: no mount over /nix — that would shadow the baked, warm store the
