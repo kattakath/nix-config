@@ -40,7 +40,7 @@ on:
       - "flake.lock"
       - "packages/**"
       # modules/_lib/nix-ld-libraries.nix is imported by packages/devcontainer-image.nix
-      # (`:98`) and baked into the image as NIX_LD_LIBRARY_PATH/LD_LIBRARY_PATH.
+      # (`:98`) and baked into the image as NIX_LD_LIBRARY_PATH (read by the nix-ld shim).
       # It matched NOTHING here while it lived in modules/shared/ either, so
       # widening the nix-ld list did not republish the image — a real gap, fixed
       # with the file's move (2026-10-02), not introduced by it.
@@ -69,7 +69,7 @@ on:
       - "flake.lock"
       - "packages/**"
       # modules/_lib/nix-ld-libraries.nix is imported by packages/devcontainer-image.nix
-      # (`:98`) and baked into the image as NIX_LD_LIBRARY_PATH/LD_LIBRARY_PATH.
+      # (`:98`) and baked into the image as NIX_LD_LIBRARY_PATH (read by the nix-ld shim).
       # It matched NOTHING here while it lived in modules/shared/ either, so
       # widening the nix-ld list did not republish the image — a real gap, fixed
       # with the file's move (2026-10-02), not introduced by it.

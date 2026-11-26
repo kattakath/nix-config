@@ -194,10 +194,11 @@ dockerTools.streamLayeredImage {
     #
     #   (1) ELF loader — the nix-ld contract. Foreign binaries hardcode the
     #       STANDARD loader path in PT_INTERP; without it the kernel refuses them
-    #       (exit 127). We OWN /lib*/ld-linux-* on a distroless image (no system
-    #       loader to protect), so we point it straight at nixpkgs glibc. The libs
-    #       those binaries then need at runtime are exposed via NIX_LD_LIBRARY_PATH
-    #       / LD_LIBRARY_PATH in config.Env — NOT via /lib symlinks or
+    #       (exit 127). We OWN /lib*/ld-linux-* on a distroless image, and point it
+    #       at the nix-ld SHIM, as NixOS's programs.nix-ld does (environment.ldso).
+    #       The shim execs the real loader (NIX_LD) with NIX_LD_LIBRARY_PATH for
+    #       THAT binary only; nothing is exported globally, so a Nix devShell from
+    #       any nixpkgs keeps its own glibc. NOT via /lib symlinks or
     #       /etc/ld.so.cache, which the nixpkgs-patched loader ignores (SYSTEM_DIRS
     #       = the glibc store path; dont-use-system-ld-so-cache.patch).
     #   (2) Interpreter PATHS the kernel resolves BEFORE any ELF loader runs — a
@@ -211,14 +212,14 @@ dockerTools.streamLayeredImage {
     # (1) ELF loader: standard path -> nixpkgs glibc loader. Arch-derived name,
     #     mirrored across /lib <-> /lib64 for binaries that probe the sibling dir.
     mkdir -p lib lib64
-    ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} ${loaderInfo.libDir}/${loaderInfo.name}
+    ln -sf ${pkgs.nix-ld}/libexec/nix-ld ${loaderInfo.libDir}/${loaderInfo.name}
     ${
       lib.optionalString (loaderInfo.libDir == "lib") ''
-        ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} lib64/${loaderInfo.name}
+        ln -sf ${pkgs.nix-ld}/libexec/nix-ld lib64/${loaderInfo.name}
       ''
     }${
       lib.optionalString (loaderInfo.libDir == "lib64") ''
-        ln -sf ${pkgs.glibc}/lib/${loaderInfo.name} lib/${loaderInfo.name}
+        ln -sf ${pkgs.nix-ld}/libexec/nix-ld lib/${loaderInfo.name}
       ''
     }
 
@@ -368,16 +369,14 @@ dockerTools.streamLayeredImage {
       # loader FIND their shared libs. Baking the broad SHARED library set — the
       # same one the NixOS hosts use (modules/_lib/nix-ld-libraries.nix) — means
       # the next foreign binary needing zlib/openssl/libGL runs with no image
-      # change, ending the per-soname whack-a-mole. LD_LIBRARY_PATH mirrors
-      # NIX_LD_LIBRARY_PATH because we symlink the standard loader straight to
-      # nixpkgs glibc (distroless: no system loader to protect), so the REAL loader
-      # — not a nix-ld shim binary — reads LD_LIBRARY_PATH. These are the same
-      # store paths the co-installed Nix binaries already resolve via their own
-      # RUNPATH (ABI-identical), so the global shadow is benign; the CI smoke test
-      # (nix store ping / nix build) confirms it.
+      # change, ending the per-soname whack-a-mole. NO global LD_LIBRARY_PATH: it
+      # used to mirror this one (the loader was glibc itself), and it was benign only
+      # for binaries from the image's OWN nixpkgs. A devShell on an older pin
+      # (glibc 2.42 against the image's 2.44) died with a bus error (2026-11-26,
+      # listing-lens and scrape-harness); the shim scopes the libs to foreign
+      # binaries instead. CI's "older nixpkgs runs" guard keeps it that way.
       "NIX_LD=${pkgs.stdenv.cc.bintools.dynamicLinker}"
       "NIX_LD_LIBRARY_PATH=${nixLdLibraryPath}"
-      "LD_LIBRARY_PATH=${nixLdLibraryPath}"
     ];
   };
 }

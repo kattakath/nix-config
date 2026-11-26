@@ -262,6 +262,29 @@ jobs:
           done
           echo "=== nix-ld library contract guard passed (${{ matrix.arch }}) ==="
 
+      # REGRESSION GUARD — no global LD_LIBRARY_PATH. The loader path is the nix-ld SHIM
+      # (NixOS's own design), so foreign-binary libs never leak into Nix programs. A
+      # global LD_LIBRARY_PATH once forced the image's glibc on a devShell from an OLDER
+      # nixpkgs, which died with a bus error (2026-11-26). The older pin below is the one
+      # listing-lens and scrape-harness hit it on; fetched from cache.nixos.org, not built.
+      - name: Guard — a binary from an older nixpkgs runs (no global LD_LIBRARY_PATH)
+        run: |
+          set -euo pipefail
+          CID=$(docker run -d nix-config-devcontainer:latest)
+          trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
+          for _ in $(seq 1 50); do docker exec "$CID" test -S /nix/var/nix/daemon-socket/socket && break; sleep 0.2; done
+          # shellcheck disable=SC2016  # expands INSIDE the container, not on the runner
+          docker exec -u 1000:1000 "$CID" bash -lc '
+            set -e
+            [ -z "${LD_LIBRARY_PATH:-}" ] || { echo "✗ the image exports a global LD_LIBRARY_PATH"; exit 1; }
+            for l in /lib/ld-linux-* /lib64/ld-linux-*; do
+              [ -e "$l" ] || continue
+              case "$(readlink -f "$l")" in */libexec/nix-ld) ;; *) echo "✗ $l is not the nix-ld shim"; exit 1 ;; esac
+            done
+            nix shell github:NixOS/nixpkgs/d176bec6d3f7dc613eb18ae8cec9397610ef826f#coreutils -c wc --version | head -1
+          '
+          echo "✓ no global LD_LIBRARY_PATH; loader is the nix-ld shim; an older-nixpkgs binary runs"
+
       # REGRESSION GUARD — daemon stale-socket self-heal. A crashed nix-daemon
       # leaves the socket INODE behind; the entrypoint now probes real liveness
       # (`nix store ping`) and reclaims a stale inode on container start. Reproduce:
