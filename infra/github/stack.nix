@@ -16,6 +16,10 @@
 # Provider 6.13.0 does not model three pull_request fields the API returns
 # (required_reviewers, dismissal_restriction, require_extra_approval_for_unattributed_changes;
 # `-generate-config-out` omits them), so a drift in those three is invisible here.
+# WORSE ON UPDATE: an in-place ruleset update is a full PUT without them, and GitHub then
+# sets require_extra_approval_for_unattributed_changes to TRUE (measured 2026-11-26 on
+# free-rag's rename; it was false). After any apply that updates a ruleset, PUT that field
+# back to false (`gh api -X PUT repos/<o>/<r>/rulesets/<id>`, the `rules` array only).
 #
 # RENAMES: a changed repo name or slug is a REPLACE, which prevent_destroy turns into a plan
 # error. Rename on GitHub first, then list it in `renamedRepos`, which renders the `moved`
