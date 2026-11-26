@@ -1925,6 +1925,14 @@ in
           # ADR-014 § 4 C, mechanized. A paragraph in one live agent-facing doc that is a
           # near-copy of one in another fails; scope, method and the measurement that set the
           # threshold are in the script's header. Pure Python over the source, no network.
+          # Every cachix-action push site must filter Anthropic's All-rights-reserved
+          # artifacts out of the PUBLIC cache. The rule, the samples and why: the script header.
+          cachix-push-filters =
+            pkgs.runCommand "cachix-push-filters" { nativeBuildInputs = [ pkgs.python3 ]; }
+              ''
+                python3 -I ${../../scripts/cachix-push-filters.py} ${self} > "$out"
+              '';
+
           docs-near-duplicates =
             pkgs.runCommand "docs-near-duplicates" { nativeBuildInputs = [ pkgs.python3 ]; }
               ''

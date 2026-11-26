@@ -108,12 +108,13 @@ jobs:
             extra-substituters = https://kattakath.cachix.org https://install.determinate.systems
             extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw= cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM=
 
-      # No pushFilter: unlike build-installers there is no dd-able image here, so
+      # No IMAGE filter: unlike build-installers there is no dd-able image here, so
       # everything realised belongs in the cache.
       - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
           name: kattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          pushFilter: "(claude-code|claude\\.zst|claude-agent-sdk|hook-types-node-modules)"
 
       # Flakes evaluate the git tree, not the worktree (.claude/rules/git-purity.md).
       - name: Stage tree (git purity)

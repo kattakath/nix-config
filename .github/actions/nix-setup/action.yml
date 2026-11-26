@@ -55,6 +55,9 @@ runs:
       with:
         name: kattakath
         authToken: ${{ inputs.cachix-auth-token }}
+        # Never push Anthropic's All-rights-reserved artifacts to this PUBLIC cache;
+        # checks.<system>.cachix-push-filters requires this on every push site.
+        pushFilter: "(claude-code|claude\\.zst|claude-agent-sdk|hook-types-node-modules)"
 
     # Flakes ignore untracked files; stage before any eval/build (git-purity).
     - name: Stage tree (git purity)

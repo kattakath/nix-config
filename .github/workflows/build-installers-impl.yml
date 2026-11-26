@@ -81,7 +81,7 @@ jobs:
         with:
           name: kattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
-          pushFilter: "(-nixos-sd-image-|\\.img)"
+          pushFilter: "(-nixos-sd-image-|\\.img|claude-code|claude\\.zst|claude-agent-sdk|hook-types-node-modules)"
 
       - name: Stage tree (git purity)
         run: git add -A
