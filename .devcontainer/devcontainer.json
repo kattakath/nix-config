@@ -34,8 +34,10 @@
   // The bind-mounted checkout is owned by the HOST user. When that UID is not 1000
   // (a Linux host, a CI runner) git and Nix's libgit2 refuse it as "not owned by
   // current user", and `nix develop` fails. updateRemoteUserUID stays false (fakeNss
-  // makes /etc/passwd read-only), so trust the one workspace folder instead.
-  "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
+  // makes /etc/passwd read-only), so trust the one workspace folder instead. `-C /`: git
+  // must not inspect the workspace first, or a git WORKTREE (whose .git points at a host
+  // path absent in the container) fails the command itself.
+  "postStartCommand": "git -C / config --global --add safe.directory ${containerWorkspaceFolder}",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/nix-config,type=bind",
 
   // IMPORTANT: no mount over /nix — that would shadow the baked, warm store the

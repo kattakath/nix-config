@@ -1,7 +1,8 @@
 # ADR-015 — One shared devcontainer image for the fleet
 
-**Status:** **DECIDED 2026-11-26** (the operator chose each point click-to-select). The image
-side has shipped in nix-config; no other fleet repo consumes it yet.
+**Status:** **DECIDED 2026-11-26** (the operator chose each point click-to-select). Shipped:
+the image, the `fleet` devShell, and the one-file `devcontainer.json` in kattakath/skills,
+ismailkattakath/userscripts and kattakath/.github, each proven with the devcontainers CLI.
 
 **Question.** nix-config publishes a devcontainer image. Should the other fleet repos use it
 instead of building their own, how should they pin it, and how does a repo add tools or
@@ -43,7 +44,7 @@ The minimal form, and the recommended one:
   "image": "ghcr.io/kattakath/devcontainer:1",
   "workspaceFolder": "/workspaces/<repo>",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/<repo>,type=bind",
-  "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}"
+  "postStartCommand": "git -C / config --global --add safe.directory ${containerWorkspaceFolder}"
 }
 ```
 
