@@ -77,6 +77,7 @@ manager; this Nix image has none. Judgment, not tested: expect most Features to 
 | Pin by digest, bumped by a bot | Needs a write-back bot (ADR-012 § 5 rejected one); Dependabot's `devcontainers` ecosystem tracks Features, not the image |
 | Bake claude-code into the image | nixpkgs marks it `redistributable = false`; a public image or cache would redistribute it |
 | A private image with per-repo grants | Works and is reversible, but forks and outside contributors cannot pull it |
+| nix2container instead of `dockerTools` | Measured 2026-11-26: the push it would shorten takes 35 s per arch, so ~30 s per publish at best. It relocates our ~40 lines of image setup (`copyToRoot` + `perms`) rather than removing them. Popular (949 stars, devenv builds on it) and maintained (v1.1.0, 2026-09-24), but one maintainer wrote 69% of its commits and 36 PRs are open. Nix's own official image and Determinate's use `dockerTools.buildLayeredImageWithNixDb` for this exact job. **Reopen when** repos build derived images (`fromImage` layer reuse), the push passes ~2 min, or the maintainer share drops below half |
 
 ## 5. Weakest assumptions
 
