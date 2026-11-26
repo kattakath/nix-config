@@ -368,17 +368,16 @@
       visibility = "public";
       web_commit_signoff_required = false;
     };
-    # Public since 2026-11-26 (ADR-016 § 8, after a full-history scan). No CI yet, so no
-    # ruleset: the fleet ruleset requires the `gate` check and would block every merge.
+    # Public since 2026-11-26 (ADR-016 § 8, after a full-history scan).
     design-system = {
-      allow_auto_merge = false;
+      allow_auto_merge = true;
       allow_forking = true;
       allow_merge_commit = true;
       allow_rebase_merge = true;
       allow_squash_merge = true;
       allow_update_branch = false;
       default_branch = "main";
-      delete_branch_on_merge = false;
+      delete_branch_on_merge = true;
       description = "Duochrome, a two-value design system: pure black ink on pure white ground, Roboto type, nothing in between.";
       has_discussions = false;
       has_issues = true;

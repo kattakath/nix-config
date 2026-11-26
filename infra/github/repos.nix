@@ -30,6 +30,7 @@
     "scrape-harness".main = 27248510;
     "userscripts".main = 23271873;
     "website".main = 26397049;
+    "design-system".main = 28197899;
     "free-rag".main = 26397055;
   };
 }
