@@ -1,0 +1,84 @@
+name: prune-devcontainer
+
+# Keeps ghcr.io/kattakath/devcontainer from growing without bound. Each publish adds a
+# TRIPLE of package versions: the index (tags :<sha12>, and :latest/:1 while current) and
+# its two per-arch manifests (:<sha12>-arm64, :<sha12>-amd64). A triple is deleted WHOLE:
+# deleting a per-arch version alone would break the older index that points at it.
+#
+# Keeps: the newest KEEP publishes, and any triple whose index carries :latest or :1.
+# Never touches UNTAGGED versions: attestations pushed with the image (actions/attest
+# push-to-registry) are untagged referrers of an index, and an untagged-only prune would
+# delete nothing else here anyway (every image version is tagged).
+#
+# actions/delete-package-versions was considered: it keeps the newest N VERSIONS, not
+# publishes, so it would split a triple. The delete is GitHub's own REST call.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "List what would be deleted, delete nothing"
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: prune-devcontainer
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: prune old publishes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      packages: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      ORG: ${{ github.repository_owner }}
+      PKG: devcontainer
+      KEEP: "5"
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || 'false' }}
+    steps:
+      - name: Delete publishes beyond the newest ${{ env.KEEP }}
+        # Python, not awk: protection is per VERSION ID. A commit that leaves the image
+        # byte-identical (e.g. a devcontainer.json-only edit) re-tags the SAME versions,
+        # so one version can carry an old :<sha12> AND :latest. A version is deleted only
+        # when EVERY tag on it belongs to a pruned publish (found by a dry run 2026-11-26).
+        shell: python3 -I {0}
+        run: |
+          import json, os, re, subprocess
+          org, pkg, keep = os.environ["ORG"], os.environ["PKG"], int(os.environ["KEEP"])
+          dry = os.environ["DRY_RUN"] == "true"
+          api = f"/orgs/{org}/packages/container/{pkg}/versions"
+          out = subprocess.run(["gh", "api", "--paginate", "--slurp", f"{api}?per_page=100"],
+                               check=True, capture_output=True, text=True).stdout
+          versions = [v for page in json.loads(out) for v in page]
+          tagged = [v for v in versions if v["metadata"]["container"]["tags"]]
+          sha = re.compile(r"^[0-9a-f]{12}$")
+          # A publish = one bare <sha12> tag, dated by the version it sits on; newest first.
+          pubs = sorted({(v["created_at"], t) for v in tagged for t in v["metadata"]["container"]["tags"] if sha.match(t)}, reverse=True)
+          order = []
+          for _, t in pubs:
+              if t not in order:
+                  order.append(t)
+          kept = set(order[:keep])
+          for v in tagged:
+              if {"latest", "1"} & set(v["metadata"]["container"]["tags"]):
+                  kept |= {t for t in v["metadata"]["container"]["tags"] if sha.match(t)}
+          def owner(tag):
+              return tag.split("-", 1)[0] if sha.match(tag.split("-", 1)[0]) else None
+          print(f"publishes: {len(order)}; kept: {sorted(kept)}")
+          for v in tagged:
+              tags = v["metadata"]["container"]["tags"]
+              owners = {owner(t) for t in tags}
+              if None in owners or owners & kept:
+                  continue
+              if dry:
+                  print(f"would delete version {v['id']} {tags}")
+              else:
+                  subprocess.run(["gh", "api", "-X", "DELETE", f"{api}/{v['id']}"], check=True, capture_output=True)
+                  print(f"deleted version {v['id']} {tags}")
