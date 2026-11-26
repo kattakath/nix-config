@@ -368,7 +368,7 @@
       visibility = "public";
       web_commit_signoff_required = false;
     };
-    workspace-studio = {
+    free-rag = {
       allow_auto_merge = true;
       allow_forking = true;
       allow_merge_commit = true;

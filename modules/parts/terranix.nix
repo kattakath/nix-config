@@ -134,7 +134,7 @@ let
       ]
     );
 
-  # dropGuard: state MINUS render (comm -23 over the sorted address lists the caller
+  # dropGuard: state MINUS render MINUS moved-from (comm -23 over the sorted address lists the caller
   # wrote) is what an apply would DELETE. Refuses unless `<env>_ALLOW_DROPS=1`, an
   # override of its own so standing down another guard never stands this one down.
   dropGuard =
@@ -146,7 +146,16 @@ let
     }:
     nixpkgs.lib.concatStringsSep "\n" (
       [
-        "dropped=$(comm -23 .state-addrs .render-addrs)"
+        # A `moved` block's FROM is a move, not a drop. Its TO must be rendered, or tofu
+        # would move the object to an address nothing declares and then delete it.
+        "jq -r '.moved // [] | .[].from' config.tf.json | sort > .moved-from"
+        "unrendered=$(jq -r '.moved // [] | .[].to' config.tf.json | sort | comm -23 - .render-addrs)"
+        "if [ -n \"$unrendered\" ]; then"
+        "  echo \"REFUSING: a 'moved' block targets an address the render does not declare:\" >&2"
+        "  printf '%s\\n' \"$unrendered\" | sed 's/^/    /' >&2"
+        "  exit 1"
+        "fi"
+        "dropped=$(comm -23 .state-addrs .render-addrs | comm -23 - .moved-from)"
         "if [ -n \"$dropped\" ]; then"
         "  echo \"REFUSING: this render DROPS ${literal what} that state already holds:\" >&2"
         "  printf '%s\\n' \"$dropped\" | sed 's/^/    /' >&2"
@@ -260,15 +269,16 @@ let
       inherit name;
       # The Keychain item packages/terranix-drift.nix hands this stack (names only).
       passthru.terranixDriftEnv.CLOUDFLARE_API_TOKEN = cfTokenItem;
-      # coreutils/gnugrep/gnused are for the DROPPED-RECORD guard below. Pinning
-      # them is the point: the guard is the thing standing between a bad render
-      # and four deleted zones, so it must not resolve `comm` off the caller's
-      # ambient PATH.
+      # coreutils/gnugrep/gnused/jq are for the DROPPED-RECORD guard below (jq reads
+      # the render's `moved` blocks). Pinning them is the point: the guard is the
+      # thing standing between a bad render and four deleted zones, so it must not
+      # resolve `comm` or `jq` off the caller's ambient PATH.
       runtimeInputs = [
         pkgs.opentofu
         pkgs.coreutils
         pkgs.gnugrep
         pkgs.gnused
+        pkgs.jq
       ];
       # SIX scopes, not four. The list below used to name only the Tunnel + three
       # Zone groups, which has been WRONG since #737 gave this stack

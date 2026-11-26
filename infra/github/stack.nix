@@ -18,7 +18,8 @@
 # `-generate-config-out` omits them), so a drift in those three is invisible here.
 #
 # RENAMES: a changed repo name or slug is a REPLACE, which prevent_destroy turns into a plan
-# error. Move the address with a `moved` block instead.
+# error. Rename on GitHub first, then list it in `renamedRepos`, which renders the `moved`
+# blocks (the drop guard reads them, so a move is not a drop).
 #
 # ORDER, declared: on Tier A, QUEUE_ENABLED makes own-branch PRs skip the heavy suite, so it
 # must never exist without the merge_queue rule. `depends_on` creates the ruleset first.
@@ -73,6 +74,18 @@ let
       owner = userOwner;
       repo = "dotfiles";
       # Its Actions variables (state addresses <slug>_<name>), forgotten with it.
+      variables = [ "ci_bot_client_id" ];
+    }
+  ];
+  # Renamed repos (the `moved` blocks below). Rename on GitHub FIRST: the variable and
+  # default-branch resources look the NEW name up at plan time and force a replace on a 404
+  # (provider 6.13.0 util_diff.go diffRepository); a live rename keeps the repo id, which
+  # makes it an in-place update.
+  renamedRepos = [
+    {
+      owner = userOwner;
+      from = "workspace-studio";
+      to = "free-rag";
       variables = [ "ci_bot_client_id" ];
     }
   ];
@@ -389,6 +402,25 @@ in
         ++ map (v: "github_actions_variable.${slug r.repo}_${v}") r.variables
       )
   ) retiredRepos;
+
+  # RENAMED repos: each address that carries the slug moves to the new slug, so a rename is
+  # an in-place update, never a replace (which prevent_destroy refuses).
+  moved = lib.concatMap (
+    r:
+    let
+      side = if r.owner == orgOwner then "org" else "user";
+      pair = f: {
+        from = f (slug r.from);
+        to = f (slug r.to);
+      };
+    in
+    [
+      (pair (s: "github_repository.${side}_${s}"))
+      (pair (s: "github_branch_default.${side}_${s}"))
+      (pair (s: "github_repository_ruleset.${s}"))
+    ]
+    ++ map (v: pair (s: "github_actions_variable.${s}_${v}")) r.variables
+  ) renamedRepos;
 
   # The deploy gate's reviewer, read by login so no account id is written here.
   data.github_user.operator = {
