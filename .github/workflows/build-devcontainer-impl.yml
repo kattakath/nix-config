@@ -279,7 +279,8 @@ jobs:
             [ -z "${LD_LIBRARY_PATH:-}" ] || { echo "✗ the image exports a global LD_LIBRARY_PATH"; exit 1; }
             for l in /lib/ld-linux-* /lib64/ld-linux-*; do
               [ -e "$l" ] || continue
-              case "$(readlink -f "$l")" in */libexec/nix-ld) ;; *) echo "✗ $l is not the nix-ld shim"; exit 1 ;; esac
+              # readlink -f lands on bin/nix-ld: libexec/nix-ld in the package is itself a symlink to it.
+              case "$(readlink -f "$l")" in *-nix-ld-*/bin/nix-ld) ;; *) echo "✗ $l is not the nix-ld shim ($(readlink -f "$l"))"; exit 1 ;; esac
             done
             nix shell github:NixOS/nixpkgs/d176bec6d3f7dc613eb18ae8cec9397610ef826f#coreutils -c wc --version | head -1
           '
