@@ -20,7 +20,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = false;
-      description = "Default community health files for every public ismailkattakath repository";
+      description = "Default community health files for every public ismailkattakath repository.";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -31,7 +31,12 @@
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "community-health-files"
+        "code-of-conduct"
+        "issue-templates"
+        "github-templates"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -44,7 +49,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "Claude Code project: an agentic job search — discover, tailor a JSON Resume under an evidence gate, track — with every fact in Google Drive, never in the repo.";
+      description = "A Claude Code job search: discover postings, tailor a JSON Resume under an evidence gate, track each application";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -63,6 +68,10 @@
         "pgvector"
         "python"
         "rag"
+        "job-search"
+        "resume"
+        "typst"
+        "google-drive"
       ];
       visibility = "public";
       web_commit_signoff_required = false;
@@ -76,7 +85,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "Claude Code project: Ismail's financial affairs — CRA, lenders, document packages, checklist — read-only on every portal, with a verification gate before anything leaves.";
+      description = "A Claude Code project for personal financial affairs: tax, lenders, document packages, read-only on every portal";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -87,7 +96,15 @@
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "claude-code"
+        "agentic-ai"
+        "human-in-the-loop"
+        "personal-finance"
+        "browser-automation"
+        "beancount"
+        "ofx"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -100,7 +117,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "Claude Code project: an agentic travel planner — search, book, pay, cancel, refund, support — with a human gate on every spend.";
+      description = "A Claude Code travel planner: search, book, pay, change, cancel, refund and support, with a human gate on every spend";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -111,7 +128,17 @@
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "claude-code"
+        "agentic-ai"
+        "travel"
+        "mcp"
+        "human-in-the-loop"
+        "stripe"
+        "browser-automation"
+        "flights"
+        "hotels"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -124,12 +151,12 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = false;
-      description = "Profile README";
+      description = "Ismail Kattakath's GitHub profile README";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
       has_wiki = true;
-      homepage_url = "";
+      homepage_url = "https://ismail.kattakath.com";
       is_template = false;
       merge_commit_message = "PR_TITLE";
       merge_commit_title = "MERGE_MESSAGE";
@@ -148,18 +175,28 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "JSON Resume Connect — a Google Workspace Studio step: sign in with jsonresume.org and render your résumé as a document for Google Docs™, with PDF and DOCX export";
+      description = "A step for Google Workspace Studio™: your JSON Resume rendered as a document for Google Docs™, with PDF and DOCX links.";
       has_discussions = true;
       has_issues = true;
       has_projects = true;
       has_wiki = false;
-      homepage_url = "";
+      homepage_url = "https://jsonresume-connect.kattakath.com/";
       is_template = false;
       merge_commit_message = "PR_TITLE";
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "json-resume"
+        "resume"
+        "google-workspace"
+        "workspace-studio"
+        "google-workspace-add-on"
+        "apps-script"
+        "google-docs"
+        "oauth2"
+        "pkce"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -190,6 +227,8 @@
         "nix"
         "nix-flake"
         "python"
+        "postgresql"
+        "web-scraping"
       ];
       visibility = "public";
       web_commit_signoff_required = false;
@@ -203,7 +242,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = false;
-      description = "One repository shape for a Nix fleet: shared devShell, formatting and checks, plus generated files that cannot drift.";
+      description = "One repository shape for a Nix fleet: a shared devShell, formatting and checks, plus generated files that cannot drift.";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -214,7 +253,17 @@
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "nix"
+        "nix-flake"
+        "flake-parts"
+        "treefmt-nix"
+        "devshell"
+        "devcontainer"
+        "editorconfig"
+        "repository-template"
+        "developer-tooling"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -245,6 +294,9 @@
         "playwright"
         "python"
         "web-scraping"
+        "claude-code"
+        "human-in-the-loop"
+        "robots-txt"
       ];
       visibility = "public";
       web_commit_signoff_required = false;
@@ -258,7 +310,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "Userscripts that ship alternative experiences for legacy web applications — redesigns, not tweaks. Published on Greasy Fork.";
+      description = "Userscripts that ship alternative experiences for legacy web apps: redesigns, not tweaks. Published on Greasy Fork.";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -269,7 +321,16 @@
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "userscript"
+        "userscripts"
+        "greasyfork"
+        "violentmonkey"
+        "tampermonkey"
+        "ui-redesign"
+        "javascript"
+        "css"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -282,18 +343,28 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "Personal site (JSON Resume → portfolio, Next.js static export)";
+      description = "A portfolio site built from one JSON Resume: homepage, résumé and cover letter builder, and a /resume.json endpoint.";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
       has_wiki = true;
-      homepage_url = "https://ismail.kattakath.com/";
+      homepage_url = "";
       is_template = false;
       merge_commit_message = "PR_TITLE";
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "portfolio"
+        "json-resume"
+        "resume-builder"
+        "cover-letter"
+        "nextjs"
+        "static-site"
+        "github-pages"
+        "typescript"
+        "tailwindcss"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -306,7 +377,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "";
+      description = "Ingests web documentation into a private Cloudflare AI Search instance, one item per page, for retrieval from Claude";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -317,7 +388,15 @@
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "rag"
+        "cloudflare-ai-search"
+        "ingestion"
+        "context7"
+        "nix"
+        "trafilatura"
+        "documentation"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -332,7 +411,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "Shared CI landing system: one required gate check, the suite run once per PR, merge queue where GitHub offers one";
+      description = "The fleet's shared landing system: one required gate check, reusable CI workflows, rulesets and community defaults.";
       has_discussions = false;
       has_issues = true;
       has_projects = false;
@@ -344,11 +423,15 @@
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
       topics = [
-        "ci-cd"
         "github-actions"
-        "merge-queue"
-        "platform-engineering"
         "reusable-workflows"
+        "merge-queue"
+        "rulesets"
+        "continuous-integration"
+        "community-health-files"
+        "nix"
+        "ci-cd"
+        "platform-engineering"
       ];
       visibility = "public";
       web_commit_signoff_required = false;
@@ -362,7 +445,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "WhatsApp bot answering Canadian immigration questions, grounded in official IRCC content via a local pgvector RAG store with CRAG web fallback — LangGraph.js dialogue engine, crash-safe checkpointed conversations, portable Nix flake service.";
+      description = "WhatsApp bot answering Canadian immigration questions from official IRCC pages, retrieved via Cloudflare AI Search";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -380,9 +463,11 @@
         "langgraph"
         "nix"
         "openai"
-        "pgvector"
         "rag"
         "whatsapp-bot"
+        "cloudflare-ai-search"
+        "ircc"
+        "immigration"
       ];
       visibility = "public";
       web_commit_signoff_required = false;
@@ -396,18 +481,24 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "ismail.kattakath.com — static professional landing (GitHub Pages; source in nix-config sites/ismail-landing)";
+      description = "ismail.kattakath.com: a professional landing page and case studies, plain static HTML served by GitHub Pages";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
       has_wiki = false;
-      homepage_url = "";
+      homepage_url = "https://ismail.kattakath.com";
       is_template = false;
       merge_commit_message = "PR_TITLE";
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "github-pages"
+        "static-site"
+        "portfolio"
+        "html"
+        "css"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -420,18 +511,22 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "kattakath.com — the Kattakath family landing page (static, single self-contained index.html, deployed by GitHub Pages)";
+      description = "kattakath.com: a family landing page, plain static HTML deployed by GitHub Pages with no build step";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
       has_wiki = true;
-      homepage_url = "";
+      homepage_url = "https://kattakath.com";
       is_template = false;
       merge_commit_message = "PR_TITLE";
       merge_commit_title = "MERGE_MESSAGE";
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
+      topics = [
+        "github-pages"
+        "static-site"
+        "html"
+      ];
       visibility = "public";
       web_commit_signoff_required = false;
     };
@@ -444,7 +539,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "Declarative Nix mono-repo: macOS (nix-darwin), NixOS VM, Raspberry Pi 4, Devcontainers";
+      description = "One declarative Nix flake for an aarch64 fleet: a nix-darwin Mac, a Raspberry Pi server, NixOS VMs and a devcontainer.";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -456,14 +551,21 @@
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
       topics = [
-        "home-manager"
-        "infrastructure-as-code"
         "nix"
-        "nix-darwin"
         "nix-flake"
+        "nix-darwin"
         "nixos"
+        "home-manager"
         "raspberry-pi"
         "terranix"
+        "agenix"
+        "infrastructure-as-code"
+        "devcontainer"
+        "flake-parts"
+        "deploy-rs"
+        "cachix"
+        "dotfiles"
+        "aarch64"
       ];
       visibility = "public";
       web_commit_signoff_required = false;
@@ -477,7 +579,7 @@
       allow_update_branch = false;
       default_branch = "main";
       delete_branch_on_merge = true;
-      description = "Agent resources by Ismail Kattakath: Claude Code skills and plugins, plus portable data catalogs (MCP server configs) that external harnesses consume.";
+      description = "A Claude Code plugin marketplace: Agent Skills, hooks, output styles, MCP and LSP servers, one plugin per folder.";
       has_discussions = false;
       has_issues = true;
       has_projects = true;
@@ -489,12 +591,16 @@
       squash_merge_commit_message = "COMMIT_MESSAGES";
       squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
       topics = [
-        "agent-skills"
-        "ai-agents"
         "claude-code"
         "claude-code-plugins"
-        "llmops"
+        "plugin-marketplace"
+        "agent-skills"
+        "claude"
         "mcp"
+        "model-context-protocol"
+        "lsp"
+        "ai-agents"
+        "llmops"
       ];
       visibility = "public";
       web_commit_signoff_required = false;
