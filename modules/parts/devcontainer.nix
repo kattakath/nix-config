@@ -36,6 +36,7 @@ in
     {
       config,
       lib,
+      pkgs,
       system,
       ...
     }:
@@ -46,6 +47,14 @@ in
       # `nix develop` inside the container resolves from the baked store. No
       # unfree instance: the image is public, and claude-code (the one unfree
       # tool it once baked) now arrives through the devShell instead.
+      # The LEAN shell any fleet repo enters from the shared image
+      # (docs/fleet-devcontainer-adr.md): `nix develop github:kattakath/nix-config#fleet`.
+      # The image already bakes the toolchain, so it adds only what the image cannot carry.
+      # Same systems as the image, so there is no darwin `fleet` shell.
+      devShells = lib.optionalAttrs (lib.elem system devcontainerSystems) {
+        fleet = pkgs.mkShell { packages = config.containerPackages; };
+      };
+
       packages = lib.optionalAttrs (lib.elem system devcontainerSystems) {
         devcontainerImage =
           (import nixpkgs { inherit system; }).callPackage ../../packages/devcontainer-image.nix
@@ -79,7 +88,7 @@ in
       # without it the container's shell errors out (and the CI smoke test does
       # too). This is NOT the fleet: no host/check/config is generated for
       # x86_64, only the dev environment.
-      devShells.x86_64-linux = { inherit (config.devShells) default; };
+      devShells.x86_64-linux = { inherit (config.devShells) default fleet; };
     }
   );
 }

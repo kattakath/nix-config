@@ -292,8 +292,9 @@ jobs:
             [ "$PWD" = /workspaces/nix-config ] || { echo "✗ workspaceFolder is $PWD"; exit 1; }
             nix store ping                    # overrideCommand: false kept the daemon entrypoint
             nix develop .#default --command true
+            nix develop .#fleet --command claude --version   # the lean shell other fleet repos enter
           '
-          echo "✓ opens as a devcontainer: remoteUser, workspaceFolder, daemon, devShell"
+          echo "✓ opens as a devcontainer: remoteUser, workspaceFolder, daemon, devShell, fleet shell"
 
       - name: Login to GHCR
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v3

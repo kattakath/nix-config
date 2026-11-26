@@ -54,10 +54,11 @@ The minimal form, and the recommended one:
   pulls the image.
 
 **Tools.** A repo with a flake adds its own `devShells.default`; `nix develop` then layers it
-on the image's warm store. A repo without a flake still gets everything the image bakes
-(nix, git, gh, node, the Nix toolchain). It does not get claude-code: that comes from a
-devShell. Open item: a lean, reusable devShell output in nix-config that any repo can enter
-with `nix develop github:kattakath/nix-config#<name>`.
+on the image's warm store. Every repo, flake or not, can enter nix-config's lean shell for
+what the image cannot carry (claude-code): `nix develop github:kattakath/nix-config#fleet`.
+It exists for the image's two systems only, and CI enters it inside the container on every
+publish. To make it a terminal, add a profile whose command is
+`bash -lc "exec nix develop github:kattakath/nix-config#fleet -c claude"`.
 
 **Services (a database).** Use the spec's Docker Compose form: `dockerComposeFile` plus
 `service` in `devcontainer.json`. The dev service uses this image; the database is its own

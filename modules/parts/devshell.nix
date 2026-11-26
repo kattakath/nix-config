@@ -56,6 +56,24 @@ in
       # A perSystem OPTION rather than a `let` function, so
       # modules/parts/devcontainer.nix can read it for the system it is baking —
       # including the x86_64-linux one it reaches through `withSystem`.
+      # claude-code, LINUX ONLY, for every devShell a devcontainer enters (`default` here,
+      # `fleet` in modules/parts/devcontainer.nix): fetched from Anthropic by its own src at
+      # `nix develop`. It is unfree with redistributable = false, so it is NOT in the public
+      # image, and every cachix-action `pushFilter` keeps it out of the public cache
+      # (`cachix-push-filters`). On darwin the profile wrappers
+      # (modules/home/claude-profiles.nix) own `claude`, and a copy in a shell would shadow them.
+      options.containerPackages = lib.mkOption {
+        type = lib.types.listOf lib.types.package;
+        readOnly = true;
+        default = lib.optionals pkgs.stdenv.hostPlatform.isLinux [
+          (import inputs.nixpkgs {
+            inherit system;
+            config.allowUnfreePredicate = p: lib.getName p == "claude-code";
+          }).claude-code
+        ];
+        description = "What a devcontainer's devShells add on top of the image: claude-code, Linux only.";
+      };
+
       options.devPackages = lib.mkOption {
         type = lib.types.listOf lib.types.package;
         description = "Dev tools shared by the devShell and the devcontainer image.";
@@ -154,24 +172,14 @@ in
         # perSystem by modules/parts/devcontainer.nix via `withSystem`, WITHOUT
         # enrolling x86_64 in `systems` (which would also spawn x86 checks, apps
         # and a formatter). See modules/parts/systems.nix.
+
         devShells.default = pkgs.mkShell {
           # Shared with the devcontainer image (devPackages) so the pinned
           # nixd/treefmt/statix/deadnix/jq/home-manager set never drifts.
           packages =
             config.devPackages
             ++ config.pre-commit.settings.enabledPackages
-            # claude-code, LINUX ONLY: the devcontainer and Codespaces get it here, at
-            # `nix develop`, fetched from Anthropic by its own src. It is unfree with
-            # redistributable = false, so it is NOT in the public image, and nix-ci's
-            # cachix-action `pushFilter` keeps it out of the public cache. On darwin the
-            # profile wrappers (modules/home/claude-profiles.nix) own `claude`, and a copy
-            # here would shadow them inside `nix develop`.
-            ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
-              (import inputs.nixpkgs {
-                inherit system;
-                config.allowUnfreePredicate = p: lib.getName p == "claude-code";
-              }).claude-code
-            ]
+            ++ config.containerPackages
             # The `deploy` CLI (deploy-rs) — DARWIN ONLY, on purpose. `macos` is
             # the fleet's sole SSH client and the only host holding the operator
             # key + the cloudflared Access path, so a deploy can originate
