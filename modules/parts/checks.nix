@@ -63,10 +63,59 @@ let
   # `home-manager.users` renders as one opaque row), and a host or app list needs none of
   # it. The checks inventory is NOT rendered: a check reading `attrNames` of the checks
   # set it belongs to recurses.
-  generatedDoc = "docs/map/entry-points.md";
-  generatedBegin = "<!-- BEGIN GENERATED: flake-outputs, regenerate with: nix run .#docs-generate -->";
-  generatedEnd = "<!-- END GENERATED: flake-outputs -->";
-  generatedBlock =
+  #
+  # ADR-014 § 5 step 2 made it N named spans: `generatedBlocks` maps a span name to the doc
+  # that holds it and the lines between its markers. ONE check (`hosts-documented`) proves
+  # every span equals its render, and ONE writer (`docs-generate`) rewrites every span, both
+  # from the same `render`, so the two cannot disagree. A new span is one attribute here.
+  generatedMarkers = name: {
+    begin = "<!-- BEGIN GENERATED: ${name}, regenerate with: nix run .#docs-generate -->";
+    end = "<!-- END GENERATED: ${name} -->";
+  };
+  generatedBlocks =
+    lib.mapAttrs
+      (
+        name: b:
+        let
+          m = generatedMarkers name;
+        in
+        b
+        // {
+          inherit (m) begin end;
+          render =
+            lib.concatStringsSep "\n" (
+              [
+                m.begin
+                ""
+              ]
+              ++ b.lines
+              ++ [
+                ""
+                m.end
+              ]
+            )
+            + "\n";
+        }
+      )
+      {
+        flake-outputs = {
+          doc = "docs/map/entry-points.md";
+          lines = flakeOutputsLines;
+        };
+      };
+  # One TSV row per span (name, repo-relative doc, doc in the store, render, begin, end):
+  # what the check and the writer both loop over.
+  generatedManifest =
+    pkgs:
+    pkgs.writeText "generated-blocks.tsv" (
+      lib.concatStrings (
+        lib.mapAttrsToList (
+          name: b:
+          "${name}\t${b.doc}\t${../.. + "/${b.doc}"}\t${pkgs.writeText "${name}.md" b.render}\t${b.begin}\t${b.end}\n"
+        ) generatedBlocks
+      )
+    );
+  flakeOutputsLines =
     let
       code = s: "`${s}`";
       hostRow =
@@ -90,26 +139,17 @@ let
         + lib.concatMapStringsSep " | " (s: if config.flake.apps.${s} ? ${n} then "yes" else "") appSystems
         + " |";
     in
-    lib.concatStringsSep "\n" (
-      [
-        generatedBegin
-        ""
-        "| Host | Output | System | Profile |"
-        "|---|---|---|---|"
-      ]
-      ++ hostRows
-      ++ [
-        ""
-        ("| App | " + lib.concatMapStringsSep " | " code appSystems + " |")
-        ("|---|" + lib.concatMapStrings (_: "---|") appSystems)
-      ]
-      ++ map appRow appNames
-      ++ [
-        ""
-        generatedEnd
-      ]
-    )
-    + "\n";
+    [
+      "| Host | Output | System | Profile |"
+      "|---|---|---|---|"
+    ]
+    ++ hostRows
+    ++ [
+      ""
+      ("| App | " + lib.concatMapStringsSep " | " code appSystems + " |")
+      ("|---|" + lib.concatMapStrings (_: "---|") appSystems)
+    ]
+    ++ map appRow appNames;
 
   # The ONE shared shape in this file. It was born for `determinate-daemon-{macos,nixpi}`,
   # which is literally the same check run against two hosts whose contracts are
@@ -1700,25 +1740,30 @@ in
                 # must equal the render. A diff in the builder, never lib.hasInfix — the
                 # SIGSEGV note above. Extending this check rather than adding a sibling
                 # keeps it inside drv-snapshot's EXCLUDE_RE, which already lists it.
-                generatedDocPath = ../.. + "/${generatedDoc}";
-                generatedRender = pkgs.writeText "flake-outputs.md" generatedBlock;
+                manifest = generatedManifest pkgs;
               }
               ''
                 ${lib.optionalString (hostFiles == [ ] || docIndexPaths == [ ]) ''
                   echo "hosts-documented: VACUOUS — ${toString (lib.length hostFiles)} host files, ${toString (lib.length docIndexPaths)} indexes. An empty side is never a pass." >&2
                   exit 1
                 ''}
-                awk -v b=${lib.escapeShellArg generatedBegin} -v e=${lib.escapeShellArg generatedEnd} '
-                  $0 == b { f = 1 } f { print } $0 == e { f = 0 }
-                ' "$generatedDocPath" > committed.md
-                if ! diff -u committed.md "$generatedRender" > generated.diff; then
-                  echo "hosts-documented: the GENERATED block in ${generatedDoc} differs from the flake." >&2
-                  if [ ! -s committed.md ]; then
-                    echo "  Its BEGIN/END GENERATED markers are missing." >&2
+                stale=
+                while IFS=$'\t' read -r name doc docPath render begin end; do
+                  awk -v b="$begin" -v e="$end" '
+                    $0 == b { f = 1 } f { print } $0 == e { f = 0 }
+                  ' "$docPath" > committed.md
+                  if ! diff -u committed.md "$render" > generated.diff; then
+                    echo "hosts-documented: the GENERATED $name span in $doc differs from the flake." >&2
+                    if [ ! -s committed.md ]; then
+                      echo "  Its BEGIN/END GENERATED markers are missing." >&2
+                    fi
+                    cat generated.diff >&2
+                    stale=1
                   fi
-                  cat generated.diff >&2
+                done < "$manifest"
+                if [ -n "$stale" ]; then
                   echo "" >&2
-                  echo "A host or app was added, removed or moved to another system. Regenerate it:" >&2
+                  echo "The flake changed under a generated span. Regenerate every span:" >&2
                   echo "  nix run .#docs-generate" >&2
                   exit 1
                 fi
@@ -1735,7 +1780,7 @@ in
                 done
 
                 if [ ''${#undocumented[@]} -eq 0 ]; then
-                  echo "hosts/: all ${toString (lib.length hostFiles)} host profiles are named in one of the ${toString (lib.length docIndexPaths)} documentation indexes; the generated block in ${generatedDoc} matches the flake" > "$out"
+                  echo "hosts/: all ${toString (lib.length hostFiles)} host profiles are named in one of the ${toString (lib.length docIndexPaths)} documentation indexes; every generated span (${lib.concatStringsSep ", " (lib.attrNames generatedBlocks)}) matches the flake" > "$out"
                   exit 0
                 fi
 
@@ -4112,7 +4157,7 @@ in
             };
         };
 
-      # The writer for the generated block `hosts-documented` checks (see `generatedBlock`).
+      # The writer for every generated span `hosts-documented` checks (see `generatedBlocks`).
       # It splices the SAME render the check compares against, so the two cannot disagree.
       apps.docs-generate = {
         type = "app";
@@ -4126,26 +4171,26 @@ in
             ];
             text = ''
               root=$(git rev-parse --show-toplevel)
-              doc="$root/${generatedDoc}"
-              render=${pkgs.writeText "flake-outputs.md" generatedBlock}
-              if ! grep -qxF -- ${lib.escapeShellArg generatedBegin} "$doc" ||
-                ! grep -qxF -- ${lib.escapeShellArg generatedEnd} "$doc"; then
-                echo "docs-generate: $doc has no BEGIN/END GENERATED: flake-outputs markers." >&2
-                exit 1
-              fi
-              tmp=$(mktemp "$doc.XXXXXX")
-              awk -v b=${lib.escapeShellArg generatedBegin} -v e=${lib.escapeShellArg generatedEnd} -v r="$render" '
-                $0 == b { while ((getline l < r) > 0) print l; skip = 1; next }
-                $0 == e { skip = 0; next }
-                !skip { print }
-              ' "$doc" > "$tmp"
-              mv "$tmp" "$doc"
-              echo "docs-generate: rewrote the flake-outputs block in ${generatedDoc}" >&2
+              while IFS=$'\t' read -r name rel _ render begin end; do
+                doc="$root/$rel"
+                if ! grep -qxF -- "$begin" "$doc" || ! grep -qxF -- "$end" "$doc"; then
+                  echo "docs-generate: $rel has no BEGIN/END GENERATED: $name markers." >&2
+                  exit 1
+                fi
+                tmp=$(mktemp "$doc.XXXXXX")
+                awk -v b="$begin" -v e="$end" -v r="$render" '
+                  $0 == b { while ((getline l < r) > 0) print l; skip = 1; next }
+                  $0 == e { skip = 0; next }
+                  !skip { print }
+                ' "$doc" > "$tmp"
+                mv "$tmp" "$doc"
+                echo "docs-generate: rewrote the $name span in $rel" >&2
+              done < ${generatedManifest pkgs}
               echo "  (the render comes from the flake as evaluated: git add a new .nix first)" >&2
             '';
           }
         );
-        meta.description = "Rewrite the generated host + app tables in ${generatedDoc} from the flake (checked by checks.<system>.hosts-documented)";
+        meta.description = "Rewrite every generated doc span (${lib.concatStringsSep ", " (lib.attrNames generatedBlocks)}) from the flake (checked by checks.<system>.hosts-documented)";
       };
     };
 }
