@@ -1,7 +1,10 @@
 # ADR-014 — Docs as code: facts come from the flake, prose only explains
 
 **Status:** **DECIDED 2026-11-25** (the operator chose "ADR, then nix-config pilot",
-click-to-select). The pilot is § 5. Fleet rollout waits for § 6's measurement.
+click-to-select). **Pilot SHIPPED 2026-11-25** (§ 5, all five steps). It differs from the
+option as offered: the findings in § 2 pointed at data sets and copied values, not at
+`CLAUDE.md`'s command and skill lists, so those lists were not generated. Fleet rollout
+waits for § 6's measurement.
 
 **Question.** Most `/hygiene` findings are documentation drift, and every audit re-reads all
 the prose to find it. Can docs, diagrams, comments and agent prompts be generated or checked
@@ -20,7 +23,12 @@ like code, so drift becomes impossible instead of found?
 ## 2. Evidence (measured 2026-11-25)
 
 The last 12 hygiene SARIF runs hold **77 unique findings**, counted by fingerprint, not by
-occurrence. **69 are documentation drift.** Grouped by what drifted, not by rule:
+occurrence. Eight runs (2026-11-18) were clean, every rule `pass`, not vacuous; the four
+since found 14, 29, 17 and 17. **Doc drift** is a fixed rule list: `NH-C-fact-twice`,
+`NH-A-map-drift`, `NH-A-app-undocumented`, `NH-A-runbook-dead-ref` and every `NH-D-*`.
+**69 of the 77** carry one of them. `NH-C-fact-twice` also counts code duplicates (the
+keychain parser, the run.app formula), so the doc-only share is a little lower. Grouped by
+what drifted, not by rule:
 
 | Shape of the drift | Examples from the findings | Mechanism (§ 4) |
 |---|---|---|
@@ -35,8 +43,9 @@ occurrence. **69 are documentation drift.** Grouped by what drifted, not by rule
   it in `.nix` comments.
 - **Volume:** about **1.39 MB** of markdown in `CLAUDE.md`, `claude/`, `.claude/` and `docs/`.
   Over 30 days, 765 `.md` file-touches against 982 `.nix`.
-- **Not measured: tokens per audit.** Grafana's `claude_code_token_usage_tokens_total` has
-  totals per day, not per skill. § 6 fixes that before any before-and-after claim.
+- **Tokens:** `claude_code_token_usage_tokens_total` carries `skill_name`. Over the 10 days to
+  2026-11-25, `hygiene` was the costliest skill at **128.6M tokens** (93% cache reads), and
+  `fleet-doctor` used 54.0M.
 
 ## 3. The contract
 
@@ -71,7 +80,8 @@ checks inventory is still never generated.
 ## 5. Pilot order — one commit each, nix-config only
 
 1. This ADR.
-2. **A, generalized:** `generatedBlocks` becomes an attrset of `{ doc, render }`.
+2. **A, generalized — SHIPPED:** `generatedBlocks` is an attrset of `{ doc, lines }`; the
+   markers and `render` derive from the name.
    `hosts-documented` checks every span, and `docs-generate` rewrites every span. The
    existing `flake-outputs` block is the first entry, and its render does not change.
 3. **A, the stacks — SHIPPED as a row-set gate, not a generated table.** `infra.md`'s stack
@@ -84,15 +94,16 @@ checks inventory is still never generated.
    reads its value from the evaluated config, never from a second literal. Add one entry per
    binding that hygiene finds copied.
 5. **Audit wiring — SHIPPED:** `nix-hygiene` (the skill and the `nix-hygiene-pass` workflow) skips
-   marked spans. Each run records its Claude Code `session.id` in the SARIF `run.properties`.
+   marked spans, and only those. Each run records its start and end in the SARIF
+   `invocations`, which bounds its token window (§ 6).
    Every `rules.json` key stays, because `doctor-report validate` requires them.
 
 ## 6. Acceptance — measured per run, before the fleet rollout
 
 | Metric | Baseline | How |
 |---|---|---|
-| Doc-drift findings per non-vacuous run | 69 unique over 4 non-vacuous runs ≈ **17 per run** | SARIF, by fingerprint |
-| Tokens per `/hygiene` run | **unmeasured** | sum `claude_code_token_usage_tokens_total` by the run's `session.id` |
+| Doc-drift findings per full run (§ 2's rule list) | 14 / 29 / 17 / 17 in the four runs since 2026-11-19 | SARIF, by fingerprint |
+| Tokens per `/hygiene` run | 128.6M over the 10 days to 2026-11-25 (no per-run figure yet) | `increase(claude_code_token_usage_tokens_total{skill_name="hygiene"})` over the run's `invocations` window |
 
 Roll out fleet-wide (the writer and the check move to the shared `kattakath/.github` gate,
 with no per-repo copies) only when two consecutive runs show fewer doc-drift findings and no
@@ -108,6 +119,8 @@ rise in tokens.
 | `nixosOptionsDoc` options reference | ADR-002 § 9.5 (above) | it can fail on a missing description |
 | cog, embedme or a similar embedder | A second toolchain beside a flake that already evaluates everything | never, while the flake is the source |
 
-**Weakest assumption.** The shape grouping in § 2 is by reading each finding's message, not
+**Weakest assumptions.** First, `skill_name` may not cover a skill's subagents, so a
+fan-out run could read cheaper than it is; check one run's window against the day's total.
+Second, the shape grouping in § 2 is by reading each finding's message, not
 by re-running anything. If many "stale claims" are really data sets in disguise, A and B cover
 more than half, and the estimate is low rather than high.

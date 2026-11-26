@@ -1,6 +1,7 @@
 # ADR-013 — The doctors: what they cover, what gauges take over, and how a run reports
 
 **Status:** **DECIDED 2026-11-03** (every decision here is the operator's, chosen click-to-select).
+**Amended by [ADR-014](docs-as-code-adr.md) § 3:** `/hygiene` skips generated doc spans.
 **Moves 1–6 (§ 5) LANDED 2026-11-04** (#1080–#1083; per-move status in § 5's table). **§ 7 SHIPPED 2026-11-03** (rule catalogue, output
 formats, the `doctor-report` validator); § 13 records what the implementation had to decide.
 **§ 6 decided 2026-11-04:** one weekly Desktop task runs both audits on the Mac; the cloud lane

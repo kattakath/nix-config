@@ -72,6 +72,9 @@ done
 #     these three were the only non-host rows that moved in four comment-and-docs
 #     PRs (#864-#866, #868), each of which then reported REJECTED with all four
 #     host toplevels identical.
+#   infra-stacks-documented / values-once — ADR-014's gates. The first reads
+#     docs/map/infra.md, the second the whole tree (`self`), so any doc edit
+#     moves them, the same reason as hosts-documented.
 #   actionlint — reads .github/workflows as its input, so any workflow edit moves
 #     it. MEASURED 2026-11-03: #1066's no-build-change run (41676857019) changed only
 #     its two rows, with flake-show and all four host toplevels identical. A
@@ -79,7 +82,7 @@ done
 #
 # Excluded here means "compared by NAME only": their presence and absence still
 # registers, only their hash is ignored.
-EXCLUDE_RE='^(formatting|ast-grep|pre-commit|docs-indexed|docs-links-resolve|line-refs-cite-constructs|claude-md-budget|hosts-documented|actionlint)$'
+EXCLUDE_RE='^(formatting|ast-grep|pre-commit|docs-indexed|docs-links-resolve|line-refs-cite-constructs|claude-md-budget|hosts-documented|infra-stacks-documented|values-once|actionlint)$'
 
 emit() { # emit <label> <expr>  — prints "label<TAB>drvpath" or "label<TAB>ERROR"
   local label="$1" expr="$2" v
