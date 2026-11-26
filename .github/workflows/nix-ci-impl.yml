@@ -72,10 +72,14 @@ jobs:
             extra-substituters = https://kattakath.cachix.org
             extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
 
+      # pushFilter: the Linux devShell carries claude-code (unfree, redistributable =
+      # false in nixpkgs), fetched from Anthropic at `nix develop`. This cache is PUBLIC,
+      # so neither the package nor its `claude.zst` source is ever pushed.
       - uses: cachix/cachix-action@38b082610b782e7e93e209c35fd730d399dee866 # v17
         with:
           name: kattakath
           authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+          pushFilter: "(claude-code|claude\\.zst)"
 
       # Flakes evaluate the git tree, not the working dir — stage everything
       # BEFORE any nix invocation (see .claude/rules/git-purity.md).

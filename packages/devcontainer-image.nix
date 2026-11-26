@@ -44,12 +44,12 @@ let
 
   # Pieces the removed devcontainer Features provided, plus base userland. `nix`
   # is the whole point; `nodejs` is required because Claude Code's JS hooks run
-  # bare `node` under /bin/sh; `claude-code` is UNFREE (image is built with the
-  # allowUnfree pkgs from modules/parts/devcontainer.nix).
+  # bare `node` under /bin/sh. claude-code is NOT baked in (2026-11-25): nixpkgs
+  # marks it redistributable = false and this image is public. The devShell
+  # (modules/parts/devshell.nix) fetches it from Anthropic on `nix develop`.
   extraTools = with pkgs; [
     nix
     nodejs_22
-    claude-code
     gh
     bashInteractive
     coreutils
@@ -149,6 +149,8 @@ let
 in
 dockerTools.streamLayeredImage {
   name = "nix-config-devcontainer";
+  # Read by checks.<system>.ci-closures-redistributable: what the image ships.
+  passthru = { inherit basePackages; };
   tag = "latest";
 
   # binSh / usrBinEnv are upstream dockerTools helpers that symlink /bin/sh ->

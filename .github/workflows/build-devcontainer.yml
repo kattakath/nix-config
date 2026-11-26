@@ -4,8 +4,9 @@ name: build-devcontainer
 # The image is produced by `pkgs.dockerTools.streamLayeredImage`, exposed as
 # packages.<system>.devcontainerImage in modules/parts/devcontainer.nix, and published to GHCR.
 # .devcontainer/devcontainer.json just pulls the `image:` this builds — the
-# heavyweight toolchain (a working nix + the warm devShell closure + node +
-# claude-code + gh) is baked in, so create-time setup is near-zero.
+# heavyweight toolchain (a working nix + the warm devShell closure + node + gh)
+# is baked in, so create-time setup is near-zero. claude-code is not: it is
+# unfree and not redistributable, so the devShell fetches it from Anthropic.
 #
 # WHY MULTI-ARCH. The FLEET is aarch64-only, but the
 # devcontainer is a dev tool, not a fleet host. GitHub Codespaces is x86_64-only,

@@ -42,20 +42,13 @@ in
     {
       # Devcontainer image is a Linux OCI artifact — gate to the linux triple
       # (aarch64-only in this fleet, plus the x86_64 Codespaces variant lifted
-      # out below). Built with unfree pkgs (claude-code) and the SHARED dev
-      # toolchain, so `nix develop` inside the container resolves from the baked
-      # store.
+      # out below). Built from FREE nixpkgs and the SHARED dev toolchain, so
+      # `nix develop` inside the container resolves from the baked store. No
+      # unfree instance: the image is public, and claude-code (the one unfree
+      # tool it once baked) now arrives through the devShell instead.
       packages = lib.optionalAttrs (lib.elem system devcontainerSystems) {
         devcontainerImage =
-          # Unfree-permitting nixpkgs, ONLY for the devcontainer image
-          # (claude-code is unfree). legacyPackages has unfree disabled, so the
-          # image needs its own instance. Deliberately scoped here — no other
-          # output imports it.
-          (import nixpkgs {
-            inherit system;
-            config.allowUnfree = true;
-          }).callPackage
-            ../../packages/devcontainer-image.nix
+          (import nixpkgs { inherit system; }).callPackage ../../packages/devcontainer-image.nix
             {
               inherit (config) devPackages;
               # Identity single-sources (not in pkgs, so callPackage can't autofill):

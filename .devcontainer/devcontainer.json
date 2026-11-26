@@ -46,8 +46,10 @@
 
   "customizations": {
     "vscode": {
-      // anthropic.claude-code is registered by the baked claude-code toolchain.
+      // Claude Code >= 2.1.318 no longer installs its VS Code extension itself
+      // (code.claude.com/docs/en/vs-code), so it is listed here.
       "extensions": [
+        "anthropic.claude-code",
         "jnoortheen.nix-ide",
         "gruntfuggly.triggertaskonsave",
         "fuadpashayev.bottom-terminal",
@@ -90,8 +92,8 @@
             "icon": "beaker"
           },
           "claude": {
-            "path": "claude",
-            "args": ["--permission-mode", "bypassPermissions"],
+            "path": "bash",
+            "args": ["-lc", "exec nix develop -c claude --permission-mode bypassPermissions"],
             "icon": "claude",
             "color": "terminal.ansiYellow"
           }

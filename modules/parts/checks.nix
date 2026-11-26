@@ -1875,7 +1875,7 @@ in
               '';
 
           # Every closure CI publishes (the NixOS hosts: public Cachix, nixpi's public
-          # Release SD image) must carry no package whose nixpkgs license says
+          # Release SD image; the devcontainer image: public GHCR) must carry no package whose nixpkgs license says
           # `redistributable = false`. One source: the license metadata, never a
           # hand-kept name list. Scope: each host's top-level packages (system +
           # Home Manager), not transitive dependencies. claude-code left the Linux
@@ -1889,12 +1889,15 @@ in
                 c:
                 c.config.environment.systemPackages
                 ++ lib.concatMap (u: u.home.packages or [ ]) (lib.attrValues (c.config.home-manager.users or { }));
-              scan =
-                c:
-                lib.unique (
-                  map (p: p.pname or p.name) (lib.filter (p: lib.isDerivation p && nonRedist p) (topLevel c))
-                );
-              hits = lib.filterAttrs (_: v: v != [ ]) (lib.mapAttrs (_: scan) self.nixosConfigurations);
+              names =
+                ps: lib.unique (map (p: p.pname or p.name) (lib.filter (p: lib.isDerivation p && nonRedist p) ps));
+              scan = c: names (topLevel c);
+              # The public devcontainer image too: what it ships is its passthru.basePackages.
+              images = lib.mapAttrs' (
+                sys: ps:
+                lib.nameValuePair "devcontainerImage.${sys}" (names ps.devcontainerImage.passthru.basePackages)
+              ) (lib.filterAttrs (_: ps: ps ? devcontainerImage) self.packages);
+              hits = lib.filterAttrs (_: v: v != [ ]) (lib.mapAttrs (_: scan) self.nixosConfigurations // images);
               hosts = lib.attrNames self.nixosConfigurations;
             in
             pkgs.runCommand "ci-closures-redistributable" { } (
@@ -1905,7 +1908,7 @@ in
                 ''
               else if hits == { } then
                 ''
-                  echo "ci-closures-redistributable: ${toString (lib.length hosts)} NixOS hosts carry no non-redistributable package" > "$out"
+                  echo "ci-closures-redistributable: ${toString (lib.length hosts)} NixOS hosts and ${toString (lib.length (lib.attrNames images))} devcontainer images carry no non-redistributable package" > "$out"
                 ''
               else
                 ''

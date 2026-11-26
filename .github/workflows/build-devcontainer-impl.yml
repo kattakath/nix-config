@@ -106,7 +106,10 @@ jobs:
               || { echo "✗ cachix substituter missing from baked nix.conf"; exit 1; }
             command -v node  >/dev/null && node --version
             command -v gh    >/dev/null && gh --version | head -1
-            command -v claude >/dev/null && echo "✓ claude on PATH" || { echo "✗ claude missing"; exit 1; }
+            # claude-code is NOT baked (unfree, redistributable = false; this image is
+            # public). It must be absent here and present inside the devShell.
+            if command -v claude >/dev/null; then echo "✗ claude is baked into the image"; exit 1; fi
+            echo "✓ claude not baked into the image"
             echo "=== devShell warm (should resolve from baked store via daemon, not build) ==="
             OUT=$(nix develop .#default --command true 2>&1) || { echo "$OUT"; exit 1; }
             echo "$OUT"
@@ -119,6 +122,9 @@ jobs:
             else
               echo "✓ devShell resolved without a from-source build"
             fi
+            nix develop .#default --command claude --version \
+              || { echo "✗ claude not reachable through the devShell"; exit 1; }
+            echo "✓ claude reachable through the devShell (fetched from Anthropic, not baked)"
             echo "=== real from-scratch build through the daemon (exercises the build path) ==="
             nix build --no-link --print-build-logs nixpkgs#hello \
               || { echo "✗ from-scratch build through the daemon FAILED"; exit 1; }
