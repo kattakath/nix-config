@@ -282,6 +282,27 @@ dockerTools.streamLayeredImage {
   '';
 
   config = {
+    # The image carries its own devcontainer settings (containers.dev spec: the
+    # `devcontainer.metadata` label), so ANY consumer, not only this repo's
+    # devcontainer.json, gets the user, the kept entrypoint (the daemon) and an init.
+    # devcontainer.json keeps only what a label cannot carry. STATIC OCI labels only:
+    # per-commit keys (revision, created) are index annotations at publish time
+    # (.github/workflows/build-devcontainer.yml), or this drvPath would change on every
+    # commit and defeat the publish gate.
+    Labels = {
+      "devcontainer.metadata" = builtins.toJSON [
+        {
+          remoteUser = username;
+          updateRemoteUserUID = false;
+          overrideCommand = false;
+          init = true;
+        }
+      ];
+      "org.opencontainers.image.source" = "https://github.com/${orgName}/${repoName}";
+      "org.opencontainers.image.description" =
+        "Nix devcontainer: multi-user Nix with a warm store, node, gh. claude-code arrives via nix develop.";
+    };
+
     # Container/entrypoint runs as ROOT so the nix-daemon starts privileged.
     # VS Code drops to the non-root `vscode` remoteUser for terminals/processes,
     # which reach the daemon over the socket (NIX_REMOTE=daemon below).

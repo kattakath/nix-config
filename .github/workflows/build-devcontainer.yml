@@ -237,6 +237,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write # actions/attest: keyless signing via the job's OIDC token
+      attestations: write
     steps:
       - name: Login to GHCR
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v3
@@ -247,18 +249,28 @@ jobs:
 
       # buildx imagetools reads each source tag's platform from its own manifest
       # and assembles a proper OCI image index — no local pull/emulation needed.
-      - name: Assemble manifest lists (:latest + :<sha12>)
+      # Tags: :<sha12> (immutable), :latest (this repo), :1 (the MAJOR the fleet's other
+      # repos pin; a breaking change ships as :2 on purpose). Index annotations carry the
+      # per-commit OCI keys, and GHCR shows `description` on the package page.
+      - name: Assemble manifest lists (:<sha12> + :latest + :1)
         env:
           REF: ${{ needs.gate.outputs.ref }}
           SHA: ${{ needs.gate.outputs.sha12 }}
+          REVISION: ${{ github.sha }}
+          SOURCE: ${{ github.server_url }}/${{ github.repository }}
         run: |
           set -euo pipefail
-          for TAG in "${SHA}" latest; do
+          CREATED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          for TAG in "${SHA}" latest 1; do
             docker buildx imagetools create -t "${REF}:${TAG}" \
+              --annotation "index:org.opencontainers.image.source=${SOURCE}" \
+              --annotation "index:org.opencontainers.image.revision=${REVISION}" \
+              --annotation "index:org.opencontainers.image.created=${CREATED}" \
+              --annotation "index:org.opencontainers.image.description=Nix devcontainer (arm64 + amd64): multi-user Nix, warm store, node, gh" \
               "${REF}:${SHA}-arm64" \
               "${REF}:${SHA}-amd64"
           done
-          echo "assembled ${REF}:${SHA} and ${REF}:latest over {arm64, amd64}"
+          echo "assembled ${REF}:${SHA}, :latest and :1 over {arm64, amd64}"
 
       # HARD POST-PUBLISH GUARD — fail unless :latest actually resolves for BOTH
       # platforms. `imagetools inspect` prints the index; assert each arch is
@@ -280,6 +292,28 @@ jobs:
             echo "✓ ${PLAT} present and pullable"
           done
           echo "✓ :latest is a durable arm64+amd64 manifest list"
+
+      # SLSA build provenance on the INDEX digest, pushed to GHCR next to the image, so
+      # `gh attestation verify oci://<ref>:latest -R kattakath/nix-config` can check it
+      # (docs.github.com, "Using artifact attestations"). actions/attest with no predicate
+      # or sbom-path generates build provenance (its README, v4.2.2).
+      - name: Index digest
+        id: digest
+        env:
+          REF: ${{ needs.gate.outputs.ref }}
+        run: |
+          set -euo pipefail
+          DIGEST="$(docker buildx imagetools inspect "${REF}:latest" --format '{{json .Manifest}}' | jq -r .digest)"
+          case "${DIGEST}" in sha256:*) ;; *) echo "✗ no index digest (got '${DIGEST}')"; exit 1 ;; esac
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "index digest ${DIGEST}"
+
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ needs.gate.outputs.ref }}
+          subject-digest: ${{ steps.digest.outputs.digest }}
+          push-to-registry: true
 
       # Record the baseline ONLY after a fully successful multi-arch publish, so a
       # failed arch/assembly never poisons the cache into skipping the next

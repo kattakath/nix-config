@@ -19,23 +19,16 @@
   "name": "nix-config (prebuilt Nix devcontainer image)",
   "image": "ghcr.io/kattakath/devcontainer:latest",
     
-  // Multi-user Nix: the image runs as ROOT (entrypoint starts the nix-daemon) and
-  // VS Code drops to the non-root `vscode` user, which reaches the daemon over the
-  // socket (NIX_REMOTE=daemon, baked in). Full rationale — why the store stays
-  // root-owned, no chown/sudo — lives in packages/devcontainer-image.nix.
-  "remoteUser": "vscode",
-
-  // The image ships a fixed uid/gid 1000 vscode user via fakeNss (read-only
-  // /etc/passwd), so VS Code's default UID-remap (usermod) can't run — disable it.
-  "updateRemoteUserUID": false,
-
-  // Respect the image ENTRYPOINT (which launches nix-daemon then execs the
-  // keepalive Cmd). With the default (true) VS Code would replace it and the
-  // daemon would never start.
-  "overrideCommand": false,
-
   // Literal on purpose: packages/devcontainer-image.nix (workdir) and build-devcontainer-impl.yml
   // bake the same path, and the localWorkspaceFolderBasename variable is a worktree's name in a worktree.
+  // remoteUser, updateRemoteUserUID, overrideCommand and init live in the IMAGE's
+  // `devcontainer.metadata` label (packages/devcontainer-image.nix), one copy for every
+  // consumer; CI's devcontainer guard proves the merged result.
+  //
+  // Codespaces chooses the machine before it pulls the image, so this cannot be a label.
+  // Judgment, not measured: `nix flake check` over four hosts wants more than the minimum.
+  "hostRequirements": { "cpus": 4, "memory": "16gb", "storage": "32gb" },
+
   "workspaceFolder": "/workspaces/nix-config",
 
   // The bind-mounted checkout is owned by the HOST user. When that UID is not 1000
