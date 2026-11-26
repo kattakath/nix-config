@@ -5,8 +5,8 @@ description: >-
   (Nix → OpenTofu/Terraform JSON) stacks that manage this fleet's Cloudflare
   Tunnel + ingress, kattakath.com DNS (mail included), the Zero Trust
   organisation, the Workspace MCP portal, the GCP foundation + billing budget, the healthchecks.io
-  heartbeat checks, the Grafana Cloud stack, the fleet repos' GitHub rulesets
-  and Actions variables, and Chrome's force-installed extensions on the
+  heartbeat checks, the Grafana Cloud stack, every public repo's GitHub settings, the
+  fleet repos' rulesets and Actions variables, and Chrome's force-installed extensions on the
   enrolled-browser unit. (A former stack,
   `mcp-public`, was destroyed and deleted 2026-10-02 with the MCP gateway.) Use
   PROACTIVELY when editing anything in infra/cloudflare/*.nix, infra/gcp/*.nix,

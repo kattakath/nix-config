@@ -42,3 +42,19 @@ misconfigurations:
       FALSE POSITIVE: the state bucket HAS versioning (foundation.nix sets
       versioning.enabled = true, and the render carries it). trivy reads no nested
       block from Terraform JSON, so it never sees it.
+
+  # github (2026-11-26, ADR-016 § 5): one finding per repo in repo-settings.nix, 19 each.
+  - id: GIT-0001
+    paths:
+      - "github/config.tf.json"
+    statement: >-
+      ACCEPTED: every declared repo is public by design; private repos are out of this
+      stack's scope (ADR-016 § 5), so no declared repo should ever be private.
+
+  - id: GIT-0003
+    paths:
+      - "github/config.tf.json"
+    statement: >-
+      ACCEPTED: `vulnerability_alerts` is deliberately unset (ADR-016 § 5: its delete turns
+      the feature off). The stack owns repo settings, not alert enablement, which stays a
+      per-repo or org-default choice outside Terraform.

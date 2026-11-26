@@ -16,7 +16,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 | `hc-checks` | GCS `hc-checks/` | `HEALTHCHECKSIO_API_KEY` | the dead-man's-switch ALARMS; a quiet one reads as a healthy host |
 | `grafana` | GCS `grafana/` | `GRAFANA_AUTH` + `GRAFANA_SM_ACCESS_TOKEN` + gcom token | Grafana alerting, datasources, dashboard, probe (ADR-011). A dropped datasource takes its key with it |
 | `gws-chrome` | GCS `gws-chrome/` | ADC (as `ws-domain-admin`) + `GITHUB_TOKEN` (org PAT; tenant ids) | Chrome's forced extensions + 3 settings on the enrolled-browser unit; a dropped row is NOT uninstalled |
-| `github` | GCS `github/` | `GITHUB_TOKEN` + `TF_VAR_github_user_token` (a PAT per owner) | fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |
+| `github` | GCS `github/` | `GITHUB_TOKEN` + `TF_VAR_github_user_token` (a PAT per owner) | public repos' settings, fleet repos' branch protection, merge queue, CI variables. A Tier A `QUEUE_ENABLED` without its queue rule merges untested; never declare an Actions SECRET (state) |
 
 The stack set itself is `nix eval .#apps.<system> --apply builtins.attrNames` (every stack has
 a `*-plan`). **Credentials:** a token is an env var `secret exec` fills from the Keychain; a `*-plan` run
@@ -342,7 +342,7 @@ only ever consumed by the `cachix` CLI at push time.
   resource must have an import block — `GRAFANA_ALLOW_CREATE`), a drop guard (a render that
   loses an object state holds refuses — `GRAFANA_ALLOW_DROPS`) and no `-auto-approve`.
 
-### `infra/github/stack.nix` — rulesets, variables, environment (ADR-012 step 3)
+### `infra/github/stack.nix` — repos, rulesets, variables, environment (ADR-012, ADR-016)
 
-Adopted by `import` blocks, like grafana. Repo registry: `infra/github/repos.nix`. The rest: its
-header.
+Adopted by `import` blocks, like grafana. Registries: `repos.nix` (the gate),
+`repo-settings.nix` (every public repo). The rest: its header.

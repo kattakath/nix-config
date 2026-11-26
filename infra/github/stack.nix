@@ -1,4 +1,4 @@
-# ---- GitHub: rulesets, the merge queue, Actions variables and one deploy environment -----
+# ---- GitHub: repo settings, rulesets, the merge queue, Actions variables, one environment --
 #
 # ADR-012 step 3, GitHub half (docs/declarative-gaps-adr.md § 3 row 2). Rendered by
 # modules/parts/terranix.nix (`github-plan` / `github-apply`); state encrypted in the shared
@@ -26,10 +26,19 @@
 # NOT DECLARED, on purpose:
 #   - Actions SECRETS, the deploy environment's two included: the provider keeps a secret's
 #     value in state (ADR-012 § 3).
-#   - `github_repository`: an import adopts ~36 attributes (description, topics, visibility,
-#     security_and_analysis, has_*), far past the merge settings, and a destroy of it DELETES
-#     the repo. The ruleset's allowed_merge_methods = ["squash"] already enforces the merge
-#     method on the default branch; apply-ruleset.sh keeps setting the three repo flags.
+#   - Pages and the vulnerability-alert settings (ADR-016 § 5): deleting either turns the
+#     feature off. `pages`, `security_and_analysis` and `vulnerability_alerts` stay unset, so
+#     the provider keeps reading them and never writes them.
+#   - Private, archived and forked repos (no private name enters this public repo).
+#
+# REPOSITORIES (ADR-016 § 5, superseding the old "never declare github_repository"): every
+# public repo in repo-settings.nix, with `lifecycle.destroy = false` (OpenTofu 1.12+; read at
+# the pinned 1.13.9's resources/behavior.mdx): a destroy, a replace or a dropped entry becomes
+# a FORGET, so tofu can never delete a repo. Every attribute is pinned at its live value
+# (an unset one is sent as false or the provider default), so the first apply is import-only.
+# Topics live on the same resource. `default_branch` is deprecated on it, so
+# github_branch_default carries it. Rejected: archive_on_destroy (never read back, so every
+# imported repo plans an update) and a wide ignore_changes (it declares nothing).
 #   - Organization rulesets: the API answers 403 on the Free plan.
 #   - Org package-creation policy and package visibility: neither has a REST endpoint (the
 #     OpenAPI description has only GET/DELETE/restore on a package). Set by hand on
@@ -58,6 +67,7 @@
 }:
 let
   repos = import ./repos.nix;
+  repoSettings = import ./repo-settings.nix;
   readTemplate = f: builtins.fromJSON (builtins.readFile "${rulesetTemplates}/rulesets/${f}");
 
   # An address-safe name: `.github` -> dotgithub, `kattakath.github.io` -> kattakath_github_io.
@@ -215,6 +225,39 @@ let
     ) repos
   );
 
+  # One entry per public repo. Both owners have a `.github`, so the address carries the owner.
+  repositoryEntries = lib.concatLists (
+    lib.mapAttrsToList (
+      owner: byRepo:
+      lib.mapAttrsToList (repo: settings: {
+        inherit owner repo;
+        addr = "${if owner == orgOwner then "org" else "user"}_${slug repo}";
+        id = repo;
+        value =
+          providerFor owner
+          // removeAttrs settings [ "default_branch" ]
+          // {
+            name = repo;
+            lifecycle = {
+              destroy = false;
+              # `archived` defaults to false and the provider PATCHes it on any update, so
+              # a repo archived by hand would be UNARCHIVED by the next apply (provider
+              # 6.13.0 resourceGithubRepositoryUpdate skips only when the new value is
+              # true). Ignoring it keeps the live value, which makes that update a no-op.
+              ignore_changes = [ "archived" ];
+            };
+          };
+        branch = providerFor owner // {
+          repository = "\${github_repository.${
+            if owner == orgOwner then "org" else "user"
+          }_${slug repo}.name}";
+          branch = settings.default_branch;
+          lifecycle.destroy = false;
+        };
+      }) byRepo
+    ) repoSettings
+  );
+
   byAddr = entries: lib.listToAttrs (map (e: lib.nameValuePair e.addr e.value) entries);
   importOf =
     type: e:
@@ -251,6 +294,12 @@ let
     assert lib.assertMsg (lib.allUnique (
       map (e: e.addr) (rulesetEntries ++ variableEntries)
     )) "infra/github: two repos slug to one resource address";
+    assert lib.assertMsg (lib.allUnique (
+      map (e: e.addr) repositoryEntries
+    )) "infra/github: two repos slug to one repository address";
+    assert lib.assertMsg (
+      lib.attrNames repoSettings == lib.attrNames repos
+    ) "infra/github/repo-settings.nix must hold exactly the owners repos.nix holds";
     lib.id;
 in
 {
@@ -280,7 +329,24 @@ in
   };
 
   import =
-    map (importOf "github_repository_ruleset") rulesetEntries
+    # A repository and its default branch import by the bare repo name.
+    lib.concatMap (
+      e:
+      map
+        (
+          type:
+          {
+            to = "${type}.${e.addr}";
+            inherit (e) id;
+          }
+          // providerFor e.owner
+        )
+        [
+          "github_repository"
+          "github_branch_default"
+        ]
+    ) repositoryEntries
+    ++ map (importOf "github_repository_ruleset") rulesetEntries
     ++ map (importOf "github_actions_variable") variableEntries
     ++ [
       {
@@ -320,6 +386,10 @@ in
       ];
       lifecycle.prevent_destroy = true;
     };
+    github_repository = byAddr repositoryEntries;
+    github_branch_default = lib.listToAttrs (
+      map (e: lib.nameValuePair e.addr e.branch) repositoryEntries
+    );
     github_repository_ruleset = byAddr rulesetEntries;
     github_actions_variable = byAddr variableEntries;
     github_actions_organization_variable.ci_bot_client_id = {

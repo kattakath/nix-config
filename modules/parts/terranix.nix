@@ -1567,8 +1567,8 @@ let
     };
 
   # ---- GitHub stack (terranix -> OpenTofu) ---------------------------------
-  # Renders infra/github/stack.nix: the fleet repos' rulesets (merge queue included) and
-  # Actions variables, adopted by `import` blocks (ADR-012 step 3, GitHub half). Provider
+  # Renders infra/github/stack.nix: every public repo's settings (ADR-016 § 5), the fleet
+  # repos' rulesets (merge queue included) and Actions variables, adopted by `import` blocks (ADR-012 step 3, GitHub half). Provider
   # from nixpkgs (`opentofu.withPlugins`), like grafana.
   githubConfig =
     { system }:
@@ -2233,7 +2233,7 @@ in
         github-plan = {
           type = "app";
           program = "${config.packages.github-plan}/bin/github-plan";
-          meta.description = "Render infra/github/stack.nix (terranix) and tofu PLAN the fleet repos' rulesets (merge queue included) and Actions variables — read-only, run it before github-apply (needs GITHUB_TOKEN + TF_VAR_github_user_token)";
+          meta.description = "Render infra/github/stack.nix (terranix) and tofu PLAN every public repo's settings, the fleet repos' rulesets (merge queue included) and Actions variables — read-only, run it before github-apply (needs GITHUB_TOKEN + TF_VAR_github_user_token)";
         };
         github-apply = {
           type = "app";

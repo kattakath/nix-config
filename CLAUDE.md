@@ -121,7 +121,7 @@ nix run .#cf-{mcp-portals,ai-search}-{plan,apply}  # MCP portal; RAG corpus. Run
 nix run .#gcp-{foundation,budget}-{plan,apply}        # APIs/SA/bucket; spend ALERT
 secret exec HEALTHCHECKSIO_API_KEY=hc:healthchecks.io:api -- nix run .#hc-checks-{plan,apply}
 nix run .#grafana-{plan,apply}   # 3 Keychain creds: run it bare, its ERROR prints the secret exec line
-nix run .#{github,gws-chrome}-{plan,apply}  # rulesets+vars; Chrome. A PAT per owner: run bare, ERROR prints the secret exec line
+nix run .#{github,gws-chrome}-{plan,apply}  # repos+rulesets+vars; Chrome. A PAT per owner: run bare, ERROR prints the secret exec line
 
 ```
 
