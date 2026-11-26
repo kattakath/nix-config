@@ -1794,6 +1794,45 @@ in
                 exit 1
               '';
 
+          # ADR-014 § 5 step 3. infra.md's stack table keeps prose columns (state, credential,
+          # blast radius), which are judgment and stay hand-written. Its ROW SET is a fact, and
+          # modules/_lib/terranix-stacks.nix owns it (every wrapper's state_dir reads it), so
+          # this gates the rows both ways instead of generating a second copy of the table.
+          # CLAUDE.md's infra/ row points here rather than listing stacks (the copy that
+          # missed `cf-ai-search`, hygiene NH-A-map-drift 2026-11-25).
+          infra-stacks-documented =
+            let
+              names = lib.naturalSort (import ../_lib/terranix-stacks.nix).names;
+            in
+            pkgs.runCommand "infra-stacks-documented"
+              {
+                doc = ../../docs/map/infra.md;
+                want = pkgs.writeText "stacks.txt" (lib.concatMapStrings (n: n + "\n") names);
+              }
+              ''
+                ${lib.optionalString (names == [ ]) ''
+                  echo "infra-stacks-documented: VACUOUS — terranix-stacks.nix lists no stacks." >&2
+                  exit 1
+                ''}
+                # The table opens at its `| Stack | State |` header and ends at the first
+                # non-table line. Column 1 is the stack name in backticks.
+                awk '/^\| Stack \| State \|/ { t = 1; next }
+                     t && !/^\|/ { exit }
+                     t && /^\| `/ { split($0, c, "`"); print c[2] }' "$doc" | sort > have.txt
+                sort "$want" > want.txt
+                if [ ! -s have.txt ]; then
+                  echo "infra-stacks-documented: no stack table (| Stack | State | header) in docs/map/infra.md." >&2
+                  exit 1
+                fi
+                if ! diff -u want.txt have.txt > rows.diff; then
+                  echo "infra-stacks-documented: docs/map/infra.md's stack table and modules/_lib/terranix-stacks.nix disagree." >&2
+                  echo "  - = a stack with no row; + = a row for no stack." >&2
+                  cat rows.diff >&2
+                  exit 1
+                fi
+                echo "infra.md: all ${toString (lib.length names)} terranix stacks have a row, and every row is a stack" > "$out"
+              '';
+
           # SUBJECTS include docs/map/ since the 2026-10-02 split. `readDir
           # ../../docs` filtered on `t == "regular"`, and `map` is a DIRECTORY —
           # so the eleven domain files would have escaped this check entirely, by

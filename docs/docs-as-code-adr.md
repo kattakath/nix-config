@@ -74,10 +74,12 @@ checks inventory is still never generated.
 2. **A, generalized:** `generatedBlocks` becomes an attrset of `{ doc, render }`.
    `hosts-documented` checks every span, and `docs-generate` rewrites every span. The
    existing `flake-outputs` block is the first entry, and its render does not change.
-3. **A, first new block:** the terranix stacks table (stack → which of
-   plan/apply/import/destroy exist), rendered from `modules/_lib/terranix-stacks.nix` and the
-   flake's apps into `docs/map/infra.md`. `CLAUDE.md`'s `infra/` row then points at it rather
-   than listing stacks (a net byte saving; `CLAUDE.md` has 4 bytes of headroom).
+3. **A, the stacks — SHIPPED as a row-set gate, not a generated table.** `infra.md`'s stack
+   table carries prose columns (state, credential, blast radius) that are judgment, and the
+   file sat 88 bytes under its budget. So `infra-stacks-documented` gates the table's ROWS
+   against `modules/_lib/terranix-stacks.nix`, both ways, and the prose stays hand-written.
+   `CLAUDE.md`'s `infra/` row now points at it instead of listing stacks, which saved 268 bytes.
+   A row-set gate is the lighter form of A: use it wherever a hand table has prose columns.
 4. **B:** value-once for `fleetAppId`, the most-copied literal.
 5. **Audit wiring:** `nix-hygiene` (the skill and the `nix-hygiene-pass` workflow) skips
    marked spans. Each run records its Claude Code `session.id` in the SARIF `run.properties`.
