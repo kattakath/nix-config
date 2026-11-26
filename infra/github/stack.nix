@@ -67,6 +67,15 @@
 }:
 let
   repos = import ./repos.nix;
+  # Archived repos the stack has stopped managing (the `removed` blocks below).
+  retiredRepos = [
+    {
+      owner = userOwner;
+      repo = "dotfiles";
+      # Its Actions variables (state addresses <slug>_<name>), forgotten with it.
+      variables = [ "ci_bot_client_id" ];
+    }
+  ];
   repoSettings = import ./repo-settings.nix;
   readTemplate = f: builtins.fromJSON (builtins.readFile "${rulesetTemplates}/rulesets/${f}");
 
@@ -358,6 +367,28 @@ in
         id = "jsonresume-connect:production";
       }
     ];
+
+  # RETIRED repos (ADR-016 § 8): archived on GitHub, so the stack stops managing them.
+  # A `removed` block with destroy = false is a FORGET, never a delete (OpenTofu 1.7+);
+  # their entries leave repo-settings.nix and repos.nix in the same change. The drop guard
+  # still lists these addresses, and its override (GITHUB_ALLOW_DROPS=1) approves EVERY
+  # dropped address, not just these: before typing yes, check its list names only them.
+  removed = lib.concatMap (
+    r:
+    map
+      (from: {
+        inherit from;
+        lifecycle.destroy = false;
+      })
+      (
+        [
+          "github_repository.${if r.owner == orgOwner then "org" else "user"}_${slug r.repo}"
+          "github_branch_default.${if r.owner == orgOwner then "org" else "user"}_${slug r.repo}"
+          "github_repository_ruleset.${slug r.repo}"
+        ]
+        ++ map (v: "github_actions_variable.${slug r.repo}_${v}") r.variables
+      )
+  ) retiredRepos;
 
   # The deploy gate's reviewer, read by login so no account id is written here.
   data.github_user.operator = {

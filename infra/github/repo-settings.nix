@@ -115,30 +115,6 @@
       visibility = "public";
       web_commit_signoff_required = false;
     };
-    dotfiles = {
-      allow_auto_merge = true;
-      allow_forking = true;
-      allow_merge_commit = true;
-      allow_rebase_merge = true;
-      allow_squash_merge = true;
-      allow_update_branch = false;
-      default_branch = "main";
-      delete_branch_on_merge = true;
-      description = "Chezmoi-managed dotfiles for devcontainers and Codespaces";
-      has_discussions = false;
-      has_issues = true;
-      has_projects = true;
-      has_wiki = false;
-      homepage_url = "";
-      is_template = false;
-      merge_commit_message = "PR_TITLE";
-      merge_commit_title = "MERGE_MESSAGE";
-      squash_merge_commit_message = "COMMIT_MESSAGES";
-      squash_merge_commit_title = "COMMIT_OR_PR_TITLE";
-      topics = [ ];
-      visibility = "public";
-      web_commit_signoff_required = false;
-    };
     ismailkattakath = {
       allow_auto_merge = false;
       allow_forking = true;

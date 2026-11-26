@@ -1917,8 +1917,9 @@ let
       createLine = "The others would be CREATED next to their live objects.";
       # prevent_destroy stops a ruleset delete inside tofu too; this refuses before tofu.
       dropLines = [
-        "Applying it would DELETE each one (a ruleset is a repo's branch protection)."
-        "To stop managing one without deleting it, 'tofu state rm' it in the working directory above."
+        "Applying it would DELETE each one (a ruleset is a repo's branch protection),"
+        "UNLESS a 'removed' block with destroy = false names it (infra/github/stack.nix,"
+        "retiredRepos): then the plan shows a FORGET and nothing on GitHub is deleted."
       ];
       # PIN LAG: apply-ruleset.sh writes the templates at that repo's HEAD, this render
       # reads the locked rev. Applying a stale pin would roll all rulesets back with a
