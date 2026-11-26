@@ -270,6 +270,31 @@ jobs:
       # tar; piping corrupts the transport and trips pipefail); point at our OWN
       # v2 registries.conf (nixpkgs skopeo rejects the runner's v1 host config);
       # --format oci for the annotation convention.
+      # The image AS A DEVCONTAINER, the way VS Code and Codespaces start it: the devcontainers
+      # reference CLI applies devcontainer.json (remoteUser, overrideCommand: false keeping the
+      # daemon entrypoint, updateRemoteUserUID, workspaceMount), which every `docker run` guard
+      # above bypasses. The CLI comes from OUR nixpkgs pin (`devcontainer`), not an npm fetch.
+      # The config is the repo's own devcontainer.json with only `image` pointed at the local build.
+      - name: Guard — opens as a devcontainer (devcontainers CLI)
+        run: |
+          set -euo pipefail
+          cfg="${RUNNER_TEMP}/devcontainer.json"
+          sed -E 's#"image": *"ghcr\.io/[^"]+"#"image": "nix-config-devcontainer:latest"#' \
+            .devcontainer/devcontainer.json > "$cfg"
+          grep -q '"image": "nix-config-devcontainer:latest"' "$cfg" \
+            || { echo "✗ could not point devcontainer.json at the local image"; exit 1; }
+          dc() { nix run --inputs-from . nixpkgs#devcontainer -- "$@"; }
+          dc up --workspace-folder . --config "$cfg" --remove-existing-container
+          # shellcheck disable=SC2016  # expands INSIDE the container, not on the runner
+          dc exec --workspace-folder . --config "$cfg" bash -lc '
+            set -e
+            [ "$(id -un)" = vscode ] || { echo "✗ remoteUser is $(id -un), not vscode"; exit 1; }
+            [ "$PWD" = /workspaces/nix-config ] || { echo "✗ workspaceFolder is $PWD"; exit 1; }
+            nix store ping                    # overrideCommand: false kept the daemon entrypoint
+            nix develop .#default --command true
+          '
+          echo "✓ opens as a devcontainer: remoteUser, workspaceFolder, daemon, devShell"
+
       - name: Login to GHCR
         uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v3
         with:

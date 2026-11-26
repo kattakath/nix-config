@@ -105,7 +105,9 @@ env:
   IMAGE_NAME: devcontainer
 
 concurrency:
-  group: build-devcontainer-${{ github.ref }}
+  # Keyed on the SHA for pushes (.claude/rules/landing-changes.md): a ref key lets a newer
+  # push cancel an older pending run, which ci-watch then reports as a false RED.
+  group: build-devcontainer-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -170,8 +172,11 @@ jobs:
           DRV_X64="$(nix eval --raw .#packages.x86_64-linux.devcontainerImage.drvPath)"
           echo "drv arm64: ${DRV_ARM}"
           echo "drv amd64: ${DRV_X64}"
-          COMBINED="$(printf '%s\n%s\n' "${DRV_ARM}" "${DRV_X64}" | sha256sum | cut -d' ' -f1)"
-          echo "cache_key=devcontainer-drv-v3-${COMBINED}" >> "$GITHUB_OUTPUT"
+          # devcontainer.json is part of the key: it is not an input to the image's drvPath,
+          # so without it a json-only edit read changed=false and shipped untested.
+          CFG="$(sha256sum .devcontainer/devcontainer.json | cut -d' ' -f1)"
+          COMBINED="$(printf '%s\n%s\n%s\n' "${DRV_ARM}" "${DRV_X64}" "${CFG}" | sha256sum | cut -d' ' -f1)"
+          echo "cache_key=devcontainer-drv-v4-${COMBINED}" >> "$GITHUB_OUTPUT"
 
       - name: Probe published baseline
         id: probe
