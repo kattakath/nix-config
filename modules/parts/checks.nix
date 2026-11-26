@@ -1874,6 +1874,51 @@ in
                 echo "values-once: ${lib.concatMapStringsSep ", " (e: e.name) entries} each written once" > "$out"
               '';
 
+          # Every closure CI publishes (the NixOS hosts: public Cachix, nixpi's public
+          # Release SD image) must carry no package whose nixpkgs license says
+          # `redistributable = false`. One source: the license metadata, never a
+          # hand-kept name list. Scope: each host's top-level packages (system +
+          # Home Manager), not transitive dependencies. claude-code left the Linux
+          # hosts for this on 2026-11-25. darwin is out of scope: its closure is
+          # built on the Mac and pushed nowhere.
+          ci-closures-redistributable =
+            let
+              nonRedist =
+                p: lib.any (l: (l.redistributable or true) == false) (lib.toList (p.meta.license or [ ]));
+              topLevel =
+                c:
+                c.config.environment.systemPackages
+                ++ lib.concatMap (u: u.home.packages or [ ]) (lib.attrValues (c.config.home-manager.users or { }));
+              scan =
+                c:
+                lib.unique (
+                  map (p: p.pname or p.name) (lib.filter (p: lib.isDerivation p && nonRedist p) (topLevel c))
+                );
+              hits = lib.filterAttrs (_: v: v != [ ]) (lib.mapAttrs (_: scan) self.nixosConfigurations);
+              hosts = lib.attrNames self.nixosConfigurations;
+            in
+            pkgs.runCommand "ci-closures-redistributable" { } (
+              if hosts == [ ] then
+                ''
+                  echo "ci-closures-redistributable: VACUOUS - no nixosConfigurations" >&2
+                  exit 1
+                ''
+              else if hits == { } then
+                ''
+                  echo "ci-closures-redistributable: ${toString (lib.length hosts)} NixOS hosts carry no non-redistributable package" > "$out"
+                ''
+              else
+                ''
+                  echo "ci-closures-redistributable: these hosts would publish packages licensed redistributable = false:" >&2
+                  ${lib.concatStrings (
+                    lib.mapAttrsToList (h: v: "echo '  ${h}: ${lib.concatStringsSep ", " v}' >&2
+") hits
+                  )}
+                  echo "Their closures reach public Cachix (and nixpi's the public SD image). Keep such packages darwin-only." >&2
+                  exit 1
+                ''
+            );
+
           # ADR-014 § 4 C, mechanized. A paragraph in one live agent-facing doc that is a
           # near-copy of one in another fails; scope, method and the measurement that set the
           # threshold are in the script's header. Pure Python over the source, no network.

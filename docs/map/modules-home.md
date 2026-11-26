@@ -358,7 +358,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
   [`docs/claude-desktop-mcp.md`](../claude-desktop-mcp.md).
 - **`claude-profiles.nix`** — `claude` (personal; `CLAUDE_CONFIG_DIR` UNSET →
   `~/.claude`) and `claude-work` (`CLAUDE_CONFIG_DIR=~/.claude-work`), on `macos`
-  (`local.claudeWorkProfile`); Linux hosts keep the plain package `claude`
+  (`local.claudeWorkProfile`); Linux hosts carry no claude-code (`ci-closures-redistributable`)
   (`programs.claude-code.package = null` on darwin, where the wrapper takes the name). Both exec ONE store
   path, `local.claudeProfiles.package`. Separate login, transcripts, peer registry and org
   policy cache; `CLAUDE.md`, `rules/`, `skills/` and `plugins/` are linked from `~/.claude`,

@@ -707,12 +707,12 @@ in
       # `pgPkg` — it is what puts a pgvector-capable postgresql_16 in this profile.
       # No second `hiPrio` postgres here: it made the capsule's superset lose and bloated nixpi.
     ]
-    # claude-code: on darwin it is installed by the programs.claude-code module
-    # below (which also owns the plugin/marketplace state and the global
-    # CLAUDE.md). On the Linux hosts we don't enable that module, so install
-    # the bare CLI here instead.
-    # Avoids a buildEnv /bin collision.
-    ++ lib.optionals (!stdenv.hostPlatform.isDarwin) [ claudeCode ]
+    # claude-code is NOT installed on the Linux hosts (2026-11-25, operator's call). It is
+    # unfree with `redistributable = false` in nixpkgs, and every Linux host closure
+    # reaches public channels: CI pushes it to the public Cachix, and nixpi's ships as a
+    # public Release SD image. On darwin the programs.claude-code module below wires it,
+    # and that closure is built on the Mac only. `checks.<system>.ci-closures-redistributable`
+    # keeps it out.
     # Fonts only where they can be rendered (`wantsFonts`, above).
     ++ lib.optionals wantsFonts [
       nerd-fonts.jetbrains-mono # "JetBrainsMono Nerd Font" — VS Code editor font (pairs with the JetBrains theme)

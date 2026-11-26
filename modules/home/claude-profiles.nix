@@ -200,8 +200,8 @@ in
       # docs ignore it only from project/local settings), and `claude agents` background
       # sessions honour it (changelog). Under claude-work the org's
       # allowManagedPermissionRulesOnly drops the user deny/ask floor, so bypass there
-      # has few guardrails, as before. macOS only: Linux hosts keep a bare `claude`
-      # that reads the same file, and a server should not start in bypass.
+      # has few guardrails, as before. macOS only: the Linux hosts carry no claude-code at all
+      # (modules/home/default.nix, `ci-closures-redistributable`).
       programs.claude-code.settings.permissions.defaultMode = "bypassPermissions";
       home.file = lib.mkMerge (
         map link [
