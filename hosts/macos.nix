@@ -908,6 +908,12 @@ in
       # Plash — put a website on your desktop as the wallpaper. App Store–only
       # (no Homebrew cask). https://apps.apple.com/ca/app/plash/id1494023538
       Plash = 1494023538;
+      # Windows App — Microsoft's RDP / Windows 365 / Azure Virtual Desktop client
+      # (successor to Microsoft Remote Desktop). Already installed from the App
+      # Store, so it is declared HERE rather than as the `windows-app` cask —
+      # undeclared, cleanup = "zap" would reap it on the next activation.
+      # https://apps.apple.com/ca/app/windows-app/id1295203466
+      "Windows App" = 1295203466;
     };
   };
 }
