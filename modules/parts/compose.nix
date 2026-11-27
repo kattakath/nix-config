@@ -33,6 +33,9 @@ let
     nixpkgs-claude-code
     ;
 
+  # The fleet store-retention policy (darwin customSettings min-free/max-free).
+  storeRetention = import ../_lib/store-retention.nix;
+
   # ABSORBED capsules (ADR-002 waves 3 and 4), reached through the flake's own
   # module registry rather than through an input. The engine may read a capsule;
   # a capsule may not read the engine — see modules/parts/capsules.nix.
@@ -340,6 +343,12 @@ let
             # (modules/nix-darwin/default.nix) and used in their own test flake.
             auto-optimise-store = true;
 
+            # Build-time GC floor — same values as NixOS, one source
+            # (modules/_lib/store-retention.nix). Allowed: neither is in
+            # Determinate's `disallowedOptions`.
+            min-free = storeRetention.minFree;
+            max-free = storeRetention.maxFree;
+
             # WHY THE OPERATOR IS TRUSTED (2026-09-15). Nix's default is
             # `trusted-users = root`, and a NON-trusted user's client-side
             # settings are silently discarded by the daemon. That is not a
@@ -382,15 +391,19 @@ let
             # override, which templates/default/ uses, trusts ITS own operator.
             extra-trusted-users = [ identity.loginName ];
           };
-          # Let determinate-nixd collect garbage in the background instead of
-          # waiting for a hand-run `sudo nix-collect-garbage -d` (the 2026-09-15
-          # one freed 22.1 GiB, i.e. it had been deferred far too long). Two
-          # consequences, accepted rather than discovered later: old generations
-          # are reaped on ITS schedule, so there is no guaranteed rollback target
-          # on this Mac; and collected flake-input sources are re-fetched on the
-          # next eval. Neither touches nixpi — it is a separate daemon, and
-          # deploy-rs magicRollback protects the Pi's own generation.
-          determinateNix.determinateNixd.garbageCollector.strategy = "automatic";
+          # ONE collector, as on NixOS (2026-11-27): the scheduled `nh clean all`
+          # in modules/darwin/store-clean.nix runs the fleet retention policy
+          # (modules/_lib/store-retention.nix: keep 3 generations, 3-day window,
+          # daily), so determinate-nixd's own collector is off — Determinate's
+          # best-practices page says not to pair it with a timer. It was
+          # `automatic` from 2026-09-15 (after a hand-run GC freed 22.1 GiB), but
+          # that collector is space-triggered (">= 30 GB free") and its docs do
+          # not say it prunes generations: 15 system generations sat here on
+          # 2026-11-27. The rejected alternative — keep it `automatic` and run
+          # `nh clean all --no-gc` for generations only — leaves two collectors
+          # and an untimed GC. The build-time floor it gave (urgent GC when the
+          # disk runs low) is kept by `min-free`/`max-free` in customSettings.
+          determinateNix.determinateNixd.garbageCollector.strategy = "disabled";
           # LINUX BUILDS ON macOS (for `nix run .#nixvm`, `.#nixpi`):
           # Determinate's NATIVE Linux builder (Apple Virtualization framework —
           # no remote builder, no Docker) is ENABLED on this host, so aarch64-linux

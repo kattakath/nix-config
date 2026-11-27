@@ -1301,8 +1301,11 @@ in
     # NH_NOM=0 and NO_COLOR=1 both change nothing), so under a pipe it is far
     # worse than plain darwin-rebuild.
     #
-    # clean stays off: GC is the fleet's own story (nix.gc on nixpi; Determinate
-    # owns it on darwin), and the module warns when both are enabled.
+    # clean stays off HERE: Home Manager's variant runs `nh clean user`, which
+    # cannot prune root's system generations. The fleet's GC is `nh clean all`
+    # as root — programs.nh.clean in modules/nixos/core.nix, and a launchd
+    # daemon in modules/darwin/store-clean.nix (nix-darwin's own option asserts
+    # nix.enable, which Determinate turns off).
     nh = lib.mkIf isMacosHost {
       enable = true;
       clean.enable = false;

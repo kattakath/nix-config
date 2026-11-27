@@ -107,7 +107,7 @@ D's own SARIF is filed separately under `hygiene/`.
 | Re-activating macos (`activate`) when its composing repos moved | Disk operations of any kind (`diskutil`, partitioning) |
 | Nixpi: **read-only reports only** (disk usage, E8's unit status) — no GC/activation/restart without an explicit ask (it's the live server; see `docs/nixpi-sd-flashing-runbook.md`) | Rotating secrets/tokens, editing `secrets/*.age`, anything with `secret set` |
 | E6–E9 (drift, heartbeats, nixpi units, cache warmth): **report only**, in every mode | Any `*-apply` (E6's remedy is a re-login or a reasoned plan, never an apply), `hc-checks-apply`, re-running a workflow |
-| — | `sudo nix-collect-garbage -d` on the host — determinate-nixd collects in the background on macos (on nixpi its collector is `disabled` and the weekly `nix.gc` timer collects — `modules/nixos/core.nix`), and `-d` drops **every** old generation, leaving no rollback target |
+| — | `sudo nix-collect-garbage -d` on the host — a daily `nh clean all` (keep 3, 3-day window) collects on every host (`modules/_lib/store-retention.nix`, ADR-017), and `-d` drops **every** old generation, leaving no rollback target |
 
 These map onto the global Git Safety Protocol (never commit unless asked,
 never force-push, never merge without explicit confirmation) — `fix` mode
@@ -207,10 +207,10 @@ FD-D whose findings come from a hygiene run for another subject.
 
 ### E. Garbage collection — `FD-E-disk-free`
 
-**macos collects itself now.** `determinateNix.determinateNixd.garbageCollector.strategy
-= "automatic"` (2026-09-15, `modules/parts/compose.nix`) hands background collection to
-determinate-nixd, and `customSettings.auto-optimise-store = true` hard-links duplicates as
-paths land. So this step is a **report**, and a hand-run collection is only for "I want the
+**Every host collects itself.** A daily `nh clean all --keep 3 --keep-since 3d`
+(`modules/_lib/store-retention.nix`, ADR-017) runs as `launchd.daemons.nix-store-clean` on
+macos and `programs.nh.clean` on NixOS. determinate-nixd's collector is `disabled`, and
+`auto-optimise-store` hard-links duplicates as paths land. So this step is a **report**, and a hand-run collection is only for "I want the
 space back now" — not routine upkeep.
 
 ```bash

@@ -8,6 +8,9 @@
   operatorSshKey,
   ...
 }:
+let
+  retention = import ../_lib/store-retention.nix;
+in
 {
   config = {
     # The ONE NixOS definition — this module is in mkNixos's base list, so every
@@ -157,7 +160,8 @@
     # Determinate's best-practices page says never to pair it with a timer. On
     # nixpi's SD card that 30 GB target may be unreachable, so the automatic
     # collector could churn writes on low-endurance flash forever. Keep the
-    # proven weekly timer below and switch nixd's off. UPSTREAM FIRST: the
+    # scheduled `nh clean` below and switch nixd's off (macos does the same
+    # since 2026-11-27, ../darwin/store-clean.nix). UPSTREAM FIRST: the
     # determinate nixosModule exposes no `garbageCollector` option (only
     # `enable` + `edgeCacheSubstituters`, modules/nixos.nix in the pinned input)
     # and writes /etc/determinate/config.json only when edgeCacheSubstituters is
@@ -169,20 +173,35 @@
       garbageCollector.strategy = "disabled";
     };
 
-    # Automatic store GC + on-the-fly reclaim — a long-lived host (nixpi's SD
-    # card) must self-trim or the store fills the disk. audit follow-up (2026-07).
-    nix.gc = {
-      automatic = true;
-      dates = "weekly";
-      options = "--delete-older-than 30d";
+    # Automatic store GC — the fleet policy in ../_lib/store-retention.nix
+    # (keep 3 generations, 3-day window, daily), run by nixpkgs' own
+    # `programs.nh.clean` (`nh clean all`: prunes system + per-user profiles AND
+    # stale gcroots, then `nix store gc`). It replaced `nix.gc` weekly
+    # `--delete-older-than 30d` on 2026-11-27: after nixpi's 2026-11-09 reflash
+    # every generation was younger than 30 days, so three runs freed 0 KiB while
+    # 8.0 GiB piled up (a manual `nix-collect-garbage -d` freed it). nh's module
+    # warns when `nix.gc.automatic` is also on, so `nix.gc` is gone, not merely
+    # retuned. `programs.nh.enable` stays OFF on purpose: it would put `nh os
+    # switch` on nixpi's PATH, a one-word way to build ON the Pi (Rule 1d); the
+    # NixOS clean service needs only `cfg.package` (pinned nixpkgs
+    # nixos/modules/programs/nh.nix, no `clean -> enable` assertion there).
+    programs.nh.clean = {
+      enable = true;
+      dates = retention.systemdCalendar;
+      extraArgs = "--keep ${toString retention.keep} --keep-since ${retention.keepSince}";
     };
     # Daemon frees store paths mid-build when free space drops below min-free,
     # up to max-free — prevents ENOSPC during large builds.
-    nix.settings.min-free = 3 * 1024 * 1024 * 1024; # 3 GiB
-    nix.settings.max-free = 10 * 1024 * 1024 * 1024; # 10 GiB
-    # No auto-optimise-store here (NixOS default: off). It came in 2026-10-27 as a
-    # space measure for nixpi's 14 GiB capped counterfeit card, and was retired
-    # 2026-11-09 with that card: no NixOS host here is short of disk.
+    nix.settings.min-free = retention.minFree;
+    nix.settings.max-free = retention.maxFree;
+    # Deduplicate as paths land — "optimise on every activation" without a
+    # full-store `nix store optimise` scan inside deploy-rs's confirm window.
+    # Re-enabled 2026-11-27 for fleet parity with macos (modules/parts/compose.nix
+    # sets the same in `determinateNix.customSettings`). It was retired
+    # 2026-11-09 as unneeded for space, which is still true (the 2026-11-27
+    # manual optimise on nixpi freed only 88.9 MiB); the reason now is one
+    # policy across the fleet, at the cost of a hash+link per store write.
+    nix.settings.auto-optimise-store = true;
 
     # Periodic TRIM, not online `discard` (Determinate best-practices § "Don't mount
     # your Nix store with online discard"). Nothing to set: `services.fstrim.enable`

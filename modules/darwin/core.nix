@@ -117,6 +117,8 @@ in
     ./nix-homebrew.nix
     # macos: accept Xcode license (and pre-install Xcode.app) before brew bundle.
     ./xcode-license.nix
+    # Scheduled `nh clean all` under the fleet retention policy (../_lib/store-retention.nix).
+    ./store-clean.nix
   ];
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via

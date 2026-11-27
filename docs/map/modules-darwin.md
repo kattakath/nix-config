@@ -2,8 +2,12 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/darwin/`
 
-`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,chrome-enterprise.nix,encrypted-dns.nix,claude-managed-settings.nix,launchd-sources.nix,operator-host.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,chrome-enterprise.nix,encrypted-dns.nix,claude-managed-settings.nix,launchd-sources.nix,operator-host.nix,store-clean.nix}`
 
+- **`store-clean.nix`** — the darwin half of the fleet store-retention policy
+  (`modules/_lib/store-retention.nix`, ADR-017): a root `launchd.daemons.nix-store-clean` running
+  `nh clean all` daily at 03:15. Custom only because nix-darwin's `programs.nh.clean` asserts
+  `nix.enable`, which Determinate forces off; determinate-nixd's own collector is `disabled`.
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
   post-activation Dock refresh that makes them reachable. It also sets the System Settings
