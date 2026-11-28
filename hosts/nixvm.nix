@@ -266,7 +266,7 @@
       # KNOCK-ON, recorded honestly: WireGuard was the main thing in this guest
       # that needed a REAL KERNEL — an in-tree module plus NET_ADMIN. With it
       # gone, nothing obviously left here requires a VM rather than a container.
-      # The substrate question was settled for the GUI job: hosts/nixos.nix's header.
+      # The GUI job is back here since 2026-11-27, over RDP (the desktop block below).
 
       # ---- SSH from the Mac: 127.0.0.1:2222 -> guest 22 ------------------------
       # `ssh -p 2222 ismail@localhost` from the Mac. The operator's key is already

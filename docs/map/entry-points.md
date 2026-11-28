@@ -25,8 +25,8 @@ The export list is `nix flake show` — a hand-kept one here had already dropped
 `identity` and `lib`. Notes on the outputs whose shape is not obvious from that listing:
 
 - `darwinConfigurations."macos"` (aarch64-darwin).
-- `nixosConfigurations."nixpi"` / `"nixvm"` / `"nixos"` (aarch64-linux) — `nixos` is the UTM GNOME desktop (see `hosts.md`); `nixvm` is the disposable HEADLESS dev
-  VM, materialised only via `nix run .#nixvm`. The exported base (non-`vmVariant`) toplevel is
+- `nixosConfigurations."nixpi"` / `"nixvm"` (aarch64-linux) — `nixvm` is the dev VM (XFCE over
+  RDP), materialised only via `nix run .#nixvm`. The exported base (non-`vmVariant`) toplevel is
   an EVAL SUBSTRATE only — it carries no `virtualisation.diskImage` and is never booted.
 - `packages` / `devShells` / `checks` / `formatter` per system via flake-parts' `perSystem`
   (the old `forAllSystems` fold is gone).
@@ -65,7 +65,6 @@ CLAUDE.md § Overview and [`hosts.md`](hosts.md).
 | Host | Output | System | Profile |
 |---|---|---|---|
 | `macos` | `darwinConfigurations` | `aarch64-darwin` | `hosts/macos.nix` |
-| `nixos` | `nixosConfigurations` | `aarch64-linux` | `hosts/nixos.nix` |
 | `nixpi` | `nixosConfigurations` | `aarch64-linux` | `hosts/nixpi.nix` |
 | `nixvm` | `nixosConfigurations` | `aarch64-linux` | `hosts/nixvm.nix` |
 
@@ -109,7 +108,6 @@ CLAUDE.md § Overview and [`hosts.md`](hosts.md).
 | `launchd-doctor` | yes |  |
 | `link-hook-types` | yes | yes |
 | `macos` | yes |  |
-| `nixos-vm` | yes |  |
 | `nixpi-flash` | yes |  |
 | `nixpi-provision` | yes |  |
 | `nixpi-vault-token` | yes |  |

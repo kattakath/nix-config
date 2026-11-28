@@ -19,8 +19,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   **`nixpi` OPTS OUT of that default since 2026-10-01** (`lan-recovery.nix`, below), because
   loopback-only also meant the tunnel was a SINGLE POINT OF FAILURE: when the connector died
   that day the host was unreachable by every route and recovery was a ~40-minute physical SD
-  reflash. The physical console is the break-glass path below both. `nixos` opts out too,
-  through the same option (`hosts/nixos.nix`). `nixvm`'s exported base toplevel, and a
+  reflash. The physical console is the break-glass path below both. `nixvm`'s exported base toplevel, and a
   `lib.mkNixos` consumer that does not override it, keep the loopback-only default; `nixvm`'s
   booted `vmVariant` overrides it for its host-loopback forward. Both VMs:
   [`hosts.md`](hosts.md).
@@ -136,8 +135,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   setting is invisible. Nothing here stops the Pi compiling locally either (`max-jobs` is
   still `auto`), and the Access application itself lives in Cloudflare's API, where its
   2026-08-20 disappearance was invisible to eval then and still is.
-- **`modules/nixos/lan-recovery.nix`** — `local.lanRecovery` (default off; `nixpi` and `nixos` turn it on,
-  `hosts/nixpi.nix` and `hosts/nixos.nix`). **The SECOND INGRESS**, added 2026-10-01 after a dead cloudflared connector
+- **`modules/nixos/lan-recovery.nix`** — `local.lanRecovery` (default off; `nixpi` turns it on,
+  `hosts/nixpi.nix`). **The SECOND INGRESS**, added 2026-10-01 after a dead cloudflared connector
   left the host unreachable by every route — Access healthy and still issuing a login URL, the
   zone healthy, the site answering HTTP 530 / Cloudflare 1033, SSH timing out *during banner
   exchange* — and recovery was a ~40-minute physical SD reflash. `uplink-watchdog.nix` had

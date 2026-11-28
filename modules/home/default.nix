@@ -185,7 +185,6 @@ let
   # see packages/git-tidy.nix.
   gitTidy = pkgs.callPackage ../../packages/git-tidy.nix { };
   androidPhone = pkgs.callPackage ../../packages/android-phone.nix { inherit brewPrefix; };
-  nixosVm = pkgs.callPackage ../../packages/nixos-vm.nix { };
   # `activate` — self-elevating `darwin-rebuild switch`. nix-darwin dropped sudo
   # self-elevation in its 2025-01-30 root migration and ships no option to
   # restore it (grepped the pinned modules/ for sudo|elevate|rebuild|activate);
@@ -805,7 +804,6 @@ in
     ]
     ++ lib.optionals isMacosHost [
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
-      nixosVm # `nixos-vm <verb>` (verbs: the case in packages/nixos-vm.nix) — the long-lived nixos UTM guest (packages/nixos-vm.nix)
       pkgs.gcx # `gcx` — Grafana's official Cloud CLI (public preview; supersedes grafanactl, archived 2026-06-01), for the operator's Grafana Cloud stack; ships agent skills Claude Code auto-detects
       pkgs.scrcpy # mirror/control a PHYSICAL Android phone. Was the `scrcpy` BREW until 2026-09-29 (hosts/macos.nix records the move). Its nixpkgs wrapper prepends its OWN android-tools adb to PATH for its own process only — so it drives adb 37.0.0 while mobile-mcp/android-phone use the cask's 37.0.1. Harmless: both speak protocol 1.0.41, so they share one adb server instead of killing each other's. `adb` itself stays on the cask
       # Operator-personal: his bookmark DB, his job search, his Resend Keychain key.

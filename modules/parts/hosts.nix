@@ -165,11 +165,11 @@ in
     };
 
     # Unprovisioned aarch64-linux dev VM, materialised ONLY as the `build-vm`
-    # variant behind `nix run .#nixvm` — HEADLESS since 2026-10-06 (SSH on
-    # 127.0.0.1:2222; the GUI desktop guest is `nixos` below). Since
-    # Determinate's native Linux builder is now enabled on the macos host, the
-    # aarch64-linux guest closure builds locally with NO provisioning — there
-    # is no installed nixvm, no builder VM, no runner.
+    # variant behind `nix run .#nixvm`: SSH on 127.0.0.1:2222 and an XFCE desktop
+    # over RDP on 127.0.0.1:13389 (it replaced the UTM `nixos` guest on
+    # 2026-11-27). The aarch64-linux guest closure builds on the Mac's
+    # nix.linux-builder with NO provisioning — there is no installed nixvm, no
+    # builder VM, no runner.
     #
     # DISPOSABLE, NOT EPHEMERAL — only the Nix store image is rebuilt per boot;
     # the root qcow2 the `nix run .#nixvm` runner creates on first use is
@@ -178,16 +178,6 @@ in
     "nixvm" = mkNixos {
       system = "aarch64-linux";
       hostname = "nixvm";
-      inherit operatorSshKey;
-    };
-
-    # Long-lived GNOME desktop guest under UTM's QEMU backend (virgl). Unlike
-    # nixvm it is a real disk-backed host: `nixos-vm create` (packages/
-    # nixos-vm.nix) builds it once from system.build.image, then it is updated
-    # with `nixos-rebuild --target-host` like any other host.
-    "nixos" = mkNixos {
-      system = "aarch64-linux";
-      hostname = "nixos";
       inherit operatorSshKey;
     };
 

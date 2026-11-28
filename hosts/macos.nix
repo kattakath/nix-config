@@ -64,11 +64,10 @@ in
 
   # The Linux builder's build space is the VM's RAM tmpfs. Measured 2026-11-27 on
   # nixpkgs' darwin.linux-builder-vz (the builder since ADR-018): `/` and /tmp
-  # are one tmpfs of 1.5 GiB on the default 2.9 GiB VM. Building the `nixos`
-  # guest's seed disk image (hosts/nixos.nix) stages its closure, the ext4
-  # filesystem and the raw image there at once — "No space left on device" on
-  # Determinate's 8 GiB VM already. 16 GiB is the size that worked there (tmpfs
-  # gets half). upstream option nix-darwin `nix.linux-builder.config` →
+  # are one tmpfs of 1.5 GiB on the default 2.9 GiB VM, too small for a disk
+  # image: the retired UTM `nixos` guest's seed image hit "No space left on
+  # device" even on Determinate's 8 GiB VM, and nixpi's sdImage stages a whole
+  # closure the same way. 16 GiB is the size that worked (tmpfs gets half). upstream option nix-darwin `nix.linux-builder.config` →
   # nixpkgs `virtualisation.darwin-builder.memorySize` exists (pinned
   # nixos/modules/profiles/nix-builder.nix, default 3 GiB) → using it. Apple
   # Virtualization backs guest RAM lazily, and the vz guest stops after 10 idle
@@ -828,13 +827,6 @@ in
       # community mechanism; re-deriving dmg extraction and codesign handling in
       # Nix is the hand-rolled path the motto weighs against.
       "tor-browser"
-      # UTM — QEMU+virgl GUI VMs; Tart/Apple VZ failed the NixOS desktop R&D
-      # (llvmpipe only, broken virtio-sound), UTM passed (2026-10-17). A CASK:
-      # nixpkgs' `utm` is a stale 4.7.5, before the virgl/Venus work. Its three
-      # app prefs (Vulkan off, CoreAudio, Cmd/Ctrl swap) are applied by
-      # `nixos-vm create` — packages/nixos-vm.nix says why each, and why they
-      # cannot be activation-time `CustomUserPreferences` (TCC container).
-      "utm"
       # Vercel CLI (`vercel`) — deploy/manage Vercel projects. A CASK, not the
       # `vercel-cli` formula: Homebrew migrated it from homebrew/core to
       # homebrew/cask/vercel, and a brews entry naming the dead formula fails

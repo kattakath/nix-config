@@ -193,9 +193,6 @@ Smaller, single-purpose CLIs:
   no rebuild touches (orphaned plugin cache versions, interrupted-update clones). DRY RUN by
   default, never prunes transcripts; a CLI rather than a check or activation step because all
   of it is a property of the running machine.
-- **`nixos-vm.nix`** — the `nixos-vm` CLI for the `nixos` UTM desktop host
-  (create / switch / restart …). Documented
-  with the host in [`hosts.md`](hosts.md).
 - **`resend-cli.nix`** — the official Resend CLI, not yet in nixpkgs so `npx`-wrapped and
   version-pinned like `mcp-wordpress@<version>` in `modules/home/plugin-mcp.nix`; injects `RESEND_API_KEY` from the
   login Keychain at run time — wired only via `home.packages`, no matching flake app. The

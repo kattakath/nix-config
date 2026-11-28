@@ -180,12 +180,12 @@ they bite any future second account:
   install; materialised only as the `nix run .#nixvm` build-vm, whose guest builds
   locally on the Mac's Linux builder or substitutes from Cachix.
 
-  **HEADLESS — no GUI and no switch for one.** It went headless 2026-10-06 (the `tor-browser`
-  cask now carries stable Tor on the Mac, which was most of what the desktop existed for), and
-  the dormant XFCE stack (`local.desktopVm`, `modules/nixos/desktop-vm.nix`, the HM Xft/DPI
-  module, the clipboard/audio QEMU args, the polkit rule) was DELETED 2026-10-17 — git history
-  keeps it. The GUI job is `nixos`'s (below). Only `-device virtio-gpu-pci` stays: without it
-  the Cocoa window is blank and the break-glass console invisible.
+  **THE DESKTOP IS RDP (2026-11-27).** XFCE under xrdp (nixpkgs `services.xrdp`), forwarded to
+  `127.0.0.1:13389`; connect with Microsoft's Windows App. Login is passwordless for the operator
+  account only (one `pam_succeed_if` rule on `xrdp-sesman`; the forward binds the Mac's loopback).
+  polkit says YES to wheel, and the screensaver and gnome-keyring are off — a passwordless
+  account cannot answer their prompts. It replaced the UTM `nixos` guest, retired the same day.
+  Only `-device virtio-gpu-pci` stays: without it the break-glass console is invisible.
   Access is SSH on `127.0.0.1:2222` (host `forwardPorts` + an sshd bind and firewall port, all
   inside `vmVariant`), with `services.getty.autologinUser` on the console as break-glass —
   the account has no password, so an un-autologged getty would be an unanswerable prompt.
@@ -221,34 +221,6 @@ they bite any future second account:
   sentence used to read "there is no headless `nixvm` you can boot", which inverted after
   2026-10-06: the **build-vm** is now headless. The base config remains unbootable; the
   distinction is base-vs-vmVariant, not graphical-vs-headless.)
-- **`nixos.nix`** — a **long-lived GNOME desktop guest** under **UTM's QEMU backend**
-  (`virtio-gpu-gl-pci` + virgl). A real disk-backed host, driven from the Mac by `nixos-vm`
-  (`packages/nixos-vm.nix`):
-  - `create` — builds the image (or `--image`), writes the UTM bundle at
-    `${XDG_DATA_HOME:-~/.local/share}/utm/nixos.utm` (fixed UUID/MAC, 64 GiB qcow2), registers
-    it, shares `~/Shared` via UTM's `update registry` AppleScript, boots it, runs the first
-    `switch`. REFUSES if the bundle exists.
-  - `switch` — `nixos-rebuild switch --flake <flake>#nixos --target-host nixos.local --sudo`;
-    `<flake>` defaults to what `/etc/nix-darwin/flake.nix` resolves to (the MAIN checkout's
-    current branch, like `activate`), or `--flake` / `NIXOS_VM_FLAKE`.
-  - `start` / `stop` / `status` / `ssh` / `destroy --yes`, and **`restart`** (stop, wait, start).
-    **Never reboot from inside the guest** — measured: it hangs on a black screen, off the
-    network; suspected (not proven) QEMU's `virtio_gpu_gl_reset` (cf. QEMU issue 1860).
-
-  **SEED, THEN SWITCH.** The image carries only `local.nixosGuest.seed` (an `extendModules`
-  variant: boot, SSH, guest agent). The full 6.7 GiB closure cannot be staged: systemd-repart
-  works in `$NIX_BUILD_TOP`, the Linux builder's **RAM tmpfs**. Even the 1.5 GiB seed needs
-  the builder at **16 GiB** (`hosts/macos.nix`).
-
-  **Verified 2026-10-17 (operator-tested):** seed boot, SSH via mDNS, first switch, root grown to
-  62 G, Wayland at 1440×900 @ 100% (UTM hands over POINTS — no forced 2×), `~/Shared`, **clipboard both ways**, **security key + WebAuthn**, **Tor
-  Browser** (tested as the alpha; stable nixpkgs since, not re-tested).
-
-  Every other measured why lives in `hosts/nixos.nix`'s comments — UTM over Tart/`vzvm`
-  (llvmpipe, broken virtio-sound), `image.repart` over `qemu-efi` (needs `kvm`), stock Firefox
-  (the `programs.firefox` wrapper EPERMed on Determinate's builder), the GNOME 50 `spice-vdagent` client
-  that nothing starts, `lanRecovery` on `eth0`, and the no-password prompt class.
-
 - **`generic-darwin.nix` / `generic-linux.nix`** — identity-FREE profiles that are no fleet
   host: they exist so a consumer of `lib.mkDarwin`/`lib.mkNixos` can decline the operator's
   own host, which once handed strangers his account, SSH key and runners (each header records
@@ -273,8 +245,8 @@ measurements that justify them live here, because they are read once and obeyed 
 | Size | `nix.linux-builder.config.virtualisation.darwin-builder.memorySize = 16 * 1024` (`hosts/macos.nix`; default 3 GiB): 15.9 GiB guest RAM, 7.8 GiB build tmpfs. Cores stay default |
 | Speed | aarch64 `hello`: 10.1 s, vs 26.1 s on Determinate's builder (n=5) |
 
-- **The build space is RAM.** `/` and `/tmp` are one tmpfs of half the guest RAM. The `nixos`
-  seed image set the size; the `memorySize` comment in `hosts/macos.nix` has the measurement.
+- **The build space is RAM.** `/` and `/tmp` are one tmpfs of half the guest RAM. The size
+  covers disk images (nixpi's sdImage); the `memorySize` comment in `hosts/macos.nix` has the measurement.
 - **`x86_64-linux` is real**, which is what lets `packages.x86_64-linux.devcontainerImage`
   build here. It does **not** dent the aarch64-only invariant: that is about **hosts**
   ([`../repo-map.md`](../repo-map.md) § The fleet), and a build-only VM is not one.

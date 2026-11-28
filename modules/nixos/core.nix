@@ -250,7 +250,7 @@ in
     ];
 
     # Default install-era stateVersion for the NixOS hosts that import this module.
-    # mkDefault lets a host pin its own — hosts/nixos.nix does (26.11).
+    # mkDefault lets a host pin its own.
     system.stateVersion = lib.mkDefault "24.05";
   };
 }
