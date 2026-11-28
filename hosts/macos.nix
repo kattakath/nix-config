@@ -432,6 +432,10 @@ in
   environment.systemPath = [ (dirOf androidAdb) ];
   launchd.user.envVariables.ANDROID_HOME = androidHome;
   launchd.user.envVariables.ADB = androidAdb;
+  # The operator's acceptance of the Android SDK licence, which androidenv requires
+  # before it will build the SDK (nixpkgs androidenv's `android_sdk.accept_license`).
+  # Host-scoped on purpose: only this Mac carries the SDK.
+  nixpkgs.config.android_sdk.accept_license = true;
 
   # ---- Google Drive for desktop (cask below) ----------------------------------
   # Keys are Google's documented admin keys for the com.google.drivefs.settings
@@ -587,11 +591,9 @@ in
       # source is the accepted cost of a Photoshop-shaped tool; the FOSS
       # alternatives (GIMP, Krita) are deliberately not carried.
       "affinity"
-      # Android SDK cmdline tools (sdkmanager/avdmanager) — backs `android-emu`
-      # (modules/home/default.nix), which boots VIRTUAL Android emulators.
-      "android-commandlinetools"
-      # NO `android-platform-tools` cask (removed 2026-11-28): adb/fastboot come from the
-      # SDK's own platform-tools above — "Android: one adb".
+      # NO Android casks (removed 2026-11-28): the whole SDK — cmdline-tools, emulator,
+      # platform-tools (adb/fastboot), system images — is nixpkgs' androidenv
+      # (modules/home/default.nix `androidSdk`), pinned by flake.lock.
       # Applite — a GUI for BROWSING casks (homebrew/cask, MIT, ~7k stars; picked
       # 2026-11-25 over the unsigned, quarantine-stripping BrewStore tap). What it
       # installs is not declared here, so `cleanup = "zap"` removes it at the next

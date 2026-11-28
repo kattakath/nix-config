@@ -88,11 +88,31 @@ let
   # fontconfig indexing 164 faces and no display service on the host to use one.
   wantsFonts = pkgs.stdenv.hostPlatform.isDarwin;
 
-  # android-commandlinetools Homebrew cask install prefix — single source for
-  # every ANDROID_HOME/PATH reference below (exported once as
-  # config.home.sessionVariables.ANDROID_HOME, which the android-phone plugin's
-  # mobile-mcp inherits from the session env rather than re-declaring).
-  androidSdkRoot = "${brewPrefix}/share/android-commandlinetools";
+  # The Android SDK: nixpkgs' androidenv, pinned by flake.lock — emulator, platform-tools
+  # (the fleet's ONE adb), cmdline-tools (avdmanager, with its own JDK) and the two
+  # arm64 API 35 images android-emu chooses between. Replaced the android-commandlinetools
+  # cask + run-time sdkmanager downloads (2026-11-28). Single source for every
+  # ANDROID_HOME/PATH reference below (exported once as
+  # config.home.sessionVariables.ANDROID_HOME, which mobile-mcp inherits from the
+  # session env). upstream: pkgs.androidenv.composeAndroidPackages (nixpkgs
+  # pkgs/development/mobile/androidenv); no nix-darwin / home-manager module models
+  # Android (grepped both: 0 hits). Licence: nixpkgs.config.android_sdk.accept_license
+  # in hosts/macos.nix. Macos-only like everything that references it (lazy elsewhere).
+  androidSdk =
+    (pkgs.androidenv.composeAndroidPackages {
+      includeEmulator = true;
+      includeSystemImages = true;
+      platformVersions = [ "35" ];
+      systemImageTypes = [
+        "google_apis_playstore"
+        "google_apis"
+      ];
+      abiVersions = [ "arm64-v8a" ];
+      includeSources = false;
+      includeNDK = false;
+      useGoogleAPIs = false;
+    }).androidsdk;
+  androidSdkRoot = "${androidSdk}/libexec/android-sdk";
   # The SDK's platform-tools: the fleet's ONE adb lives here (hosts/macos.nix
   # "Android: one adb" reads it back through home.sessionVariables.ADB).
   androidPlatformTools = "${androidSdkRoot}/platform-tools";
@@ -223,7 +243,7 @@ let
   # at run time (non-interactive, no browser OAuth). See packages/resend-cli.nix.
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
-  androidEmu = pkgs.callPackage ../../packages/android-emu.nix { inherit androidSdkRoot brewPrefix; };
+  androidEmu = pkgs.callPackage ../../packages/android-emu.nix { inherit androidSdkRoot; };
 
   # "Focus-or-launch" Spotlight .app bundle for the Android emulator
   # (macos host only, below) — see packages/spotlight-launchers.nix.
@@ -696,7 +716,7 @@ in
     ++ lib.optionals stdenv.hostPlatform.isDarwin [
       darwinActivate # `activate [extra darwin-rebuild args]` — `darwin-rebuild switch` that re-execs under sudo, so a forgotten `sudo` becomes the Touch ID sheet instead of exit 1; names the flake + branch/rev it is about to activate first (packages/activate.nix)
     ]
-    # androidEmu needs the android-commandlinetools cask, which only hosts/macos.nix installs.
+    # androidEmu is operator-only, like the androidenv SDK it launches.
     # Kept at this position so the package order (and the macos closure) is unchanged.
     ++ lib.optional isMacosHost androidEmu
     # OPERATOR-ONLY (codecov-cli, and inngest/stripe-cli/wp-cli below): split in place so the
@@ -813,14 +833,10 @@ in
   ;
 
   # ---- Android SDK (macOS only) ------------------------------------------------
-  # The `android-commandlinetools` Homebrew cask installs sdkmanager/avdmanager
-  # under the Homebrew prefix. Point ANDROID_HOME there so `sdkmanager` downloads
-  # the emulator + system images into it, and put the emulator bins on PATH
-  # (platform-tools reaches PATH via hosts/macos.nix). That platform-tools adb is the
-  # fleet's ONE adb (`ADB` below; the
-  # android-platform-tools cask is gone — hosts/macos.nix "Android: one adb").
-  # After switching, just run `android-emu` (the helper in the let block) — it
-  # installs the SDK packages + creates the AVD on first run, then boots it.
+  # ANDROID_HOME is the androidenv SDK in the store (`androidSdk` in the let block); the
+  # emulator bins go on PATH here, platform-tools via hosts/macos.nix. That adb is the
+  # fleet's ONE adb (`ADB` below; hosts/macos.nix "Android: one adb"). `android-emu`
+  # creates the AVD on first run and boots it — nothing is downloaded at run time.
   home.sessionVariables = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
     {
       # rclip's default macOS path compiles a Core ML model, which needs `coremltools`,
@@ -844,8 +860,7 @@ in
       # THEME still installs per-project (local node_modules), e.g. `npm i jsonresume-theme-macchiato`.
       PUPPETEER_SKIP_DOWNLOAD = "true";
     }
-    # macos-only: ANDROID_HOME points into a cask only hosts/macos.nix installs
-    # (android-commandlinetools), and buku's DB is the operator's own data.
+    # macos-only: the Android SDK is operator-only, and buku's DB is the operator's own data.
     // lib.optionalAttrs isMacosHost {
       ANDROID_HOME = androidSdkRoot;
       # The ONE adb every consumer uses (android-phone and scrcpy read ADB first).
@@ -879,18 +894,6 @@ in
   # ---- Home Manager program modules --------------------------------------------
   programs = {
     home-manager.enable = true;
-
-    # JDK 17 for the Android sdkmanager/avdmanager (JVM tools; the emulator
-    # itself needs no Java), so darwin-only like the rest of the Android block.
-    # upstream option home-manager.programs.java exists → using it (pinned
-    # programs/java.nix:19-37: the package + JAVA_HOME = "${package.home}" in
-    # sessionVariables, which is exactly what a bare home.packages entry plus a
-    # hand-set JAVA_HOME used to spell out — and it kept a JDK on the Linux hosts
-    # that have no Android tooling).
-    java = {
-      enable = pkgs.stdenv.hostPlatform.isDarwin;
-      package = pkgs.jdk17;
-    };
 
     # Claude Code CLI. On darwin we manage it via the module (not just as a bare
     # package) for the settings/plugin/marketplace surface below — the global

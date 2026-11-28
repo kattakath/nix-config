@@ -1,8 +1,8 @@
-# `android-emu [avd-name] [emulator-args…]` — boot an Android emulator,
-# provisioning on first run. If the SDK packages or the AVD are missing it
-# installs them via the Homebrew `sdkmanager`/`avdmanager` (the
-# android-commandlinetools cask + ANDROID_HOME from modules/home/default.nix), then launches.
-# Uses a native arm64 system image (fast on Apple Silicon). macOS-only.
+# `android-emu [avd-name] [emulator-args…]` — boot an Android emulator, creating the AVD
+# on first use. The SDK (emulator, platform-tools, cmdline-tools and the system images)
+# is nixpkgs' androidenv, pinned by flake.lock and passed in as androidSdkRoot by
+# modules/home/default.nix — nothing is installed at run time, so there is no sdkmanager
+# step. Native arm64 images (fast on Apple Silicon). macOS-only.
 #
 # The AVD name selects the system image: a name containing "play" — the DEFAULT
 # `pixel_play`, launched by a bare `android-emu` — gets the Google Play image (has
@@ -19,18 +19,14 @@
 # hw.keyboard=yes so the Mac keyboard types into Android). Cold boot is baked in
 # on EVERY launch (fastboot.forceColdBoot), because a bare `emulator -avd` that
 # skips this wrapper otherwise quick-boots: loading a quick-boot snapshot also
-# REVERTS the disk to it. On 2026-11-06 one such launch rewound pixel_play to an
-# Aug 4 snapshot and lost three months of state. Extra args after the name override the
-# emulator flags, so `android-emu pixel -gpu host` still works.
-#
-# androidSdkRoot and brewPrefix are passed by modules/home/default.nix, which owns both.
+# REVERTS the disk to it. Extra args after the name override the emulator flags, so
+# `android-emu pixel -gpu host` still works.
 {
   writeShellApplication,
   coreutils,
   gnugrep,
   gnused,
   androidSdkRoot,
-  brewPrefix,
 }:
 writeShellApplication {
   name = "android-emu";
@@ -43,34 +39,15 @@ writeShellApplication {
     ANDROID_HOME="''${ANDROID_HOME:-${androidSdkRoot}}"
     export ANDROID_HOME
     avd="''${1:-pixel_play}"
-    sdkmanager="${brewPrefix}/bin/sdkmanager"
-    avdmanager="${brewPrefix}/bin/avdmanager"
+    avdmanager=$(echo "$ANDROID_HOME"/cmdline-tools/*/bin/avdmanager)
     emulator="$ANDROID_HOME/emulator/emulator"
 
-    # Google Play image for *play* AVDs, Google APIs otherwise.
+    # Google Play image for *play* AVDs, Google APIs otherwise. Both ship in the SDK
+    # (modules/home/default.nix's androidenv composition).
     case "$avd" in
       *play*) image="system-images;android-35;google_apis_playstore;arm64-v8a" ;;
       *)      image="system-images;android-35;google_apis;arm64-v8a" ;;
     esac
-
-    if [ ! -x "$sdkmanager" ]; then
-      echo "android-emu: sdkmanager not found — run 'activate' to install the android-commandlinetools cask" >&2
-      exit 1
-    fi
-
-    # First run: accept licenses + install the emulator and platform-tools.
-    if [ ! -x "$emulator" ]; then
-      echo "android-emu: installing SDK packages (first run, a few GB)…" >&2
-      yes | "$sdkmanager" --licenses >/dev/null || true
-      "$sdkmanager" "platform-tools" "emulator"
-    fi
-
-    # Ensure the chosen system image is present (~1.5 GB per image).
-    if [ ! -d "$ANDROID_HOME/''${image//;//}" ]; then
-      echo "android-emu: downloading system image ($image)…" >&2
-      yes | "$sdkmanager" --licenses >/dev/null || true
-      "$sdkmanager" "$image"
-    fi
 
     # Create the AVD on first use (decline the custom-hardware prompt), then
     # persist the settings that make it work: software GPU + hardware keyboard,
