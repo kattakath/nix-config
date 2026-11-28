@@ -24,10 +24,7 @@ in
 {
   options.local = {
     nixImplementation = lib.mkOption {
-      type = lib.types.enum [
-        "determinate"
-        "upstream"
-      ];
+      type = lib.types.enum (import ../_lib/nix-implementations.nix);
       default = "determinate";
       description = "Which Nix implementation manages this darwin host (ADR-017 / ADR-018).";
     };

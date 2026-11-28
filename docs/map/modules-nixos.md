@@ -2,11 +2,16 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/nixos/`
 
+- **`modules/nixos/nix-implementation.nix`** — `local.nixImplementation` (`"determinate"` default,
+  `"upstream"`), which sets the Determinate module's own `determinate.enable` (ADR-018). On NixOS
+  the move is just a rebuild. `core.nix`'s `/etc/determinate/config.json` and `nix-cache.nix`'s
+  `install.determinate.systems` substituter follow the same flag. nixvm is on `"upstream"`.
+
 - **`modules/nixos/core.nix`** — shared NixOS baseline: the `ismail` user + authorized SSH key (the
   operator's static ed25519 key, the sole network login credential on every host), keys-only
   sshd (no password, no root login, no keyboard-interactive), a firewall that opens **no TCP
   port at all** (UDP 5353 only, for mDNS), avahi `<host>.local` publishing, native
-  `programs.nix-ld`, zram swap, automatic GC, and the systemd-initrd `terminfo/l/linux` drop
+  `programs.nix-ld`, zram swap, automatic GC (`programs.nh.clean`), and the systemd-initrd `terminfo/l/linux` drop
   that a build on the Mac's case-INSENSITIVE store needs (unguarded: the scripted initrd
   and its option are gone from nixpkgs). `nixpi`'s stage-1 history: its comment in `hosts/nixpi.nix`.
   **sshd binds loopback only BY DEFAULT** — `listenAddresses = 127.0.0.1 + ::1` with

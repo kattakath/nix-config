@@ -269,6 +269,8 @@ let
         # substituter + key precisely so the Pi and the warm-cache runner FETCH
         # it rather than build a C++ Nix). nixpi must never build (CLAUDE.md).
         determinate.nixosModules.default
+        # local.nixImplementation — turns the module above off for "upstream" (ADR-018).
+        ../nixos/nix-implementation.nix
         home-manager.nixosModules.home-manager
         (mkHomeManagerModule { idArgs = identity; })
       ]

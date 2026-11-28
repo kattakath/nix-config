@@ -369,6 +369,8 @@ The layer exists for its files' shape rather than their count:
 - **`modules/_lib/redaction-canary.nix`** — the ACTIVE redaction canary (ADR-013): the addresses
   nixpi logs daily that must arrive redacted. Read by `modules/nixos/alloy-shipper.nix` (the timer
   that logs it) and the `grafana` stack's two canary rules (`infra/grafana/`).
+- **`modules/_lib/nix-implementations.nix`** — the list `[ "determinate" "upstream" ]`, which both
+  platforms' `local.nixImplementation` enum is typed from (ADR-018).
 - **`modules/_lib/store-retention.nix`** — the fleet's ONE store-retention policy (keep 3
   generations, 3-day window, daily, `min-free`/`max-free`), read by `modules/nixos/core.nix`,
   `modules/darwin/store-clean.nix` and the darwin `customSettings` in `compose.nix` (ADR-017).

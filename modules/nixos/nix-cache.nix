@@ -19,6 +19,8 @@
 # in modules/parts/identity.nix), so the URL/key literal is single-sourced across
 # the NixOS hosts and the macOS Determinate customSettings.
 {
+  config,
+  lib,
   cachixUrl,
   cachixKey,
   ...
@@ -34,13 +36,16 @@
     # a NixOS host (or the warm-cache runner) would BUILD Nix from C++ source.
     # The key is the one Determinate's own NixOS install guide names
     # (https://docs.determinate.systems/guides/advanced-installation/).
+    #
+    # Determinate's cache only where Determinate runs: an upstream-lane host
+    # (local.nixImplementation, ADR-018) takes nixpkgs' Nix from cache.nixos.org.
     extra-substituters = [
       cachixUrl
-      "https://install.determinate.systems"
-    ];
+    ]
+    ++ lib.optional config.determinate.enable "https://install.determinate.systems";
     extra-trusted-public-keys = [
       cachixKey
-      "cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM="
-    ];
+    ]
+    ++ lib.optional config.determinate.enable "cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM=";
   };
 }

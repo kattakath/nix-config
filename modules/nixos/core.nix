@@ -2,6 +2,7 @@
 # Platform-specific hardware lives in hosts/<hostname>.nix.
 # User environment lives in modules/home/default.nix (via Home Manager).
 {
+  config,
   pkgs,
   lib,
   loginName,
@@ -169,8 +170,8 @@ in
     # (https://docs.determinate.systems/determinate-nix/determinate-nixd/). It
     # COLLIDES with the module's own write if edgeCacheSubstituters is ever set —
     # merge the two then.
-    environment.etc."determinate/config.json".text = builtins.toJSON {
-      garbageCollector.strategy = "disabled";
+    environment.etc."determinate/config.json" = lib.mkIf config.determinate.enable {
+      text = builtins.toJSON { garbageCollector.strategy = "disabled"; };
     };
 
     # Automatic store GC — the fleet policy in ../_lib/store-retention.nix
