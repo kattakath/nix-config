@@ -10,6 +10,18 @@
 # because `flake.lib` is declared `lazyAttrsOf raw` in
 # modules/parts/lib-option.nix — under flake-parts' freeform `types.unique`
 # default, these two files would be a merge conflict.
+#
+# upstream option terranix.flakeModule (`perSystem.terranix.terranixConfigurations`,
+# pinned terranix/flake-module.nix) exists → NOT using it, because (read 2026-11-28):
+#   · its default package/app IS `result.scripts.apply` (terranix/flake-module.nix:214),
+#     so a bare `nix run .#<stack>` would apply with no saved, reviewed plan;
+#   · it ships a `destroy` script per stack (terranix/flake-module.nix:166) the bash
+#     guard would have to block;
+#   · `workdir` is CWD-relative (terranix/flake-module.nix:125, `cd ${workdir}`) — tofu
+#     running in whatever the CWD happened to be is how state was lost TWICE.
+# It would remove ~15 lines of preamble per wrapper; every guard below would still have
+# to live in its `prefixText`. Revisit if upstream gains a plan-first default app and an
+# absolute state dir.
 { config, inputs, ... }:
 let
   inherit (inputs) nixpkgs terranix;
