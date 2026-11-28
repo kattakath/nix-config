@@ -30,25 +30,31 @@
 # the registration token and the key sits in `InaccessiblePaths`. launchd has
 # neither, so a root daemon plus an exec privilege drop is the analog.
 #
-# WHERE THE REGISTRATION TOKEN TRAVELS, and why never on argv. Measured 2026-11-28 on
+# WHERE THE REGISTRATION TOKEN TRAVELS, and who can read it. Measured 2026-11-28 on
 # macOS 27.2.1 (26B131) with fake-token dummy processes running as `_github-runner`:
-#   · ENVIRONMENT: not readable by anyone. KERN_PROCARGS2 returns argv with envc=0,
-#     for the same uid and for root (and `ps -E` shows no environment, even for one's
-#     own process).
 #   · ARGV: readable by EVERY local user. `ps -ww` run as `nobody` and as the operator
 #     printed `… --token FAKEARGVVALUE2` from a `_github-runner` process.
+#   · ENVIRONMENT of a /nix/store binary (this module's bash, config.sh, Runner.Listener):
+#     readable by the SAME uid and by root, NOT by other uids. KERN_PROCARGS2 on a
+#     store-bash dummy returned the fake token in environ for `_github-runner` and root,
+#     errno 22 for `nobody` and the operator. It is the exec-time snapshot, so an `unset`
+#     inside the process does NOT hide it. (Apple's own /bin/bash shows envc=0 even to
+#     root, which is how a first measurement on /bin/bash dummies got this wrong.)
 # So the token moves only through environments: root → `runAsRunner` (RUNNER_REG_TOKEN)
-# → `configure` → config.sh as ACTIONS_RUNNER_INPUT_TOKEN, which the runner reads in
-# place of `--token` (`configure`'s comment cites the source). Until 2026-11-28 it went
-# on `config.sh --token`, a world-readable command line for one ~2 s configure (instance
-# 01's configure log: 03:26:44Z → 03:26:46Z) — with `count = 2` (hosts/macos.nix) the
-# other instance's job could have read it from `ps`. Re-measured on the new shape: the
-# fake token is absent from argv (`ps -ww` as nobody and as the operator) and from
-# KERN_PROCARGS2 (same uid and root). Every hop unsets it, so the Listener and its jobs
-# never inherit it. The App key and the installation token never leave root (the curls
-# take their bearer headers on stdin — `mintRegistrationToken`). NOT tested: a debugger
-# (task_for_pid) read of a same-uid process, which normally needs root or a debugger
-# entitlement.
+# → `configure` → config.sh as ACTIONS_RUNNER_INPUT_TOKEN, which the runner reads in place
+# of `--token` (`configure`'s comment cites the source). Until 2026-11-28 it went on
+# `config.sh --token`, readable by every local user for one ~2 s configure (instance
+# 01's configure log: 03:26:44Z → 03:26:46Z). That is now closed to other uids — but
+# NOT to `_github-runner` itself: `runAsRunner` (from its start through the workDir /
+# RUNNER_ROOT wipe and the configure) and `configure`/config.sh carry the token in their
+# exec-time environment, and with `count = 2` (hosts/macos.nix) the OTHER instance's
+# job runs as that same uid and could read it. What it would get is the ≤1 h
+# REGISTRATION token (register a rogue runner into this org for up to an hour). The
+# Listener and its jobs never inherit it: runAsRunner unsets it before `exec`, and exec
+# takes a fresh snapshot. The App key and the installation token never leave root (the
+# curls take their bearer headers on stdin — `mintRegistrationToken`). Closing the
+# same-uid window needs per-instance users, not a different hand-off. NOT tested: a
+# debugger (task_for_pid) read, which normally needs root or a debugger entitlement.
 # OUTBOUND-only — the runner polls GitHub, opens no port.
 #
 # SECURITY: `--ephemeral` (one job per registration; launchd restarts + the script
@@ -371,7 +377,8 @@ let
         # `mintRegistrationToken`) arrives in this one call's environment from
         # `runAsRunner`, and goes on to config.sh the same way — as
         # ACTIONS_RUNNER_INPUT_TOKEN, scoped to that one command, NEVER as a `--token`
-        # argument, because argv is world-readable on macOS (header). The runner reads
+        # argument, because argv is readable by every local user on macOS while a store
+        # binary's environment is readable only by its own uid and root (header). The runner reads
         # it there: github-runner 2.338.2's src/Runner.Listener/CommandSettings.cs (the
         # `ACTIONS_RUNNER_INPUT_` loop in its constructor: stores it, masks it as a secret, then
         # deletes it from its own environment) and GetArg's env fallback, reached by
@@ -395,9 +402,9 @@ let
       # THE UNPRIVILEGED HALF — everything from here on runs as `_github-runner`,
       # including every job. The registration token arrives in the environment
       # from `runDaemon` and is UNSET before `exec Runner.Listener`, so the
-      # long-lived Listener (and every job it starts) never inherits it. Measured
-      # 2026-11-28 that macOS 27.2 exposes no process environment through
-      # KERN_PROCARGS2, so the unset is defence in depth, not the only barrier.
+      # long-lived Listener (and every job it starts) never inherits it: exec takes a
+      # fresh environment snapshot. This process's OWN exec-time environment still holds
+      # it until that exec, readable by the same uid (header).
       #
       # Why env and not a file: a token file would have to be written by ROOT
       # into RUNNER_ROOT, a directory `_github-runner` owns — and a leftover
