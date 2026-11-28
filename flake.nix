@@ -258,8 +258,11 @@
     # operator needed >= 2.1.318). flake = false: nothing here is EVALUATED as a second tree;
     # modules/home/default.nix callPackages just pkgs/by-name/cl/claude-code/package.nix
     # against OUR pkgs, darwin-gated, and only while it is newer than `pkgs.claude-code`.
+    # Tracks `master`, not `nixpkgs-unstable` (2026-11-28): the recipe only fetches a pinned
+    # upstream binary, so channel CI buys it nothing, and the channel lagged master's
+    # 2.1.332 (task-ID reuse + lost-task fixes) behind 2.1.330.
     nixpkgs-claude-code = {
-      url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+      url = "github:NixOS/nixpkgs/master";
       flake = false;
     };
     # ---- Third-party Claude Code MARKETPLACES, pinned (operator 2026-11-25: a third-party
