@@ -1507,6 +1507,48 @@ in
               echo "hook-types: $(ls hooks/*.js | wc -l | tr -d " ") hook scripts type-check (strict) against ${self'.packages.hook-types-node-modules.name}" > "$out"
             '';
 
+          # The `nixpkgs-claude-code` input's EXIT WATCHER. The input exists only while its
+          # claude-code is newer than the weekly nixpkgs pin's (modules/home/default.nix's
+          # picker); update-flake-lock holds it still, so the weekly bump catches up and this
+          # goes RED on that PR. Without it the input would outlive its purpose silently: the
+          # picker just falls back to pkgs.claude-code and the flake.nix EXIT comment, the
+          # workflow's held-input select and the hook-types SDK note all keep pointing at a
+          # dead input. Eval-only, on every system, so the linux push leg blocks on it.
+          # Fires when the WEEKLY pin catches up, which can trail nixpkgs-unstable by up to
+          # a week; flake.nix's EXIT line names that earlier trigger.
+          claude-code-pin-exit =
+            let
+              mac = self.darwinConfigurations.macos;
+              picked = mac.config.home-manager.users.${loginName}.local.claudeProfiles.package.version;
+              weekly = mac.pkgs.claude-code.version;
+              pinned =
+                (lib.importJSON "${inputs.nixpkgs-claude-code}/pkgs/by-name/cl/claude-code/manifest.zst.json")
+                .version;
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "claude-code-pin-exit";
+              subject = "macos: the nixpkgs-claude-code input is still the newer claude-code";
+              expect = [
+                {
+                  name = "weekly pkgs.claude-code ${weekly} is older than the input's ${pinned}";
+                  ok = lib.versionOlder weekly pinned;
+                }
+                {
+                  name = "macos runs the input's claude-code (picked ${picked}, input ${pinned})";
+                  ok = picked == pinned;
+                }
+              ];
+              advice = [
+                "input is dead: drop it, its update-flake-lock exclusion and the hook-types note."
+                "  - flake.nix: the nixpkgs-claude-code input and its EXIT comment"
+                "  - modules/home/default.nix: the claudeCodeUnstable picker (keep pkgs.claude-code)"
+                "  - .github/workflows/update-flake-lock.yml: the select(. != \"nixpkgs-claude-code\")"
+                "  - packages/hook-types-node-modules.nix: the SDK pin note naming the input"
+                "  - this check"
+              ];
+            };
+
           # ---- Workflow literals that restate a fleet fact -----------------------
           #
           # GitHub Actions YAML cannot import Nix, so two fleet facts are RE-TYPED in
