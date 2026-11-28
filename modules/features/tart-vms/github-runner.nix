@@ -21,8 +21,8 @@
 # with `ephemeral` at :209), but it renders a launchd DAEMON under a
 # `_github-runner` service user (service.nix:77 and :172) running the runner
 # straight ON THE HOST — no VM-per-job dimension at all, which is the whole of
-# what this module is for. It also hard-asserts `nix.enable` (service.nix:18),
-# which Determinate Nix sets false.
+# what this module is for. (It also hard-asserts `nix.enable` (service.nix:18),
+# which Determinate Nix kept false until 2026-11-27; that reason is gone.)
 {
   config,
   lib,

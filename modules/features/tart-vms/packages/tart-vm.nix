@@ -468,7 +468,7 @@ writeShellApplication {
     # ------------------------------------------------------------- bootstrap --
     # Personalize a generic image (admin/admin setup user, SSH on) into YOUR
     # machine, over SSH: create the login user, secure-token it, install
-    # Determinate Nix, activate the provided flake installable, rotate the
+    # upstream Nix, activate the provided flake installable, rotate the
     # login password, optionally drop the setup admin. Idempotent — each step
     # probes before acting, so re-running after a failure resumes.
     cmd_bootstrap() {
@@ -591,13 +591,15 @@ writeShellApplication {
         || die "writing sudoers drop-in failed"
       info "passwordless sudo: ensured for $login"
 
-      # -- 6. Determinate Nix -------------------------------------------------
+      # -- 6. upstream Nix ----------------------------------------------------
+      # The NixOS project's installer (channels.nixos.org), the same one the
+      # fleet's bootstrap.sh uses since 2026-11-27: upstream Nix, flakes on.
       if adm "[ -x /nix/var/nix/profiles/default/bin/nix ]" 2>/dev/null; then
         info "nix: present — skipping install"
       else
-        info "nix: installing Determinate Nix (this downloads inside the guest)…"
-        adm "curl -fsSL https://install.determinate.systems/nix | sudo -n sh -s -- install --no-confirm" \
-          || die "Determinate Nix install failed"
+        info "nix: installing upstream Nix (this downloads inside the guest)…"
+        adm "curl -sSfL https://channels.nixos.org/nix-latest/nix-installer | sudo -n sh -s -- install --no-confirm --enable-flakes" \
+          || die "Nix install failed"
       fi
 
       # -- 7. activate the flake as the login user ----------------------------
