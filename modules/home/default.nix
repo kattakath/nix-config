@@ -1780,33 +1780,75 @@ in
       ''
     );
 
-    # Point Escrcpy at the fleet's ONE adb (hosts/macos.nix "Android: one adb"). Escrcpy
-    # owns ~/Library/Application Support/escrcpy/config.json and rewrites it, so this
-    # MERGES one key (`common.adbPath`) rather than linking the file — the same
-    # "merge only your keys" rule as claude-code-settings.nix. Its bundled scrcpy and
-    # gnirehtet stay its own defaults (no path override is set for them). Grepped pinned
-    # home-manager modules for escrcpy: no module → custom. Absent file = the app was
-    # never opened → no-op (it creates the file itself); unparseable = warned, untouched.
-    escrcpyAdbPath = lib.mkIf isMacosHost (
-      lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        cfg="${config.home.homeDirectory}/Library/Application Support/escrcpy/config.json"
-        want="${androidSdkRoot}/platform-tools/adb"
-        if [ -f "$cfg" ]; then
-          if ! ${pkgs.jq}/bin/jq -e 'type == "object"' "$cfg" > /dev/null 2>&1; then
-            warnEcho "escrcpy: $cfg is not a JSON object — adbPath left unset."
-          elif [ "$(${pkgs.jq}/bin/jq -r '.common.adbPath // ""' "$cfg")" = "$want" ]; then
+    # Point Escrcpy at the fleet's ONE adb and at nixpkgs' scrcpy (hosts/macos.nix
+    # "Android: one adb"). Escrcpy 3.3.1 reads three DIRECTORY keys — common.adbDir,
+    # common.scrcpyDir, common.gnirehtetDir — and resolves each tool with which() over
+    # [that dir, its bundled extra/mac-arm64/… dirs, $PATH] (app.asar, electron/configs/
+    # which). There is no `adbPath` setting (its only "adbPath" strings are `yadbPath`);
+    # the key cdc2946f wrote was dead and is deleted here.
+    #
+    # scrcpyDir MUST hold both `scrcpy` and the MATCHING `scrcpy-server`: Escrcpy sets
+    # SCRCPY_SERVER_PATH to `<scrcpyDir>/scrcpy-server` and falls back to its BUNDLED 4.1
+    # server when that file is absent (measured 2026-11-28: a bare ${pkgs.scrcpy}/bin made
+    # the 5.0.1 client start against the 4.1 server and fail). nixpkgs keeps the server
+    # in share/scrcpy/, hence the linkFarm. With it, Mirror and control worked on the
+    # physical phone, and every adb scrcpy spawned was the SDK binary (one server).
+    # gnirehtetDir stays UNSET (Escrcpy's bundled gnirehtet): reverse tethering through
+    # nixpkgs' gnirehtet was not proven.
+    #
+    # Engine: home-manager's lib.hm.generators.mkImpureConfigMerger (as in
+    # claude-code-settings.nix) — Escrcpy owns and rewrites this file, so merge only our
+    # keys. Guards, because this is an APP's state file, not ours:
+    #   · absent file → no-op. Creating it would be wiped anyway: on every app VERSION
+    #     change Escrcpy deletes all three *Dir keys (electron/process/index.post.js), and
+    #     a file with no "version" counts as a change. The next activation re-asserts them.
+    #   · not one JSON object → warned and left untouched (never reset an app's file).
+    #   · Escrcpy writing it mid-activation → the merger refuses ("changed during
+    #     activation") → warned, retried next activation; it never fails the switch.
+    # Grepped pinned home-manager modules for escrcpy: no module → custom.
+    escrcpyToolDirs =
+      let
+        cfg = "${config.home.homeDirectory}/Library/Application Support/escrcpy/config.json";
+        scrcpyDir = pkgs.linkFarm "escrcpy-scrcpy-dir" [
+          {
+            name = "scrcpy";
+            path = "${pkgs.scrcpy}/bin/scrcpy";
+          }
+          {
+            name = "scrcpy-server";
+            path = "${pkgs.scrcpy}/share/scrcpy/scrcpy-server";
+          }
+        ];
+        merger = lib.hm.generators.mkImpureConfigMerger {
+          inherit pkgs;
+          format = "json";
+          empty = "{}";
+          path = cfg;
+          staticSettings = pkgs.writeText "escrcpy-tool-dirs.json" (
+            builtins.toJSON {
+              common = {
+                adbDir = "${androidSdkRoot}/platform-tools";
+                inherit scrcpyDir;
+              };
+            }
+          );
+          jqOperation = "$dynamic * $static | del(.common.adbPath)";
+        };
+      in
+      lib.mkIf isMacosHost (
+        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+          escrcpy_cfg=${lib.escapeShellArg cfg}
+          if [ ! -f "$escrcpy_cfg" ]; then
             :
-          elif [[ -v DRY_RUN ]]; then
-            echo "Would set common.adbPath in $cfg to $want"
-          else
-            tmp=$(${pkgs.coreutils}/bin/mktemp "$cfg.XXXXXX")
-            ${pkgs.jq}/bin/jq --arg p "$want" '.common.adbPath = $p' "$cfg" > "$tmp"
-            run ${pkgs.coreutils}/bin/chmod --reference="$cfg" "$tmp"
-            run ${pkgs.coreutils}/bin/mv -f "$tmp" "$cfg"
+          elif ! ${lib.getExe pkgs.jaq} -se 'length == 1 and (.[0] | type == "object")' "$escrcpy_cfg" > /dev/null 2>&1; then
+            warnEcho "escrcpy: $escrcpy_cfg is not one JSON object — tool dirs left unset."
+          elif ! (
+            ${merger}
+          ); then
+            warnEcho "escrcpy: could not merge tool dirs into $escrcpy_cfg (the app may have written it during activation) — the next activation retries."
           fi
-        fi
-      ''
-    );
+        ''
+      );
   };
 
 }
