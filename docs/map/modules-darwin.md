@@ -200,8 +200,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   `hosts/macos.nix` enables it with `count = 2`.
   - **Hand-rolled on purpose:** nix-darwin's `services.github-runners` could run since ADR-018
     turned `nix.enable` on, but still does not fit: it reads only a static `tokenFile` (nothing
-    mints the GitHub App token) and forces the daemon's `UserName` (no root → `_github-runner`
-    split). This module reproduces upstream's launchd setup with the daemon's own Nix
+    mints the GitHub App token) and forces the daemon's `UserName` (no root →
+    `_github-runner-NN` split). This module reproduces upstream's launchd setup with the daemon's own Nix
     (`config.nix.package`), plus that privilege split (next bullet).
   - **Auth:** a GitHub **App** RS256 private key (the host-decrypted
     `gh-app-dontsell-ai-key.age`), used to mint a fresh ~1 h installation token per

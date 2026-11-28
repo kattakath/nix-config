@@ -10,9 +10,10 @@
 # its pinned source shows: it only reads a static `tokenFile`
 # (modules/services/github-runner/service.nix), so nothing mints the ~1 h
 # GitHub App registration token below, and it always sets the daemon's
-# `UserName`, which drops the root → `_github-runner` privilege split below.
-# So this reproduces its launchd setup: the same `_github-runner` job uid,
-# `RUNNER_ROOT` state dir per instance, ephemeral re-registration via launchd
+# `UserName`, which drops the root → `_github-runner-NN` privilege split below.
+# So this reproduces its launchd setup: a non-root job uid (one `_github-runner-NN`
+# per instance, where upstream shares one `_github-runner`), a `RUNNER_ROOT` state
+# dir per instance, ephemeral re-registration via launchd
 # `KeepAlive.SuccessfulExit`, and the daemon's own Nix (`config.nix.package`).
 #
 # AUTH: a GitHub App. The agenix secret is the App's RS256 PRIVATE KEY
@@ -85,8 +86,8 @@ let
   # services.github-runners says the same and leaves it to us: "Make each runner use
   # its own user and group … you will have to do the user and group creation
   # yourself" (nix-darwin modules/services/github-runner/options.nix:14-20).
-  # 540+: 533 is the retired user and 535 is _dnscrypt-proxy on this Mac (dscl).
-  retiredUser = "_github-runner";
+  # 540+: 533 was the retired user (deleted 2026-11-28) and 535 is _dnscrypt-proxy on
+  # this Mac (dscl).
   uidBase = 540;
   # Upstream nixpkgs' `github-runner` bundles only `externals/node24` — Node 20 is EOL,
   # and the pinned pkgs/by-name/gi/github-runner/package.nix's `nodeRuntimes` assert
@@ -644,12 +645,8 @@ in
         }
       ) instances
     );
-    # `retiredUser` is listed but NOT declared, which makes nix-darwin DELETE the old
-    # shared `_github-runner` (533) at activation (modules/users/default.nix
-    # `deletedUsers`). MIGRATION (2026-11-28): drop it from both lists once the Mac has
-    # activated this — after that it is a no-op entry.
-    users.knownUsers = map (i: i.runUser) instances ++ [ retiredUser ];
-    users.knownGroups = map (i: i.runUser) instances ++ [ retiredUser ];
+    users.knownUsers = map (i: i.runUser) instances;
+    users.knownGroups = map (i: i.runUser) instances;
 
     # Create + own every instance's state/work/log dirs as root, BEFORE launchd
     # loads the daemons (mkBefore on the `launchd` activation script, which runs
@@ -667,9 +664,11 @@ in
       lib.concatMapStringsSep "\n" (i: ''
         ${lib.getExe' pkgs.coreutils "mkdir"} -p ${i.stateDir} ${i.workDir} ${i.logDir}
         ${lib.getExe' pkgs.coreutils "chmod"} 0750 ${i.stateDir} ${i.workDir} ${i.logDir}
-        # -R re-owns what the retired shared uid left behind; -P -h because these trees
-        # are job-writable, and root must never follow a planted symlink to chown its target.
-        ${lib.getExe' pkgs.coreutils "chown"} -R -P -h ${i.runUser}:${i.runUser} ${i.stateDir} ${i.logDir}
+        # The top dirs only: the 2026-11-28 migration's one-time -R already re-owned what
+        # the retired shared uid left (nothing owned by 533 remains, find on both trees).
+        # -h because the parent is root's but the dirs are job-owned, so root must never
+        # follow a planted symlink to chown its target.
+        ${lib.getExe' pkgs.coreutils "chown"} -h ${i.runUser}:${i.runUser} ${i.stateDir} ${i.workDir} ${i.logDir}
       '') instances
     );
 
