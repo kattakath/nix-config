@@ -282,8 +282,8 @@ set -euo pipefail
         esac
       done
     fi
-    if [ -e /etc/nix/nix.custom.conf ] && [ ! -L /etc/nix/nix.custom.conf ]; then
-      echo "  [STALE] /etc/nix/nix.custom.conf is the installer's stub — a real run moves it aside"
+    if [ -e /usr/local/bin/determinate-nixd ]; then
+      echo "  [STALE] Determinate Nix is installed — a real run refuses; move it with scripts/nix-impl-switch.sh"
     fi
     echo
     if [ -d "$REPO_DIR/.git" ]; then

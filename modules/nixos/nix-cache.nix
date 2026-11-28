@@ -13,7 +13,7 @@
 #
 # `cachixUrl`/`cachixKey` are threaded in via mkNixos's specialArgs (defined once
 # in modules/parts/identity.nix), so the URL/key literal is single-sourced across
-# the NixOS hosts and the macOS Determinate customSettings.
+# the NixOS hosts and the Mac's `nix.settings` in modules/parts/compose.nix.
 {
   cachixUrl,
   cachixKey,

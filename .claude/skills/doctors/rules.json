@@ -218,9 +218,9 @@
       "id": "NH-E-determinate-drift",
       "doctor": "hygiene",
       "section": "nix-hygiene § E",
-      "shortDescription": "nix.enable = true or a hand-written nix.custom.conf on the darwin host (Determinate Nix owns it)",
+      "shortDescription": "a Determinate Nix leftover in the config (the fleet runs upstream Nix since ADR-018)",
       "level": "error",
-      "detect": "grep -rnE 'nix\\.enable|nix\\.custom\\.conf|nix\\.settings' modules/darwin hosts/macos.nix hosts/generic-darwin.nix",
+      "detect": "grep -rnE --include='*.nix' --exclude=checks.nix 'determinateNix|determinate\\.(darwin|nixos)Modules|install\\.determinate\\.systems|determinate-nixd' modules hosts flake.nix | grep -vE ':[0-9]+:[[:space:]]*#'",
       "evidence": ["the file and binding"],
       "vacuousWhen": "the grep scanned zero files"
     },
@@ -457,12 +457,12 @@
       "id": "FD-E2-nix-version",
       "doctor": "fleet-doctor",
       "section": "fleet-doctor § E2",
-      "shortDescription": "determinate-nixd advises a newer Determinate Nix than the one running",
+      "shortDescription": "the running Nix daemon is not the version the flake declares (an activation did not restart it)",
       "statusOnFinding": "warn",
       "checkKey": "macos:nix-version",
-      "detect": "determinate-nixd status 2>&1 | grep -m1 -i 'now available'",
-      "evidence": ["the running and the advised version"],
-      "vacuousWhen": "determinate-nixd status printed nothing"
+      "detect": "run=$(nix store info 2>&1 | awk '/^Version:/{print $2}'); want=$(/run/current-system/sw/bin/nix --version 2>/dev/null | awk '{print $NF}'); [ -n \"$run\" ] && [ -n \"$want\" ] && [ \"$run\" != \"$want\" ] && echo \"daemon $run, declared $want\"",
+      "evidence": ["the running and the declared version"],
+      "vacuousWhen": "either version could not be read"
     },
     {
       "id": "FD-E3-not-loaded",
