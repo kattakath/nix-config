@@ -782,7 +782,7 @@ in
     ++ lib.optionals isMacosHost [
       androidPhone # `android-phone list|pair|connect|disconnect|unpair|tcpip|wireless|mirror|doctor` — deterministic ADB wired/wireless operator + scrcpy mirroring for a PHYSICAL device (packages/android-phone.nix); unrelated to `android-emu` (virtual emulator, below)
       pkgs.gcx # `gcx` — Grafana's official Cloud CLI (public preview; supersedes grafanactl, archived 2026-06-01), for the operator's Grafana Cloud stack; ships agent skills Claude Code auto-detects
-      pkgs.scrcpy # mirror/control a PHYSICAL Android phone. Was the `scrcpy` BREW until 2026-09-29 (hosts/macos.nix records the move). Its nixpkgs wrapper prepends its OWN android-tools adb to PATH for its own process only — so it drives adb 37.0.0 while mobile-mcp/android-phone use the cask's 37.0.1. Harmless: both speak protocol 1.0.41, so they share one adb server instead of killing each other's. `adb` itself stays on the cask
+      pkgs.scrcpy # mirror/control a PHYSICAL Android phone. Was the `scrcpy` BREW until 2026-09-29 (hosts/macos.nix records the move). Its nixpkgs wrapper prepends its OWN android-tools adb to PATH, but `ADB` (set below to the SDK's platform-tools adb) overrides that, so scrcpy drives the same ONE adb as mobile-mcp, android-phone and Escrcpy (hosts/macos.nix "Android: one adb").
       # Operator-personal: his bookmark DB, his job search, his Resend Keychain key.
       # buku — the bookmark manager of record (SQLite + CLI), chosen over rolling anything
       # custom: `buku --ai` reads Chrome/Brave/Chromium/Firefox profiles DIRECTLY off disk
@@ -813,7 +813,8 @@ in
   # The `android-commandlinetools` Homebrew cask installs sdkmanager/avdmanager
   # under the Homebrew prefix. Point ANDROID_HOME there so `sdkmanager` downloads
   # the emulator + system images into it, and put the emulator/platform-tools
-  # bins on PATH (adb itself also comes from the `android-platform-tools` cask).
+  # bins on PATH. That platform-tools adb is the fleet's ONE adb (`ADB` below; the
+  # android-platform-tools cask is gone — hosts/macos.nix "Android: one adb").
   # After switching, just run `android-emu` (the helper in the let block) — it
   # installs the SDK packages + creates the AVD on first run, then boots it.
   home.sessionVariables = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
@@ -843,6 +844,8 @@ in
     # (android-commandlinetools), and buku's DB is the operator's own data.
     // lib.optionalAttrs isMacosHost {
       ANDROID_HOME = androidSdkRoot;
+      # The ONE adb every consumer uses (android-phone and scrcpy read ADB first).
+      ADB = "${androidSdkRoot}/platform-tools/adb";
 
       # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
       # platform-guessed data dir, and this DB is the single surviving copy of the merged
@@ -1774,6 +1777,34 @@ in
     emailSignature = lib.mkIf isMacosHost (
       lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         run ${email-signature}/bin/email-signature || true
+      ''
+    );
+
+    # Point Escrcpy at the fleet's ONE adb (hosts/macos.nix "Android: one adb"). Escrcpy
+    # owns ~/Library/Application Support/escrcpy/config.json and rewrites it, so this
+    # MERGES one key (`common.adbPath`) rather than linking the file — the same
+    # "merge only your keys" rule as claude-code-settings.nix. Its bundled scrcpy and
+    # gnirehtet stay its own defaults (no path override is set for them). Grepped pinned
+    # home-manager modules for escrcpy: no module → custom. Absent file = the app was
+    # never opened → no-op (it creates the file itself); unparseable = warned, untouched.
+    escrcpyAdbPath = lib.mkIf isMacosHost (
+      lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        cfg="${config.home.homeDirectory}/Library/Application Support/escrcpy/config.json"
+        want="${androidSdkRoot}/platform-tools/adb"
+        if [ -f "$cfg" ]; then
+          if ! ${pkgs.jq}/bin/jq -e 'type == "object"' "$cfg" > /dev/null 2>&1; then
+            warnEcho "escrcpy: $cfg is not a JSON object — adbPath left unset."
+          elif [ "$(${pkgs.jq}/bin/jq -r '.common.adbPath // ""' "$cfg")" = "$want" ]; then
+            :
+          elif [[ -v DRY_RUN ]]; then
+            echo "Would set common.adbPath in $cfg to $want"
+          else
+            tmp=$(${pkgs.coreutils}/bin/mktemp "$cfg.XXXXXX")
+            ${pkgs.jq}/bin/jq --arg p "$want" '.common.adbPath = $p' "$cfg" > "$tmp"
+            run ${pkgs.coreutils}/bin/chmod --reference="$cfg" "$tmp"
+            run ${pkgs.coreutils}/bin/mv -f "$tmp" "$cfg"
+          fi
+        fi
       ''
     );
   };

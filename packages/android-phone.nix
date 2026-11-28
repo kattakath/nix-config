@@ -11,8 +11,9 @@
 # consistent CLI surface instead of remembering which of six adb subcommands
 # to reach for. Deliberately does NOT vendor a third-party pairing tool
 # (adb-qr, adb-wifi, …): those add an untrusted dependency for something adb's
-# own `mdns`/`pair`/`connect` already do. `adb` comes from the `android-platform-tools` Homebrew CASK
-# (hosts/macos.nix) — mobile-mcp resolves that same one — so it has no store path
+# own `mdns`/`pair`/`connect` already do. `adb` is the Android SDK's platform-tools copy,
+# handed in as `$ADB` (hosts/macos.nix "Android: one adb"; the android-platform-tools
+# cask is gone since 2026-11-28) — mobile-mcp resolves that same one — so it has no store path
 # to bake in and cannot be a `runtimeInput`; it is resolved at RUNTIME instead,
 # which also keeps this derivation free of a nixpkgs android-tools dependency
 # that would collide with it on PATH.
@@ -76,7 +77,7 @@ writeShellApplication {
   text = ''
     set -euo pipefail
 
-    # adb: prefer the Homebrew CASK's copy, fall back to PATH — see the header, the
+    # adb: $ADB first (the SDK copy, set fleet-wide), then a brewed copy, then PATH — see the header, the
     # path is only knowable at runtime. scrcpy keeps the same shape even though it
     # is a nixpkgs package now: its brew branches simply stop matching once
     # `cleanup = "uninstall"` removes the old formula, and PATH then resolves the
@@ -149,7 +150,7 @@ writeShellApplication {
     EOF
     }
 
-    require_adb() { [ -n "$ADB" ] && [ -x "$ADB" ] || die "adb not found — install the android-platform-tools cask or activate the macos host"; }
+    require_adb() { [ -n "$ADB" ] && [ -x "$ADB" ] || die "adb not found — set ADB, or run \`sdkmanager platform-tools\` and activate the macos host"; }
     require_scrcpy() { [ -n "$SCRCPY" ] && [ -x "$SCRCPY" ] || die "scrcpy not found — activate the macos host (it is a nixpkgs package in home.packages), or put scrcpy on PATH"; }
 
     # ---- adb devices -l parsing --------------------------------------------

@@ -34,6 +34,8 @@ let
   fleetAppId = 4849830;
   dontsellOrg = "dontsell-ai";
   dontsellInstallationId = 159496676;
+  # The Android SDK root, declared once as Home Manager's ANDROID_HOME (modules/home/default.nix).
+  androidHome = config.home-manager.users.${loginName}.home.sessionVariables.ANDROID_HOME;
 in
 {
   imports = [
@@ -415,6 +417,19 @@ in
   # apps don't get the login shell's PATH, so point it at the `claude` wrapper's stable path.
   launchd.user.envVariables.CLAUDE_BIN = "/etc/profiles/per-user/${loginName}/bin/claude";
 
+  # ---- Android: one adb ---------------------------------------------------------
+  # Every adb consumer uses the SDK's platform-tools copy: mobile-mcp (via ANDROID_HOME),
+  # android-phone and scrcpy (via ADB — scrcpy's documented override beats its wrapper's
+  # android-tools PATH prefix), android-chrome (PATH), Escrcpy (its config's adbPath,
+  # merged by modules/home/default.nix), the emulator itself. Two adb binaries of
+  # different versions kill each other's server, so there is exactly one. The SDK root
+  # is read from Home Manager's ANDROID_HOME, its one declaration. launchd.user.envVariables
+  # and environment.systemPath (which feeds the GUI PATH, modules/darwin/core.nix) carry it
+  # to Dock-launched apps too — shells already get it from home.sessionPath.
+  environment.systemPath = [ "${androidHome}/platform-tools" ];
+  launchd.user.envVariables.ANDROID_HOME = androidHome;
+  launchd.user.envVariables.ADB = "${androidHome}/platform-tools/adb";
+
   # ---- Google Drive for desktop (cask below) ----------------------------------
   # Keys are Google's documented admin keys for the com.google.drivefs.settings
   # domain (support.google.com/a/answer/7644837): AutoStartOnLogin = launch at
@@ -533,9 +548,8 @@ in
       "pyenv"
       # `scrcpy` is NOT brewed any more (2026-09-29): nixpkgs carries it (4.1,
       # builds and substitutes on aarch64-darwin), so it moved to
-      # modules/home/default.nix for flake.lock pinning. `adb` deliberately did
-      # NOT move — the android-platform-tools cask below still owns it, because
-      # mobile-mcp and android-phone both resolve that one.
+      # modules/home/default.nix for flake.lock pinning. `adb` is the SDK's own
+      # platform-tools copy since 2026-11-28 (ONE adb — see "Android: one adb" below).
       # `shellcheck` is NOT brewed any more (2026-11-07): nixpkgs carries it, so it
       # moved to modules/home/default.nix beside bash-language-server, which uses it.
       # `starship` is NOT brewed either, for the same reason as `git` above:
@@ -573,8 +587,8 @@ in
       # Android SDK cmdline tools (sdkmanager/avdmanager) — backs `android-emu`
       # (modules/home/default.nix), which boots VIRTUAL Android emulators.
       "android-commandlinetools"
-      # adb/fastboot — the bridge mobile-mcp drives to automate a physical phone.
-      "android-platform-tools"
+      # NO `android-platform-tools` cask (removed 2026-11-28): adb/fastboot come from the
+      # SDK's own platform-tools above — "Android: one adb".
       # Applite — a GUI for BROWSING casks (homebrew/cask, MIT, ~7k stars; picked
       # 2026-11-25 over the unsigned, quarantine-stripping BrewStore tap). What it
       # installs is not declared here, so `cleanup = "zap"` removes it at the next

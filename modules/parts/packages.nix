@@ -132,7 +132,7 @@ in
 
           # Deterministic ADB wired/wireless operator + scrcpy mirroring for a
           # physical Android device. Both are resolved at RUNTIME, not baked in:
-          # adb from the android-platform-tools Homebrew cask (hosts/macos.nix),
+          # adb from $ADB, the Android SDK's platform-tools copy (hosts/macos.nix),
           # scrcpy from PATH since it became a nixpkgs package (2026-09-29) —
           # see that package's header for why it is still not a runtimeInput.
           # Also on PATH via home.packages, macos only (modules/home/default.nix).
