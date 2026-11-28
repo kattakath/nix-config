@@ -1,9 +1,8 @@
-# Unprovisioned aarch64-linux HEADLESS DEV VM — materialised ONLY as the
-# `build-vm` variant behind `nix run .#nixvm` (a console in a native QEMU/Cocoa
-# window on macOS; SSH on 127.0.0.1:2222). There is no installed nixvm, no disk
+# Unprovisioned aarch64-linux DEV VM — materialised ONLY as the `build-vm` variant
+# behind `nix run .#nixvm`: SSH on 127.0.0.1:2222, and an XFCE desktop over RDP on
+# 127.0.0.1:13389 (Windows App on the Mac). There is no installed nixvm, no disk
 # layout to provision, no builder VM and no self-hosted runner — CI is GitHub-hosted and
-# local aarch64-linux builds use Determinate's native Linux builder (enabled on
-# the macos host, see modules/parts/compose.nix). Distinct from `nixpi`, which targets real
+# local aarch64-linux builds use the Mac's nix.linux-builder (modules/darwin/nix.nix). Distinct from `nixpi`, which targets real
 # Raspberry Pi 4 hardware via nixos-hardware's raspberry-pi/4.
 #
 # DISPOSABLE, NOT EPHEMERAL — only the Nix STORE is rebuilt per boot
@@ -21,11 +20,10 @@
 # the aarch64-linux guest closure builds on the native Linux builder or is
 # substituted from Cachix.
 #
-# NO GUI, AND NO SWITCH TO TURN ONE ON. The XFCE stack (`local.desktopVm`,
-# modules/nixos/desktop-vm.nix, the HM Xft/DPI module, the clipboard/audio QEMU
-# args, the polkit rule) sat dormant from 2026-10-06 and was DELETED 2026-10-17;
-# git history keeps it (`git log --diff-filter=D -- modules/nixos/desktop-vm.nix`).
-# The GUI job moved to the `nixos` host (UTM + GNOME, hosts/nixos.nix).
+# THE DESKTOP IS RDP (2026-11-27). XFCE under xrdp, in the vmVariant below; it
+# replaces the UTM `nixos` VM. The earlier in-window XFCE stack (`local.desktopVm`,
+# deleted 2026-10-17; `git log --diff-filter=D -- modules/nixos/desktop-vm.nix`)
+# drew on QEMU's Cocoa display; this one draws in xrdp and needs no window.
 # Args hold only what THIS level uses — `nix fmt` runs `deadnix --edit`, which prunes the
 # rest — so take `pkgs`/`lib` in the inner vmVariant function, not here.
 {
@@ -79,7 +77,12 @@
   # note above). `virtualisation.vmVariant`'s type comes from `extendModules`
   # (nixpkgs virtualisation/build-vm.nix), so a definition may be a function.
   virtualisation.vmVariant =
-    { lib, ... }:
+    {
+      config,
+      lib,
+      pkgs,
+      ...
+    }:
     {
       # ---- BREAK-GLASS CONSOLE ----------------------------------------------
       # SSH on 127.0.0.1:2222 is the only other route in — and this account
@@ -316,7 +319,89 @@
           };
           guest.port = 22;
         }
+        # RDP from the Mac: 127.0.0.1:13389 -> guest 3389 (xrdp, below). The same
+        # loopback-only exposure as SSH above; 13389, not 3389, so it never
+        # collides with an RDP server on the Mac itself.
+        {
+          from = "host";
+          proto = "tcp";
+          host = {
+            address = "127.0.0.1";
+            port = 13389;
+          };
+          guest.port = 3389;
+        }
       ];
+
+      # ---- DESKTOP over RDP (2026-11-27, retires the UTM `nixos` VM) ----------
+      # XFCE on Xorg under xrdp, reached from macOS with Microsoft's Windows App
+      # at localhost:13389. upstream option services.xrdp exists → using it
+      # (pinned nixpkgs nixos/modules/services/networking/xrdp.nix): it renders
+      # xrdp.ini and sesman.ini, runs xorgxrdp sessions and declares the
+      # `xrdp-sesman` PAM service. No display manager: xrdp-sesman starts each
+      # session itself. `openFirewall` opens 3389 in the guest; the guest's only
+      # NIC is SLiRP, so the hostfwd above is the only way in.
+      #
+      # What the UTM `nixos` VM had that this does not: GNOME, a GPU-accelerated
+      # display (virgl/Venus), and a long-lived UTM bundle. xrdp draws in
+      # software and sends the screen as a bitmap stream.
+      services.xserver = {
+        enable = true;
+        desktopManager.xfce = {
+          enable = true;
+          # A lock screen this passwordless account could never unlock.
+          enableScreensaver = false;
+        };
+        displayManager.lightdm.enable = false;
+      };
+
+      # ---- THE CREDENTIAL-PROMPT CLASS ----------------------------------------
+      # The account has NO PASSWORD, so any component that asks for one is a dead
+      # end. The retired XFCE stack (git show 35f4e565^:modules/nixos/desktop-vm.nix)
+      # learned three instances; all three are back with XFCE, and the first was
+      # hit again on 2026-11-27 (power-off from the XFCE menu: "Authentication is
+      # required to power off the system").
+      #   1. polkit (polkit_gnome, which XFCE installs): privileged desktop actions.
+      #      An xrdp session is REMOTE to logind, so even power-off needs admin
+      #      auth. Fix: a rule returning YES for wheel, which mirrors
+      #      `security.sudo.wheelNeedsPassword = false` in core.nix. upstream
+      #      option security.polkit.extraConfig exists → using it; adminIdentities
+      #      is the wrong axis (who is admin, not whether they authenticate). It
+      #      lives here, in the VM variant, so no other host inherits it.
+      #   2. xfce4-screensaver: turned off above.
+      #   3. gnome-keyring: XFCE enables it (mkDefault true, xfce.nix), and the
+      #      first Secret Service consumer asks to "Choose password for new keyring".
+      security.polkit.extraConfig = ''
+        polkit.addRule(function(action, subject) {
+          if (subject.isInGroup("wheel")) { return polkit.Result.YES; }
+        });
+      '';
+      services.gnome.gnome-keyring.enable = false;
+      services.xrdp = {
+        enable = true;
+        defaultWindowManager = "xfce4-session";
+        openFirewall = true;
+      };
+
+      # NO PASSWORD, LOOPBACK ONLY (operator's decision, 2026-11-27). xrdp logs in
+      # through PAM with a password, and this account has none (keys-only fleet;
+      # no password may live in this public repo, hashed or not). The module's
+      # own `allowNullPassword` helps only an EMPTY password field, and a NixOS
+      # account with no password set is LOCKED ("!"), so it is not enough. This
+      # rule, ahead of pam_unix, admits the operator account alone, and only for
+      # the `xrdp-sesman` service: console, sudo and every other PAM service are
+      # untouched. The trust boundary is the Mac's loopback, where the forward
+      # above binds — the same as the console autologin above.
+      security.pam.services.xrdp-sesman.rules.auth.operator-loopback = {
+        order = config.security.pam.services.xrdp-sesman.rules.auth.unix.order - 10;
+        control = "sufficient";
+        modulePath = "${pkgs.pam}/lib/security/pam_succeed_if.so";
+        args = [
+          "user"
+          "="
+          loginName
+        ];
+      };
 
       # mkForce on BOTH, because core.nix ASSIGNS both (not mkDefault) — a plain
       # definition here would be a conflict, not an override. `openFirewall` is
