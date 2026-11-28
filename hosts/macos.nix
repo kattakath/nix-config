@@ -423,7 +423,7 @@ in
   # ---- Android: one adb ---------------------------------------------------------
   # Every adb consumer uses the SDK's platform-tools copy: mobile-mcp (via ANDROID_HOME),
   # android-phone and scrcpy (via ADB — scrcpy's documented override beats its wrapper's
-  # android-tools PATH prefix), android-chrome (PATH), Escrcpy (its config's adbDir +
+  # android-tools PATH prefix), android-chrome (its attach script: ADB, then ANDROID_HOME, then PATH), Escrcpy (its config's adbDir +
   # scrcpyDir, merged by modules/home/default.nix's escrcpyToolDirs), the emulator itself. Two adb binaries of
   # different versions kill each other's server — MEASURED 2026-11-28: the androidenv
   # spike's adb 37.0.1, run with ANDROID_ADB_SERVER_PORT=5039, still took down the live
