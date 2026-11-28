@@ -954,6 +954,10 @@ in
         # until 2026-11-28; declared here so a rebuild keeps it.
         remoteControlAtStartup = true;
 
+        # 90 = 3x skill-curator's 30-idle-day archive window, which counts usage from these
+        # transcripts; the 30-day default sweep was not running here anyway (2026-11-28).
+        cleanupPeriodDays = 90;
+
         # ONE owner per stdio MCP server (2026-11-01). Claude Code never dedups stdio servers,
         # so two plugins naming the same server both spawn it. A NAME deny drops just that
         # server: the plugin's skills and hooks still load, and the name survives the plugin's
