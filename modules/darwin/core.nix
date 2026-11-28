@@ -119,6 +119,8 @@ in
     ./xcode-license.nix
     # Scheduled `nh clean all` under the fleet retention policy (../_lib/store-retention.nix).
     ./store-clean.nix
+    # local.nixImplementation — Determinate (default) or upstream Nix (ADR-018).
+    ./nix-implementation.nix
   ];
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via

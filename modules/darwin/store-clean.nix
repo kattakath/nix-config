@@ -29,6 +29,7 @@
 #         `config.nix.package`: with nix.enable = false that is a stock pkgs.nix
 #         client talking to the Determinate daemon.
 {
+  config,
   lib,
   pkgs,
   ...
@@ -44,18 +45,22 @@ let
   '';
 in
 {
-  config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
-    launchd.daemons.nix-store-clean.serviceConfig = {
-      ProgramArguments = [ "${clean}/bin/nix-store-clean" ];
-      RunAtLoad = false;
-      StartCalendarInterval = [ retention.launchdCalendar ];
-      WorkingDirectory = "/var/root";
-      EnvironmentVariables.HOME = "/var/root";
-      LowPriorityIO = true;
-      LowPriorityBackgroundIO = true;
-      ProcessType = "Background";
-      StandardOutPath = log;
-      StandardErrorPath = log;
-    };
-  };
+  # Determinate lane only: the upstream lane uses nix-darwin's own
+  # programs.nh.clean instead (./nix-implementation.nix).
+  config =
+    lib.mkIf (pkgs.stdenv.hostPlatform.isDarwin && config.local.nixImplementation == "determinate")
+      {
+        launchd.daemons.nix-store-clean.serviceConfig = {
+          ProgramArguments = [ "${clean}/bin/nix-store-clean" ];
+          RunAtLoad = false;
+          StartCalendarInterval = [ retention.launchdCalendar ];
+          WorkingDirectory = "/var/root";
+          EnvironmentVariables.HOME = "/var/root";
+          LowPriorityIO = true;
+          LowPriorityBackgroundIO = true;
+          ProcessType = "Background";
+          StandardOutPath = log;
+          StandardErrorPath = log;
+        };
+      };
 }
