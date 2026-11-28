@@ -2,7 +2,6 @@
 # Platform-specific hardware lives in hosts/<hostname>.nix.
 # User environment lives in modules/home/default.nix (via Home Manager).
 {
-  config,
   pkgs,
   lib,
   loginName,
@@ -155,25 +154,6 @@ in
     # audit finding (2026-07). Applies to all NixOS hosts.
     zramSwap.enable = true;
 
-    # ONE garbage collector, not two (2026-09-21). determinate-nixd runs on the
-    # NixOS hosts now (modules/parts/compose.nix) and its collector defaults to
-    # `automatic`, which targets ">= 30 GB free" and goes "urgent" under 5 % —
-    # Determinate's best-practices page says never to pair it with a timer. On
-    # nixpi's SD card that 30 GB target may be unreachable, so the automatic
-    # collector could churn writes on low-endurance flash forever. Keep the
-    # scheduled `nh clean` below and switch nixd's off (macos does the same
-    # since 2026-11-27, ../darwin/store-clean.nix). UPSTREAM FIRST: the
-    # determinate nixosModule exposes no `garbageCollector` option (only
-    # `enable` + `edgeCacheSubstituters`, modules/nixos.nix in the pinned input)
-    # and writes /etc/determinate/config.json only when edgeCacheSubstituters is
-    # set, so this plain environment.etc entry is the documented knob
-    # (https://docs.determinate.systems/determinate-nix/determinate-nixd/). It
-    # COLLIDES with the module's own write if edgeCacheSubstituters is ever set —
-    # merge the two then.
-    environment.etc."determinate/config.json" = lib.mkIf config.determinate.enable {
-      text = builtins.toJSON { garbageCollector.strategy = "disabled"; };
-    };
-
     # Automatic store GC — the fleet policy in ../_lib/store-retention.nix
     # (keep 3 generations, 3-day window, daily), run by nixpkgs' own
     # `programs.nh.clean` (`nh clean all`: prunes system + per-user profiles AND
@@ -198,11 +178,16 @@ in
     # Deduplicate as paths land — "optimise on every activation" without a
     # full-store `nix store optimise` scan inside deploy-rs's confirm window.
     # Re-enabled 2026-11-27 for fleet parity with macos (modules/parts/compose.nix
-    # sets the same in `determinateNix.customSettings`). It was retired
+    # sets the same in its `nix.settings`). It was retired
     # 2026-11-09 as unneeded for space, which is still true (the 2026-11-27
     # manual optimise on nixpi freed only 88.9 MiB); the reason now is one
     # policy across the fleet, at the cost of a hash+link per store write.
     nix.settings.auto-optimise-store = true;
+    # Upstream Nix defaults this to false and then BUILDS every
+    # allowSubstitutes = false wrapper (boot.json, a system toplevel, deploy-rs's
+    # activatable) instead of fetching it. Determinate's nix.conf set it; the
+    # darwin side sets the same in modules/parts/compose.nix.
+    nix.settings.always-allow-substitutes = true;
 
     # Periodic TRIM, not online `discard` (Determinate best-practices § "Don't mount
     # your Nix store with online discard"). Nothing to set: `services.fstrim.enable`

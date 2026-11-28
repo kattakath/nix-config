@@ -1,11 +1,7 @@
 # Binary caches consumed by the NixOS hosts via standard `nix.settings`.
 #
-# NixOS-ONLY module. The macOS host (`macos`) runs Determinate Nix's DARWIN
-# module, where `nix.*` is unavailable and the Cachix cache is routed through
-# `determinateNix.customSettings` in modules/parts/compose.nix instead — so this
-# module is wired into mkNixos's module list only, NOT mkDarwin's. (The NixOS
-# hosts run Determinate Nix too since 2026-09-21, but its nixosModule keeps
-# `nix.settings` live — it only retargets the rendered file to nix.custom.conf.)
+# NixOS-ONLY module. The macOS host sets the same Cachix substituter and key in
+# modules/parts/compose.nix's `nix.settings`.
 #
 # kattakath.cachix.org is the single public CI cache: GitHub Actions
 # (cachix/cachix-action in .github/workflows/nix-ci-impl.yml, the reusable
@@ -19,8 +15,6 @@
 # in modules/parts/identity.nix), so the URL/key literal is single-sourced across
 # the NixOS hosts and the macOS Determinate customSettings.
 {
-  config,
-  lib,
   cachixUrl,
   cachixKey,
   ...
@@ -28,24 +22,7 @@
 {
   nix.settings = {
     # Appended to (not replacing) the default cache.nixos.org substituter.
-    #
-    # install.determinate.systems is Determinate's PUBLIC cache (no token): it is
-    # where the prebuilt Determinate Nix package the nixosModule installs comes
-    # from — verified 2026-09-21: the aarch64-linux `determinate-nix-3.22.3`
-    # output is a HIT there and a MISS on cache.nixos.org and Cachix. Without it
-    # a NixOS host (or the warm-cache runner) would BUILD Nix from C++ source.
-    # The key is the one Determinate's own NixOS install guide names
-    # (https://docs.determinate.systems/guides/advanced-installation/).
-    #
-    # Determinate's cache only where Determinate runs: an upstream-lane host
-    # (local.nixImplementation, ADR-018) takes nixpkgs' Nix from cache.nixos.org.
-    extra-substituters = [
-      cachixUrl
-    ]
-    ++ lib.optional config.determinate.enable "https://install.determinate.systems";
-    extra-trusted-public-keys = [
-      cachixKey
-    ]
-    ++ lib.optional config.determinate.enable "cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM=";
+    extra-substituters = [ cachixUrl ];
+    extra-trusted-public-keys = [ cachixKey ];
   };
 }

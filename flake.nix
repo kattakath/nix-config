@@ -142,21 +142,6 @@
     terranix.url = "github:terranix/terranix";
     terranix.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Determinate Nix on EVERY host. On `macos` `determinate-nixd` takes over the
-    # Nix daemon and owns /etc/nix/nix.conf (nix.enable = false there); on every
-    # NixOS host (mkNixos, modules/parts/compose.nix) its nixosModule swaps
-    # `nix.package`, runs `determinate-nixd` as the daemon and moves the
-    # generated conf to nix.custom.conf, so standard `nix.settings` still works
-    # there. Sourced from FlakeHub.
-    determinate.url = "https://flakehub.com/f/DeterminateSystems/determinate/*";
-    # determinate's own `nixpkgs` IS nixpkgs-weekly/0.1 — the very tree the root
-    # `nixpkgs` above now pins — so following it is a pure lock dedupe (one node
-    # fewer), not a substitution. Its `nix` input (nix-src, with ITS OWN nixpkgs)
-    # is deliberately NOT followed: that is what builds the Determinate Nix
-    # package, and re-basing it would turn a cache HIT on
-    # install.determinate.systems into a from-source C++ build on every host.
-    determinate.inputs.nixpkgs.follows = "nixpkgs";
-
     # agenix — encrypted secrets committed to THIS repo (age, SSH-key based).
     # Secrets on two models — operator-only, and host-decrypted on macos;
     # ./secrets/secrets.nix is the count of record, declares the recipients and says which is which. Pure age/SSH — no

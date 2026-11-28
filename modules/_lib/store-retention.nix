@@ -1,8 +1,8 @@
 # The fleet's ONE Nix store retention policy — every host reads it from here.
 #
-# Consumers: modules/nixos/core.nix (`programs.nh.clean`, every NixOS host) and
-# modules/darwin/store-clean.nix (a root launchd daemon, because nix-darwin's own
-# `programs.nh.clean` asserts `nix.enable`, which Determinate forces off). Change
+# Consumers: nixpkgs' `programs.nh.clean` on every NixOS host
+# (modules/nixos/core.nix) and nix-darwin's on darwin (modules/darwin/nix.nix),
+# plus the `min-free`/`max-free` floor in both platforms' `nix.settings`. Change
 # the numbers here and both platforms follow; never restate them in a consumer.
 #
 # `nh clean all --keep N --keep-since D` (nh 4.4.2 `--help`): BOTH are floors —

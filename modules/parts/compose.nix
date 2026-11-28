@@ -13,7 +13,6 @@
 {
   config,
   inputs,
-  lib,
   ...
 }:
 let
@@ -24,7 +23,6 @@ let
     nix-vscode-extensions
     nix-homebrew
     nix-plist-manager
-    determinate
     agenix
     nixos-hardware
     agent-skills-excalidraw
@@ -258,19 +256,6 @@ let
         hostModule
         ../nixos/core.nix
         ../nixos/nix-cache.nix # Cachix binary cache (read)
-        # Determinate Nix on the NixOS hosts too (2026-09-21, the org-adoption
-        # guide's "install Determinate Nix" step). Unlike the darwin module, this
-        # one does NOT disable `nix.*`: it swaps `nix.package` for Determinate's
-        # Nix, runs `determinate-nixd` as nix-daemon's ExecStart, and retargets
-        # the generated nix.conf to /etc/nix/nix.custom.conf (included by the
-        # nixd-managed one) — so core.nix's `nix.settings` and nix-cache.nix keep
-        # applying unchanged. It is prebuilt: the aarch64-linux Nix package is
-        # served by install.determinate.systems (nix-cache.nix carries that
-        # substituter + key precisely so the Pi and the warm-cache runner FETCH
-        # it rather than build a C++ Nix). nixpi must never build (CLAUDE.md).
-        determinate.nixosModules.default
-        # local.nixImplementation — turns the module above off for "upstream" (ADR-018).
-        ../nixos/nix-implementation.nix
         home-manager.nixosModules.home-manager
         (mkHomeManagerModule { idArgs = identity; })
       ]
@@ -318,22 +303,14 @@ let
           nixpkgs.hostPlatform = system;
           nixpkgs.overlays = [ nix-vscode-extensions.overlays.default ];
         }
-        # Determinate Nix owns the daemon + /etc/nix/nix.conf on macOS
-        # (implies nix.enable = false). Route the Cachix cache through
-        # /etc/nix/nix.custom.conf via customSettings — NEVER hand-write
-        # environment.etc."nix/nix.custom.conf" (that aborts the 2nd rebuild
-        # with "custom settings in /etc/nix/nix.custom.conf, aborting
-        # activation"). Replaces ./modules/nixos/nix-cache.nix here (that
-        # module is now NixOS-only, since nix.settings is unavailable once
-        # Determinate manages Nix).
-        determinate.darwinModules.default
+        # nix-darwin owns the Nix daemon and /etc/nix/nix.conf (`nix.enable`, the
+        # default). Until 2026-11-27 Determinate Nix did, and this block routed the
+        # same settings through `determinateNix.customSettings`; ADR-018 moved every
+        # host to upstream Nix and retired that lane. The Linux builder and the
+        # store GC are nix-darwin's own (modules/darwin/nix.nix).
         (
-          { config, pkgs, ... }:
+          { pkgs, ... }:
           let
-            upstream = config.local.nixImplementation == "upstream";
-            # ONE set of daemon settings for both implementations (ADR-018):
-            # Determinate renders it to /etc/nix/nix.custom.conf, upstream
-            # nix-darwin to `nix.settings`.
             daemonSettings = {
               extra-substituters = [ cachixUrl ];
               extra-trusted-public-keys = [ cachixKey ];
@@ -346,13 +323,10 @@ let
               # makes that continuous rather than a ritual nobody remembers to run
               # — the cost is a hash+link step on every store write, which is the
               # right trade on a machine that substitutes whole fleet closures.
-              # Allowed: it is absent from Determinate's `disallowedOptions`
-              # (modules/nix-darwin/default.nix) and used in their own test flake.
               auto-optimise-store = true;
 
               # Build-time GC floor — same values as NixOS, one source
-              # (modules/_lib/store-retention.nix). Allowed: neither is in
-              # Determinate's `disallowedOptions`.
+              # (modules/_lib/store-retention.nix).
               min-free = storeRetention.minFree;
               max-free = storeRetention.maxFree;
 
@@ -387,130 +361,35 @@ let
               # everything DAEMON-side — the Cachix substituter and key above —
               # still applies.
               #
-              # Lands in /etc/nix/nix.custom.conf (rendered by customSettings),
-              # which the daemon reads only at startup — see
+              # Lands in /etc/nix/nix.conf, which the daemon reads only at
+              # startup (nix-darwin restarts it when the file changes) — see
               # docs/new-mac-runbook.md, "INERT until the nix daemon restarts".
               #
               # `extra-trusted-users`, not `trusted-users`: appends rather than
-              # replacing, so `root` survives and a future Determinate default is
-              # not clobbered — same additive shape as the two lines above.
+              # replacing, so `root` survives and a future default is not
+              # clobbered — same additive shape as the two lines above.
               # `identity.loginName` (not a literal) so a per-host `identity`
               # override, which templates/default/ uses, trusts ITS own operator.
               extra-trusted-users = [ identity.loginName ];
             };
           in
           {
-            # `local.nixImplementation` (modules/darwin/nix-implementation.nix)
-            # picks the daemon. Determinate's module is inert unless enabled — its
-            # config is `mkIf cfg.enable`, and that is where it forces
-            # `nix.enable = false` — so this one flag is the whole switch.
-            determinateNix.enable = !upstream;
-            determinateNix.customSettings = daemonSettings;
-            nix = lib.mkIf upstream {
-              enable = true;
+            nix = {
               package = pkgs.nix;
-              # Determinate turns these on by default; upstream does not. Found by
-              # the ADR-018 rehearsal: without them `nix build` on the upstream
-              # lane fails with "experimental Nix feature 'nix-command' is disabled".
               settings = daemonSettings // {
+                # Upstream still marks flakes experimental (Determinate turned
+                # them on by default).
                 experimental-features = [
                   "nix-command"
                   "flakes"
                 ];
-                # Determinate's nix.conf set this; upstream defaults to false and
-                # then BUILDS every allowSubstitutes = false wrapper (boot.json, the
-                # system toplevel, deploy-rs's activatable) instead of fetching it —
-                # seen on the 2026-11-27 nixpi deploy.
+                # Upstream defaults to false and then BUILDS every
+                # allowSubstitutes = false wrapper (boot.json, a system toplevel,
+                # deploy-rs's activatable) instead of fetching it — seen on the
+                # 2026-11-27 nixpi deploy. Determinate's nix.conf set it.
                 always-allow-substitutes = true;
               };
             };
-            # ONE collector, as on NixOS (2026-11-27): the scheduled `nh clean all`
-            # in modules/darwin/store-clean.nix runs the fleet retention policy
-            # (modules/_lib/store-retention.nix: keep 3 generations, 3-day window,
-            # daily), so determinate-nixd's own collector is off — Determinate's
-            # best-practices page says not to pair it with a timer. It was
-            # `automatic` from 2026-09-15 (after a hand-run GC freed 22.1 GiB), but
-            # that collector is space-triggered (">= 30 GB free") and its docs do
-            # not say it prunes generations: 15 system generations sat here on
-            # 2026-11-27. The rejected alternative — keep it `automatic` and run
-            # `nh clean all --no-gc` for generations only — leaves two collectors
-            # and an untimed GC. The build-time floor it gave (urgent GC when the
-            # disk runs low) is kept by `min-free`/`max-free` in customSettings.
-            determinateNix.determinateNixd.garbageCollector.strategy = "disabled";
-            # LINUX BUILDS ON macOS (for `nix run .#nixvm`, `.#nixpi`):
-            # Determinate's NATIVE Linux builder (Apple Virtualization framework —
-            # no remote builder, no Docker) is ENABLED on this host, so aarch64-linux
-            # and x86_64-linux derivations build locally on-demand. Verify with
-            # `determinate-nixd version` (shows `native-linux-builder`); it appears
-            # as an `external-builders` entry in `nix config show`. The raw
-            # `external-builders` line is reserved — Determinate renders it and
-            # `determinateNix.customSettings` rejects it (asserts at eval) — but the
-            # VM itself IS configurable here since the pinned module grew
-            # `determinateNix.determinateNixd.builder.{state,memoryBytes,cpuCount}`
-            # (-> /etc/determinate/config.json; defaults enabled / 8 GiB / 1 CPU,
-            # and upstream's option text says do NOT change cpuCount). The account
-            # entitlement is still out-of-band: https://dtr.mn/features. It is a
-            # build-only, ephemeral sandbox — heavy multi-core builds (e.g. the cold
-            # RPi kernel) are still best done in the GitHub-hosted CI. nix-darwin's
-            # `nix.linux-builder` is unusable here — it requires `nix.enable = true`,
-            # which Determinate turns off (nix-darwin#1505).
-            #
-            # POST-ACTIVATION NUDGE. The builder above is an account entitlement
-            # PLUS a per-machine daemon login, and only the first half is declared
-            # anywhere. A fresh Mac — or a rebuilt daemon — is logged out, the
-            # rendered `external-builders` is empty, and every aarch64-linux build
-            # then dies with "platform mismatch — Required system: 'aarch64-linux',
-            # Current system: 'aarch64-darwin'". That reads as a flake bug and is
-            # not one: it is an AUTH gap — or a logged-in daemon that came up
-            # without its FlakeHub feature set (2026-10-26, after a 3.24.0→3.24.1
-            # self-upgrade; a kickstart restored it) — and the cost of not saying so is an hour
-            # of debugging the wrong layer (docs/new-mac-runbook.md records it as a
-            # manual step precisely because it kept being rediscovered).
-            #
-            # Nothing here can perform the login — it needs a FlakeHub token from a
-            # browser — so this only PROBES and prints the fix, the same shape as
-            # the macos-automator TCC nudge the gateway used to print (gone with it
-            # 2026-10-02; the grant itself is docs/osascript-accessibility-tcc.md). It is
-            # silent once the feature is advertised, and silent when the binary is
-            # absent or errors, so it cannot nag on a healthy rebuild.
-            #
-            # Probes `version` (the FEATURE list), not `status` (the login flag):
-            # the feature is what a build actually consumes, and it also catches
-            # the daemon that is logged in but too STALE to offer it — the second
-            # failure mode the runbook records, which a login check would miss.
-            #
-            # upstream-first: `system.activationScripts.postActivation` is
-            # nix-darwin's own last-phase hook (verified against the pinned
-            # modules/system/activation-scripts.nix), so this adds no scheduling of ours.
-            system.activationScripts.postActivation.text = lib.mkAfter ''
-              if [ -x /usr/local/bin/determinate-nixd ] \
-                && dnd_version="$(/usr/local/bin/determinate-nixd version 2>/dev/null)"; then
-                case "$dnd_version" in
-                  *native-linux-builder*) : ;; # entitled AND logged in — nothing to say.
-                  *)
-                    echo "" >&2
-                    echo "  ⚠ Determinate's native Linux builder is NOT active on this Mac." >&2
-                    echo "    Every aarch64-linux build — nix run .#nixvm, .#nixpi, the Pi closure —" >&2
-                    echo "    fails with 'platform mismatch'. Not a config bug." >&2
-                    if /usr/local/bin/determinate-nixd status 2>/dev/null | grep -q 'Logged in: true'; then
-                      echo "    The daemon IS logged in, so it came up without its feature set." >&2
-                      echo "    Restart it (upstream's fix; it also bounces nix-daemon, so in-flight builds die):" >&2
-                      echo "      sudo launchctl kickstart -k system/systems.determinate.nix-daemon" >&2
-                      echo "    https://docs.determinate.systems/troubleshooting/native-linux-builder/" >&2
-                    else
-                      echo "    The daemon is logged OUT of FlakeHub. One-time, per machine:" >&2
-                      echo "      1. mint a token:  https://flakehub.com/user/settings?editview=tokens" >&2
-                      echo "      2. store it:      secret set FLAKEHUB_TOKEN" >&2
-                      echo "      3. log in:        secret exec FLAKEHUB_TOKEN -- bash -c \\" >&2
-                      echo "           'determinate-nixd auth login token --token-file <(printf %s \"\$FLAKEHUB_TOKEN\")'" >&2
-                      echo "    If it persists, the daemon may be stale:  sudo determinate-nixd upgrade" >&2
-                    fi
-                    echo "    Verify:  determinate-nixd version | grep native-linux-builder" >&2
-                    echo "    Details: docs/new-mac-runbook.md" >&2
-                    ;;
-                esac
-              fi
-            '';
           }
         )
         nix-homebrew.darwinModules.nix-homebrew # declaratively install brew (arch-correct prefix)

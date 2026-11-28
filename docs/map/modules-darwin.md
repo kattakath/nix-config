@@ -2,17 +2,14 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 ## `modules/darwin/`
 
-`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,chrome-enterprise.nix,encrypted-dns.nix,claude-managed-settings.nix,launchd-sources.nix,operator-host.nix,store-clean.nix,nix-implementation.nix}`
+`modules/darwin/{core.nix,user-folders.nix,homebrew.nix,nix-homebrew.nix,xcode-license.nix,launchd-reconcile.nix,logging.nix,github-runner.nix,ollama-daemon.nix,clat-guard.nix,chrome-enterprise.nix,encrypted-dns.nix,claude-managed-settings.nix,launchd-sources.nix,operator-host.nix,nix.nix}`
 
-- **`store-clean.nix`** — the darwin half of the fleet store-retention policy
-  (`modules/_lib/store-retention.nix`, ADR-017): a root `launchd.daemons.nix-store-clean` running
-  `nh clean all` daily at 03:15. Custom only because nix-darwin's `programs.nh.clean` asserts
-  `nix.enable`, which Determinate forces off; determinate-nixd's own collector is `disabled`.
-- **`nix-implementation.nix`** — `local.nixImplementation`: `"determinate"` (every host today) or
-  `"upstream"` (ADR-018, proposed). The upstream lane gets nix-darwin's own `programs.nh.clean` and
-  `nix.linux-builder` (`darwin.linux-builder-vz`); the daemon settings stay once, in `compose.nix`.
-  Flipping it on a live Mac is not a rebuild: `scripts/nix-impl-switch.sh` moves the daemon and the
-  store mount (rehearsed in a Tart guest, ADR-018 § 4b).
+
+- **`nix.nix`** — nix-darwin's own Nix services, usable since ADR-018 moved every host to upstream
+  Nix (2026-11-27): `programs.nh.clean` runs the fleet retention policy
+  (`modules/_lib/store-retention.nix`), and `nix.linux-builder` runs `darwin.linux-builder-vz`
+  (`local.linuxBuilder.enable`, off only in a macOS guest; sized in `hosts/macos.nix`). The daemon
+  settings live in `compose.nix`.
 - **`core.nix`** — macOS system defaults (dock/finder/NSGlobalDomain, Touch ID for sudo,
   `stateVersion = 5`), plus the GUI `PATH`/`BASH_ENV` `launchd.user.envVariables` and the
   post-activation Dock refresh that makes them reachable. It also sets the System Settings

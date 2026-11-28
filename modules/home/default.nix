@@ -1303,9 +1303,8 @@ in
     #
     # clean stays off HERE: Home Manager's variant runs `nh clean user`, which
     # cannot prune root's system generations. The fleet's GC is `nh clean all`
-    # as root — programs.nh.clean in modules/nixos/core.nix, and a launchd
-    # daemon in modules/darwin/store-clean.nix (nix-darwin's own option asserts
-    # nix.enable, which Determinate turns off).
+    # as root — programs.nh.clean in modules/nixos/core.nix and in
+    # modules/darwin/nix.nix.
     nh = lib.mkIf isMacosHost {
       enable = true;
       clean.enable = false;

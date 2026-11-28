@@ -151,9 +151,9 @@ let
     ]
     ++ map appRow appNames;
 
-  # The ONE shared shape in this file. It was born for `determinate-daemon-{macos,nixpi}`,
-  # which is literally the same check run against two hosts whose contracts are
-  # opposites (see both halves below). The bar for reaching for it: the check
+  # The ONE shared shape in this file. It was born for the per-host daemon checks
+  # (`nix-daemon-{macos,nixpi}` since 2026-11-27, `determinate-daemon-*` before),
+  # the same kind of check run against two hosts with different contracts. The bar for reaching for it: the check
   # wants exactly this behaviour — report EVERY broken leg, not the first.
   mkHostContract =
     {
@@ -801,66 +801,32 @@ in
                 ''
             );
 
-          # ---- Determinate owns this daemon, so `nix.*` here is INERT ---------
+          # ---- nix-darwin owns this daemon, and its settings must reach it ------
           #
-          # PRs #542/#543 put the whole fleet on Determinate Nix. On the Mac the
-          # module's contract is SUBTRACTIVE: `determinateNix.enable` implies
-          # `nix.enable = false`, so nix-darwin renders no /etc/nix/nix.conf at
-          # all and determinate-nixd owns the daemon outright. Every consequence
-          # of that is invisible to the evaluator:
+          # Since 2026-11-27 (ADR-018) every host runs upstream Nix; until then
+          # Determinate Nix owned the Mac's daemon and this check was
+          # `determinate-daemon-macos`. The settings that make the fleet work —
+          # the Cachix substituter + key, the operator's trusted-user grant (the
+          # only escape from the nixpi narinfo negative-cache trap is a client-side
+          # --narinfo-cache-negative-ttl that an untrusted daemon discards), and
+          # flakes, which upstream still marks experimental — all arrive through
+          # `nix.settings` now, so this asserts they are there.
           #
-          #   - anything written to `nix.settings` on this host is DROPPED. Not
-          #     an error, not a warning — the option still type-checks, still
-          #     evaluates, and renders nothing. That is why the Cachix
-          #     substituter and the operator's trusted-users grant live in
-          #     `determinateNix.customSettings` (modules/parts/compose.nix), and
-          #     why this asserts they are STILL there. A future edit that
-          #     "tidies" them back onto nix.settings evaluates clean and quietly
-          #     un-trusts the operator — whose only documented escape from the
-          #     nixpi narinfo negative-cache trap is a client-side
-          #     --narinfo-cache-negative-ttl that an untrusted daemon discards.
-          #   - `nix.linux-builder` stays unusable, because it REQUIRES
-          #     nix.enable = true (nix-darwin#1505). Flipping `nix.enable` back is
-          #     therefore not a small change: it takes nix.conf off Determinate.
-          #   - `external-builders` is reserved — Determinate renders it itself
-          #     for the native Linux builder and customSettings asserts on it.
-          #     Upstream's assert is the real gate; this line exists so the rule
-          #     is legible NEXT TO the settings that are allowed, rather than
-          #     discovered by tripping it.
-          #
-          # Darwin-only (CI runs it on the advisory darwin leg: docs/map/ci.md
-          # § Residual risk). The nixpi half lives in the isLinux block below
-          # and asserts the OPPOSITE things, on purpose.
-          #
-          # The HOST IS IN THE NAME, and that is load-bearing (2026-10-18). Both
-          # halves were once called `determinate-daemon`, and a shared name read as
-          # "linux builds it", so the macos contract went ungated. Invariant: a check name present on two systems
-          # must come from ONE source block; a per-host contract carries its host.
-          #
-          # NOT COVERED: this reads the Nix-side declaration only. It cannot see
-          # whether determinate-nixd is actually running, whether the account
-          # entitlement at dtr.mn/features is live, or whether the local daemon
-          # is logged in to FlakeHub — and that last one is what makes
-          # `native-linux-builder` silently vanish. Those are runtime facts; the
-          # runbook owns them (docs/new-mac-runbook.md).
-          determinate-daemon-macos =
+          # NOT COVERED: eval only. Whether the daemon RUNNING on the Mac picked
+          # them up is a runtime fact (docs/new-mac-runbook.md).
+          nix-daemon-macos =
             let
               mac = config.flake.darwinConfigurations.macos.config;
-              custom = mac.determinateNix.customSettings or { };
-              # ADR-018 (DECIDED 2026-11-27): the contract follows the host's lane.
-              # On "upstream" it asserts the mirror image — nix-darwin owns the
-              # daemon, and every setting the Determinate lane routes through
-              # customSettings arrives through nix.settings instead.
-              upstream = (mac.local.nixImplementation or "determinate") == "upstream";
               ns = mac.nix.settings or { };
               daemons = mac.launchd.daemons or { };
-              upstreamExpect = [
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "nix-daemon-macos";
+              subject = "macos: nix-darwin owns /etc/nix/nix.conf";
+              expect = [
                 {
-                  name = "determinateNix.enable is false on the upstream lane";
-                  ok = !(mac.determinateNix.enable or false);
-                }
-                {
-                  name = "nix.enable is true — nix-darwin owns the daemon and /etc/nix/nix.conf";
+                  name = "nix.enable is true — nix-darwin owns the daemon";
                   ok = mac.nix.enable or false;
                 }
                 {
@@ -876,67 +842,25 @@ in
                   ok = (ns.extra-trusted-users or [ ]) != [ ];
                 }
                 {
-                  name = "flakes + nix-command are on (Determinate enables them; upstream does not)";
+                  name = "flakes + nix-command are on";
                   ok = lib.all (f: lib.elem f (ns.experimental-features or [ ])) [
                     "nix-command"
                     "flakes"
                   ];
                 }
                 {
-                  name = "nix-darwin's programs.nh.clean replaces the Determinate lane's nix-store-clean";
-                  ok = daemons ? nh-clean && !(daemons ? nix-store-clean);
+                  name = "programs.nh.clean runs the fleet retention policy";
+                  ok = daemons ? nh-clean;
                 }
                 {
                   name = "the Linux builder is nix-darwin's nix.linux-builder (darwin.linux-builder-vz)";
                   ok = mac.nix.linux-builder.enable or false;
                 }
               ];
-            in
-            mkHostContract {
-              inherit pkgs;
-              name = "determinate-daemon-macos";
-              subject =
-                if upstream then
-                  "macos: upstream Nix (nix-darwin) owns /etc/nix/nix.conf"
-                else
-                  "macos: Determinate owns /etc/nix/nix.conf";
-              expect =
-                if upstream then
-                  upstreamExpect
-                else
-                  [
-                    {
-                      name = "determinateNix.enable is true (the darwin module is in the module list)";
-                      ok = mac.determinateNix.enable or false;
-                    }
-                    {
-                      name = "nix.enable is false — nix-darwin must NOT render a second nix.conf";
-                      ok = !(mac.nix.enable or true);
-                    }
-                    {
-                      name = "the Cachix substituter is routed through customSettings, where it is not silently dropped";
-                      ok = (custom.extra-substituters or [ ]) != [ ];
-                    }
-                    {
-                      name = "its trusted public key rides the same path";
-                      ok = (custom.extra-trusted-public-keys or [ ]) != [ ];
-                    }
-                    {
-                      name = "the operator is in extra-trusted-users, or the daemon discards their client settings";
-                      ok = (custom.extra-trusted-users or [ ]) != [ ];
-                    }
-                    {
-                      name = "external-builders is NOT hand-set (reserved; Determinate renders it)";
-                      ok = !(custom ? external-builders);
-                    }
-                  ];
               advice = [
-                "modules/parts/compose.nix sets determinateNix.enable, which implies"
-                "nix.enable = false. With it off, nix-darwin renders NO /etc/nix/nix.conf,"
-                "so every nix.settings line on this host is silently inert — the cache, the"
-                "trusted-users grant and the rest belong in determinateNix.customSettings."
-                "Do not 'fix' this by re-enabling nix.enable; that takes the daemon back"
-                "from determinate-nixd. See PRs #542/#543 and CLAUDE.md, aarch64-linux builds."
+                "modules/parts/compose.nix owns these nix.settings; modules/darwin/nix.nix"
+                "owns nh-clean and nix.linux-builder. With any of them missing, the Mac"
+                "loses the cache, the trusted grant, flakes or its Linux builds."
               ];
             };
 
@@ -1151,64 +1075,33 @@ in
             );
         }
         // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-          # ---- Determinate owns this daemon TOO — and `nix.*` stays LIVE ------
+          # ---- nixpi's Nix must SUBSTITUTE, never build ------------------------
           #
-          # The mirror of the darwin `determinate-daemon-macos` above, and the whole
-          # reason it is a separate list: it is NOT the same contract. The pinned
-          # input's modules/nixos.nix is ADDITIVE — it swaps `nix.package` for
-          # Determinate's Nix, points nix-daemon's ExecStart at determinate-nixd,
-          # and merely RETARGETS the generated conf to /etc/nix/nix.custom.conf,
-          # which the nixd-managed /etc/nix/nix.conf includes. `nix.settings`
-          # therefore keeps applying, and both modules/nixos/core.nix and
-          # modules/nixos/nix-cache.nix are written assuming exactly that.
+          # Since 2026-11-27 (ADR-018) nixpi runs nixpkgs' Nix; until then it was
+          # Determinate's (this check was `determinate-daemon-nixpi`). The expensive
+          # failure guarded here is ONE substituter: nixpkgs' Nix comes from
+          # cache.nixos.org (narinfo verified 2026-11-27), and losing that default
+          # substituter means nixpi's next generation compiles Nix from C++ source
+          # on an SD card that CLAUDE.md says must never build.
           #
-          # The expensive failure guarded here is ONE substituter.
-          # install.determinate.systems is the only cache holding the prebuilt
-          # aarch64-linux Determinate Nix (verified 2026-09-21 in nix-cache.nix:
-          # a HIT there, a MISS on cache.nixos.org AND on Cachix). Lose that line
-          # — by dropping the module, by copying the darwin side's
-          # `nix.enable = false` across, or by editing nix-cache.nix — and
-          # nixpi's closure now contains a Nix that must be COMPILED FROM C++
-          # SOURCE. On a Pi 4 that CLAUDE.md says must never build at all, that is
-          # the ~40-minute reflash (docs/nixpi-sd-flashing-runbook.md), arrived at
-          # without a single eval error and without failing `nix flake check`.
-          #
-          # Every lookup goes through `or`, for the reason nixpi-firmware-names
-          # states (in the ungated block below): drop the module and `config.determinate` stops
-          # existing, so a direct read degrades into "attribute 'determinate'
-          # missing" inside a trivial-builder stack trace instead of the
-          # explanation below. A guard whose message nobody reads is not a guard.
-          #
-          # NOT COVERED: `nix.settings` being live is asserted, not the content of
-          # /etc/nix/nix.conf on the running Pi — the file is rendered at
-          # activation and this is eval. It also says nothing about nixvm, which
-          # gets the same module and would be a second (cheap) host to add if it
-          # ever stops being throwaway.
-          determinate-daemon-nixpi =
+          # Every lookup goes through `or`, so a missing attribute reads as a
+          # failed expectation with the explanation below, not a stack trace.
+          nix-daemon-nixpi =
             let
               pi = config.flake.nixosConfigurations.nixpi.config;
-              # toString, not lib.any: the option is a LIST here but is a bare
-              # string in plenty of systemd modules, and the check should survive
-              # that rather than throw. Only the bool escapes, so the store path
-              # inside never becomes a build input of this derivation.
               execStart = toString (pi.systemd.services.nix-daemon.serviceConfig.ExecStart or "");
-              subs = pi.nix.settings.extra-substituters or [ ];
-              # ADR-018 (DECIDED 2026-11-27): the contract follows the host's lane.
-              # On "upstream" the expensive failure is the same one in a new place:
-              # nixpkgs' Nix must come from cache.nixos.org, which only stays true
-              # while that default substituter is not dropped.
-              upstream = (pi.local.nixImplementation or "determinate") == "upstream";
-              upstreamExpect = [
+            in
+            mkHostContract {
+              inherit pkgs;
+              name = "nix-daemon-nixpi";
+              subject = "nixpi: upstream Nix runs the daemon, its Nix substitutes from cache.nixos.org";
+              expect = [
                 {
-                  name = "determinate.enable is false on the upstream lane";
-                  ok = !(pi.determinate.enable or true);
-                }
-                {
-                  name = "nix.package is nixpkgs' Nix, not Determinate's";
+                  name = "nix.package is nixpkgs' Nix";
                   ok = (pi.nix.package.pname or "") == "nix";
                 }
                 {
-                  name = "nix-daemon.service does NOT exec determinate-nixd";
+                  name = "nix-daemon.service does not exec determinate-nixd";
                   ok = !(lib.hasInfix "determinate-nixd" execStart);
                 }
                 {
@@ -1227,52 +1120,9 @@ in
                   ok = lib.elem "https://cache.nixos.org/" (pi.nix.settings.substituters or [ ]);
                 }
               ];
-            in
-            mkHostContract {
-              inherit pkgs;
-              name = "determinate-daemon-nixpi";
-              subject =
-                if upstream then
-                  "nixpi: upstream Nix runs the daemon, its Nix substitutes from cache.nixos.org"
-                else
-                  "nixpi: Determinate runs the daemon, nix.settings still applies";
-              expect =
-                if upstream then
-                  upstreamExpect
-                else
-                  [
-                    {
-                      name = "determinate.enable is true (the nixosModule is in the module list)";
-                      ok = pi.determinate.enable or false;
-                    }
-                    {
-                      name = "nix.package is Determinate's Nix, not nixpkgs'";
-                      ok = (pi.nix.package.pname or "") == "determinate-nix";
-                    }
-                    {
-                      name = "nix-daemon.service execs determinate-nixd";
-                      ok = lib.hasInfix "determinate-nixd" execStart;
-                    }
-                    {
-                      name = "the generated nix.conf is retargeted to nix/nix.custom.conf";
-                      ok = (pi.environment.etc."nix/nix.conf".target or null) == "nix/nix.custom.conf";
-                    }
-                    {
-                      name = "nix.enable is still TRUE — unlike darwin, nix.settings must keep rendering";
-                      ok = pi.nix.enable or false;
-                    }
-                    {
-                      name = "install.determinate.systems is a substituter, or this Pi BUILDS Nix from source";
-                      ok = lib.elem "https://install.determinate.systems" subs;
-                    }
-                  ];
               advice = [
-                "modules/parts/compose.nix wires determinate.nixosModules.default into"
-                "every NixOS host, and modules/nixos/nix-cache.nix supplies the ONE"
-                "substituter that has a prebuilt aarch64-linux Determinate Nix."
-                "Without both, nixpi's next generation compiles Nix from C++ source on an"
-                "SD card that CLAUDE.md says must never build. Fix the wiring; do not"
-                "relax this, and never answer it by building on the Pi."
+                "nixpi must never build (CLAUDE.md). Its Nix substitutes from"
+                "cache.nixos.org; fix the wiring, never answer this by building on the Pi."
               ];
             };
         }
@@ -2710,7 +2560,7 @@ in
           # measured), and the rendered-ListenAddress leg is the one thing here
           # that forces extraConfig.
           #
-          # Ungated, like secrets-sync below and unlike determinate-daemon-nixpi in
+          # Ungated, like secrets-sync below and unlike nix-daemon-nixpi in
           # the isLinux block above: this is an eval plus an echo, with nothing
           # aarch64-linux about either half. Both legs are worth paying for
           # because the edits it guards are made ON the Mac — Linux-gating it

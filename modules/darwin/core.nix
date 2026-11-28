@@ -117,10 +117,8 @@ in
     ./nix-homebrew.nix
     # macos: accept Xcode license (and pre-install Xcode.app) before brew bundle.
     ./xcode-license.nix
-    # Scheduled `nh clean all` under the fleet retention policy (../_lib/store-retention.nix).
-    ./store-clean.nix
-    # local.nixImplementation — Determinate (default) or upstream Nix (ADR-018).
-    ./nix-implementation.nix
+    # nix-darwin's own store GC (nh clean) and Linux builder (linux-builder-vz).
+    ./nix.nix
   ];
 
   # NOTE: hostPlatform is set per-host from the darwinSystem `system` arg (via
@@ -133,10 +131,8 @@ in
   # closure overrides it with `lib.mkForce false` in their own module.
   nixpkgs.config.allowUnfree = true;
 
-  # NOTE: no `nix.settings.experimental-features` here. This host runs Determinate
-  # Nix (determinateNix.enable in modules/parts/compose.nix → nix.enable = false), which enables
-  # flakes + nix-command by default and OWNS /etc/nix/nix.conf — the `nix.*`
-  # options are unavailable once Determinate manages the daemon.
+  # The Nix daemon settings (flakes, the Cachix cache, the trusted user) live once
+  # in modules/parts/compose.nix; nix-darwin's GC and Linux builder in ./nix.nix.
 
   environment.systemPackages = with pkgs; [
     coreutils

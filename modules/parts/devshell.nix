@@ -200,7 +200,7 @@ in
             # (`0-unstable-*`) substitutes fine. So on a machine that has not
             # built it yet, `nix develop` pays a from-source Rust build, and the
             # first real deploy pays a SECOND one for the aarch64-linux `activate`
-            # baked into nixpi's closure (on Determinate's native Linux builder: 1 CPU / 8 GiB by default, sizable via determinateNixd.builder.*).
+            # baked into nixpi's closure (on the Mac's nix.linux-builder, sized in hosts/macos.nix).
             # Deliberately NOT mitigated by adding it to `checks` to warm Cachix:
             # `checks` is what `nix flake check` / `/eval` / nix-ci.yml build and
             # is kept strictly lint-only (see modules/parts/checks.nix) — paying
@@ -221,7 +221,7 @@ in
             # treated as the contents of a configuration file"); measured 2026-11-03
             # to reach the daemon, because the operator is a trusted user
             # (compose.nix). Appended, never clobbered; a later `--` flag still wins.
-            # Rejected: the same line machine-wide in determinateNix.customSettings.
+            # Rejected: the same line machine-wide in the Mac's nix.settings.
             # Measured over 200 never-cached paths: a cached-negative dry-run takes
             # 0.18 s, a TTL-0 one 1.3-1.7 s. That is ~6 ms per missing path on
             # EVERY Mac build, `nix flake check` included, to protect one command.

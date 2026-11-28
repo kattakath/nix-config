@@ -40,9 +40,6 @@
 
   networking.hostName = "nixvm";
 
-  # ADR-018 § 3, step 1: the least live host moves to upstream Nix first.
-  local.nixImplementation = "upstream";
-
   # The base (non-vmVariant) config is kept a valid, bootable NixOS system so its
   # toplevel evaluates (CI) and `build.vm` has a coherent substrate — the build-vm
   # variant supplies the actual root qcow2 at run time (overriding fileSystems).
