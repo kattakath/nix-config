@@ -428,7 +428,14 @@ in
   # different versions kill each other's server — MEASURED 2026-11-28: the androidenv
   # spike's adb 37.0.1, run with ANDROID_ADB_SERVER_PORT=5039, still took down the live
   # 37.0.3 server on 5037 and dropped the phone — so there is exactly one, and any SDK
-  # change switches every consumer in ONE activation, then `adb kill-server` once. The SDK root
+  # change switches every consumer in ONE activation.
+  # MANUAL STEP after an activation that moved the SDK store path: `adb kill-server`
+  # once, then relaunch Escrcpy and the emulator. It is NOT an activation step on
+  # purpose: the kill strands every live client of the shared tcp:5037 server
+  # (Escrcpy's device list stayed dead until relaunch, 2026-11-07 — android-phone.nix's
+  # header), and the next new-adb call restarts a version-mismatched server by itself
+  # anyway (adb's "server version … doesn't match this client; killing…" check, the same
+  # one behind the measurement above); the step only spares that restart mid-task. The SDK root
   # is read from Home Manager's ANDROID_HOME, its one declaration. launchd.user.envVariables
   # carries ANDROID_HOME and ADB to Dock-launched apps; environment.systemPath puts
   # platform-tools on PATH for shells AND the GUI PATH (modules/darwin/core.nix) at once.
