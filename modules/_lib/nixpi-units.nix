@@ -19,6 +19,6 @@
   oneshot = [
     "service-heartbeat.service"
     "uplink-watchdog.service"
-    "nix-gc.service"
+    "nh-clean.service"
   ];
 }
