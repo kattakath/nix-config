@@ -19,7 +19,7 @@ The design must use Claude Code's own features and stay invisible to other devel
 | Resume the same session | `claude --bg --resume <full lowercase sessionId>`, **no other flag** | Same id, name kept |
 | Resume by name, short id, or with any flag | same command | **Starts a copy.** By name, the copy also loses the name (it gets an auto name) |
 | Remote Control | `remoteControlAtStartup: true` | Background sessions connect on their own |
-| Task list | Claude Code's default per-session list (plugin 1.4.5; `CLAUDE_CODE_TASK_LIST_ID` is never set) | Each session keeps its own list, swept by `cleanupPeriodDays`. Until 1.4.0 `ensure` set the variable to the name; a set variable is frozen into the `--bg` daemon, so `ensure` now also strips an inherited one (`env -u`). Task tools need `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` on most models, set user-wide |
+| Task list | Claude Code's default per-session list (the [plugin](https://github.com/kattakath/skills/tree/main/plugins/project-sessions) never sets `CLAUDE_CODE_TASK_LIST_ID`) | Each session keeps its own list under `~/.claude/tasks/`, which `cleanupPeriodDays` sweeps ([claude-directory § Cleaned up automatically](https://code.claude.com/docs/en/claude-directory#cleaned-up-automatically) lists `tasks/`). Until 1.4.0 `ensure` set the variable to the name; a set variable is frozen into the `--bg` daemon, so `ensure` now also strips an inherited one (`env -u`). Task tools need `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` on most models, set user-wide |
 | Root context | user `CLAUDE.md`, settings, plugins, hooks | All load in a background session |
 | Address it | `SendMessage` by name | Delivered, and the reply comes back. A session in a different permission mode holds the message for approval instead |
 | Workspace trust | — | `--bg` **refuses an untrusted folder**, and a trusted parent does not cover it. Each new repo needs one trust click from the operator |
@@ -41,7 +41,7 @@ The design must use Claude Code's own features and stay invisible to other devel
   It reports duplicates and never kills one. **No id is stored or shown.** Each call reads the
   id again.
 - **When.** On sight: the first time the main session works in a repo.
-- **Project scaffold — NOT BUILT** (plugin 1.4.5's `project-session` has only `name`, `ensure`
+- **Project scaffold — NOT BUILT** (the plugin's `bin/project-session` has only `name`, `ensure`
   and `status`; there is no doctor). As designed: a doctor validates the Claude files a repo already has. Where the repo has
   none, it scaffolds the standard committed shape: `CLAUDE.md` via `/init` and `.claude/settings.json`
   carrying `$schema`. Both files contain only content any developer could have written. **Nothing in
