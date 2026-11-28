@@ -1793,8 +1793,11 @@ in
     # the 5.0.1 client start against the 4.1 server and fail). nixpkgs keeps the server
     # in share/scrcpy/, hence the linkFarm. With it, Mirror and control worked on the
     # physical phone, and every adb scrcpy spawned was the SDK binary (one server).
-    # gnirehtetDir stays UNSET (Escrcpy's bundled gnirehtet): reverse tethering through
-    # nixpkgs' gnirehtet was not proven.
+    # gnirehtetDir stays UNSET on purpose (Escrcpy's bundled gnirehtet). adb and scrcpy are
+    # overridden only because the fleet already ships its own copies for the CLIs, and a
+    # second, bundled copy would clash with them; gnirehtet is used by Escrcpy alone, so
+    # its bundle conflicts with nothing and pointing it elsewhere would be churn
+    # (operator, 2026-11-28).
     #
     # Engine: home-manager's lib.hm.generators.mkImpureConfigMerger (as in
     # claude-code-settings.nix) — Escrcpy owns and rewrites this file, so merge only our
