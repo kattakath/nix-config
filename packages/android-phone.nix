@@ -149,7 +149,7 @@ writeShellApplication {
     EOF
     }
 
-    require_adb() { [ -n "$ADB" ] && [ -x "$ADB" ] || die "adb not found — set ADB, or run \`sdkmanager platform-tools\` and activate the macos host"; }
+    require_adb() { [ -n "$ADB" ] && [ -x "$ADB" ] || die "adb not found — ADB is unset in this shell: activate the macos host, then open a new shell"; }
     require_scrcpy() { [ -n "$SCRCPY" ] && [ -x "$SCRCPY" ] || die "scrcpy not found — activate the macos host (it is a nixpkgs package in home.packages), or put scrcpy on PATH"; }
 
     # ---- adb devices -l parsing --------------------------------------------
