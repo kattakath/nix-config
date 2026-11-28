@@ -161,7 +161,7 @@ rather than something to restore.
 Once step 2 prints its byte count, **the card is expendable** — proceed to §4.
 
 **Forensics on the image, afterwards and offline.** macOS cannot mount ext4, so
-this needs a Linux context (`nix run .#nixvm`, or a Colima container via
+this needs a Linux context (`nix run .#nixos`, or a Colima container via
 `local.containers`). The three readings that diagnosed 2026-10-02:
 
 ```bash

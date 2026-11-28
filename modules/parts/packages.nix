@@ -42,7 +42,7 @@ in
     let
       isDarwin = lib.elem system darwinSystems;
 
-      # `nix run .#nixvm`'s CWD-INDEPENDENT entry point. Darwin-only in practice —
+      # `nix run .#nixos`'s CWD-INDEPENDENT entry point. Darwin-only in practice —
       # only `apps` (below) forces it, and that whole block is `optionalAttrs isDarwin`.
       #
       # WHY a wrapper at all: upstream resolves `virtualisation.diskImage` against the
@@ -64,17 +64,17 @@ in
       # embeds the VM, so `nix flake check` would BUILD the whole aarch64-linux guest closure
       # on the darwin leg, which has no Linux builder. Cost: shellcheck runs on first
       # `nix run` instead of in CI.
-      nixvmRunner = pkgs.writeShellApplication {
-        name = "nixvm-run";
+      nixosRunner = pkgs.writeShellApplication {
+        name = "nixos-run";
         runtimeInputs = [ pkgs.coreutils ];
         text = ''
           # 0700 because this image is the guest's persistent root disk (its /home).
-          state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nixvm"
+          state_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/nixos"
           mkdir -p "$state_dir"
           chmod 700 "$state_dir"
-          export NIX_DISK_IMAGE="$state_dir/nixvm.qcow2"
-          echo "nixvm root disk (PERSISTS across runs; delete it to reset): $NIX_DISK_IMAGE" >&2
-          exec ${self.nixosConfigurations.nixvm.config.system.build.vm}/bin/run-nixvm-vm "$@"
+          export NIX_DISK_IMAGE="$state_dir/nixos.qcow2"
+          echo "nixos root disk (PERSISTS across runs; delete it to reset): $NIX_DISK_IMAGE" >&2
+          exec ${self.nixosConfigurations.nixos.config.system.build.vm}/bin/run-nixos-vm "$@"
         '';
       };
     in
@@ -261,19 +261,19 @@ in
         };
       }
       // lib.optionalAttrs isDarwin {
-        # `nix run .#nixvm` — build the build-vm variant and boot it in a native
+        # `nix run .#nixos` — build the build-vm variant and boot it in a native
         # macOS QEMU window: an UNPROVISIONED, HEADLESS dev VM (no installed disk,
         # no partitioning) whose Nix STORE is rebuilt per boot but whose ROOT — so
-        # /home, so SSH keys and shell state — PERSISTS in the XDG state dir `nixvmRunner` pins
+        # /home, so SSH keys and shell state — PERSISTS in the XDG state dir `nixosRunner` pins
         # above. Disposable, not ephemeral: `rm` that qcow2 to reset. The runner is a
         # darwin derivation (host.pkgs = aarch64-darwin); the aarch64-linux guest
         # closure builds on Determinate's native Linux builder (enabled on the macos
-        # host) or is substituted from Cachix. run-nixvm-vm is the qemu-vm.nix script
-        # name for "nixvm"; nixvm-run is our wrapper around it.
-        nixvm = {
+        # host) or is substituted from Cachix. run-nixos-vm is the qemu-vm.nix script
+        # name for "nixos"; nixos-run is our wrapper around it.
+        nixos = {
           type = "app";
-          program = "${nixvmRunner}/bin/nixvm-run";
-          meta.description = "Boot the disposable, headless nixvm dev VM in a QEMU window (SSH on 127.0.0.1:2222) — store rebuilt per boot, root disk PERSISTS at $XDG_STATE_HOME/nixvm (guest builds on the native Linux builder)";
+          program = "${nixosRunner}/bin/nixos-run";
+          meta.description = "Boot the disposable, headless nixos dev VM in a QEMU window (SSH on 127.0.0.1:2222) — store rebuilt per boot, root disk PERSISTS at $XDG_STATE_HOME/nixos (guest builds on the native Linux builder)";
         };
 
         # `nix run github:kattakath/nix-config#macos` — one-line first

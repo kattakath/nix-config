@@ -40,7 +40,7 @@ ceiling of its own, so the budget table is not a thing you can forget.
 | [`map/hosts.md`](map/hosts.md) | `hosts/` per-host entry profiles, including the two identity-free `generic-*` ones the templates build on — **plus building `aarch64-linux` on the Mac and deploying `nixpi`**: the Linux builder (`nix.linux-builder`, vz), and what magic rollback actually buys. **Read before any `nixpi` deploy.** |
 | [`map/modules-home.md`](map/modules-home.md) | `modules/home/` — the Home Manager profile on every host — **and the Home-Manager modules that are NOT in it.** The largest of these files. |
 | [`map/modules-darwin.md`](map/modules-darwin.md) | `modules/darwin/` — macOS system scope. |
-| [`map/modules-nixos.md`](map/modules-nixos.md) | `modules/nixos/` — `nixpi` and `nixvm` system scope — the NixOS modules **not** in it, and web serving on `nixpi` (the `sites/` trees). |
+| [`map/modules-nixos.md`](map/modules-nixos.md) | `modules/nixos/` — `nixpi` and `nixos` system scope — the NixOS modules **not** in it, and web serving on `nixpi` (the `sites/` trees). |
 | [`map/engine.md`](map/engine.md) | `modules/parts/` (the flake engine) · `modules/features/` (the seven capsules — read the mechanical boundary and the only-entry/three-seams sections before touching any) · `modules/_lib/` (shared **data**, not modules). |
 | [`map/packages.md`](map/packages.md) | `packages/` — package definitions (some flake outputs, some built by `modules/home/`, e.g. `activate`) and the `nixpi-*` provisioning CLIs — plus the record of why there is no `userscripts/` tree to look for. |
 | [`map/infra.md`](map/infra.md) | `infra/` — the terranix stacks (its opening table: state, credential and blast radius per stack) and the `mcp-public` teardown — plus the Cachix binary cache. |
@@ -60,8 +60,8 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
   (`config.fleet.hostedSites`, `modules/parts/identity.nix` — **one** today, `snoringirl.com`),
   plus a SECOND, LAN ingress (`nixpi.local`, sshd on `end0`/`wlan0` — `local.lanRecovery`) and a
   LAN-only Audiobookshelf.
-- **`nixvm`** (aarch64-linux) — a disposable NixOS dev VM materialised **only** as
-  `nix run .#nixvm` (no installed VM, no builder, no runner). Reached over SSH on `127.0.0.1:2222`,
+- **`nixos`** (aarch64-linux) — a disposable NixOS dev VM materialised **only** as
+  `nix run .#nixos` (no installed VM, no builder, no runner). Reached over SSH on `127.0.0.1:2222`,
   and as an XFCE desktop over RDP on `127.0.0.1:13389` (Windows App). Its
   Nix *store* is rebuilt per boot; its *root* disk is a qcow2 that **PERSISTS** until deleted.
 - A matching **Devcontainer** image.

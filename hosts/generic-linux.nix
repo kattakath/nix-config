@@ -4,7 +4,7 @@
 # WHY THIS EXISTS. `mkNixos` resolves its host profile from a string
 # (`hosts/<hostname>.nix`), so until 2026-09-16 a consumer of the published
 # `lib.mkNixos` had no way to decline the operator's host. Measured that day:
-# `mkNixos { hostname = "nixvm"; }` evaluated, for a caller with no connection to
+# `mkNixos { hostname = "nixos"; }` evaluated, for a caller with no connection to
 # this fleet, to `users.users.ismail` present — holding the OPERATOR'S
 # ssh-ed25519 public key as its sole authorized key, in `wheel`, and with
 # `loginName` in `nix.settings.trusted-users`. That is a login account plus a

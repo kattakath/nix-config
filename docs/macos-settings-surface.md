@@ -19,7 +19,7 @@ wired in — so the layers are the spine of this doc.
 > **entire `nix.*` option tree is unavailable on this host**. The Nix knobs are
 > `determinateNix.*` instead (`modules/parts/compose.nix`, plus `hosts/macos.nix`). Any
 > guide that says "set `nix.settings.…`" does not apply to `macos` — it applies to
-> the NixOS hosts (`nixpi`, `nixvm`).
+> the NixOS hosts (`nixpi`, `nixos`).
 
 ---
 
@@ -382,7 +382,7 @@ already an activation no-op: its target still exists and already holds
 
 1. **TCC / privacy permissions — hard no.** Accessibility, Full Disk Access, Screen
    Recording, Camera/Mic, Automation live in the SIP-protected TCC database with no
-   supported CLI. Cannot be modified even as root. This is why the nixvm work hit TCC
+   supported CLI. Cannot be modified even as root. This is why the nixos work hit TCC
    error `-1728`, and why any WM still needs a manual permission grant.
 2. **FileVault** — no nix-darwin option enables/disables it or manages recovery keys
    (`fdesetup` / System Settings only).

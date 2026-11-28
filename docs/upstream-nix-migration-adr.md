@@ -12,6 +12,9 @@
 
 **Complete:** the Determinate code was retired 2026-11-27 in `aa929669`. ADR-017 is history except its retention policy.
 
+**Later the same day:** the UTM `nixos` guest was retired, and `nixvm` (by then an XFCE desktop over
+RDP) was renamed `nixos`. In this ADR, `nixvm` means today's `nixos`; the old `nixos` row is the UTM guest.
+
 **Question.** ADR-017 § 3/3a found that upstream now has near-parity: `darwin.linux-builder-vz` and
 lazy source copying (Nix 2.35). What would moving every host to upstream Nix take, what would we
 lose, and how would we undo it?

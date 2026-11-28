@@ -2533,7 +2533,7 @@ in
           # here by deleting the leg.
           #
           # Why not nixpkgs' own `assertions`: its only natural home is
-          # modules/nixos/core.nix, which nixvm and every `lib.mkNixos` consumer
+          # modules/nixos/core.nix, which nixos and every `lib.mkNixos` consumer
           # also import — baking "exactly one open TCP port" in there breaks a
           # stranger's host, the precise leak the template-consumer check above
           # exists to prevent. `assertions` also reports one message where
@@ -2622,7 +2622,7 @@ in
           # deliberately not asserted from here. The Access application itself
           # lives in Cloudflare's API (infra/cloudflare/nixpi-tunnel.nix) and its
           # 2026-08-20 disappearance was invisible to eval then and still is. And
-          # it says nothing about nixvm, which shares modules/nixos/core.nix.
+          # it says nothing about nixos, which shares modules/nixos/core.nix.
           #
           # Values measured against the live config on 2026-09-21.
           nixpi-security-posture =

@@ -179,7 +179,7 @@ in
   };
 
   # macOS only — programs.claude-code is itself isDarwin-gated in
-  # modules/home/default.nix, so on nixpi/nixvm claude-code is a plain package
+  # modules/home/default.nix, so on nixpi/nixos claude-code is a plain package
   # with no settings and no activation. Contributing an activation script there
   # would change those hosts' closures for no benefit.
   config = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {

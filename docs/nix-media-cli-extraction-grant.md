@@ -38,9 +38,9 @@ into a clean, public, single-purpose flake: `kattakath/nix-media-cli`.
 ## 2. What `kattakath/nix-config` is
 
 A fully declarative, **aarch64-only** fleet mono-repo (one client Mac `macos`, one live
-Raspberry Pi `nixpi`, a Tart macOS guest `macvm`, a throwaway NixOS dev VM `nixvm`, a
+Raspberry Pi `nixpi`, a Tart macOS guest `macvm`, a throwaway NixOS dev VM `nixos`, a
 devcontainer image). Everything is Nix — nix-darwin for `macos`/`macvm`, NixOS for
-`nixpi`/`nixvm`, home-manager as the shared user profile layer across all of them. The
+`nixpi`/`nixos`, home-manager as the shared user profile layer across all of them. The
 repo's own grounding motto (verbatim, in its `CLAUDE.md`):
 
 > Off-the-shelf over hand-rolled.

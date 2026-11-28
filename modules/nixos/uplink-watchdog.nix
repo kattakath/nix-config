@@ -386,7 +386,7 @@ in
     #
     # Scoped to this module rather than core.nix on purpose: it is here BECAUSE the
     # failover ladder exists, so `local.uplinkWatchdog.enable = false` should take it
-    # away too. nixvm has no radio and gains nothing from carrying it.
+    # away too. nixos has no radio and gains nothing from carrying it.
     environment.systemPackages = [ pkgs.iw ];
 
     systemd.services.uplink-watchdog = {

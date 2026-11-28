@@ -169,9 +169,9 @@ jobs:
           # without the output bytes changing (a harmless re-publish) but can never
           # stay put when the output changes — so the gate never under-publishes.
           COMBINED="$(printf '%s\n' "${DRV_IMG}" | sha256sum | cut -d' ' -f1)"
-          # v5: back to the nixpi image ALONE after the nixvm-installer ISO leg was
-          # retired (the Mac now builds/reinstalls nixvm locally via the native
-          # Linux builder — there is no installed nixvm to provision). Bumping the
+          # v5: back to the nixpi image ALONE after the nixos-installer ISO leg was
+          # retired (the Mac now builds/reinstalls nixos locally via the native
+          # Linux builder — there is no installed nixos to provision). Bumping the
           # version guarantees the first single-leg run can't be skipped by a stale
           # two-leg (v4) HIT. Bump again (v6, …) on any future change to what is gated.
           echo "cache_key=installers-drv-v5-${COMBINED}" >> "$GITHUB_OUTPUT"

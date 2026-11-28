@@ -598,7 +598,7 @@ behind **one** `enable` — all of them in-tree capsules under `modules/features
   `checks.<system>.local-rag-module` still pins that URI as a **literal** so a
   port/role/db rename fails there instead of silently returning zero rows, and
   `local-rag-inert` is the kill-switch gate — both switches unset must contribute nothing,
-  which is the state `nixpi`/`nixvm` are in since `modules/home/default.nix` imports it
+  which is the state `nixpi`/`nixos` are in since `modules/home/default.nix` imports it
   unconditionally. There is deliberately **no** wrapping `programs.localRag.enable`
   (ADR-002 §4's "two-switch regression"). It registers no packages: everything it installs is
   nixpkgs', reached through `home.packages` from inside the two modules.

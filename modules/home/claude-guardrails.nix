@@ -55,7 +55,7 @@
 # `/` in USER settings anchors at ~/.claude, not `/` — the classic miswrite.
 #
 # Top-level `lib.mkIf isDarwin`, matching ./claude-brain.nix: programs.claude-code
-# is darwin-only (default.nix), and the gate keeps nixpi/nixvm byte-identical.
+# is darwin-only (default.nix), and the gate keeps nixpi/nixos byte-identical.
 let
   # The secret-path COORDINATES, shared with the Bash guard hook so the layers cannot drift.
   # See that file for why this is data rather than a second copy of the rules.

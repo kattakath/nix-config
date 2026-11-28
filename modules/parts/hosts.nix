@@ -165,19 +165,19 @@ in
     };
 
     # Unprovisioned aarch64-linux dev VM, materialised ONLY as the `build-vm`
-    # variant behind `nix run .#nixvm`: SSH on 127.0.0.1:2222 and an XFCE desktop
+    # variant behind `nix run .#nixos`: SSH on 127.0.0.1:2222 and an XFCE desktop
     # over RDP on 127.0.0.1:13389 (it replaced the UTM `nixos` guest on
     # 2026-11-27). The aarch64-linux guest closure builds on the Mac's
-    # nix.linux-builder with NO provisioning — there is no installed nixvm, no
+    # nix.linux-builder with NO provisioning — there is no installed nixos, no
     # builder VM, no runner.
     #
     # DISPOSABLE, NOT EPHEMERAL — only the Nix store image is rebuilt per boot;
-    # the root qcow2 the `nix run .#nixvm` runner creates on first use is
+    # the root qcow2 the `nix run .#nixos` runner creates on first use is
     # REUSED thereafter, so /home survives every reboot until it is deleted.
     # Where that image lands is the runner's business: modules/parts/packages.nix.
-    "nixvm" = mkNixos {
+    "nixos" = mkNixos {
       system = "aarch64-linux";
-      hostname = "nixvm";
+      hostname = "nixos";
       inherit operatorSshKey;
     };
 

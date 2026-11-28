@@ -16,7 +16,7 @@ Parse `$ARGUMENTS` loosely:
 |---|---|
 | (nothing) or `audit` | **Default.** Findings only, no edits, the whole repo at `origin/<default>` |
 | `fix` | Audit, then apply safe fixes on a branch off `origin/<default>` — only when asked |
-| anything else | Explicit scope: host name (`macos`, `nixpi`, `nixvm`, `nixos`), path (`packages/`, `docs/`, `.claude/`), or area (`docs`, `claude`). Rules outside it report vacuous |
+| anything else | Explicit scope: host name (`macos`, `nixpi`, `nixos`), path (`packages/`, `docs/`, `.claude/`), or area (`docs`, `claude`). Rules outside it report vacuous |
 
 Examples:
 

@@ -96,7 +96,7 @@ in
   };
 
   # The darwin test is NOT redundant with home-manager's own launchd assertion:
-  # `launchd.enable` defaults to isDarwin, so on nixpi/nixvm the agent would
+  # `launchd.enable` defaults to isDarwin, so on nixpi/nixos the agent would
   # silently evaluate to nothing while `pkgs.callPackage` above still had to
   # build for aarch64-linux. modules/home/default.nix imports this file for
   # EVERY host.

@@ -27,7 +27,7 @@ root) and exports each value to every descendant.
 
 `modules/home/default.nix` imports this capsule's `module.nix` and sets
 `local.keychainSecrets.enable = true`; it is darwin-gated internally, so it is a clean
-no-op on `nixpi`/`nixvm`. The module reaches the consumer through
+no-op on `nixpi`/`nixos`. The module reaches the consumer through
 `modules/parts/compose.nix` as the `keychainSecretsModule` specialArg — **not** through
 `flake.modules`, for a measured reason recorded in `modules/parts/capsules.nix` § The RAW
 module seam.

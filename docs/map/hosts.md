@@ -176,8 +176,8 @@ they bite any future second account:
       the cache, and the deploy 13 min later still built (and EPERMed on) `Caddyfile-formatted`
       while Cachix answered 200 for the same narinfo. To check a not-yet-warmed closure,
       `curl -w '%{http_code}'` the narinfos instead — that goes around the daemon's cache.
-- **`nixvm.nix`** — a SLIM, unprovisioned aarch64-linux dev VM: no disko, no runner, no
-  install; materialised only as the `nix run .#nixvm` build-vm, whose guest builds
+- **`nixos.nix`** — a SLIM, unprovisioned aarch64-linux dev VM: no disko, no runner, no
+  install; materialised only as the `nix run .#nixos` build-vm, whose guest builds
   locally on the Mac's Linux builder or substitutes from Cachix.
 
   **THE DESKTOP IS RDP (2026-11-27).** XFCE under xrdp (nixpkgs `services.xrdp`), forwarded to
@@ -202,13 +202,13 @@ they bite any future second account:
   because `createEmptyFilesystemImage` sits inside that absence guard. `*.qcow2` is
   gitignored, so an image left in the repo root cannot be swept into a commit.
 
-  **`nix run .#nixvm` does not inherit the CWD binding.** Its app is a wrapper
+  **`nix run .#nixos` does not inherit the CWD binding.** Its app is a wrapper
   (`modules/parts/packages.nix`) that creates a 0700 XDG state dir and exports
   `NIX_DISK_IMAGE` — upstream's own override hook at that same line 129 — so the flake app
   always boots the SAME VM from anywhere, instead of growing one root disk per directory it
   was invoked from. Same root cause, and same fix shape, as the OpenTofu state this repo lost
   twice to running in whatever the CWD happened to be (`modules/parts/terranix.nix`). The
-  per-CWD default is still what a hand-run `./result/bin/run-nixvm-vm` gets, which is why the
+  per-CWD default is still what a hand-run `./result/bin/run-nixos-vm` gets, which is why the
   option itself is left alone.
 
   `diskImage = null` would make the root a tmpfs and the VM truly stateless (nixpkgs' own
@@ -218,7 +218,7 @@ they bite any future second account:
   The **base** (non-`vmVariant`) config has no `virtualisation.diskImage` at all, because
   qemu-vm.nix is imported only by the VM variant. It exists purely so the toplevel evaluates
   in CI and `build.vm` has a coherent substrate — it is still not something you can boot. (That
-  sentence used to read "there is no headless `nixvm` you can boot", which inverted after
+  sentence used to read "there is no headless `nixos` you can boot", which inverted after
   2026-10-06: the **build-vm** is now headless. The base config remains unbootable; the
   distinction is base-vs-vmVariant, not graphical-vs-headless.)
 - **`generic-darwin.nix` / `generic-linux.nix`** — identity-FREE profiles that are no fleet

@@ -64,7 +64,7 @@ ck none "printf '%s\\n' '$NR .#cf-tunnel-destroy' | wc -l"
 
 echo "== read-only and unrelated apps are untouched by either half =="
 ck none "$NR .#cf-tunnel-plan"
-ck none "$NR .#nixvm"
+ck none "$NR .#nixos"
 
 # ---- 2026-10-02: the apply rule covers every stack's apply -----------------
 # These cases cannot be written with `ck`. Widening the apply regex does not

@@ -19,13 +19,13 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   **`nixpi` OPTS OUT of that default since 2026-10-01** (`lan-recovery.nix`, below), because
   loopback-only also meant the tunnel was a SINGLE POINT OF FAILURE: when the connector died
   that day the host was unreachable by every route and recovery was a ~40-minute physical SD
-  reflash. The physical console is the break-glass path below both. `nixvm`'s exported base toplevel, and a
-  `lib.mkNixos` consumer that does not override it, keep the loopback-only default; `nixvm`'s
+  reflash. The physical console is the break-glass path below both. `nixos`'s exported base toplevel, and a
+  `lib.mkNixos` consumer that does not override it, keep the loopback-only default; `nixos`'s
   booted `vmVariant` overrides it for its host-loopback forward. Both VMs:
   [`hosts.md`](hosts.md).
-  `nixvm` is only ever the local, HEADLESS `nix run .#nixvm` build-vm (SSH only via the host-loopback forward on `127.0.0.1:2222`) and has no networked login path
+  `nixos` is only ever the local, HEADLESS `nix run .#nixos` build-vm (SSH only via the host-loopback forward on `127.0.0.1:2222`) and has no networked login path
   either — but note it autologins with **no password** AND keeps a persistent `/home` in its
-  qcow2 (see [`hosts.md`](hosts.md) § `nixvm.nix`), so that image is durable unencrypted local state rather than
+  qcow2 (see [`hosts.md`](hosts.md) § `nixos.nix`), so that image is durable unencrypted local state rather than
   a scratch buffer.
 
   **That posture is now a GATE, not just these paragraphs** —
@@ -107,7 +107,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     `deploy.nix`'s `remoteBuild = false`.
 
   **Not nixpkgs' own `assertions`:** their only natural home is `modules/nixos/core.nix`, which
-  `nixvm` and every `lib.mkNixos` consumer also import — baking "exactly one open TCP port" in
+  `nixos` and every `lib.mkNixos` consumer also import — baking "exactly one open TCP port" in
   there breaks a stranger's host, the precise leak the `template-consumer` check exists to
   prevent. This is a FLEET contract about one named host.
 

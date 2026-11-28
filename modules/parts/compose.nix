@@ -178,7 +178,7 @@ let
       # and it outlived that fix (c4a522a) by a day because only the darwin half
       # was hardened. Same mechanism: `hostname` is a STRING indexing the
       # ENGINE's directory, so a downstream consumer inherits the operator's
-      # host wholesale. Measured 2026-09-16 — `mkNixos { hostname = "nixvm"; }`
+      # host wholesale. Measured 2026-09-16 — `mkNixos { hostname = "nixos"; }`
       # for a caller with no connection to this fleet evaluated to
       # `users.users.ismail` present, holding the OPERATOR'S ssh-ed25519 public
       # key as its sole authorized key, with `loginName` in
@@ -244,7 +244,7 @@ let
         # leak. nix-config must build every host standalone; a composition layer
         # passes data only.
         nixosHardware = nixos-hardware;
-        # For hosts/nixvm.nix's `build-vm` variant, whose QEMU runner executes
+        # For hosts/nixos.nix's `build-vm` variant, whose QEMU runner executes
         # on the aarch64-darwin Mac. LAZY: only `system.build.vm` forces it, so
         # the aarch64-linux toplevel eval (CI) never pulls in darwin pkgs. Same
         # principle as nixosHardware above — a host's shape lives in its own

@@ -58,7 +58,7 @@ ckq "$DEP --targets .#nixpi --hostname=192.168.0.42"
 ckq "$ND $DEP .#nixpi --hostname nixpi.local"
 
 echo "== a non-nixpi target: SILENT =="
-ckq "$DEP --targets .#nixvm"
+ckq "$DEP --targets .#nixos"
 ckq "$DEP --targets .#nixpi-staging"
 ckq "$DEP --targets .#othernode.system"
 

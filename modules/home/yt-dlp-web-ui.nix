@@ -62,7 +62,7 @@ in
   };
 
   # isDarwin is load-bearing, not decoration — modules/home/default.nix imports
-  # this for nixpi and nixvm too, and `launchd.enable` defaulting to isDarwin
+  # this for nixpi and nixos too, and `launchd.enable` defaulting to isDarwin
   # would hide the agent while still forcing the package to build there.
   config = lib.mkIf (cfg.enable && pkgs.stdenv.hostPlatform.isDarwin) {
     launchd.agents.yt-dlp-web-ui = {

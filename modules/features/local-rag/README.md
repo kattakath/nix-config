@@ -51,7 +51,7 @@ local.rag.pgvector.enable = isMacosHost;
 ```
 
 Both modules gate their own `config` on `enable && isDarwin`, so the import is a
-clean no-op on `nixpi`/`nixvm`. Separately, `checks.<system>.local-rag-inert`
+clean no-op on `nixpi`/`nixos`. Separately, `checks.<system>.local-rag-inert`
 proves an unset switch is inert, `home.packages` included. There is
 deliberately **no** third `programs.localRag.enable` wrapping them (ADR-002 §4:
 a consumer that wants only the embedding half must keep being able to say so).

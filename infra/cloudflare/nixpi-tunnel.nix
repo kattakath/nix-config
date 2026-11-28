@@ -61,7 +61,7 @@
   ...
 }:
 let
-  # nixpi is the only tunnelled host: macos is a client only, nixvm has no
+  # nixpi is the only tunnelled host: macos is a client only, nixos has no
   # public ingress.
   tunnelName = "nixpi";
   # The SSH ingress host — one spelling shared with deploy-rs and ~/.ssh/config.

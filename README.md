@@ -109,7 +109,7 @@ activation form, and why: [`docs/map/hosts.md`](docs/map/hosts.md).
 ### Bring up the dev VM
 
 ```bash
-nix run .#nixvm   # a headless VM; SSH on 127.0.0.1:2222
+nix run .#nixos   # a headless VM; SSH on 127.0.0.1:2222
 ```
 
 Its root disk **persists** between boots; only the Nix store image is rebuilt. Where the disk

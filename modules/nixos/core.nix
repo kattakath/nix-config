@@ -40,7 +40,7 @@ in
       # sets `local.lanRecovery` (modules/nixos/lan-recovery.nix) OPTS OUT of that
       # default — it replaces the bind with the wildcard and opens the port on the
       # named LAN interfaces alone, because on nixpi a dead connector was otherwise
-      # a 40-minute physical reflash. nixvm keeps loopback-only. Key-only, no
+      # a 40-minute physical reflash. nixos keeps loopback-only. Key-only, no
       # password either way. Physical console (getty) is an independent
       # break-glass path.
       #
@@ -76,7 +76,7 @@ in
       # mkForces the wildcard pair and scopes the open port to the named
       # interfaces — because the alternative measured on nixpi on 2026-10-01 was a
       # dead connector with no way in at all. Do not relax it HERE: this default
-      # is what keeps nixvm, and every `lib.mkNixos` consumer that does not set
+      # is what keeps nixos, and every `lib.mkNixos` consumer that does not set
       # it, loopback-only. Both loopback families are bound because `localhost` may
       # resolve to ::1 first.
       # Break-glass if both the tunnel and the LAN are down: the console (getty).
@@ -199,7 +199,7 @@ in
 
     # THE SYSTEMD INITRD'S `linux` TERMINFO ENTRY IS UNREACHABLE WHEN BUILT ON
     # THE MAC, so drop it. Without this, EVERY build of a systemd-initrd host
-    # (nixvm's toplevel AND build-vm, nixos's toplevel AND seed image) dies in
+    # (nixos's toplevel AND build-vm) dies in
     # `initrd-linux-*` with:
     #   Error: failed to get symlink metadata for ".../ncurses-*/share/terminfo/l/linux"
     #
@@ -223,7 +223,7 @@ in
     # left alone rather than disabled for symmetry.
     #
     # `enable = false` is the real option surface — the `contents` submodule carries
-    # a per-entry `enable` (confirmed by evaluating nixvm:
+    # a per-entry `enable` (confirmed by evaluating nixos:
     # `...contents."/etc/terminfo/l/linux"` has attrs dlopen/enable/source/target/text).
     # Deliberately NOT `lib.mkForce { }` on the whole attrset (other modules
     # contribute ~28 entries, including /init and /lib), and deliberately NOT

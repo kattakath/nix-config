@@ -1,20 +1,20 @@
 # Unprovisioned aarch64-linux DEV VM — materialised ONLY as the `build-vm` variant
-# behind `nix run .#nixvm`: SSH on 127.0.0.1:2222, and an XFCE desktop over RDP on
-# 127.0.0.1:13389 (Windows App on the Mac). There is no installed nixvm, no disk
+# behind `nix run .#nixos`: SSH on 127.0.0.1:2222, and an XFCE desktop over RDP on
+# 127.0.0.1:13389 (Windows App on the Mac). There is no installed nixos, no disk
 # layout to provision, no builder VM and no self-hosted runner — CI is GitHub-hosted and
 # local aarch64-linux builds use the Mac's nix.linux-builder (modules/darwin/nix.nix). Distinct from `nixpi`, which targets real
 # Raspberry Pi 4 hardware via nixos-hardware's raspberry-pi/4.
 #
 # DISPOSABLE, NOT EPHEMERAL — only the Nix STORE is rebuilt per boot
-# (useNixStoreImage, below); the ROOT filesystem is a `nixvm.qcow2` that
+# (useNixStoreImage, below); the ROOT filesystem is a `nixos.qcow2` that
 # qemu-vm.nix creates only if ABSENT and otherwise reuses, so /home and anything
-# signed in there survives until the image is deleted. `nix run .#nixvm` pins
+# signed in there survives until the image is deleted. `nix run .#nixos` pins
 # that image to an XDG state dir (the wrapper in modules/parts/packages.nix); a
-# hand-run `./result/bin/run-nixvm-vm` instead resolves `./nixvm.qcow2` against
+# hand-run `./result/bin/run-nixos-vm` instead resolves `./nixos.qcow2` against
 # the CALLER'S working directory, which is how one command grows a second VM.
 #
-#   nix run .#nixvm                       # builds config.system.build.vm then boots it
-#   nixos-rebuild build-vm --flake .#nixvm    # equivalent; ./result/bin/run-nixvm-vm
+#   nix run .#nixos                       # builds config.system.build.vm then boots it
+#   nixos-rebuild build-vm --flake .#nixos    # equivalent; ./result/bin/run-nixos-vm
 #
 # The runner's QEMU is macOS-native (host.pkgs = aarch64-darwin, set below from compose.nix's darwinPkgs);
 # the aarch64-linux guest closure builds on the native Linux builder or is
@@ -36,7 +36,7 @@
   # FUNCTION, so a dotted `virtualisation.vmVariant.x = …;` beside it is an
   # "attribute already defined" error at parse time, not a module merge.
 
-  networking.hostName = "nixvm";
+  networking.hostName = "nixos";
 
   # The base (non-vmVariant) config is kept a valid, bootable NixOS system so its
   # toplevel evaluates (CI) and `build.vm` has a coherent substrate — the build-vm
@@ -60,9 +60,9 @@
 
   # Root filesystem: a PLACEHOLDER that only satisfies NixOS's "you must define a
   # root fileSystem" eval requirement for the base toplevel. There is no on-disk
-  # layout anymore (disko was dropped with the installed nixvm); the build-vm
+  # layout anymore (disko was dropped with the installed nixos); the build-vm
   # variant overrides fileSystems via mkVMOverride (qemu-vm.nix) to boot the
-  # persistent nixvm.qcow2 instead.
+  # persistent nixos.qcow2 instead.
   fileSystems."/" = {
     device = "/dev/disk/by-label/nixos";
     fsType = "ext4";
@@ -70,7 +70,7 @@
 
   # ---- Headless `build-vm` variant ------------------------------------------
   # Everything under virtualisation.vmVariant applies ONLY when building the VM
-  # runner (`nix run .#nixvm` / `nixos-rebuild build-vm`), never to the base
+  # runner (`nix run .#nixos` / `nixos-rebuild build-vm`), never to the base
   # toplevel. host.pkgs (the QEMU that RUNS the script) is set to aarch64-darwin below
   # (compose.nix's darwinPkgs) so the runner is macOS-native.
   # A module FUNCTION, for `lib` (the outer args no longer take it — see the ARGS
@@ -97,7 +97,7 @@
       virtualisation = {
         # The runner runs ON the aarch64-darwin Mac, so its QEMU must be
         # macOS-native: host.pkgs is the pkgs whose qemu the generated
-        # run-nixvm-vm executes. `darwinPkgs` arrives through mkNixos
+        # run-nixos-vm executes. `darwinPkgs` arrives through mkNixos
         # specialArgs (modules/parts/compose.nix) and is only forced by the
         # `system.build.vm` path, so the aarch64-linux toplevel eval never
         # pulls in darwin pkgs.
@@ -107,7 +107,7 @@
         cores = 4;
         memorySize = 4096; # MiB of guest RAM
         # MiB ceiling for the ROOT filesystem (/home, /var) - not scratch, and not
-        # the store: qemu-vm.nix creates nixvm.qcow2 only if ABSENT, so what lands
+        # the store: qemu-vm.nix creates nixos.qcow2 only if ABSENT, so what lands
         # in /home persists. Size it generously ONCE, because raising this later
         # cannot resize an existing image and deleting the image to adopt a new
         # size is exactly what discards the state the headroom was for. Near-free:
@@ -129,7 +129,7 @@
         # unadopted, NOT a claim that it cannot work.
         #
         # Cost: the image holds the closure rather than borrowing the host's, so
-        # `nix run .#nixvm` builds more. It builds on the native Linux builder or
+        # `nix run .#nixos` builds more. It builds on the native Linux builder or
         # substitutes from Cachix — the right trade for a hand-booted dev VM. This
         # store image is the ONLY per-boot filesystem here; the root qcow2 is not.
         useNixStoreImage = true;
@@ -227,8 +227,8 @@
         # 2026-09-18 on macOS 27's VZUSBPassthroughDevice, but issue #7914
         # `VZErrorDomain error -6` on any device assign was open at writing).
         # A move keeps the NixOS guest, sshd, the HM profile and the PGP stack, and
-        # LOSES `nix run .#nixvm` and the declarative `vmVariant` round-trip.
-        # OPERATOR'S DECISION 2026-10-06: keep nixvm as it is, accept no USB.
+        # LOSES `nix run .#nixos` and the declarative `vmVariant` round-trip.
+        # OPERATOR'S DECISION 2026-10-06: keep nixos as it is, accept no USB.
         # (GPG and SSH specifically need no passthrough.)
         # THE GPU DEVICE IS LOAD-BEARING HEADLESS.
         # `graphics = true` does NOT add a framebuffer — measured in the pinned
@@ -270,7 +270,7 @@
 
       # ---- SSH from the Mac: 127.0.0.1:2222 -> guest 22 ------------------------
       # `ssh -p 2222 ismail@localhost` from the Mac. The operator's key is already
-      # in the guest (modules/parts/hosts.nix passes operatorSshKey to nixvm) and
+      # in the guest (modules/parts/hosts.nix passes operatorSshKey to nixos) and
       # auth stays KEY-ONLY: modules/nixos/core.nix sets PasswordAuthentication
       # and KbdInteractiveAuthentication false and PermitRootLogin "no", and
       # nothing here relaxes any of them.
@@ -286,7 +286,7 @@
       #   3. The open port alone forwards nothing — there is no listener on the
       #      Mac without the hostfwd.
       #
-      # WHY HERE AND NOT IN core.nix: that module's default is what keeps nixvm's
+      # WHY HERE AND NOT IN core.nix: that module's default is what keeps nixos's
       # BASE toplevel — the thing `nix flake check` builds, and the thing every
       # `lib.mkNixos` consumer inherits — loopback-only. Its own comment says "do
       # not relax it HERE" for exactly that reason. `virtualisation.vmVariant`
