@@ -101,16 +101,6 @@ let
   # `nixpkgs.config.allowUnfree` — the input's `.extensions` output uses its own
   # nixpkgs with default config and ignores our unfree allowance.
   marketplace = pkgs.vscode-marketplace or null;
-  # #80: on aarch64-darwin, upstream claude-code sets `__noChroot = isDarwin`
-  # (pkgs/by-name/cl/claude-code/package.nix), which a strict-sandbox darwin
-  # builder (nix `sandbox = true`) rejects at derivation instantiation
-  # ("has '__noChroot' set, but that's not allowed when 'sandbox' is 'true'").
-  # The __noChroot exemption only exists so the versionCheckHook install-check
-  # can run the bun binary at build time; with doInstallCheck=false the darwin
-  # build reduces to `installBin $src` (src is a fixed-output fetchurl, fetchable
-  # in-sandbox) + wrapProgram — both network-free — so __noChroot is unnecessary.
-  # Drop it too. No-op on linux (both attrs already false there → identical drv).
-  #
   # Base package: on darwin, nixpkgs-unstable's OWN recipe (the `nixpkgs-claude-code` input),
   # callPackage'd against our pkgs, while it is newer than the weekly pin's — the weekly lags
   # upstream's near-daily bumps (2026-11-07: weekly 2.1.308 vs unstable 2.1.318). Calling the
@@ -121,7 +111,10 @@ let
   claudeCodeUnstable =
     pkgs.callPackage "${nixpkgs-claude-code}/pkgs/by-name/cl/claude-code/package.nix"
       { };
-  claudeCodeBase =
+  # No overrideAttrs: the #80 `__noChroot = false` + `doInstallCheck = false` pair is
+  # dead — neither recipe sets __noChroot any more, and this one built fresh with
+  # `--option sandbox true`, versionCheckPhase passing (2026-11-28, 2.1.330).
+  claudeCode =
     if
       pkgs.stdenv.hostPlatform.isDarwin
       && lib.versionOlder pkgs.claude-code.version claudeCodeUnstable.version
@@ -129,10 +122,6 @@ let
       claudeCodeUnstable
     else
       pkgs.claude-code;
-  claudeCode = claudeCodeBase.overrideAttrs (_: {
-    doInstallCheck = false;
-    __noChroot = false;
-  });
 
   sshDir = "${config.home.homeDirectory}/.ssh";
   operatorPrivateKey = "${sshDir}/id_ed25519";
@@ -895,8 +884,8 @@ in
     # PATH (upstream default.nix `home.packages = mkIf (cfg.package != null) …`) while
     # still writing settings, CLAUDE.md, skills and marketplaces. The binary reaches
     # PATH only through the named wrappers (./claude-profiles.nix), which exec
-    # `local.claudeProfiles.package` — our darwin strict-sandbox override, claudeCode
-    # above. On the Linux hosts claude-code stays a plain home.packages entry.
+    # `local.claudeProfiles.package` — claudeCode above. The Linux hosts get no
+    # claude-code at all (see the home.packages note on redistributability).
     claude-code = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin {
       enable = true;
       package = null;
