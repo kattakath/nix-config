@@ -29,6 +29,24 @@
 # module makes this exact split for `githubApp` — a root (`+`) ExecStartPre fetches
 # the registration token and the key sits in `InaccessiblePaths`. launchd has
 # neither, so a root daemon plus an exec privilege drop is the analog.
+#
+# THE REGISTRATION TOKEN IS BRIEFLY READABLE — what the split does NOT hide. Measured
+# 2026-11-28 on macOS 27.2.1 (26B131) with fake-token dummy processes running as
+# `_github-runner`:
+#   · ENVIRONMENT: not readable by anyone. KERN_PROCARGS2 returns argv with envc=0,
+#     for the same uid and for root, whether or not the variable was unset after exec
+#     (and `ps -E` shows no environment, even for one's own process).
+#   · ARGV: readable by EVERY local user. `ps -ww` run as `nobody` and as the operator
+#     printed `… --token FAKEARGVVALUE2` from a `_github-runner` process.
+# `configure` has to hand the token to `config.sh --token`, which execs
+# `Runner.Listener configure "$@"` (the runner's config.sh), so the live registration
+# token sits on a world-readable command line for the length of one configure: ~2 s
+# (instance 01's configure log ran 03:26:44Z → 03:26:46Z). With `count > 1`
+# (hosts/macos.nix sets 2) the other instance's JOB can be running in that window,
+# so a job polling `ps` could catch it. What it would catch is the ≤1 h REGISTRATION
+# token: it can register a rogue runner into this org for up to an hour, nothing more.
+# The App key and the installation token never leave root (the curls take their
+# bearer headers on stdin — `mintRegistrationToken`).
 # OUTBOUND-only — the runner polls GitHub, opens no port.
 #
 # SECURITY: `--ephemeral` (one job per registration; launchd restarts + the script
@@ -349,7 +367,8 @@ let
         #
         # `--token`, not `--pat`: what arrives here is the REGISTRATION token
         # root minted in `runDaemon` (see `mintRegistrationToken`), passed in
-        # this one call's environment by `runAsRunner`.
+        # this one call's environment by `runAsRunner`. The `--token` ARGUMENT below
+        # is the one place it becomes readable (~2 s, any local user — header).
         text = ''
           export RUNNER_ROOT
           token=''${RUNNER_REG_TOKEN:?configure: no registration token from the root half of runDaemon}
@@ -368,8 +387,10 @@ let
       };
       # THE UNPRIVILEGED HALF — everything from here on runs as `_github-runner`,
       # including every job. The registration token arrives in the environment
-      # from `runDaemon` and is UNSET before `exec Runner.Listener`, because a
-      # same-uid process (a job) can read the Listener's environment.
+      # from `runDaemon` and is UNSET before `exec Runner.Listener`, so the
+      # long-lived Listener (and every job it starts) never inherits it. Measured
+      # 2026-11-28 that macOS 27.2 exposes no process environment through
+      # KERN_PROCARGS2, so the unset is defence in depth, not the only barrier.
       #
       # Why env and not a file: a token file would have to be written by ROOT
       # into RUNNER_ROOT, a directory `_github-runner` owns — and a leftover
