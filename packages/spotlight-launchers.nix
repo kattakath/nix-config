@@ -113,9 +113,9 @@ let
       launcher,
     }:
     # grepped nixpkgs for a .app-bundle generator — `pkgs.writeDarwinBundle`
-    # EXISTS (all-packages.nix:913) → custom anyway, because reading its
-    # implementation rules it out on three counts
-    # (build-support/make-darwin-bundle/write-darwin-bundle.nix):
+    # EXISTS (pkgs/by-name/wr/writeDarwinBundle/package.nix, re-checked
+    # 2026-11-27) → custom anyway, because reading its implementation rules it
+    # out on three counts:
     #   :13  CFBundleIdentifier is HARDCODED to "org.nixos.$name" with no
     #        parameter; this fleet needs com.kattakath.* identifiers.
     #   —    it emits no LSMinimumSystemVersion at all.

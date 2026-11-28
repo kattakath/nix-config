@@ -10,7 +10,7 @@
 # it was wrong (corrected 2026-09-06): the `--with python-jobspy` below carries no version
 # constraint, so uv resolves whatever is current.
 #
-# AND NOT nixpkgs' `python3Packages.jobspy`, which does exist. Deliberately floating instead: a scraper is pinned against SITE HTML,
+# AND NOT nixpkgs' `python3Packages.python-jobspy`, which does exist. Deliberately floating instead: a scraper is pinned against SITE HTML,
 # not against a version. A frozen pin here means silent breakage the day LinkedIn or
 # Indeed changes markup, with a lock bump as the only remedy; floating means the fix
 # arrives with the next run. Consistent with design-tokens/build.sh's floating
