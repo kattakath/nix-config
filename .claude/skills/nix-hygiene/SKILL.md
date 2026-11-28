@@ -140,7 +140,7 @@ because CLAUDE.md is near its 40k budget. A path missing from both is itself a f
 - [ ] `NH-A-app-undocumented` — Flake apps (`modules/parts/packages.nix` + `modules/parts/terranix.nix`) and `nix run`-able
       capsule packages have matching sources and runbook mentions if user-facing; the
       authoritative list is `nix eval .#apps.<system> --apply builtins.attrNames` (`flake show
-      --json` nests outputs under `.inventory`).
+      --json`'s layout differs between Nix implementations).
 - [ ] `NH-A-runbook-dead-ref` — reverse: runbooks mention only apps/paths that still exist.
 
 ### B. LEAN / abandoned
