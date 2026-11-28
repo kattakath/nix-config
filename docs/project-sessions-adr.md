@@ -1,6 +1,6 @@
 # ADR-019 — One named background session per Claude Code project
 
-**Status:** **DECIDED 2026-11-28.** The operator chose three things: scaffold committed files,
+**Status:** **DECIDED 2026-11-28; outcome measured, see § 6** (handover is `/ps`; auto-handover ~1 in 3). The operator chose three things: scaffold committed files,
 a session for every repo on sight, and this ADR first, then the build. The build lands in
 `kattakath/skills` (plugin `project-sessions`, plus an upgrade to `slack-etiquette`). This repo keeps
 only the residue in § 4.
@@ -82,3 +82,40 @@ The design must use Claude Code's own features and stay invisible to other devel
   - Each new repo needs a trust click.
   - Two lossy names can share one task list; the doctor reports it.
   - On-sight creation leaves an idle process for each repo.
+
+## 6. Outcome (measured 2026-11-28, plugin 1.0 → 1.3)
+
+**The assumption in § 5 failed.** The plumbing works. The model's handover does not.
+
+| Eval | Setup | Result |
+|---|---|---|
+| v1 | 10 × `claude -p`, plugin 1.0 (skill + SessionStart line) | line seen 10/10, skill loaded 2/10, `ensure` run **0/10** |
+| v2 | 10 × `claude -p`, plugin 1.2 (hooks run `ensure`), throwaway clone | 1 session, correct name; SendMessage handover **0/10** |
+| v3 | 3 real interactive sessions in tmux, plugin 1.2, throwaway clone | handover **1/3**; that run worked end to end (task done, reply relayed) |
+
+What each fix answered, all measured:
+
+| Problem | Fix |
+|---|---|
+| A background session ignores `defaultMode: bypassPermissions`, so the main session's messages were HELD | 1.1: create with `--permission-mode`, mirrored by a PreToolUse `updatedInput` hook |
+| SessionStart input has no `permission_mode` | 1.2: SessionStart only resumes; the first prompt (UserPromptSubmit has the mode) creates |
+| The model skips `ensure` | 1.2: the hooks run it, gated on `CLAUDE_CODE_SESSION_ATTENDED=1` (interactive `1`, `-p` `0`) |
+| The model skips the handover, and `claude --bg --resume <id> "<task>"` on a running session starts a copy, so no hook can hand a task over | 1.3: `/ps <task>`, the user's command decides the handover |
+
+**What backgrounding costs.** Each item above traces to `--bg`: trust refusal, the ignored
+`defaultMode`, copy-on-resume, and the idle (~1 h unpinned) and reboot stops. It buys the goals
+themselves: it survives the main session, ties up no terminal, and shows on Remote Control. Its
+side effect is that SendMessage is the only way in, and the model seldom chooses it (inferred).
+
+**Rejected after comparison:**
+- **Agent Teams as the per-repo session.** A team is per lead session, can't be named, and is
+  deleted with the lead.
+- **Teams inside a project session.** Open bug anthropics/claude-code#110561: tmux-pane teammates
+  of a `--bg` job inherit its identity, and the daemon resumed a teammate's transcript as the job.
+  **Reopen when** #110561 closes, or a probe shows in-process teammates avoid it. Even then, teams
+  only parallelise work after the handover. They don't fix it.
+- **Claude Projects.** The agent can't drive it (`/send-to-project` is user-only), it has no task
+  list, its cloud threads skip repo hooks, and it is GitHub-only.
+
+**Evals must not touch a real checkout.** Allow rules let `Edit` through in `-p --permission-mode
+default`. v1 edited the main checkout's README, and the edit was restored.
