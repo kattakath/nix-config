@@ -30,23 +30,25 @@
 # the registration token and the key sits in `InaccessiblePaths`. launchd has
 # neither, so a root daemon plus an exec privilege drop is the analog.
 #
-# THE REGISTRATION TOKEN IS BRIEFLY READABLE — what the split does NOT hide. Measured
-# 2026-11-28 on macOS 27.2.1 (26B131) with fake-token dummy processes running as
-# `_github-runner`:
+# WHERE THE REGISTRATION TOKEN TRAVELS, and why never on argv. Measured 2026-11-28 on
+# macOS 27.2.1 (26B131) with fake-token dummy processes running as `_github-runner`:
 #   · ENVIRONMENT: not readable by anyone. KERN_PROCARGS2 returns argv with envc=0,
-#     for the same uid and for root, whether or not the variable was unset after exec
-#     (and `ps -E` shows no environment, even for one's own process).
+#     for the same uid and for root (and `ps -E` shows no environment, even for one's
+#     own process).
 #   · ARGV: readable by EVERY local user. `ps -ww` run as `nobody` and as the operator
 #     printed `… --token FAKEARGVVALUE2` from a `_github-runner` process.
-# `configure` has to hand the token to `config.sh --token`, which execs
-# `Runner.Listener configure "$@"` (the runner's config.sh), so the live registration
-# token sits on a world-readable command line for the length of one configure: ~2 s
-# (instance 01's configure log ran 03:26:44Z → 03:26:46Z). With `count > 1`
-# (hosts/macos.nix sets 2) the other instance's JOB can be running in that window,
-# so a job polling `ps` could catch it. What it would catch is the ≤1 h REGISTRATION
-# token: it can register a rogue runner into this org for up to an hour, nothing more.
-# The App key and the installation token never leave root (the curls take their
-# bearer headers on stdin — `mintRegistrationToken`).
+# So the token moves only through environments: root → `runAsRunner` (RUNNER_REG_TOKEN)
+# → `configure` → config.sh as ACTIONS_RUNNER_INPUT_TOKEN, which the runner reads in
+# place of `--token` (`configure`'s comment cites the source). Until 2026-11-28 it went
+# on `config.sh --token`, a world-readable command line for one ~2 s configure (instance
+# 01's configure log: 03:26:44Z → 03:26:46Z) — with `count = 2` (hosts/macos.nix) the
+# other instance's job could have read it from `ps`. Re-measured on the new shape: the
+# fake token is absent from argv (`ps -ww` as nobody and as the operator) and from
+# KERN_PROCARGS2 (same uid and root). Every hop unsets it, so the Listener and its jobs
+# never inherit it. The App key and the installation token never leave root (the curls
+# take their bearer headers on stdin — `mintRegistrationToken`). NOT tested: a debugger
+# (task_for_pid) read of a same-uid process, which normally needs root or a debugger
+# entitlement.
 # OUTBOUND-only — the runner polls GitHub, opens no port.
 #
 # SECURITY: `--ephemeral` (one job per registration; launchd restarts + the script
@@ -365,15 +367,21 @@ let
         # {self-hosted, macOS, ARM64} survive alongside cfg.extraLabels. See the
         # `extraLabels` option below for the vocabulary and the flip order.
         #
-        # `--token`, not `--pat`: what arrives here is the REGISTRATION token
-        # root minted in `runDaemon` (see `mintRegistrationToken`), passed in
-        # this one call's environment by `runAsRunner`. The `--token` ARGUMENT below
-        # is the one place it becomes readable (~2 s, any local user — header).
+        # The REGISTRATION token (not a PAT) root minted in `runDaemon` (see
+        # `mintRegistrationToken`) arrives in this one call's environment from
+        # `runAsRunner`, and goes on to config.sh the same way — as
+        # ACTIONS_RUNNER_INPUT_TOKEN, scoped to that one command, NEVER as a `--token`
+        # argument, because argv is world-readable on macOS (header). The runner reads
+        # it there: github-runner 2.338.2's src/Runner.Listener/CommandSettings.cs (the
+        # `ACTIONS_RUNNER_INPUT_` loop in its constructor: stores it, masks it as a secret, then
+        # deletes it from its own environment) and GetArg's env fallback, reached by
+        # ConfigurationManager's GetRunnerRegisterToken(). Do not "simplify" this
+        # back to `--token`.
         text = ''
           export RUNNER_ROOT
           token=''${RUNNER_REG_TOKEN:?configure: no registration token from the root half of runDaemon}
           unset RUNNER_REG_TOKEN
-          ${lib.getExe' runner "config.sh"} \
+          ACTIONS_RUNNER_INPUT_TOKEN="$token" ${lib.getExe' runner "config.sh"} \
             --unattended \
             --disableupdate \
             --work ${lib.escapeShellArg workDir} \
@@ -381,8 +389,7 @@ let
             --name ${lib.escapeShellArg instanceName} \
             --labels ${lib.escapeShellArg (lib.concatStringsSep "," cfg.extraLabels)} \
             --replace \
-            --ephemeral \
-            --token "$token"
+            --ephemeral
         '';
       };
       # THE UNPRIVILEGED HALF — everything from here on runs as `_github-runner`,
