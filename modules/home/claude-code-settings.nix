@@ -78,10 +78,13 @@ let
     }
   );
 
-  # Where the operator overlay is read from (see mergeScript). XDG, never a home
-  # literal; `emptyJson` stands in when it is absent so the jq call has one shape.
+  # Where the operator overlay is read from (see mergeOne). XDG, never a home literal.
   overlayPath = "${config.xdg.configHome}/nix-config/claude-settings.overlay.json";
-  emptyJson = pkgs.writeText "claude-settings-overlay-empty.json" "{}";
+
+  jaq = lib.getExe pkgs.jaq;
+  # "Exactly one JSON object" — the same test the upstream merger applies to its
+  # input (it refuses `{}{}`, which a plain `jq -e .` would accept).
+  isOneObject = "${jaq} -se 'length == 1 and (.[0] | type == \"object\")'";
 
   # Every profile directory that gets the floor: ~/.claude, plus the work profile's
   # own directory when it is enabled (claude-profiles.nix). ONE rendered
@@ -93,80 +96,102 @@ let
 
   # The merge itself, shared by the two activation entries below. Idempotent:
   # running it twice yields the same file.
-  mergeOne = dir: ''
-    settings="${dir}/settings.json"
-    run mkdir -p "${dir}"
+  #
+  # upstream option home-manager.programs.claude-code.mutableSettings exists → not used
+  # (header). Its ENGINE is used instead: lib.hm.generators.mkImpureConfigMerger (pinned
+  # home-manager modules/lib/generators.nix), called as a library function with a
+  # three-operand jqOperation. It brings what the hand-rolled `install -m 600` + printf
+  # write lacked: a temp candidate renamed into place (no EEXIST between two concurrent
+  # activations, no half-written file), a conflict check, and DRY_RUN. Measured
+  # 2026-11-28: 2x100 paired concurrent runs, 0 failures, 0 EEXIST.
+  #
+  # The pre-checks below keep the three behaviours the merger does not have:
+  #   1. MIGRATION — previous generations left a read-only store SYMLINK here; the
+  #      merger refuses a store target, so replace any symlink with a real file once.
+  #   2. CORRUPT FILE — the merger refuses to merge an unparseable file and FAILS the
+  #      switch. A corrupt user file must not brick activation: back it up and start
+  #      from an empty object. (Claude Code's own words for the managed equivalent are
+  #      that an unparseable document means "none of its settings are in effect", so
+  #      silently continuing on top of garbage would be the worse outcome.)
+  #   3. FORCE 600 — the merger keeps an existing file's mode (`chmod --reference`) and
+  #      applies `mode` only to a NEW file. This file holds the user-scope permissions
+  #      floor, so it is forced to 600 first; the candidate then inherits 600.
+  #
+  # One NEW failure mode, accepted by the operator (2026-11-28): if Claude Code writes
+  # the file DURING activation, the merger reports "changed during activation; keeping
+  # the newer file" and the switch fails loudly. The old write silently clobbered it.
+  mergeOne =
+    dir:
+    let
+      merger = lib.hm.generators.mkImpureConfigMerger {
+        inherit pkgs;
+        format = "json";
+        empty = "{}";
+        mode = "600";
+        path = "${dir}/settings.json";
+        staticSettings = nixSettings;
+        # RIGHT OPERAND WINS, recursively: the operator's keys survive, Nix's keys
+        # are restored. `*` replaces ARRAYS wholesale rather than concatenating,
+        # which is exactly what permissions.deny needs — the floor is reinstated
+        # entire, not appended to whatever was there.
+        #
+        # The overlay sits in the MIDDLE on purpose: it beats the live file, so an
+        # overlay value is re-asserted every rebuild — and Nix still wins over it, so
+        # an overlay can never take back a `permissions.deny`. Like the live file,
+        # a key DELETED from the overlay is not removed here; set it to `false`
+        # instead. The cost of `*` replacing arrays: an overlay cannot ADD to an
+        # array Nix owns (permissions) — hooks belong in a plugin's hooks.json instead.
+        # The merger binds only $dynamic and $static, so the overlay rides in on the
+        # environment ($ENV, validated below).
+        jqOperation = ''
+          ($ENV.CLAUDE_SETTINGS_OVERLAY // "{}" | fromjson) as $ov
+          | if ($dynamic | type) == "object" and ($static | type) == "object" and ($ov | type) == "object"
+            then $dynamic * $ov * $static
+            else error("expected JSON objects") end
+        '';
+      };
+    in
+    ''
+      settings="${dir}/settings.json"
+      run mkdir -p "${dir}"
 
-    # MIGRATION: previous generations left a read-only store SYMLINK here.
-    # Replace it with a real file once; thereafter this is a no-op.
-    if [ -L "$settings" ]; then
-      run rm -f "$settings"
-    fi
+      # 1. MIGRATION (see above).
+      if [ -L "$settings" ]; then
+        run rm -f "$settings"
+      fi
 
-    # A corrupt user file must not brick activation — back it up and start from
-    # an empty object rather than failing the whole switch. Claude Code's own
-    # words for the managed equivalent are that an unparseable document means
-    # "none of its settings are in effect", so silently continuing on top of
-    # garbage would be the worse outcome.
-    base="{}"
-    if [ -s "$settings" ]; then
-      if ${pkgs.jq}/bin/jq -e . "$settings" > /dev/null 2>&1; then
-        base=$(cat "$settings")
-      else
+      # 2. CORRUPT FILE (see above). Removing it after the backup hands the merger
+      #    an absent file, which it treats as `{}` and creates with mode 600.
+      if [ -s "$settings" ] && ! ${isOneObject} "$settings" > /dev/null 2>&1; then
         run cp "$settings" "$settings.corrupt-$(date +%Y%m%d%H%M%S)"
-        warnEcho "claude-code: $settings was not valid JSON — backed it up and reset the Nix floor onto {}."
+        run rm -f "$settings"
+        warnEcho "claude-code: $settings was not one JSON object — backed it up and reset the Nix floor onto {}."
       fi
-    fi
 
-    # THE OPERATOR OVERLAY: an optional, hand-placed JSON object (none on `macos` today)
-    # carrying per-person settings this public repo must not name. The repo ships the
-    # shape, the content stays on the Mac (ADR-004).
-    # Missing = no-op; not a JSON object = warned and ignored, never fatal.
-    overlay="${overlayPath}"
-    ov=${emptyJson}
-    if [ -s "$overlay" ]; then
-      if ${pkgs.jq}/bin/jq -e 'type == "object"' "$overlay" > /dev/null 2>&1; then
-        ov="$overlay"
-      else
-        warnEcho "claude-code: $overlay is not a JSON object — ignored."
+      # 3. FORCE 600 (see above).
+      if [ -f "$settings" ]; then
+        run chmod 600 "$settings"
       fi
-    fi
 
-    # RIGHT OPERAND WINS, recursively: the operator's keys survive, Nix's keys
-    # are restored. jq's `*` replaces ARRAYS wholesale rather than concatenating,
-    # which is exactly what permissions.deny needs — the floor is reinstated
-    # entire, not appended to whatever was there.
-    #
-    # The overlay sits in the MIDDLE on purpose: it beats the live file, so an
-    # overlay value is re-asserted every rebuild — and Nix still wins over it, so
-    # an overlay can never take back a `permissions.deny`. Like the live file,
-    # a key DELETED from the overlay is not removed here; set it to `false`
-    # instead. The cost of `*` replacing arrays: an overlay cannot ADD to an
-    # array Nix owns (permissions) — hooks belong in a plugin's
-    # hooks.json instead.
-    merged=$(printf '%s' "$base" | ${pkgs.jq}/bin/jq -s --slurpfile ov "$ov" --slurpfile nix ${nixSettings} '.[0] * $ov[0] * $nix[0]')
-    # THE ONE LINE TWO CONCURRENT ACTIVATIONS CAN COLLIDE ON, and the error it
-    # produces names the symptom rather than the cause — which cost two
-    # escalations and a withdrawn rewrite spec on 2026-10-02.
-    #
-    # `install` UNLINKS the target then creates it. Two `activate` runs overlapping
-    # on this path interleave as: A unlinks, B unlinks, A creates, B creates and
-    # gets EEXIST. That surfaces as
-    #   install: cannot create regular file '~/.claude/settings.json': File exists
-    # and it reads exactly like Home Manager having lost ownership of the file. It
-    # is not. The plain file is DELIBERATE (`home.file…enable = mkForce false`
-    # below), the merge above already handles both a legacy symlink and a
-    # pre-existing plain file, and `claudeCodeSettingsReassert` already re-runs
-    # after the plugin CLI rewrites it.
-    #
-    # SO: if you see that error, check for a second activation before changing
-    # anything here. The line is correct; `install -m 600 /dev/null` is what makes
-    # the mode right BEFORE any content is written, which matters because this file
-    # holds the user-scope permissions floor. Do not "fix" it into a chmod-after
-    # write — that would open a window where the deny list is world-readable.
-    run install -m 600 /dev/null "$settings"
-    printf '%s\n' "$merged" > "$settings"
-  '';
+      # THE OPERATOR OVERLAY: an optional, hand-placed JSON object (none on `macos` today)
+      # carrying per-person settings this public repo must not name. The repo ships the
+      # shape, the content stays on the Mac (ADR-004).
+      # Missing = no-op; not one JSON object = warned and ignored, never fatal.
+      overlay="${overlayPath}"
+      CLAUDE_SETTINGS_OVERLAY='{}'
+      if [ -s "$overlay" ]; then
+        if ${isOneObject} "$overlay" > /dev/null 2>&1; then
+          CLAUDE_SETTINGS_OVERLAY=$(cat "$overlay")
+        else
+          warnEcho "claude-code: $overlay is not a JSON object — ignored."
+        fi
+      fi
+      export CLAUDE_SETTINGS_OVERLAY
+
+      ${merger}
+
+      unset CLAUDE_SETTINGS_OVERLAY
+    '';
   mergeScript = lib.concatMapStringsSep "\n" mergeOne settingsDirs;
 in
 # isDarwin only, matching claude-brain.nix and claude-guardrails.nix:
