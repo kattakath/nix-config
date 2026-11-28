@@ -39,11 +39,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # UPSTREAM Nix, deliberately. nix-ci.yml / warm-nixpi-cache.yml moved to
-      # DeterminateSystems/determinate-nix-action on 2026-09-21 for parallel eval;
-      # this job only reads flake metadata for flakehub-push, gains nothing from
-      # it, and staying here keeps ONE workflow proving the flake still evaluates
-      # on upstream Nix (the devcontainer image ships upstream's).
+      # UPSTREAM Nix — the same pin every workflow and every fleet host uses
+      # since 2026-11-27 (ADR-018).
       - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31
         with:
           extra_nix_config: |

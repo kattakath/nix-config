@@ -91,22 +91,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # DETERMINATE Nix, same pin as nix-ci.yml (2026-09-21) — lazy trees +
-      # parallel eval on the toplevel eval, and the same Nix the Pi runs.
-      #
-      # install.determinate.systems: the nixpi closure includes Determinate Nix
-      # (modules/parts/compose.nix wires determinate.nixosModules.default into
-      # every NixOS host). That package is prebuilt ONLY there — a MISS on
-      # cache.nixos.org and Cachix — so without this substituter the runner
-      # compiles Nix from C++ source on every warm. Same URL + key the NixOS
-      # hosts themselves use (modules/nixos/nix-cache.nix). Determinate Nix
-      # lists it as a TRUSTED substituter but not an active one, so the line
-      # is still needed.
-      - uses: DeterminateSystems/determinate-nix-action@16f94ba7aae399b9f9077c254b6719ec6de7e3e3 # v3.24.2
+      # UPSTREAM Nix, same pin as nix-ci-impl.yml (2026-11-27, ADR-018) — the Nix
+      # the Pi runs. Its nix-2.35.6 is on cache.nixos.org, so the runner no longer
+      # needs install.determinate.systems to avoid compiling Nix from source.
+      - uses: cachix/install-nix-action@3dc140bfc76c49fbd4dd958429132e3746bcb086 # v31
         with:
-          extra-conf: |
-            extra-substituters = https://kattakath.cachix.org https://install.determinate.systems
-            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw= cache.flakehub.com-3:hJuILl5sVK4iKm86JzgdXW12Y2Hwd5G07qKtHTOcDCM=
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            extra-substituters = https://kattakath.cachix.org
+            extra-trusted-public-keys = kattakath.cachix.org-1:y/w6wnb4ZArdlbfWJ82c81uCXeYgG/sGDUYCszavmEw=
 
       # No IMAGE filter: unlike build-installers there is no dd-able image here, so
       # everything realised belongs in the cache.
