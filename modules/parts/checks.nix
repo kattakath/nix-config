@@ -4179,6 +4179,65 @@ in
               ];
             };
 
+          # ---- the markup-lsp plugin's servers, on OUR nixpkgs pin -----------------
+          #
+          # modules/home/default.nix imports the plugin's servers.nix (the ONE package
+          # list behind its .lsp.json) against our nixpkgs. The plugin's own `commands`
+          # check proves .lsp.json ⊆ servers.nix's bins — but on ITS nixpkgs pin
+          # (nixpkgs-weekly). A binary renamed or dropped at OUR pin would pass there and
+          # leave Claude Code spawning a command that is not on PATH here. So:
+          #   (a) every servers.nix package is in macos's composed home.packages (eval);
+          #   (b) every .lsp.json command is a bin/ of servers.nix built on this system's
+          #       pkgs (a buildEnv — the packages substitute from cache.nixos.org).
+          # Same cost as mcp-launcher-parity: the pinned tree is what is read, so a server
+          # added over there turns this RED at the next kattakath-skills bump, not sooner.
+          markup-lsp-parity =
+            let
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              darwinPkgs = config.flake.darwinConfigurations.macos.pkgs;
+              dir = "${inputs.kattakath-skills}/plugins/markup-lsp";
+              lsp = builtins.fromJSON (builtins.readFile "${dir}/.lsp.json");
+              commands = lib.unique (map (s: s.command) (lib.attrValues lsp));
+              homeNames = map (p: p.name or "") hm.home.packages;
+              wanted = import "${dir}/servers.nix" { pkgs = darwinPkgs; };
+              contract = mkHostContract {
+                inherit pkgs;
+                name = "markup-lsp-parity-home";
+                subject = "macos: every markup-lsp servers.nix package is in home.packages";
+                expect = [
+                  {
+                    name = "the pinned markup-lsp .lsp.json names at least one command (an empty list tests nothing)";
+                    ok = commands != [ ];
+                  }
+                ]
+                ++ map (p: {
+                  name = "${p.name} (markup-lsp servers.nix) is in macos home.packages";
+                  ok = builtins.elem p.name homeNames;
+                }) wanted;
+                advice = [
+                  "modules/home/default.nix must import the plugin's servers.nix into"
+                  "home.packages (the Language servers block, darwin-gated)."
+                ];
+              };
+              env = pkgs.buildEnv {
+                name = "markup-lsp-servers";
+                paths = import "${dir}/servers.nix" { inherit pkgs; };
+              };
+            in
+            pkgs.runCommand "markup-lsp-parity" { } ''
+              cat ${contract}
+              missing=0
+              for c in ${lib.escapeShellArgs commands}; do
+                if [ -x "${env}/bin/$c" ]; then
+                  echo "ok      $c"
+                else
+                  echo "MISSING $c — the pinned .lsp.json names it, servers.nix on our nixpkgs does not provide it" >&2
+                  missing=1
+                fi
+              done
+              [ "$missing" = 0 ] && touch "$out"
+            '';
+
           # The Workspace MCP portal's tool allowlist has ONE owner, workspace-mcp-apps.nix.
           # The kattakath-workspace plugin ships a GENERATED copy
           # (skills/kattakath-workspace/references/allowlist.json, written by the plugin's
