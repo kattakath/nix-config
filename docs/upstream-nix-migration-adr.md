@@ -52,7 +52,7 @@ Found by `git grep -l determinate` on 2026-11-27:
 | **G1: a Mac can leave Determinate in place** | **PASSED 2026-11-27**: by hand on a minimal flake (§ 4a), then scripted on the real engine (§ 4b) |
 | G2: the builder holds up | **PASSED 2026-11-27** at n=5 on three workloads (§ 4c). The nixpi toplevel, `nixvm` and the devcontainer image are not measured |
 | G3: FlakeHub inputs resolve | **PASSED 2026-11-27** with an upstream 2.35.6 client (§ 4c) |
-| G4: CI matches | `nix-ci-impl.yml` on `cachix/install-nix-action` is green, and the loss of `eval-cores` is timed |
+| G4: CI matches | **PASSED 2026-11-27**: green on upstream Nix, with the host evaluation step 50% slower (§ 4c) |
 
 ### 4a. G1 run, 2026-11-27
 
@@ -152,7 +152,20 @@ engine copied from the branch, through its published template path: `lib.mkDarwi
     `nh-clean` and `nix-daemon`, and drops `nix-store-clean`.
   - There were no evaluation warnings.
 
-G4 (CI on upstream) remains open.
+- **G4:** `nix-ci`, dispatched on a throwaway branch (deleted afterwards) whose only change was
+  `cachix/install-nix-action` v31 (the pin used before 2026-09-21) in place of
+  `determinate-nix-action`. Every job was green ([run 46090639799](https://github.com/kattakath/nix-config/actions/runs/46090639799)). Against the
+  last green Determinate run on `main` (46086327781), n=1:
+
+  | `build (aarch64-linux)` step | Determinate | Upstream |
+  |---|---|---|
+  | Install Nix | 7 s | 3 s |
+  | Build checks + push to Cachix | 44 s | 48 s |
+  | **Evaluate host configs (no build)** | **40 s** | **60 s** |
+  | Whole job | 103 s | 120 s |
+
+**All four gates have passed.** The cost of leaving is evaluation speed: about 14 s per local
+`flake check` and about 20 s per CI run. The decision to migrate is the operator's.
 
 ## 5. Rollback
 

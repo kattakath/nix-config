@@ -166,7 +166,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   window, `auto-optimise-store`; determinate-nixd's collector `disabled`. § 3a: the `linux-builder-vz` spike.)
   [`ADR-018`](../upstream-nix-migration-adr.md) (**PROPOSED 2026-11-27**, nothing changed: moving every host to
   upstream Nix + nix-darwin's `nix.linux-builder` (`-vz`), least live host first, behind four gates. G1
-  passed in a Tart guest: a Mac can leave Determinate without reinstalling `/nix`, by hand (§ 4a).)
+  all four passed 2026-11-27: the switch is scripted and rehearsed (§ 4b), and the cost is evaluation speed (§ 4c).)
 - [`docs/workspace-runbook.md`](../workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](../identity-and-offboarding.md) — the single lever:
