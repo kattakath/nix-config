@@ -228,29 +228,6 @@ let
   # at run time (non-interactive, no browser OAuth). See packages/resend-cli.nix.
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
-  # rclip, with its runtime-dependency CHECK disabled — not its dependencies changed.
-  # rclip 3.3.0's wheel declares `coremltools` as a runtime dep on macOS (the Apple
-  # Silicon fast path for indexing), but the nixpkgs package does not provide it, so
-  # `pythonRuntimeDepsCheckHook` fails the build outright on aarch64-darwin:
-  #     Checking runtime dependencies for rclip-3.3.0-py3-none-any.whl
-  #       - coremltools not installed
-  # The dependency is genuinely OPTIONAL — rclip falls back to CPU ONNX, which is
-  # fine for ViT-B/32 — so the check is reporting a metadata mismatch, not a broken
-  # program. Verified with the override: it builds, and `rclip --version` runs.
-  #
-  # STAYS HERE, not in the media-cli capsule: rclip is a third-party search tool
-  # this repo merely installs, and it is the VECTOR half of the retrieval story —
-  # deliberately independent of the XMP half. It reaches the media stack through
-  # that capsule's `extraSearchPackages` seam, which exists for exactly this.
-  #
-  # NO GATE BUILDS THE DARWIN CLOSURE (flake check and CI only evaluate it), so
-  # a package override that cannot build first fails at `activate` — this one
-  # did. Build it yourself: nix build .#darwinConfigurations.macos.system
-  # (docs/map/entry-points.md, "No gate BUILDS the darwin closure").
-  rclipCli = pkgs.rclip.overridePythonAttrs (_: {
-    dontCheckRuntimeDeps = true;
-  });
-
   androidEmu = pkgs.callPackage ../../packages/android-emu.nix { inherit androidSdkRoot brewPrefix; };
 
   # "Focus-or-launch" Spotlight .app bundle for the Android emulator
@@ -385,12 +362,13 @@ in
     enable = isMacosHost;
     # `auge` is Apple's Vision framework from the shell — media-describe already
     # has it hermetically, this puts it on PATH for direct use ("is this shot any
-    # good", "is anyone blinking"). `rclipCli` is the VECTOR half of retrieval,
-    # deliberately kept out of the capsule (see its override above).
+    # good", "is anyone blinking"). `rclip` is the VECTOR half of retrieval,
+    # deliberately kept out of the capsule: a third-party search tool this repo merely
+    # installs, independent of the XMP half, reaching the media stack through this seam.
     extraSearchPackages = [
       pkgs.exiftool
       pkgs.auge
-      rclipCli
+      pkgs.rclip
     ];
   };
 
@@ -821,7 +799,7 @@ in
       resendCli # `resend` — the official Resend CLI (npx-wrapped, not yet in nixpkgs), authenticated non-interactively via RESEND_API_KEY from the login Keychain (packages/resend-cli.nix).
     ]
   # The media stack itself is NOT listed here any more — `local.mediaCli`
-  # above installs it, along with exiftool/auge/rclipCli via that module's
+  # above installs it, along with exiftool/auge/rclip via that module's
   # extraSearchPackages seam.
   #
   # NOT anywhere: osxphotos, which reads Apple Photos' own library DB (every
@@ -841,14 +819,12 @@ in
   # installs the SDK packages + creates the AVD on first run, then boots it.
   home.sessionVariables = lib.mkIf pkgs.stdenv.hostPlatform.isDarwin (
     {
-      # rclip's default macOS path compiles a Core ML model, which needs
-      # `coremltools` — a dep the nixpkgs package does not ship. Without this every
-      # real invocation dies on `ModuleNotFoundError: No module named 'coremltools'`.
-      # `dontCheckRuntimeDeps` (see rclipCli above) only silenced the BUILD-time
-      # complaint about the same missing dep; it could not fix the runtime import,
-      # so rclip built cleanly and had never successfully indexed anything.
-      # This selects the ONNX path, which needs no coremltools. Verified: with it
-      # set, indexing and search both work.
+      # rclip's default macOS path compiles a Core ML model, which needs `coremltools`,
+      # a dep nixpkgs strips (`pythonRemoveDeps` on darwin, rclip/package.nix) — so
+      # without this every real invocation dies on `No module named 'coremltools'`.
+      # Still needed at rclip 4.1.1: `use_coreml_for_visual_index()` is
+      # `IS_MACOS and not os.getenv("RCLIP_USE_ONNX_ON_MACOS")` (rclip/model_download.py).
+      # This selects the ONNX path, which needs no coremltools.
       RCLIP_USE_ONNX_ON_MACOS = "1";
 
       # BASH_ENV (the secret loader) + the loader file itself are now set by

@@ -152,7 +152,7 @@ in the repo can catch that; see that fixture file's header for the measurement.
     overridden it. It is now a `defaultModel` derivation argument, surfaced as
     `local.mediaCli.visionModel`.
 
-  `rclip` stays HERE (`rclipCli` in `modules/home/default.nix`, with its `dontCheckRuntimeDeps` override and
+  `rclip` stays HERE (plain `pkgs.rclip` in `modules/home/default.nix`, plus
   `RCLIP_USE_ONNX_ON_MACOS`): it is a third-party search tool this repo merely installs, and
   the VECTOR half of retrieval, deliberately independent of the XMP half. It reaches the stack
   through that module's `extraSearchPackages` seam, alongside `exiftool` and `auge`.
