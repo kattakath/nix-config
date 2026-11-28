@@ -53,6 +53,10 @@ could equally come from an earlier manual `-d`.
   closed daemon. Upstream now has near-parity on the builder (`linux-builder-vz`) and lazy copying.
   What is left on Determinate's side:
   - **Parallel evaluation**, a preview that CI's `nix flake check` uses (`nix-ci-impl.yml`).
+    Measured 2026-11-27: uncached `nix flake check --no-build --all-systems` takes **3.6 s on
+    Determinate against 17.8 s on upstream** (n=3, 12 cores). `eval-cores = 1` alone raises
+    Determinate's time to 11.1 s; `lazy-trees = false` changes nothing measurable here. The
+    remaining 1.6x is some other part of Determinate's evaluator, not identified.
   - **A builder with no VM of our own to run.** The `-vz` builder bootstraps from cache, but it
     is one more launchd daemon and disk image to own.
   The case is weaker than this ADR's first version said, but a migration of every host still buys
@@ -80,8 +84,13 @@ Determinate 16 GiB). Every workload was a fresh derivation, one run each (n=1).
 
 - The vz builder **fixes the Caddy failure**, which is the reason a Mac-side build of a changed nixpi
   generation cannot run today (`docs/map/hosts.md`).
-- On this sample it is faster on aarch64 and on par for x86_64. One run per workload is not a
-  benchmark; five runs per cell would settle it.
+- **Re-run at n=5 (ADR-018 G2), medians with min–max:**
+
+  | Workload | Determinate | `linux-builder-vz` |
+  |---|---|---|
+  | `hello` aarch64-linux | 26.1 s (25.6–27.8) | **10.1 s** (10.1–11.0), 2.6x faster |
+  | `hello` x86_64-linux | 197.9 s (197.7–198.8) | **177.4 s** (177.1–178.3), 10% faster |
+  | Caddy repro | fails 5/5 | passes 5/5 |
 - **FlakeHub ties** (free tier only; no paid Cache or private flakes): FlakeHub-hosted inputs
   (`determinate`, `nix`, `nixpkgs-weekly`, `nixpkgs/0.2605`, `flake-parts`, `git-hooks-nix`), the
   `flakehub-push` publish workflow, the `determinate-nix-action` / `update-flake-lock` /

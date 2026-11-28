@@ -15,7 +15,7 @@ lose, and how would we undo it?
 | Linux builds on the Mac | the Caddy `cp --no-preserve=mode` failure goes away (ADR-017 § 3a); aarch64 was 2.3x faster in a single run | one more launchd daemon and disk image to own (`/var/lib/linux-builder`) |
 | Store GC on darwin | nix-darwin's own `programs.nh.clean`, so `modules/darwin/store-clean.nix` can be deleted | — |
 | Daemon | no closed `determinate-nixd`; no Sentry crash reports | Determinate-managed upgrades, which nix-darwin then owns through `nix.package` |
-| Evaluation | — | `eval-cores` parallel evaluation (a preview), and Determinate's more aggressive lazy trees |
+| Evaluation | — | `eval-cores` parallel evaluation: uncached `flake check` goes from **3.6 s to 17.8 s** (§ 4c). Lazy trees made no measurable difference here |
 | Install | the default the community uses (87.5% in the 2025 survey) | the uninstaller, and surviving macOS upgrades. Both come from Determinate's installer, which since 2025-11-10 installs only Determinate Nix |
 
 ## 2. The touchpoints
@@ -50,8 +50,8 @@ Found by `git grep -l determinate` on 2026-11-27:
 | Gate | Evidence that passes it |
 |---|---|
 | **G1: a Mac can leave Determinate in place** | **PASSED 2026-11-27**: by hand on a minimal flake (§ 4a), then scripted on the real engine (§ 4b) |
-| G2: the builder holds up | n ≥ 5 per cell for ADR-017 § 3a, plus the nixpi toplevel, `nixvm`, and the x86_64 devcontainer image |
-| G3: FlakeHub inputs resolve | `nix flake lock` and `nix flake check --no-build` on upstream Nix in the nixvm |
+| G2: the builder holds up | **PASSED 2026-11-27** at n=5 on three workloads (§ 4c). The nixpi toplevel, `nixvm` and the devcontainer image are not measured |
+| G3: FlakeHub inputs resolve | **PASSED 2026-11-27** with an upstream 2.35.6 client (§ 4c) |
 | G4: CI matches | `nix-ci-impl.yml` on `cachix/install-nix-action` is green, and the loss of `eval-cores` is timed |
 
 ### 4a. G1 run, 2026-11-27
@@ -124,7 +124,35 @@ engine copied from the branch, through its published template path: `lib.mkDarwi
 - `linux-builder-vz` running as a nix-darwin service.
 - A Mac with months of state.
 
-G2 and G3 remain open.
+### 4c. G2, G3, evaluation and a dry run on the real Mac, 2026-11-27
+
+- **G2:** every cell repeated five times, with a tight spread. vz was faster on aarch64 (10.1 s
+  against 26.1 s) and on x86_64 (177.4 s against 197.9 s). The Caddy repro passed 5/5 on vz and
+  failed 5/5 on Determinate. Full table: ADR-017 § 3a.
+- **G3:** run with an upstream 2.35.6 client on a detached `origin/main`, against the same
+  daemon:
+  - `nix flake update determinate nixpkgs` re-resolved both FlakeHub root inputs: exit 0.
+  - `flake metadata`: exit 0.
+  - `flake check --no-build --all-systems --option eval-cache false`: exit 0.
+- **Evaluation cost of leaving:**
+
+  | Client (uncached `flake check --no-build --all-systems`, n=2–3) | Time |
+  |---|---|
+  | Determinate, default (`eval-cores` = all 12 cores) | **3.5–3.8 s** |
+  | Determinate, `eval-cores = 1` | 11.1 s |
+  | Determinate, `lazy-trees = false` | 3.6–3.8 s |
+  | upstream 2.35.6 | 17.7–17.8 s |
+
+- **Dry run on the real Mac:** the script ran without `--yes-really`, against `#macos` with
+  `local.nixImplementation = "upstream"` on a branch that was never pushed.
+  - The target system built.
+  - It read this Mac's own volume UUID and found its `Nix Store` keychain item.
+  - It stopped at "would run".
+  - The target differs from today's system in launchd units only: it adds `linux-builder`,
+    `nh-clean` and `nix-daemon`, and drops `nix-store-clean`.
+  - There were no evaluation warnings.
+
+G4 (CI on upstream) remains open.
 
 ## 5. Rollback
 
