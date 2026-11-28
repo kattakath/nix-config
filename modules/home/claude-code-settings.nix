@@ -103,7 +103,9 @@ let
   # three-operand jqOperation. It brings what the hand-rolled `install -m 600` + printf
   # write lacked: a temp candidate renamed into place (no EEXIST between two concurrent
   # activations, no half-written file), a conflict check, and DRY_RUN. Measured
-  # 2026-11-28: 2x100 paired concurrent runs, 0 failures, 0 EEXIST.
+  # 2026-11-28: 2x100 paired concurrent runs, 0 failures, 0 EEXIST — but also 0 conflict
+  # messages, so the overlap window was probably never hit: no regression, not proof.
+  # The EEXIST is gone by construction (rename, never unlink + create).
   #
   # The pre-checks below keep the three behaviours the merger does not have:
   #   1. MIGRATION — previous generations left a read-only store SYMLINK here; the
