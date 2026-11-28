@@ -1,17 +1,19 @@
 # Self-hosted GitHub Actions runner(s) for the `macos` host — hand-rolled as launchd
 # daemons, for `dontsell-ai`'s repos: their CI/deploy workflows need real macOS +
 # Playwright + Prisma jobs that GitHub-hosted runners (no hosted-minutes budget on that
-# org) and Determinate's native Linux builder (build-only, ephemeral) cannot serve.
+# org) and the Mac's Linux builder (build-only, ephemeral) cannot serve.
 # nix-config's own CI uses none of this.
 #
-# WHY NOT nix-darwin's `services.github-runners`? That module hard-asserts
-# `nix.enable = true` (it pulls the runner's `nix` from `config.nix.package`),
-# but this Mac runs **Determinate Nix** (`nix.enable = false`; determinate-nixd
-# owns the daemon). The two are mutually exclusive, so we reproduce the module's
-# launchd setup here and substitute `pkgs.nix` for `config.nix.package`. Same
-# `_github-runner` job uid, `RUNNER_ROOT` state dir per instance, ephemeral
-# re-registration via launchd `KeepAlive.SuccessfulExit` — plus the privilege
-# split below, which nix-darwin's module does not have.
+# WHY NOT nix-darwin's `services.github-runners`? Until 2026-11-27 it could not
+# run here at all: it hard-asserts `nix.enable = true`, and Determinate Nix kept
+# that false. Since ADR-018 it COULD, but it still does not fit, for two reasons
+# its pinned source shows: it only reads a static `tokenFile`
+# (modules/services/github-runner/service.nix), so nothing mints the ~1 h
+# GitHub App registration token below, and it always sets the daemon's
+# `UserName`, which drops the root → `_github-runner` privilege split below.
+# So this reproduces its launchd setup: the same `_github-runner` job uid,
+# `RUNNER_ROOT` state dir per instance, ephemeral re-registration via launchd
+# `KeepAlive.SuccessfulExit`, and the daemon's own Nix (`config.nix.package`).
 #
 # AUTH: a GitHub App. The agenix secret is the App's RS256 PRIVATE KEY
 # (`config.age.secrets."gh-app-${org}-key"`). It is LONG-LIVED and App-WIDE: any
@@ -453,8 +455,8 @@ in
   options.local.macosGithubRunner = {
     enable = lib.mkEnableOption ''
       self-hosted GitHub Actions runner(s) on the `macos` host (hand-rolled launchd
-      daemons — nix-darwin's own `services.github-runners` is incompatible with
-      Determinate Nix). Also requires the `gh-app-<org>-key` agenix secret (the
+      daemons — nix-darwin's own `services.github-runners` cannot mint GitHub App
+      tokens or keep the privilege split). Also requires the `gh-app-<org>-key` agenix secret (the
       GitHub App's private key — see secrets/secrets.nix) and this Mac's SSH host
       key as a recipient.'';
 
@@ -512,8 +514,8 @@ in
     # `--labels a,b,c` at service.nix:119, with `--no-default-labels` gated on
     # `noDefaultLabels` at options.nix:160 / service.nix:124) -> mirroring its
     # name AND its additive semantics here, rather than inventing a different
-    # spelling. The module itself stays unusable for the reason in this file's
-    # header (it hard-asserts `nix.enable`, which Determinate disables).
+    # spelling. The module itself stays unused for the reasons in this file's
+    # header (no App token minting, no privilege split).
     #
     # FLIP ORDER for anything that NARROWS this (a `runs-on:` edit, or adding
     # `--no-default-labels`). Runner labels are additive and free; a workflow's
@@ -611,8 +613,8 @@ in
         i:
         lib.nameValuePair i.daemonKey {
           # Minimal PATH for actions/checkout + Nix/Playwright/Prisma-shaped
-          # workflows. `pkgs.nix` (a daemon client) replaces `config.nix.package`,
-          # which is unset under Determinate. `openssl` added 2026-08-23: the
+          # workflows. `config.nix.package` is the daemon's own Nix (a stock
+          # `pkgs.nix` stood in until ADR-018 made it set). `openssl` added 2026-08-23: the
           # app repo's e2e mock-cert generator (tests/e2e/support/cert.ts)
           # `spawnSync("openssl", ...)` bare-name — resolves via PATH, and its
           # absence here surfaced as `res.status === null` (ENOENT) the moment
@@ -653,7 +655,7 @@ in
             lsof
             openssl
             (postgresql_16.withPackages (p: [ p.pgvector ]))
-            nix
+            config.nix.package
             cachix
           ];
           environment = {
