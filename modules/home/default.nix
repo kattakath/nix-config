@@ -127,12 +127,15 @@ let
   # `nixpkgs.config.allowUnfree` — the input's `.extensions` output uses its own
   # nixpkgs with default config and ignores our unfree allowance.
   marketplace = pkgs.vscode-marketplace or null;
-  # Base package: on darwin, nixpkgs-unstable's OWN recipe (the `nixpkgs-claude-code` input),
-  # callPackage'd against our pkgs, while it is newer than the weekly pin's — the weekly lags
-  # upstream's near-daily bumps (2026-11-07: weekly 2.1.308 vs unstable 2.1.318). Calling the
-  # whole package.nix, not overriding version+src, keeps upstream's wrapper changes too
-  # (makeShellWrapper + CLAUDE_CODE_CERT_STORE, absent at the weekly pin). Self-retiring: once
-  # the weekly catches up, `versionOlder` picks pkgs.claude-code again — then drop the input.
+  # Base package: on darwin, the `nixpkgs-claude-code` input's recipe (a nixpkgs master pin
+  # since 2026-11-28; exit trigger next to the input in flake.nix), callPackage'd against our
+  # pkgs, while it is newer than the weekly pin's — the weekly lags upstream's near-daily
+  # bumps (2026-11-07: weekly 2.1.308 vs unstable 2.1.318). Calling the whole package.nix, not
+  # overriding version+src, keeps upstream's wrapper changes too (makeShellWrapper +
+  # CLAUDE_CODE_CERT_STORE, absent at the weekly pin). The picker hands back to
+  # pkgs.claude-code once the weekly reaches the input's version. That only happens because
+  # the weekly bot holds this input still; a manual `/update-input nixpkgs-claude-code` moves
+  # it ahead again.
   # Linux keeps pkgs.claude-code, so nixpi's closure is untouched.
   claudeCodeUnstable =
     pkgs.callPackage "${nixpkgs-claude-code}/pkgs/by-name/cl/claude-code/package.nix"

@@ -94,9 +94,17 @@ jobs:
       # bump would move nixpi's kernel unannounced and cost a cold kernel build in
       # warm-nixpi-cache. Kernel moves are deliberate: `/update-input nixos-hardware`
       # by hand (flake.nix, its input comment).
+      #
+      # nixpkgs-claude-code is held back while it tracks nixpkgs MASTER (flake.nix, its
+      # input comment). Master has no Hydra gate, and this PR auto-merges on `gate`,
+      # which builds linux only. The input only feeds darwin, and build-darwin is
+      # advisory, so an auto-merged master bump would land untested. Holding it also
+      # lets the weekly nixpkgs catch up, so the picker in modules/home/default.nix
+      # can hand back to pkgs.claude-code. Drop this select when the input returns to
+      # nixpkgs-unstable.
       - id: updatable-inputs
         run: |
-          inputs=$(jq -r '.nodes[.root].inputs | keys[] | select(. != "nixos-hardware")' flake.lock | tr '\n' ' ')
+          inputs=$(jq -r '.nodes[.root].inputs | keys[] | select(. != "nixos-hardware" and . != "nixpkgs-claude-code")' flake.lock | tr '\n' ' ')
           echo "list=$inputs" >> "$GITHUB_OUTPUT"
 
       - id: update

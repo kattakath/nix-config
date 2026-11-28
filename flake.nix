@@ -261,6 +261,9 @@
     # Tracks `master`, not `nixpkgs-unstable` (2026-11-28): the recipe only fetches a pinned
     # upstream binary, so channel CI buys it nothing, and the channel lagged master's
     # 2.1.332 (task-ID reuse + lost-task fixes) behind 2.1.330.
+    # EXIT: back to `nixpkgs-unstable` once it carries claude-code >= 2.1.332 (or drop
+    # the input once the weekly pin does). Held out of the weekly update-flake-lock bump
+    # while it tracks master (that workflow's updatable-inputs step says why).
     nixpkgs-claude-code = {
       url = "github:NixOS/nixpkgs/master";
       flake = false;
