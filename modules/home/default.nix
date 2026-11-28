@@ -98,16 +98,30 @@ let
   # pkgs/development/mobile/androidenv); no nix-darwin / home-manager module models
   # Android (grepped both: 0 hits). Licence: nixpkgs.config.android_sdk.accept_license
   # in hosts/macos.nix. Macos-only like everything that references it (lazy elsewhere).
+  androidApi = "35";
+  androidAbi = "arm64-v8a";
+  # The two images, keyed by the role android-emu picks them for (`play` for a *play*
+  # AVD name). The composition below installs exactly these, and android-emu reads the
+  # sdkmanager ids back from androidSystemImages, so the two cannot drift.
+  androidImageTypes = {
+    play = "google_apis_playstore";
+    apis = "google_apis";
+  };
+  androidSystemImages = lib.mapAttrs (
+    _: t: "system-images;android-${androidApi};${t};${androidAbi}"
+  ) androidImageTypes;
   androidSdk =
     (pkgs.androidenv.composeAndroidPackages {
       includeEmulator = true;
       includeSystemImages = true;
-      platformVersions = [ "35" ];
+      platformVersions = [ androidApi ];
+      # Explicit order, not attrValues (alphabetical by key): reordering this list
+      # rebuilds the whole SDK derivation.
       systemImageTypes = [
-        "google_apis_playstore"
-        "google_apis"
+        androidImageTypes.play
+        androidImageTypes.apis
       ];
-      abiVersions = [ "arm64-v8a" ];
+      abiVersions = [ androidAbi ];
       includeSources = false;
       includeNDK = false;
       useGoogleAPIs = false;
@@ -202,7 +216,7 @@ let
   # `git-tidy` — default branch, fast-forwarded, merged-PR branches deleted via gh-poi;
   # see packages/git-tidy.nix.
   gitTidy = pkgs.callPackage ../../packages/git-tidy.nix { };
-  androidPhone = pkgs.callPackage ../../packages/android-phone.nix { inherit brewPrefix; };
+  androidPhone = pkgs.callPackage ../../packages/android-phone.nix { inherit androidPlatformTools; };
   # `activate` — self-elevating `darwin-rebuild switch`. nix-darwin dropped sudo
   # self-elevation in its 2025-01-30 root migration and ships no option to
   # restore it (grepped the pinned modules/ for sudo|elevate|rebuild|activate);
@@ -246,7 +260,9 @@ let
   # at run time (non-interactive, no browser OAuth). See packages/resend-cli.nix.
   resendCli = pkgs.callPackage ../../packages/resend-cli.nix { };
 
-  androidEmu = pkgs.callPackage ../../packages/android-emu.nix { inherit androidSdkRoot; };
+  androidEmu = pkgs.callPackage ../../packages/android-emu.nix {
+    inherit androidSdkRoot androidSystemImages;
+  };
 
   # "Focus-or-launch" Spotlight .app bundle for the Android emulator
   # (macos host only, below) — see packages/spotlight-launchers.nix.

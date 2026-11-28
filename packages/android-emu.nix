@@ -27,6 +27,9 @@
   gnugrep,
   gnused,
   androidSdkRoot,
+  # { play, apis } sdkmanager ids, from the same attrset modules/home/default.nix
+  # composes the SDK with — the single source for which images exist.
+  androidSystemImages,
 }:
 writeShellApplication {
   name = "android-emu";
@@ -45,8 +48,8 @@ writeShellApplication {
     # Google Play image for *play* AVDs, Google APIs otherwise. Both ship in the SDK
     # (modules/home/default.nix's androidenv composition).
     case "$avd" in
-      *play*) image="system-images;android-35;google_apis_playstore;arm64-v8a" ;;
-      *)      image="system-images;android-35;google_apis;arm64-v8a" ;;
+      *play*) image="${androidSystemImages.play}" ;;
+      *)      image="${androidSystemImages.apis}" ;;
     esac
 
     # Create the AVD on first use (decline the custom-hardware prompt), then

@@ -11,19 +11,15 @@
 # consistent CLI surface instead of remembering which of six adb subcommands
 # to reach for. Deliberately does NOT vendor a third-party pairing tool
 # (adb-qr, adb-wifi, …): those add an untrusted dependency for something adb's
-# own `mdns`/`pair`/`connect` already do. `adb` is the Android SDK's platform-tools copy,
-# handed in as `$ADB` (hosts/macos.nix "Android: one adb"; the android-platform-tools
-# cask is gone since 2026-11-28) — mobile-mcp resolves that same one — so it has no store path
-# to bake in and cannot be a `runtimeInput`; it is resolved at RUNTIME instead,
-# which also keeps this derivation free of a nixpkgs android-tools dependency
-# that would collide with it on PATH.
+# own `mdns`/`pair`/`connect` already do. `adb` is the Android SDK's platform-tools copy
+# (hosts/macos.nix "Android: one adb"), a nixpkgs androidenv store path since
+# 2026-11-28. modules/home/default.nix passes that platform-tools dir in, and it is the
+# DEFAULT: `$ADB` still wins when set, so mobile-mcp, scrcpy and this tool drive the
+# same adb either way. It is not a `runtimeInput`, so it never lands on PATH.
 #
-# `scrcpy` MOVED to nixpkgs on 2026-09-29 (modules/home/default.nix), so that half
-# of the sentence above no longer holds — but the runtime resolution below is kept
-# for it anyway, deliberately: baking in a store path would drag nixpkgs
-# android-tools into this derivation's closure as scrcpy's own wrapper dependency,
-# which is the PATH collision this header exists to avoid. Resolving from PATH
-# picks up the Home Manager profile copy and costs nothing.
+# `scrcpy` stays resolved from PATH (the Home Manager profile's nixpkgs copy): baking
+# its store path in would drag nixpkgs android-tools into this closure as scrcpy's own
+# wrapper dependency, the second adb this header avoids.
 #
 # Nuance this wrapper encodes so you don't have to re-learn it each time:
 #   - "pairing port" (Settings > Wireless debugging > Pair device with
@@ -55,9 +51,14 @@
   gnused,
   gawk,
   findutils,
-  # Homebrew prefix, passed by modules/home/default.nix (nix-darwin's homebrew.prefix).
-  brewPrefix,
+  # The SDK's platform-tools dir, passed by modules/home/default.nix. null (the flake's
+  # standalone `packages.android-phone`, which carries no licence-gated SDK) falls back
+  # to $ADB, then PATH.
+  androidPlatformTools ? null,
 }:
+let
+  defaultAdb = if androidPlatformTools == null then "" else "${androidPlatformTools}/adb";
+in
 writeShellApplication {
   name = "android-phone";
   runtimeInputs = [
@@ -77,24 +78,15 @@ writeShellApplication {
   text = ''
     set -euo pipefail
 
-    # adb: $ADB first (the SDK copy, set fleet-wide), then PATH — see the header, the
-    # path is only knowable at runtime. scrcpy keeps a brew fallback even though it
-    # is a nixpkgs package now: its brew branches simply stop matching once
-    # `cleanup = "uninstall"` removes the old formula, and PATH then resolves the
-    # Home Manager profile copy. Do not "tidy" the brew branches away — a machine
-    # mid-migration still has them, and they cost one `test -x`.
-    ADB="''${ADB:-}"
-    SCRCPY="''${SCRCPY:-}"
-    # adb has NO brew branch any more (2026-11-28): the cask is gone, and preferring a
-    # leftover brewed adb over $ADB/PATH (the SDK copy) would bring back the two-adb clash.
+    # adb: $ADB when set (the same SDK copy, exported fleet-wide), else the baked-in SDK
+    # copy, else PATH. scrcpy: $SCRCPY, else PATH (see the header).
+    ADB="''${ADB:-${defaultAdb}}"
     if [ -z "$ADB" ]; then
       ADB=$(command -v adb 2>/dev/null || true)
     fi
+    SCRCPY="''${SCRCPY:-}"
     if [ -z "$SCRCPY" ]; then
-      if [ -x ${brewPrefix}/bin/scrcpy ]; then SCRCPY=${brewPrefix}/bin/scrcpy
-      elif [ -x /usr/local/bin/scrcpy ]; then SCRCPY=/usr/local/bin/scrcpy
-      else SCRCPY=$(command -v scrcpy 2>/dev/null || true)
-      fi
+      SCRCPY=$(command -v scrcpy 2>/dev/null || true)
     fi
 
     die() { echo "android-phone: $*" >&2; exit 1; }
@@ -149,7 +141,7 @@ writeShellApplication {
     EOF
     }
 
-    require_adb() { [ -n "$ADB" ] && [ -x "$ADB" ] || die "adb not found — ADB is unset in this shell: activate the macos host, then open a new shell"; }
+    require_adb() { [ -n "$ADB" ] && [ -x "$ADB" ] || die "adb not found at $ADB — activate the macos host (it builds the SDK), or point ADB at one"; }
     require_scrcpy() { [ -n "$SCRCPY" ] && [ -x "$SCRCPY" ] || die "scrcpy not found — activate the macos host (it is a nixpkgs package in home.packages), or put scrcpy on PATH"; }
 
     # ---- adb devices -l parsing --------------------------------------------

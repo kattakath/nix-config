@@ -131,14 +131,11 @@ in
           rogers-gw = pkgs.callPackage ../../packages/rogers-gw.nix { };
 
           # Deterministic ADB wired/wireless operator + scrcpy mirroring for a
-          # physical Android device. Both are resolved at RUNTIME, not baked in:
-          # adb from $ADB, the Android SDK's platform-tools copy (hosts/macos.nix),
-          # scrcpy from PATH since it became a nixpkgs package (2026-09-29) —
-          # see that package's header for why it is still not a runtimeInput.
-          # Also on PATH via home.packages, macos only (modules/home/default.nix).
-          android-phone = pkgs.callPackage ../../packages/android-phone.nix {
-            brewPrefix = import ../_lib/brew-prefix.nix { };
-          };
+          # physical Android device. This standalone copy bakes in no SDK (it is
+          # licence-gated), so adb comes from $ADB or PATH and scrcpy from PATH.
+          # The macos copy in home.packages bakes in the SDK's adb
+          # (modules/home/default.nix).
+          android-phone = pkgs.callPackage ../../packages/android-phone.nix { };
 
           # fal.ai: the vendor's own deploy CLI (`fal`) plus `fal-gen`, a thin
           # inference wrapper the vendor does not ship. Ephemeral uv
