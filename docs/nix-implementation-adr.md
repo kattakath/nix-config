@@ -1,6 +1,8 @@
 # ADR-017 — Stay on Determinate Nix; one store-retention policy for the fleet
 
-**Status:** **DECIDED 2026-11-27** (the operator chose each point click-to-select). Shipped: the
+**Status:** § 1's "stay on Determinate" is **SUPERSEDED 2026-11-27 by ADR-018**: every host now runs
+upstream Nix (`docs/upstream-nix-migration-adr.md`). The store-retention policy (§ 4) still stands.
+Originally **DECIDED 2026-11-27** (the operator chose each point click-to-select). Shipped: the
 retention policy on every host (`modules/_lib/store-retention.nix`). **Corrected 2026-11-27**
 (§ 3, § 3a): the first version under-rated upstream's builder and lazy trees, and § 3a measures
 the builder. The verdict holds for now; ADR-018 proposes the migration.

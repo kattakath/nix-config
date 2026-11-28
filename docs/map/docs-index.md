@@ -161,7 +161,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   [`ADR-016`](../fleet-repo-shape-adr.md) (**DECIDED 2026-11-26**: one shape for all 19 repos — owner-level
   `.github` defaults, a `repo-kit` flake (flake-parts + mightyiam/files) for per-repo files with a drift
   check, repo settings in terranix with `destroy = false`, graded by Scorecard, REUSE and the community profile.)
-  [`ADR-017`](../nix-implementation-adr.md) (**DECIDED 2026-11-27**: stay on Determinate Nix for its native
+  [`ADR-017`](../nix-implementation-adr.md) (**SUPERSEDED by ADR-018 on 2026-11-27** for the Nix choice; the retention policy stands. Was: stay on Determinate Nix for its native
   Linux builder; one retention policy on every host — `nh clean all` daily, keep 3 generations, 3-day
   window, `auto-optimise-store`; determinate-nixd's collector `disabled`. § 3a: the `linux-builder-vz` spike.)
   [`ADR-018`](../upstream-nix-migration-adr.md) (**DECIDED 2026-11-27**: move every host to upstream Nix +

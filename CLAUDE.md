@@ -46,8 +46,8 @@ Fully declarative **aarch64-only** fleet, single source of truth, platform diver
 
 | Host | System | Role |
 |---|---|---|
-| `macos` | aarch64-darwin | The sole client Mac (nix-darwin). **ONE account**: `ismail` (`system.primaryUser`) — never a second (one existed 2026-09-15→17, deleted forever). No incoming traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh`. Builds `aarch64-linux` locally on Determinate's native Linux builder. |
-| `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): **TWO ingresses** — Access-gated SSH over a Cloudflare Tunnel connector, plus a LAN path (`nixpi.local`, published from `end0` ONLY — avahi#117; sshd on `end0`/`wlan0` only — `local.lanRecovery`) — + Caddy, serving its ONE public site directly (`config.fleet.hostedSites`, `modules/parts/identity.nix`) plus a LAN-only Audiobookshelf at `http://nixpi.local` (everything on the SD card). Runs **Determinate Nix** (nixosModule, since 2026-09-21) with `nix.settings` still live; the prebuilt Nix substitutes from `install.determinate.systems`. |
+| `macos` | aarch64-darwin | The sole client Mac (nix-darwin). **ONE account**: `ismail` (`system.primaryUser`) — never a second (one existed 2026-09-15→17, deleted forever). No incoming traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh`. Builds `aarch64-linux` locally on `nix.linux-builder` (`linux-builder-vz`). |
+| `nixpi` | aarch64-linux | **LIVE server** (NixOS on a Pi 4): **TWO ingresses** — Access-gated SSH over a Cloudflare Tunnel connector, plus a LAN path (`nixpi.local`, published from `end0` ONLY — avahi#117; sshd on `end0`/`wlan0` only — `local.lanRecovery`) — + Caddy, serving its ONE public site directly (`config.fleet.hostedSites`, `modules/parts/identity.nix`) plus a LAN-only Audiobookshelf at `http://nixpi.local` (everything on the SD card). Runs **upstream Nix** (ADR-018, since 2026-11-27); its Nix substitutes from cache.nixos.org. |
 | `nixvm` | aarch64-linux | Unprovisioned **HEADLESS** build-vm, **only** as `nix run .#nixvm` — no GUI (the GUI job is `nixos`'s). SSH on `127.0.0.1:2222` is the way in. No installed disk, no builder, no runner — root disk PERSISTS in `$XDG_STATE_HOME/nixvm`. |
 | `nixos` | aarch64-linux | Long-lived GNOME desktop under **UTM** (QEMU+virgl). `nixos-vm create` boots a small SEED image, then the first `nixos-vm switch` (`nixos-rebuild --target-host nixos.local --sudo`) installs the desktop. |
 | devcontainer | +`x86_64-linux` | The one exception to aarch64-only, so it runs on x86_64 Codespaces. |
@@ -99,7 +99,8 @@ nix develop -c deploy --targets .#nixpi      # Same, via deploy-rs w/ magicRollb
 nix run .#nixvm                              # Build + boot the HEADLESS nixvm build-vm (console in a QEMU window; root disk PERSISTS)
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
-# Bootstrap a clean/reset Mac (no Nix yet): install Determinate Nix, clone, activate #macos.
+# Bootstrap a clean/reset Mac (no Nix yet): install Determinate Nix, clone, then scripts/nix-impl-switch.sh
+# to-upstream (ADR-018 — bootstrap.sh still installs Determinate, so a bare first activate aborts).
 # On a RESET Mac run `| bash -s -- --check` FIRST — it names the leftover "Nix Store" volume
 # that forces a reboot + a manual re-run mid-bootstrap. It does NOT manage SSH keys — a lost
 # keypair stays lost, every agenix secret is vendor-re-issuable. See docs/new-mac-runbook.md
@@ -389,10 +390,9 @@ Agent definitions live in `.claude/agents/` (project) — today just `terranix-i
   the ROOT disk, so `/home`, PERSISTS in `$XDG_STATE_HOME/nixvm/nixvm.qcow2` until you `rm` it
   (only the Nix store image is rebuilt per boot). The filesystem split, and the per-CWD trap
   the app's wrapper defeats: [`docs/map/hosts.md`](docs/map/hosts.md).
-- **aarch64-linux builds on the Mac** go to Determinate's **native Linux builder**. Three traps:
-  a `determinate-nixd` logged OUT of FlakeHub (or featureless — kickstart it) fails every build
-  as `platform mismatch`, `cp --no-preserve=mode` into `$out` EPERMs (Caddy's `nixpi` closure),
-  and a full-tunnel VPN blackholes its source fetches. **Never fix that by building on the Pi** — CI warms the cache. Detail:
+- **aarch64-linux builds on the Mac** go to nix-darwin's `nix.linux-builder` (`darwin.linux-builder-vz`:
+  boots on demand, stops after 10 idle min; ADR-018). A full-tunnel VPN may blackhole its source
+  fetches. **Never fix a failed build by building on the Pi** — CI warms the cache. Detail:
   [`docs/map/hosts.md`](docs/map/hosts.md) § Building aarch64-linux on the Mac.
 
 ## Documentation
