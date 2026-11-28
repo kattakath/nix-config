@@ -53,7 +53,7 @@ at [`docs/repo-map.md`](docs/repo-map.md).
 ### Bootstrap a Mac
 
 A new or freshly reset Mac has no Nix yet. The zero-dependency [`bootstrap.sh`](./bootstrap.sh)
-installs Determinate Nix, clones the flake, checks your login against the flake's `loginName`
+installs upstream Nix (the NixOS nix-installer), clones the flake, checks your login against the flake's `loginName`
 and activates `#macos`:
 
 ```bash

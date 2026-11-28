@@ -32,8 +32,12 @@ It does four things, and only the first three are irreducible:
 1. clears a leftover "Nix Store" APFS volume + stale `/etc/synthetic.conf`/`/etc/fstab`
    entries from a previous install (a macOS reset leaves these behind and the
    installer then dies mounting `/nix`)
-2. installs Determinate Nix (the curl CLI installer, never the `.pkg`)
-3. moves the installer's `/etc/nix/nix.custom.conf` aside, since nix-darwin owns that path
+2. installs upstream Nix with the NixOS installer
+   (`channels.nixos.org/nix-latest/nix-installer … install --no-confirm --enable-flakes`).
+   nix-darwin's first switch renames the installer's `/etc/nix` and shell files to
+   `*.before-nix-darwin` itself
+3. refuses a leftover Determinate install (`/usr/local/bin/determinate-nixd`) and points at
+   `scripts/nix-impl-switch.sh`
 4. clones this repo to `~/Developer/github.com/kattakath/nix-config` and activates
    `#macos` under `sudo -H`
 
@@ -103,7 +107,7 @@ certificates, so the Pi trusts a CA rather than a key you have to keep.
 
 ## Conventions worth not re-litigating
 
-- **Determinate Nix via the curl CLI installer, never the `.pkg`.**
+- **Upstream Nix via the NixOS installer** (ADR-018), the same one the Tart guests use.
 - **Activation goes through this flake's own `#macos` app**, so it uses the
   nix-darwin pinned in `flake.lock`. An earlier bootstrap called the nix-darwin
   flake unpinned and broke mid-run when upstream removed `darwin-rebuild`'s sudo
@@ -162,83 +166,21 @@ one-time steps are inherently manual — do these after activating a fresh Mac:
   3.11, extensions enabled and rebooted: no thumbnail, and no `qlvideo` process
   ever spawned — a lossless remux to `.mkv` did not help either.
 
-- **Determinate's native Linux builder needs a per-machine login, not just an
-  account entitlement.** A fresh Mac reinstall means a fresh `determinate-nixd`
-  daemon that has never authenticated to FlakeHub — even though the
-  `native-linux-builder` feature is already granted on the account (one-time,
-  via https://dtr.mn/features / Determinate support), `determinate-nixd status`
-  will show `Authentication: logged-out` and `determinate-nixd version` will
-  list only `lazy-trees`, not `native-linux-builder`. Symptom if missed: any
-  `aarch64-linux` (or `x86_64-linux`) build/`nix run` fails with `error: Cannot
-  build '...': Reason: platform mismatch — Required system: 'aarch64-linux',
-  Current system: 'aarch64-darwin'`, which reads like a config bug but isn't
-  one — `nix config show`'s `external-builders` is simply empty until login
-  happens. Fix, after activating the fresh Mac:
-  1. Generate a token at <https://flakehub.com/user/settings?editview=tokens>.
-  2. Store it durably: `secret set FLAKEHUB_TOKEN` (hidden prompt), so this
-     never has to be redone from scratch on the NEXT reinstall either.
-  3. `secret exec FLAKEHUB_TOKEN -- bash -c 'determinate-nixd auth login token --token-file <(printf %s "$FLAKEHUB_TOKEN")'`
-  4. Confirm: `determinate-nixd status` shows `Logged in: true`, and
-     `determinate-nixd version` lists `native-linux-builder`.
-
-  **Activation now tells you this instead of letting you find it.** Since
-  2026-09-22 `system.activationScripts.postActivation` (in
-  `modules/parts/compose.nix`, beside the builder's own comment) probes
-  `determinate-nixd version` and prints the four steps above whenever
-  `native-linux-builder` is absent — so a fresh Mac surfaces the gap on its very
-  first `nix run .#macos` rather than at the first confusing `platform mismatch`.
-  It probes the FEATURE list, not the login flag, so it also catches the stale
-  daemon in the paragraph below. It is silent once the feature is advertised and
-  silent when the binary is missing, and it never fails activation.
-  A stale/never-updated `determinate-nixd` binary can also hide this — the
-  version this was verified against required `sudo determinate-nixd upgrade`
-  first when the daemon was a patch behind.
-
-  **Logged in AND current, yet still only `lazy-trees`?** Restart the daemon:
-  `sudo launchctl kickstart -k system/systems.determinate.nix-daemon` — upstream's
-  own fix ([troubleshooting page](https://docs.determinate.systems/troubleshooting/native-linux-builder/)).
-  Seen 2026-10-26: the instance a 3.24.0→3.24.1 self-upgrade started was logged in
-  and on the latest version but advertised no FlakeHub features at all (no
-  `native-linux-builder`, no `provenance`); one kickstart restored both, and
-  `upgrade` could not have helped. The nudge checks `determinate-nixd status` and
-  prints the kickstart instead of the login steps in this case.
-
-- **A changed `/etc/nix/nix.custom.conf` is INERT until the nix daemon
-  restarts — activation does not bounce it.** The file itself is fully
-  declarative (`determinateNix.customSettings` regenerates it every
-  activation), so nothing here is ever hand-edited. But the **daemon reads that
-  config at startup**, and Determinate owns the daemon (`nix.enable = false`),
-  so nix-darwin never restarts it: grepped the pinned determinate module, its
-  only `system.activationScripts` hook is a `mkdir` for the linux-builder
-  working directory.
-  The symptom is genuinely confusing, because the two halves disagree:
-  `nix config show trusted-users` reports the NEW value (the client just reads
-  the merged file) while the daemon keeps enforcing the old one. Measured
-  2026-09-15 with `trusted-users`: the file said `extra-trusted-users = ismail`
-  and `nix config show` agreed, yet every override came back
-  `ignoring the client-specified setting '…', because it is a restricted
-  setting and you are not a trusted user` — across two activations, because the
-  daemon had been up since before either of them.
-  Fix (needs sudo), using **Determinate's** label, not `org.nixos.nix-daemon`:
+- **A daemon-level `nix.settings` change: check the daemon took it.** nix-darwin owns
+  the daemon (`org.nixos.nix-daemon`) and `/etc/nix/nix.conf`. On a changed `nix.conf`, the
+  pinned nix-darwin's `system.activationScripts.nix-daemon` sends the daemon a `HUP`
+  (`modules/nix/default.nix` in that input). Whether every setting reloads on `HUP` is not
+  measured here. If a setting looks ignored, restart it (needs sudo):
 
   ```bash
-  sudo launchctl kickstart -k system/systems.determinate.nix-daemon
+  sudo launchctl kickstart -k system/org.nixos.nix-daemon
   ```
 
-  A reboot does the same. **On a from-scratch Mac the same ordering applies** —
-  the installer starts the daemon, then `nix run .#macos` writes the file, so
-  the setting is inert until something restarts it — but it self-heals on the
-  first reboot, which is why it only really bites when changing a daemon-level
-  setting on a machine that is already up.
-  Scope: this is not specific to `trusted-users`. Everything in that file
-  (`extra-substituters`, `extra-trusted-public-keys`, `sandbox`,
-  `auto-optimise-store`) is daemon-read-at-startup, and so is
-  `/etc/determinate/config.json` (`determinateNixd.garbageCollector.strategy`);
-  the older entries simply predate any running daemon, so nobody noticed until
-  one changed. One kickstart covers both files — the same process reads them.
+  Determinate era (before 2026-11-27): activation never restarted Determinate's daemon, so a
+  changed `trusted-users` stayed inert across two activations (measured 2026-09-15).
 
-  **Verify BEHAVIOURALLY, never with `nix config show`.** Per the paragraph
-  above, that command reports the client's parse of the file, so it says "true"
+  **Verify BEHAVIOURALLY, never with `nix config show`.** That command reports
+  the client's parse of the file, so it says "true"
   the moment activation finishes and can never distinguish a daemon that picked
   the setting up from one that did not. Each setting needs its own probe. For
   `trusted-users`, attempt a restricted override (e.g.

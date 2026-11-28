@@ -208,8 +208,8 @@ FD-D whose findings come from a hygiene run for another subject.
 ### E. Garbage collection — `FD-E-disk-free`
 
 **Every host collects itself.** A daily `nh clean all --keep 3 --keep-since 3d`
-(`modules/_lib/store-retention.nix`, ADR-017) runs as `launchd.daemons.nix-store-clean` on
-macos and `programs.nh.clean` on NixOS. determinate-nixd's collector is `disabled`, and
+(`modules/_lib/store-retention.nix`, ADR-017) runs as `programs.nh.clean` on every host
+(darwin: `modules/darwin/nix.nix`, launchd `org.nixos.nh-clean`), and
 `auto-optimise-store` hard-links duplicates as paths land. So this step is a **report**, and a hand-run collection is only for "I want the
 space back now" — not routine upkeep.
 
@@ -226,16 +226,15 @@ sudo nix-collect-garbage -d     # only on an explicit ask; the background collec
 # nixpi — report only, never collect without an explicit ask (live server)
 ```
 
-### E2. Determinate Nix version drift (macos) — `FD-E2-nix-version`
+### E2. Nix version drift (macos) — `FD-E2-nix-version`
 
-The Mac's Nix is upgraded by `sudo determinate-nixd upgrade`, NOT by `activate` — the
-`determinate` flake input only pins the NixOS hosts' Nix. Nothing else reports the drift
-(found 2026-09-21: 3.22.4 running while 3.22.5 was advised). Report it; upgrade only in
-`fix` mode:
+Since ADR-018 (2026-11-27) nix-darwin owns the Mac's Nix through `nix.package`, so
+`activate` after a nixpkgs bump IS the upgrade. Drift means the running daemon differs from
+the main checkout's declared version — an unactivated generation (§ F covers the fix). Report it:
 
 ```bash
-determinate-nixd status 2>&1 | grep -m1 -i 'now available' || echo "determinate-nixd: current"
-sudo determinate-nixd upgrade     # fix mode only; restarts the daemon (seconds)
+nix store info 2>&1 | grep -i version     # the running daemon
+nix eval --raw .#darwinConfigurations.macos.config.nix.package.version; echo   # declared
 ```
 
 ### E3. launchd units: declared vs loaded, exits, log growth (macos) — `FD-E3-*`
@@ -532,7 +531,7 @@ The health+json file is the report; this block points at it and reads from it.
 - **Open PRs:** none | repo #n — title — CI status — action (report only)
 - **CI:** all green | repo — workflow — conclusion — needs investigation
 - **GC:** host freed X | guest freed Y (or skipped, VM down) | nixpi: N free (report only)
-- **Determinate Nix (macos):** current | X.Y.Z advised, running A.B.C — upgraded | report only
+- **Nix (macos):** current | running A.B.C, declared X.Y.Z — activate | report only
 - **launchd (macos):** rc 0 | rc 1 — <section>: <kind> <label>, … (report only)
 - **Terranix drift:** all clean (finished <time>) | <stack> drift +a ~c -d / reauth / error — remedy (report only)
 - **Heartbeats:** all up | <slug> down since <last_ping> | <slug> new after a scheduled run

@@ -195,11 +195,10 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     which also join the interface list to the two other places those names are spelled.
 - **`modules/nixos/nix-cache.nix`** — the binary-cache substituters, as plain
   `nix.settings.extra-substituters`/`extra-trusted-public-keys`: the public `kattakath` Cachix
-  cache **and** `install.determinate.systems`, which is where the prebuilt aarch64-linux
-  Determinate Nix comes from (a MISS on cache.nixos.org and on Cachix, verified 2026-09-21 —
-  without it a NixOS host would build Nix from C++ source, and **`nixpi` must never build**).
-  Wired into `mkNixos`'s module list only (`modules/parts/compose.nix`); the Mac gets the
-  same cache through `determinateNix.customSettings` because Determinate owns its `nix.conf`.
+  cache, appended to cache.nixos.org (where nixpkgs' Nix itself substitutes from; the
+  `install.determinate.systems` substituter left with Determinate, 2026-11-27).
+  Wired into `mkNixos`'s module list only (`modules/parts/compose.nix`); the Mac sets the
+  same cache in `compose.nix`'s darwin `nix.settings`.
   **It lived in `modules/shared/` until 2026-10-02** while its own line 3 said
   *"NixOS-ONLY module"* — ADR-009 §9b; moved here so the directory and the header agree.
 - **`modules/nixos/uplink-watchdog.nix`** — `local.uplinkWatchdog` (default off; `nixpi` turns

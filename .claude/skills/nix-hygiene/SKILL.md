@@ -200,7 +200,7 @@ because CLAUDE.md is near its 40k budget. A path missing from both is itself a f
       then `grep -rn "<concept>" "$src/modules/"`.
 - [ ] `NH-E-script-not-wsa` — `writeShellApplication` for scripts; shellcheck via that path.
 - [ ] `NH-E-etc-hack` — no new `environment.etc` hacks for things nix-darwin models.
-- [ ] `NH-E-determinate-drift` — Determinate Nix (darwin): no `nix.enable = true` / no hand-written `nix.custom.conf`. On the NixOS hosts the nixosModule keeps `nix.*` live, so `nix.settings` there is correct, not drift.
+- [ ] `NH-E-determinate-drift` — no Determinate leftovers (retired 2026-11-27, ADR-018): no `determinateNix.*`, no hand-written `/etc/nix/nix.custom.conf`, no `nix.enable = false`. nix-darwin owns the daemon now, so `nix.settings` (`modules/parts/compose.nix`) and `nix.linux-builder` (`modules/darwin/nix.nix`) are correct, not drift.
 - [ ] `NH-E-hand-rolled-systems` — **flake-parts everywhere, including here.** The small supporting flakes
       (the kattakath-owned inputs in `flake.nix` that are flakes, not `flake = false`) use flake-parts,
       not hand-rolled `forAll`/`forAllSystems` boilerplate — ADR-001

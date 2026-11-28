@@ -140,9 +140,8 @@ file's `paths:` frontmatter is the source of truth.
   [`pr-wait-research.md`](../pr-wait-research.md).
 - [`launchd-naming.md`](../../.claude/rules/launchd-naming.md) — every launchd unit this repo
   authors must expose a `nix-<kebab>` `arg0` basename (never a bare `sh`/`python3`); documents
-  the known upstream `/bin/sh` exceptions (`org.nixos.activate-system`,
-  `org.nixos.activate-agenix`, `systems.determinate.nix-installer.nix-hook`) that are NOT ours
-  and must not be renamed.
+  the known upstream `/bin/sh` exceptions (nix-darwin's, agenix's and the Nix installer's
+  daemons) that are NOT ours and must not be renamed.
 - [`upstream-first.md`](../../.claude/rules/upstream-first.md) — grep the PINNED input's option
   surface before writing custom Nix, and cite the result; for a CLI or wrapper, also check whether
   a community TOOL already owns it (an option grep cannot see a package).

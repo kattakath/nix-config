@@ -168,18 +168,11 @@ What the current lock drops, and the evidence for each:
 |---|---|---|
 | `deploy-rs.inputs.utils.inputs.systems.follows = "terranix/systems"` | dedupe | **Cannot** be `""`: flake-utils' `outputs = { self, systems }` is a *closed* pattern doing `import systems`, so it is forced. Same rev as terranix's copy. |
 | `deploy-rs.inputs.flake-compat.follows = ""` | drop | Non-flake `import` shim only. |
-| `determinate.inputs.nixpkgs.follows = "nixpkgs"` | dedupe | Legit only since 2026-09-21, when the root `nixpkgs` moved onto FlakeHub's `DeterminateSystems/nixpkgs-weekly/0.1` — the **same flake URL** determinate declares, so this is one node fewer and not a re-point. It feeds only the `determinate-nixd` wrapper derivation (a `cp` of a prebuilt binary). Its `nix` input (nix-src) keeps its own tree on purpose — see the bullet below. |
 | `git-hooks.inputs.flake-compat.follows = ""` | drop | `outputs = { self, nixpkgs, ... }` never destructures it; `default.nix`/`shell.nix` read the rev from git-hooks' *own vendored* `flake.lock`, and we consume git-hooks only as a flake (its `flakeModule`, in `modules/parts/devshell.nix`). |
 | `flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs"` | dedupe | Our extracted flakes all call `flake-parts.lib.mkFlake` (forced — never droppable) at the **same rev**, yet each shipped its own flake-parts *and* its own `nixpkgs.lib`. The `nixpkgs-lib` half is upstream-blessed — `terranix` already carries that exact line, and flake-parts documents the override behind a 23.05 floor our `nixpkgs.lib` clears by three years. **The anchor moved twice:** it was `firmware-secrets/flake-parts` (an arbitrary satellite) until ADR-002 wave 2 made this flake a flake-parts consumer and declared it directly, which is the only reason wave 4 could delete the `firmware-secrets` (and then `keychain-secrets`, `vast-provision`) inputs without breaking the remaining `follows` at lock time. Absorbed capsules left this row one by one — `vast-provision` at wave 4, `media-cli` at wave 5, and `local-rag` at wave 6 — so **no `follows = "flake-parts"` line survives**: this flake is the root flake-parts node's only consumer. The `nixpkgs-lib` half stays and is the whole row now. |
 
 **Deliberately left duplicated.** Not everything that looks like a duplicate is one:
 
-- **nix-src's `nixpkgs` trees** (its own `nixpkgs` pin, `nixpkgs-23-11`,
-  `nixpkgs-regression`) — the build/regression pins of `determinate → nix`. Not ours to
-  re-point: that tree builds the Determinate Nix package, and re-basing it turns a cache HIT on
-  `install.determinate.systems` into a from-source C++ Nix build on every NixOS host and on the
-  warm-cache runner. (determinate's *own* top-level `nixpkgs` is now followed — table above.)
-- **The surviving `flake-compat`** belongs to `determinate → nix → git-hooks-nix`, not to us.
 - **terranix's `flake-parts`** stays on its own rev: it imports flake-parts internals
   (`flakeModules.partitions`, `flake-parts-lib.importApply`), and folding it in would net one
   node while downgrading a third-party flake to a rev its maintainers never tested.
@@ -277,8 +270,7 @@ EMPTY output**, a silent failure rather than a `command not found`. And a bare `
 used to gate this (a separate checkout carrying the real `hostedSites`) was retired 2026-09-15;
 this repo's own `nixosConfigurations.nixpi` now carries the real data. `remoteBuild = false`
 still means the Pi never builds. With the closure warm in Cachix (`warm-nixpi-cache.yml`) the
-Mac substitutes rather than builds, so the caddy `Caddyfile-formatted` EPERM on Determinate's
-native Linux builder never runs and this deploy-rs node IS the working path — used for the
+Mac substitutes rather than builds, and this deploy-rs node IS the working path — used for the
 2026-10-18 and 2026-10-21 deploys. Deploy over the LAN (`--hostname`) when the change restarts
 `cloudflared` — see [`hosts.md`](hosts.md).
 
@@ -360,8 +352,8 @@ keeping it out of `devPackages` (the option declared in `modules/parts/devshell.
 (`deploy-rs-0.1.0`) is in **no** binary cache — verified absent from both `cache.nixos.org` and
 `kattakath.cachix.org`, on both arches — while `pkgs.deploy-rs` (`0-unstable-*`) substitutes
 fine. So a fresh Mac's first `nix develop` builds it, and the first real deploy builds the
-`aarch64-linux` `activate` for nixpi's closure on Determinate's native Linux builder (1 CPU /
-8 GiB by default; sizable via `determinateNix.determinateNixd.builder.*` — see CLAUDE.md).
+`aarch64-linux` `activate` for nixpi's closure on the Mac's Linux builder
+([`hosts.md`](hosts.md) § The Linux builder).
 Deliberately **not** warmed via `checks`: `checks` is strictly lint-only (`nix flake check`,
 `/eval`, `nix-ci.yml` all build it), and paying a Rust build on every `/eval` to save it on a
 rare fresh-machine `nix develop` is the worse trade.

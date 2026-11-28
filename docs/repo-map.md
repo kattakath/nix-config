@@ -37,7 +37,7 @@ ceiling of its own, so the budget table is not a thing you can forget.
 |---|---|
 | [The fleet](#the-fleet) | The four targets in one list, below. **Start here.** |
 | [`map/entry-points.md`](map/entry-points.md) | The root files: `flake.nix` · `flake.lock` · `treefmt.nix` · `sgconfig.yml` + `ast-grep/` · `deploy.nodes` (deploy-rs magic rollback) · devShell · `scripts/drv-snapshot.sh` · `scripts/grafana-rollup.py` · `secrets/secrets.nix` · `templates/` · `.vscode/` · `.worktreeinclude` · `.devcontainer/` · GitHub community files + `.gitignore` |
-| [`map/hosts.md`](map/hosts.md) | `hosts/` per-host entry profiles, including the two identity-free `generic-*` ones the templates build on — **plus building `aarch64-linux` on the Mac and deploying `nixpi`**: the native Linux builder and its two traps, and what magic rollback actually buys. **Read before any `nixpi` deploy.** |
+| [`map/hosts.md`](map/hosts.md) | `hosts/` per-host entry profiles, including the two identity-free `generic-*` ones the templates build on — **plus building `aarch64-linux` on the Mac and deploying `nixpi`**: the Linux builder (`nix.linux-builder`, vz), and what magic rollback actually buys. **Read before any `nixpi` deploy.** |
 | [`map/modules-home.md`](map/modules-home.md) | `modules/home/` — the Home Manager profile on every host — **and the Home-Manager modules that are NOT in it.** The largest of these files. |
 | [`map/modules-darwin.md`](map/modules-darwin.md) | `modules/darwin/` — macOS system scope. |
 | [`map/modules-nixos.md`](map/modules-nixos.md) | `modules/nixos/` — `nixpi`, `nixvm` and `nixos` system scope — the NixOS modules **not** in it, and web serving on `nixpi` (the `sites/` trees). |
@@ -54,7 +54,7 @@ All-in-one Nix mono-repo managing a fully declarative **aarch64-only** fleet:
 
 - **`macos`** (aarch64-darwin) — macOS/nix-darwin, the sole client Mac. No remote/incoming
   traffic; it is the SSH *client*, reaching `nixpi` via `cloudflared access ssh` over the
-  tunnel, and builds `aarch64-linux` locally on Determinate's native Linux builder.
+  tunnel, and builds `aarch64-linux` locally on nix-darwin's `nix.linux-builder`.
 - **`nixpi`** (aarch64-linux) — NixOS Raspberry Pi 4, the **LIVE server**: static-key SSH
   over a Cloudflare Tunnel connector + Caddy, serving its real sites directly
   (`config.fleet.hostedSites`, `modules/parts/identity.nix` — **one** today, `snoringirl.com`),

@@ -88,9 +88,10 @@ mandatory, not as a security boundary to rely on. Live example:
 ## The boot-ordering exception — ours, and deliberate
 
 **A unit whose executable lives in `/nix` and must start at BOOT cannot follow the
-`arg0` rule.** `/nix` is a separate `noauto` APFS volume mounted by
-`determinate-nixd`; at boot launchd tries to exec a path that does not exist yet.
-Measured on this machine, 2026-09-06:
+`arg0` rule.** `/nix` is a separate `noauto` APFS volume, mounted at boot by the Nix
+installer's `org.nixos.darwin-store` daemon; launchd may try to exec a path that does not
+exist yet. Measured on this machine, 2026-09-06 (Determinate era, when `determinate-nixd`
+did the mount; not re-measured on upstream Nix):
 
 ```
 12:33:27.417  launchd: "Missing executable detected" x2  -> exit 78 EX_CONFIG
@@ -158,7 +159,7 @@ race. The one to alarm on is `runs = 1, last exit code = 78`.
 
 ## Known upstream exceptions — do NOT rename (they are not ours)
 
-Three system `LaunchDaemons` run `/bin/sh` and are **outside this repo's control**. They are
+These system `LaunchDaemons` run `/bin/sh` and are **outside this repo's control**. They are
 **expected** and must be left alone:
 
 - **`org.nixos.activate-system`** — nix-darwin core's boot-time activation daemon
@@ -169,12 +170,14 @@ Three system `LaunchDaemons` run `/bin/sh` and are **outside this repo's control
   `/bin/sh -c 'wait4path ... && exec ...'` shape as `activate-system`). Emitted entirely by
   agenix's nix-darwin module — grep this repo's `.nix` files for `activate-agenix` and you
   get zero hits. Same rationale as `activate-system`: not ours to rename.
-- **`systems.determinate.nix-installer.nix-hook`** — the Determinate Nix installer's
-  self-repair hook (`/bin/sh -c 'wait4path /nix/nix-installer && nix-installer repair'`).
-  Placed by the `curl | bash` installer, **not** Nix-managed; any edit is imperative and is
-  clobbered by the next Determinate update.
+- **`org.nixos.nix-daemon`, `org.nixos.linux-builder`, `org.nixos.nh-clean`** — emitted by
+  the pinned nix-darwin's own modules (`services/nix-daemon.nix`, `nix/linux-builder.nix`,
+  `programs/nh.nix`); this repo only enables them (`modules/darwin/nix.nix`).
+- **`org.nixos.darwin-store`** — the Nix installer's `/nix` volume unlock + mount
+  (`/bin/sh -c '… diskutil apfs unlockVolume …'`). Placed by the installer, **not**
+  Nix-managed; nix-darwin's tree has no such label.
 
-Seeing these three as `sh` in BTM is **not** a rule violation — the rule governs agents this
+Seeing these as `sh` in BTM is **not** a rule violation — the rule governs agents this
 repo defines, and all of those must be `nix-*`. Do not "fix" these; do not report them as
 violations.
 
@@ -198,7 +201,8 @@ a row below, and every row is fine. The runner row is a glob that prints one lin
 |---|---|
 | `org.nixos.activate-system` | upstream nix-darwin (§ Known upstream exceptions) |
 | `org.nixos.activate-agenix` | upstream agenix (§ Known upstream exceptions) |
-| `systems.determinate.nix-installer.nix-hook` | the Determinate installer (§ Known upstream exceptions) |
+| `org.nixos.nix-daemon`, `org.nixos.linux-builder`, `org.nixos.nh-clean` | upstream nix-darwin (§ Known upstream exceptions) |
+| `org.nixos.darwin-store` | the Nix installer (§ Known upstream exceptions) |
 | `org.nixos.github-runner-macos-*` | **ours, and deliberate** — the boot-ordering exception above. **This row is `local.macosGithubRunner.count` lines, not one** (`…-dontsell-ai-NN`), which is why the lines can outnumber the rows. |
 | `org.nixos.ollama` | **ours, and deliberate** — same exception (`local.ollamaDaemon`, 2026-09-15). A `RunAtLoad` daemon serving from a store path; it runs as root against `/var/lib/ollama` and reads none of the TCC folders, so only BTM legibility is lost and the process after `exec` is still `ollama`. |
 | `org.nixos.ollama-metal-guard` | **ours, and deliberate** — same exception and the same module (`modules/darwin/ollama-daemon.nix`'s `launchd.daemons.ollama-metal-guard`). It was live on disk but missing from this table until 2026-09-22, which is how the prose count read "six" against a seven-line audit. |

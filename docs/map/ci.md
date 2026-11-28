@@ -4,25 +4,21 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
 **Some checks exist ONLY on `aarch64-linux`**, so the documented local gate — a bare
 `nix flake check`, which is darwin-native on the Mac — never builds them:
-`cloudflared-connector-module`, `determinate-daemon-nixpi`, `firmware-secrets-module`
+`cloudflared-connector-module`, `firmware-secrets-module`, `nix-daemon-nixpi`
 (list them with `nix flake show --json --all-systems`). Every other linux check shares ONE source block with its darwin twin,
-so the bare command does exercise those. (`determinate-daemon-nixpi` was named
-`determinate-daemon` until 2026-10-18 — the same NAME as the macos contract, which is how it
-was miscounted as a twin here.)
+so the bare command does exercise those. (`nix-daemon-nixpi` is not a twin of
+`nix-daemon-macos`: both were `determinate-daemon-*` until 2026-11-27, and the nixpi one was
+plain `determinate-daemon` until 2026-10-18, which is how it was once miscounted as a twin.)
 
-Build them locally when you touch what they cover — Determinate's native Linux
-builder runs them fine, verified with `--rebuild` so they genuinely executed:
+Build them locally when you touch what they cover (a cache miss builds on the Mac's Linux builder):
 
 ```bash
-nix build --no-link .#checks.aarch64-linux.{cloudflared-connector-module,determinate-daemon-nixpi,firmware-secrets-module}
+nix build --no-link .#checks.aarch64-linux.{cloudflared-connector-module,firmware-secrets-module,nix-daemon-nixpi}
 ```
 
-**Not** `nix flake check --all-systems` (builds on). It does reach the linux checks —
-proven by `checks.aarch64-linux.pre-commit` emitting builder log lines and a non-zero
-BUILDER exit — but that check FAILS on the native Linux builder with
-`FileNotFoundError` from pre-commit's treefmt hook, for a builder-environment reason,
-not a code one. It passes on CI's real `ubuntu-24.04-arm` runner. A gate that cries
-wolf is worse than no gate; same class as the caddy `cp --no-preserve=mode` EPERM.
+`checks.aarch64-linux.pre-commit` failed on Determinate's builder (`FileNotFoundError` in the
+treefmt hook) and passes on `linux-builder-vz` (2026-11-27, [`hosts.md`](hosts.md) § The Linux
+builder).
 
 `.github/workflows/nix-ci.yml` — native multi-system Nix CI on GitHub Actions, ALL on
 GitHub-**HOSTED** runners (`ubuntu-24.04-arm` for aarch64-linux, `macos-latest` for
@@ -73,14 +69,10 @@ leg job for it*), and so does a leg owning no host. The leg side is read out of 
 itself with `yq-go` from the pinned nixpkgs — never restated in bash, which would be the
 second copy the job exists to catch. `gate` `needs` it, so it still blocks.
 
-**`nix flake show --json --all-systems` IS the source** for the host side. Its flake-schemas
-`inventory` carries `forSystems` per host child, classified by the CONFIGURATION's own system
-— measured: `nixosConfigurations.nixpi → ["aarch64-linux"]`, `darwinConfigurations.macos →
-["aarch64-darwin"]`. Two degradations are real, and each is a GUARD rather than a reason to
-reject: without `--all-systems`, foreign-system children come back `{"filtered": true}`
-(measured), so classification would silently follow the RUNNER's arch; and upstream Nix emits
-the flat legacy shape with no `inventory` key, which parses to ZERO rows (probed). Both fail
-the job loudly. Inside a leg, an empty host list is a hard failure. `gate` fails on a
+**Each host's evaluated `pkgs.stdenv.hostPlatform.system` IS the source** for the host side
+(since 2026-11-27). It used to be `nix flake show --json`'s `forSystems`, which only
+Determinate's flake-schema output carries. No host, or a host with no system, fails the job
+loudly. Inside a leg, an empty host list is a hard failure. `gate` fails on a
 **`'skipped'`** heavy job wherever the event expected it to run: a skipped job is neither
 failure nor cancelled, so without that it could report green over a leg that never ran.
 
@@ -93,8 +85,8 @@ failed `[workflow-call]` / `[action]` with the marker.
 **`checks.<system>.zizmor` is the SECURITY lint beside it** (2026-11-14): same project layout, `--offline` (so zizmor's online audits do not run), exceptions per FILE in the root `zizmor.yml`. `mcp-portal-probe.yml` (daily) is the live half of `mcp-portal-posture`: unauthenticated curl against the Workspace MCP portal (a 401 OAuth challenge, DCR REFUSING an unlisted callback, the retired gateway hosts gone), no checkout, `permissions: {}`. It never registers a client with an allowed callback, which would mint a junk DCR client per run.
 
 **No workflow in this repo targets a self-hosted runner** — every leg is GitHub-hosted (fork
-PRs need no runner fallback), and day-to-day local aarch64-linux builds use Determinate's
-native Linux builder on the Mac. The ruleset's required checks:
+PRs need no runner fallback), and day-to-day local aarch64-linux builds use the Mac's
+Linux builder. The ruleset's required checks:
 [`auto-merge-and-merge-queue.md`](../auto-merge-and-merge-queue.md).
 
 Do **not** read that as "the Mac has no runners": `macos` declares **five** runners — two

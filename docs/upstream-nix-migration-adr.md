@@ -10,7 +10,7 @@
 | macos | **upstream** | 2026-11-27, through `scripts/nix-impl-switch.sh`; the boot unlock is proven only after the first reboot |
 | nixpi | **upstream** | 2026-11-27, over the LAN with magic rollback |
 
-ADR-017 still describes the hosts that have not moved yet.
+**Complete:** the Determinate code was retired 2026-11-27 in `aa929669`. ADR-017 is history except its retention policy.
 
 **Question.** ADR-017 § 3/3a found that upstream now has near-parity: `darwin.linux-builder-vz` and
 lazy source copying (Nix 2.35). What would moving every host to upstream Nix take, what would we

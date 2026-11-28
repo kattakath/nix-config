@@ -157,40 +157,28 @@ they bite any future second account:
     rule), so the host also sets the per-interface `use_tempaddr` keys that nixpkgs emits for
     declared interfaces. `systemd-sysctl` re-applies those at switch, so a deploy takes effect
     without a reboot.
-  - ⚠ **The Mac's native Linux builder cannot build this host's `etc` closure.** Upstream's
-    caddy module formats the generated Caddyfile in a `Caddyfile-formatted` derivation whose
-    build command is `cp --no-preserve=mode <Caddyfile> $out/Caddyfile`, and **`cp
-    --no-preserve=mode` into `$out` fails with `setting permissions: Permission denied`** on
-    Determinate's native Linux builder (reproduced minimally with
-    `runCommand "p" {} "mkdir -p $out; cp --no-preserve=mode ${writeText "s" "x"} $out/f"`; a
-    plain `chmod` in `$out` on the same builder works). That failure cascades to `etc.drv` and
-    the toplevel, so **any** Mac-side build of a Caddy-serving nixpi generation dies. Upstream
-    already skips the derivation when `buildPlatform != hostPlatform`, which does not help here
-    (both are `aarch64-linux`). Measured 2026-09-15: **only that one operation fails** — `cat >`,
-    `install -m` and `cp` + `chmod` all succeed on the same builder, so this is a narrow,
-    undocumented, unreported builder bug rather than a general chmod ban.
-    - **THE ANSWER IS NOT TO BUILD ON THE PI.** That was the old workaround, and it is now
-      hard-blocked (`.claude/hooks/pretooluse-bash-guard.js` Rule 1d): the Pi is on an SD card,
-      and a power cut mid-build corrupts it, which needs hands on the hardware to reflash.
-      Instead `.github/workflows/warm-nixpi-cache.yml` builds the toplevel on a real
-      `ubuntu-24.04-arm` runner — where that `cp` works — and pushes the closure to Cachix on
-      every nixpi-closure change. Both the Mac and the Pi then substitute, and the EPERM never
-      enters the path.
-    - **The EPERM only fires on a cache MISS**, and a miss can OUTLIVE the warm: if you
-      evaluate a nixpi change before CI has pushed it, Nix records the 404 in its narinfo
-      negative cache for an hour (`narinfo-cache-negative-ttl`, default 3600), so it keeps
-      planning a build against an already-warmed cache. `--narinfo-cache-negative-ttl 0` clears
-      it (the operator is trusted, `modules/parts/compose.nix`). The devShell `deploy` and
-      `nixpi-flash` set it by default — why not machine-wide: `modules/parts/devshell.nix`.
-    - **Your own `nix build --dry-run` counts as that evaluation.** Measured 2026-10-18 (#877):
-      a dry-run of the nixpi toplevel run to *prove* "fetch, not build" before the warm-up
-      finished poisoned the cache, and the deploy 13 min later still EPERMed on
-      `Caddyfile-formatted` while Cachix answered 200 for the same narinfo. To check a
-      not-yet-warmed closure, `curl -w '%{http_code}'` the narinfos instead — that goes
-      around the daemon's cache.
+  - **The Mac substitutes this host's closure; it does not build it.** The Caddy
+    `cp --no-preserve=mode` EPERM that once broke every Mac-side build here was a
+    Determinate-builder bug and passes on `linux-builder-vz` (§ The Linux builder below).
+    - **NEVER BUILD ON THE PI.** It is hard-blocked (`.claude/hooks/pretooluse-bash-guard.js`
+      Rule 1d): the Pi is on an SD card, and a power cut mid-build corrupts it, which needs
+      hands on the hardware to reflash. `.github/workflows/warm-nixpi-cache.yml` builds the
+      toplevel on a real `ubuntu-24.04-arm` runner and pushes the closure to Cachix on every
+      nixpi-closure change, so the Mac and the Pi both substitute.
+    - **A cache MISS can OUTLIVE the warm.** Evaluate a nixpi change before CI has pushed it,
+      and Nix records the 404 in its narinfo negative cache for an hour
+      (`narinfo-cache-negative-ttl`, default 3600). It then plans a local build against an
+      already-warmed cache. `--narinfo-cache-negative-ttl 0` clears it (the operator is
+      trusted, `modules/parts/compose.nix`). The devShell `deploy` and `nixpi-flash` set it by
+      default — why not machine-wide: `modules/parts/devshell.nix`.
+    - **Your own `nix build --dry-run` counts as that evaluation.** Measured 2026-10-18 (#877,
+      Determinate era): a dry-run of the nixpi toplevel before the warm-up finished poisoned
+      the cache, and the deploy 13 min later still built (and EPERMed on) `Caddyfile-formatted`
+      while Cachix answered 200 for the same narinfo. To check a not-yet-warmed closure,
+      `curl -w '%{http_code}'` the narinfos instead — that goes around the daemon's cache.
 - **`nixvm.nix`** — a SLIM, unprovisioned aarch64-linux dev VM: no disko, no runner, no
   install; materialised only as the `nix run .#nixvm` build-vm, whose guest builds
-  locally on the native Linux builder or substitutes from Cachix.
+  locally on the Mac's Linux builder or substitutes from Cachix.
 
   **HEADLESS — no GUI and no switch for one.** It went headless 2026-10-06 (the `tor-browser`
   cask now carries stable Tor on the Mac, which was most of what the desktop existed for), and
@@ -249,9 +237,8 @@ they bite any future second account:
 
   **SEED, THEN SWITCH.** The image carries only `local.nixosGuest.seed` (an `extendModules`
   variant: boot, SSH, guest agent). The full 6.7 GiB closure cannot be staged: systemd-repart
-  works in `$NIX_BUILD_TOP`, the Determinate builder's **RAM tmpfs**. Even the 1.5 GiB seed needs
-  the builder at **16 GiB** (`hosts/macos.nix`; a running daemon keeps the old size until
-  `launchctl kickstart -k system/systems.determinate.nix-daemon`).
+  works in `$NIX_BUILD_TOP`, the Linux builder's **RAM tmpfs**. Even the 1.5 GiB seed needs
+  the builder at **16 GiB** (`hosts/macos.nix`).
 
   **Verified 2026-10-17 (operator-tested):** seed boot, SSH via mDNS, first switch, root grown to
   62 G, Wayland at 1440×900 @ 100% (UTM hands over POINTS — no forced 2×), `~/Shared`, **clipboard both ways**, **security key + WebAuthn**, **Tor
@@ -259,7 +246,7 @@ they bite any future second account:
 
   Every other measured why lives in `hosts/nixos.nix`'s comments — UTM over Tart/`vzvm`
   (llvmpipe, broken virtio-sound), `image.repart` over `qemu-efi` (needs `kvm`), stock Firefox
-  (the `programs.firefox` wrapper EPERMs on the builder), the GNOME 50 `spice-vdagent` client
+  (the `programs.firefox` wrapper EPERMed on Determinate's builder), the GNOME 50 `spice-vdagent` client
   that nothing starts, `lanRecovery` on `eth0`, and the no-password prompt class.
 
 - **`generic-darwin.nix` / `generic-linux.nix`** — identity-FREE profiles that are no fleet
@@ -273,70 +260,41 @@ they bite any future second account:
 The long form of CLAUDE.md § Important Notes. Those bullets keep the imperatives; the
 measurements that justify them live here, because they are read once and obeyed thereafter.
 
-### The native Linux builder
+### The Linux builder
 
-`aarch64-linux` builds on the Mac go to **Determinate's native Linux builder** (Apple
-Virtualization; an ephemeral VM, **1 CPU / 8 GiB by default**). The account entitlement is
-enabled at <https://dtr.mn/features>.
+`aarch64-linux` builds on the Mac go to nix-darwin's **`nix.linux-builder`**, running nixpkgs'
+`darwin.linux-builder-vz` (`modules/darwin/nix.nix`; since ADR-018, 2026-11-27).
 
-It serves **`x86_64-linux` too.** The rendered `external-builders` entry names both systems,
-and an `x86_64-linux` derivation built here returns `uname -m` = `x86_64` (measured
-2026-09-22) — a real second platform, not an idle advertisement. That is what lets
-`packages.x86_64-linux.devcontainerImage` build on this Mac and not only in CI. It does
-**not** dent the aarch64-only invariant: that claim is about **hosts**
-([`../repo-map.md`](../repo-map.md) § The fleet), and a
-build-only ephemeral sandbox is not one.
+| Property | Value |
+|---|---|
+| VM | one Virtualization.framework guest, launchd label `org.nixos.linux-builder` |
+| Lifecycle | boots on demand (~12 s); stops after 10 idle minutes |
+| Systems | `aarch64-linux`, and `x86_64-linux` through Rosetta |
+| Size | `nix.linux-builder.config.virtualisation.darwin-builder.memorySize = 16 * 1024` (`hosts/macos.nix`; default 3 GiB): 15.9 GiB guest RAM, 7.8 GiB build tmpfs. Cores stay default |
+| Speed | aarch64 `hello`: 10.1 s, vs 26.1 s on Determinate's builder (n=5) |
 
-#### It does NOT share Tart's two-guest budget
+- **The build space is RAM.** `/` and `/tmp` are one tmpfs of half the guest RAM. The `nixos`
+  seed image set the size; the `memorySize` comment in `hosts/macos.nix` has the measurement.
+- **`x86_64-linux` is real**, which is what lets `packages.x86_64-linux.devcontainerImage`
+  build here. It does **not** dent the aarch64-only invariant: that is about **hosts**
+  ([`../repo-map.md`](../repo-map.md) § The fleet), and a build-only VM is not one.
+- **Outside Tart's two-guest budget.** That cap is on concurrent **macOS** guests
+  (`github-runner.nix`'s assertion). The shared axis is host RAM; Virtualization backs guest
+  RAM lazily.
 
-`local.tart.runnerSlots` is a filesystem semaphore under `local.tart.runnerStateDir/slots`
-([`slots.nix`](../../modules/features/tart-vms/slots.nix)), entered only by the two CI lanes'
-shims; `determinate-nixd` has no code path to it. Measured 2026-09-22: **four** builder VMs
-ran concurrently while that directory held **zero** slot markers. The cap the semaphore
-exists to share is specifically on concurrent **macOS** guests (`github-runner.nix`'s
-assertion says so in those words), so a Linux builder guest sits outside both accountings.
+#### The two Determinate-builder failures it fixed
 
-Still unmeasured: two Tart macOS guests **plus** a builder VM. Four concurrent Linux guests
-prove the cap is not a global VM cap, which makes a collision unlikely — but nobody has
-booted the mixed case, so treat it as untested rather than safe.
+Both failed on Determinate's builder (before 2026-11-27). Both pass on `linux-builder-vz`,
+measured 2026-11-27:
 
-The axis that IS shared is **host RAM**, and nothing bounds it: `max-jobs` is `12` here
-(Determinate raises it to nproc; this repo sets it nowhere), so one `nix build` may start
-twelve guests at 16 GiB each (`hosts/macos.nix` raised `memoryBytes` from the 8 GiB default
-for the `nixos` seed image). Less dire than that arithmetic — Virtualization backs guest
-memory lazily, and 66% of 36 GiB was still free with three VMs live (measured at the old 8 GiB) — but the ceiling is
-untested, and a wide parallel build alongside two 8 GiB Tart guests is the case to watch.
+| Build | Determinate's builder | `linux-builder-vz` |
+|---|---|---|
+| `cp --no-preserve=mode` into `$out` — nixpkgs' caddy `Caddyfile-formatted`, so every Caddy-serving `nixpi` generation | EPERM, "setting permissions" | passes, 5/5 |
+| `checks.aarch64-linux.pre-commit` | `FileNotFoundError` in the treefmt hook | passes |
 
-The VM **is** settable from Nix: the pinned `determinate` module grew
-`determinateNix.determinateNixd.builder.{state,memoryBytes,cpuCount}`, rendered to
-`/etc/determinate/config.json`. Only the raw `external-builders` line is reserved and rejected
-by `customSettings`. Upstream says do **not** change `cpuCount`; `memoryBytes` is the knob if a
-Linux build ever OOMs.
-
-nix-darwin's own `nix.linux-builder` is unusable here: it requires `nix.enable = true`, which
-Determinate disables (nix-darwin#1505).
-
-**Account entitlement alone is not enough.** The local `determinate-nixd` must ALSO be logged in
-to FlakeHub, or `native-linux-builder` silently vanishes and every `aarch64-linux` build fails
-with a `platform mismatch` that reads as a platform problem rather than an auth one. It is a
-manual, per-machine step — see "Manual steps Nix can't do" in
-[`new-mac-runbook.md`](../new-mac-runbook.md). A logged-in daemon can ALSO come up without the
-feature (seen after a self-upgrade); a `launchctl kickstart -k` restores it — same runbook entry.
-
-#### The one operation it cannot do
-
-The builder **cannot run `cp --no-preserve=mode` into `$out`** — EPERM, "setting permissions".
-That breaks nixpkgs' caddy `Caddyfile-formatted`, and therefore every Mac-side build of a
-Caddy-serving `nixpi` generation.
-
-Measured 2026-09-15: **only that one operation fails.** `cat >`, `install -m`, and `cp` followed
-by `chmod` all succeed on the same builder. So this is a narrow (undocumented, unreported)
-builder bug, not a general chmod ban — which matters, because the tempting diagnosis is "the
-builder can't set permissions" and that would send you looking for a fix that does not exist.
-
-**Do not work around it by building on the Pi.** `warm-nixpi-cache.yml` builds the closure on a
-real ARM Linux runner and pushes it to Cachix, so the Mac substitutes and never runs that `cp`
-at all. Heavy multi-core builds (the Pi SD image) go to GitHub CI / Cachix for the same reason.
+**Still substitute `nixpi`; never build on the Pi** (Rule 1d). `warm-nixpi-cache.yml` builds the
+closure on a real ARM runner and pushes it to Cachix. Heavy builds (the Pi SD image) go to CI
+for the same reason.
 
 A **full-tunnel VPN** (MTU 1420) blackholes its TLS 1.3 source fetches: disconnect, or `--target-host`.
 

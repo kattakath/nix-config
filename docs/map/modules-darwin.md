@@ -196,13 +196,13 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
   **ephemeral, org-level self-hosted GitHub Actions runners**. Built then retired 2026-07-16
   once nix-config's own CI no longer needed one; **revived 2026-08-23 for a different consumer**
   — `dontsell-ai`'s repos, whose macOS + Playwright + Prisma jobs neither GitHub-hosted (no
-  hosted-minutes budget on that org) nor the native Linux builder (build-only, ephemeral,
-  1 CPU / 8 GiB by default) can serve. `hosts/macos.nix` enables it with `count = 2`.
-  - **Hand-rolled on purpose:** nix-darwin's `services.github-runners` hard-asserts
-    `nix.enable = true` (it takes the runner's `nix` from `config.nix.package`), which is
-    mutually exclusive with Determinate Nix (`nix.enable = false`). This module reproduces
-    upstream's launchd setup and substitutes `pkgs.nix`, plus a privilege split upstream's
-    module lacks (next bullet).
+  hosted-minutes budget on that org) nor the Mac's Linux builder (build-only) can serve.
+  `hosts/macos.nix` enables it with `count = 2`.
+  - **Hand-rolled on purpose:** nix-darwin's `services.github-runners` could run since ADR-018
+    turned `nix.enable` on, but still does not fit: it reads only a static `tokenFile` (nothing
+    mints the GitHub App token) and forces the daemon's `UserName` (no root → `_github-runner`
+    split). This module reproduces upstream's launchd setup with the daemon's own Nix
+    (`config.nix.package`), plus that privilege split (next bullet).
   - **Auth:** a GitHub **App** RS256 private key (the host-decrypted
     `gh-app-dontsell-ai-key.age`), used to mint a fresh ~1 h installation token per
     registration rather than holding a long-lived bearer credential. The key is **root-only**:
@@ -241,8 +241,8 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
 
   Two details are load-bearing. It uses `command`, not `ProgramArguments`, because the
   boot-ordering exception in [`launchd-naming`](../../.claude/rules/launchd-naming.md) applies:
-  a `RunAtLoad` daemon whose arg0 is a store path loses the race against determinate-nixd
-  mounting `/nix`, exits 78, and never self-heals. And `environmentVariables` carries the
+  a `RunAtLoad` daemon whose arg0 is a store path loses the race against the `/nix`
+  volume mount, exits 78, and never self-heals. And `environmentVariables` carries the
   POWER BUDGET (`OLLAMA_MAX_LOADED_MODELS=1`, `OLLAMA_NUM_PARALLEL=1`, `OLLAMA_KEEP_ALIVE=10m`).
   Those moved here from `services.ollama.environmentVariables` in `modules/home/default.nix` —
   they had to, because that option only ever reaches home-manager's own agent, so the block

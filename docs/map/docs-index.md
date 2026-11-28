@@ -165,7 +165,7 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   Linux builder; one retention policy on every host — `nh clean all` daily, keep 3 generations, 3-day
   window, `auto-optimise-store`; determinate-nixd's collector `disabled`. § 3a: the `linux-builder-vz` spike.)
   [`ADR-018`](../upstream-nix-migration-adr.md) (**DECIDED 2026-11-27**: move every host to upstream Nix +
-  nix-darwin's `nix.linux-builder` (`-vz`), least live host first; nixvm moved first. All four gates passed:
+  nix-darwin's `nix.linux-builder` (`-vz`), least live host first. **COMPLETE 2026-11-27**: all four hosts moved, Determinate code retired in `aa929669`. All four gates passed:
   the switch is scripted and rehearsed (§ 4b), and the cost is evaluation speed (§ 4c).)
 - [`docs/workspace-runbook.md`](../workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.

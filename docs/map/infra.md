@@ -308,11 +308,10 @@ Design-doc history, now wholly retrospective:
 
 ## Binary cache (Cachix)
 
-The public `kattakath` cache is consumed by every host and the devcontainer — but by **two
-different mechanisms**, which is why its module is NixOS-only: `modules/nixos/nix-cache.nix`
-(`nix.settings`, in `mkNixos`'s module list) for the NixOS hosts, and
-`determinateNix.customSettings` in `mkDarwin` for the Mac, where Determinate owns
-`/etc/nix/nix.conf` and `nix.*` is unavailable. The URL/key literal is single-sourced for both
+The public `kattakath` cache is consumed by every host and the devcontainer, through
+`nix.settings` in two places: `modules/nixos/nix-cache.nix` (in `mkNixos`'s module list) for
+the NixOS hosts, and `mkDarwin`'s daemon settings in `modules/parts/compose.nix` for the Mac.
+The URL/key literal is single-sourced for both
 from `modules/parts/identity.nix` via `cachixUrl`/`cachixKey`. Read is public — only the substituter
 URL + public key, **NO token on any consumer**. The write credential `CACHIX_AUTH_TOKEN` lives
 in exactly two places: a **GitHub Actions secret** (used by `cachix/cachix-action` in every workflow that names `CACHIX_AUTH_TOKEN`, to push
