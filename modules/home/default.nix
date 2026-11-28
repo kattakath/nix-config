@@ -1098,6 +1098,15 @@ in
           # Declared user-level rather than per-repo so there is ONE copy — a
           # second project-local copy would drift from this one.
           CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS = "1";
+          # Task tools (TaskCreate/TaskUpdate/TaskList) in EVERY session (operator,
+          # 2026-11-28 — reverses the earlier per-launch-folder opt-in, see
+          # claude-profiles.nix). They are "available by default only on Opus 4.7,
+          # Sonnet 4.6, Haiku 4.5, and earlier models… On every other model, Claude Code
+          # leaves the tools out unless you opt in" (code.claude.com/docs/en/tools-reference.md
+          # #task-tool-availability); "Set to `1` to get the task-tracking tools on every
+          # model" (env-vars.md, v2.1.233+). No CLAUDE_CODE_TASK_LIST_ID anywhere: each
+          # session keeps its own default list, swept with the 90-day cleanupPeriodDays.
+          CLAUDE_CODE_ENABLE_TODO_TOOLS = "1";
           # A PRIVATE marketplace (none on `macos` since 2026-11-01) refreshes over git with the
           # Mac's own credentials. If a background check cannot reach or authenticate to
           # the remote, keep the last checkout instead of attempting a re-clone, so

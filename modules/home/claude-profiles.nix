@@ -93,9 +93,9 @@ let
   # call inside the session inherits that PATH.
   # OTEL_RESOURCE_ATTRIBUTES tags claude-otel.nix's events with the profile — both
   # profiles share one collector, so without it the two accounts' telemetry is mixed.
-  # No CLAUDE_CODE_ENABLE_TODO_TOOLS here: the task tools are opted in per launch folder
-  # (a settings.json `env`), not per profile. A profile-wide opt-in reached every
-  # session, and short worktree sessions paid its reminders without using the tools.
+  # No CLAUDE_CODE_ENABLE_TODO_TOOLS here: it lives ONCE in programs.claude-code.settings.env
+  # (default.nix), which every profile and session reads. (Until 2026-11-28 it was opted in
+  # per launch folder instead; the operator chose every session.)
   profileEnv = name: ''
     export OTEL_RESOURCE_ATTRIBUTES="claude.profile=${name}''${OTEL_RESOURCE_ATTRIBUTES:+,$OTEL_RESOURCE_ATTRIBUTES}"
   '';
