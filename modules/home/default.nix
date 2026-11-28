@@ -1302,9 +1302,10 @@ in
     # The type comes from terminal-theme.nix's `font` (sizes: its `font.sizes`).
     #
     # Shell integration is left to Ghostty's OWN auto-injection and deliberately
-    # NOT enabled here: `enableZshIntegration` sources the integration script out
-    # of the Nix `package`, which is null on this platform, so switching it on
-    # would point at nothing. The cask's app bundle already does this itself.
+    # NOT enabled here: `enableZshIntegration` would only add a zshrc block that sources
+    # `$GHOSTTY_RESOURCES_DIR/shell-integration/zsh/ghostty-integration` (pinned
+    # home-manager programs/ghostty.nix) — the very script the cask's app already
+    # auto-injects, so enabling it buys nothing but a second, redundant source.
     ghostty = lib.mkIf isMacosHost {
       enable = true;
       package = null;

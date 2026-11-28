@@ -3323,8 +3323,10 @@ in
           # anything.
 
           # ---- the workflow YAML is linted by SOMETHING, finally -------------------
-          # 2,083 lines of `.github/workflows/*.yml` were covered by nothing: treefmt
-          # has no YAML tool, sgconfig's rules are Nix and JS, and claude-config-lint
+          # 2,083 lines of `.github/workflows/*.yml` were covered by nothing: treefmt.nix
+          # enables no YAML tool (treefmt-nix ships actionlint/yamllint/yamlfmt, but its
+          # actionlint is `brokenPlatforms = darwin` and lints file-by-file, without the
+          # project root caller→callee checks need), sgconfig's rules are Nix and JS, and claude-config-lint
           # only looks at .claude/. This class has already bitten twice IN THESE FILES
           # — nix-ci.yml's errexit bug made a REQUIRED gate report green over a failing
           # eval, and an `if:` made the same gate skip silently. Same shape as why

@@ -1,8 +1,8 @@
 # Claude Code PROFILES on this Mac — two commands, one per account:
 #   claude       the personal account   (CLAUDE_CONFIG_DIR UNSET → ~/.claude, ~/.claude.json)
 #   claude-work  the work account       (CLAUDE_CONFIG_DIR=~/.claude-work)
-# Each has its own login. Linux hosts have one account and keep their plain package
-# `claude` (default.nix); this module installs nothing there.
+# Each has its own login. Linux hosts get no claude-code at all (default.nix, the
+# home.packages note on redistributability); this module installs nothing there.
 #
 # HISTORY: 2026-11-09 removed the bare name (`claude-personal` + `claude-work` only),
 # because habit ran a 4-day work handoff on the personal account: personal quota, no

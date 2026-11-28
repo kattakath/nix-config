@@ -93,8 +93,8 @@ let
   # powerManagement — ZERO hits in either (home-manager's two `powermanagement`
   # hits are KDE's `powermanagementprofilesrc`, a Linux desktop file) → custom,
   # because neither input models macOS power assertions at all. The nearest
-  # upstream surface is `power.sleep.*`, which exists only in nix-darwin's NixOS
-  # sibling and would set the pmset DEFAULTS — the wrong instrument: lowering
+  # upstream surface is nix-darwin's `power.sleep.*` (modules/power/sleep.nix), which
+  # sets the machine-wide sleep DEFAULTS via systemsetup — the wrong instrument: lowering
   # this Mac's idle timer fleet-wide to cover CI would stop an idle laptop
   # sleeping for the other 23 hours of the day.
   #
