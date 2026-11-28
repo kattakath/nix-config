@@ -187,6 +187,123 @@ in
     {
       checks =
         lib.optionalAttrs pkgs.stdenv.hostPlatform.isDarwin {
+          # ---- the claude-code settings merger, exercised on its REAL activation text ----
+          #
+          # modules/home/claude-code-settings.nix merges the Nix floor, the operator overlay
+          # and the live file through home-manager's mkImpureConfigMerger plus three
+          # pre-checks. Those were tested by hand once (b7b3e71e); this replays the same cases
+          # on every darwin check run. It takes macos's own claudeCodeSettingsMerge entry
+          # (`.data`), rewrites the home paths into the build's $TMPDIR, stubs the three
+          # home-manager helpers (run/warnEcho/errorEcho), and asserts. darwin-only: the
+          # script's jaq/coreutils are darwin store paths.
+          claude-settings-merger =
+            let
+              hm = config.flake.darwinConfigurations.macos.config.home-manager.users.${loginName};
+              script = pkgs.writeText "claude-settings-merge.sh" hm.home.activation.claudeCodeSettingsMerge.data;
+              inherit (hm.home) homeDirectory;
+              overlay = "${hm.xdg.configHome}/nix-config/claude-settings.overlay.json";
+              storeJson = pkgs.writeText "store-settings.json" "{}";
+            in
+            pkgs.runCommand "claude-settings-merger"
+              {
+                nativeBuildInputs = [
+                  pkgs.jq
+                  pkgs.gnused
+                ];
+              }
+              ''
+                set -u
+                H=$TMPDIR/home
+                mkdir -p "$H"
+                # Placeholder pass, so the second rule cannot re-match the first one's output.
+                sed -e "s|${overlay}|@OV@|g" -e "s|${homeDirectory}|@H@|g" ${script} \
+                  | sed -e "s|@OV@|$H/overlay.json|g" -e "s|@H@|$H|g" > merge.sh
+                if grep -qF "${homeDirectory}" merge.sh; then echo "real home path left in merge.sh"; exit 1; fi
+                cat > stubs.sh <<'EOS'
+                errorEcho() { echo "ERROR: $*" >&2; }
+                warnEcho() { echo "WARN: $*" >&2; }
+                run() { if [[ -v DRY_RUN ]]; then echo "would: $*"; else "$@"; fi; }
+                EOS
+                S=$H/.claude/settings.json
+                merge() { bash -c "set -eu; source $PWD/stubs.sh; source $PWD/merge.sh"; }
+                fresh() { rm -rf "$H/.claude" "$H/.claude-work" "$H/overlay.json"; mkdir -p "$H/.claude"; }
+                fail() { echo "FAIL: $*"; exit 1; }
+                mode() { stat -c %a "$1"; }
+
+                # 1 precedence (live < overlay < Nix) and array REPLACE
+                fresh
+                echo '{"model":"mine","keepMe":1,"permissions":{"deny":["OLD"]}}' > "$S"
+                echo '{"model":"overlay","ovKey":true}' > "$H/overlay.json"
+                merge || fail "1 merge rc"
+                [ "$(jq -r .model "$S")" = overlay ] || fail "1 overlay must beat the live file"
+                [ "$(jq -r .keepMe "$S")" = 1 ] || fail "1 a live-only key must survive"
+                [ "$(jq -r .ovKey "$S")" = true ] || fail "1 an overlay key must land"
+                jq -e '.permissions.deny | index("OLD") == null' "$S" >/dev/null || fail "1 the Nix deny list must replace, not append"
+                echo "ok 1 precedence + array replace"
+
+                # 2 truncated file -> backed up, reset, mode 600
+                fresh; printf '{"a":' > "$S"
+                merge 2>/dev/null || fail "2 rc"
+                ls "$H/.claude" | grep -q corrupt || fail "2 no backup"
+                jq -e 'type == "object"' "$S" >/dev/null || fail "2 not an object"
+                [ "$(mode "$S")" = 600 ] || fail "2 mode"
+                echo "ok 2 corrupt file backed up and reset"
+
+                # 3 two JSON values -> treated as corrupt
+                fresh; printf '{}{}' > "$S"
+                merge 2>/dev/null || fail "3 rc"
+                ls "$H/.claude" | grep -q corrupt || fail "3 no backup"
+                echo "ok 3 {}{} treated as corrupt"
+
+                # 4 existing 644 -> forced 600
+                fresh; echo '{}' > "$S"; chmod 644 "$S"
+                merge || fail "4 rc"
+                [ "$(mode "$S")" = 600 ] || fail "4 mode $(mode "$S")"
+                echo "ok 4 force 600"
+
+                # 5 store symlink -> replaced by a real file
+                fresh; ln -s ${storeJson} "$S"
+                merge || fail "5 rc"
+                [ ! -L "$S" ] || fail "5 still a symlink"
+                [ "$(mode "$S")" = 600 ] || fail "5 mode"
+                echo "ok 5 store symlink migrated"
+
+                # 6 corrupt overlay -> ignored, merge still succeeds
+                fresh; echo '{"x":1}' > "$S"; echo nope > "$H/overlay.json"
+                merge 2>/dev/null || fail "6 rc"
+                [ "$(jq -r .x "$S")" = 1 ] || fail "6 live key lost"
+                echo "ok 6 corrupt overlay ignored"
+
+                # 7 idempotent
+                fresh; merge; cp "$S" first.json; merge
+                cmp -s "$S" first.json || fail "7 second run changed the file"
+                echo "ok 7 idempotent"
+
+                # 8 DRY_RUN writes nothing
+                fresh; echo '{"d":1}' > "$S"
+                bash -c "set -eu; DRY_RUN=1; source $PWD/stubs.sh; source $PWD/merge.sh" >/dev/null
+                [ "$(cat "$S")" = '{"d":1}' ] || fail "8 DRY_RUN wrote"
+                echo "ok 8 DRY_RUN"
+
+                # 9 concurrency: paired parallel runs, no failure, no EEXIST, valid 600 result
+                fresh; merge; : > cc.err; f=0
+                for i in $(seq 25); do
+                  echo "{\"r\":$i}" > "$S"
+                  merge 2>>cc.err & p1=$!; merge 2>>cc.err & p2=$!
+                  wait $p1 || f=$((f+1)); wait $p2 || f=$((f+1))
+                done
+                grep -q 'File exists' cc.err && fail "9 EEXIST"
+                jq -e 'type == "object"' "$S" >/dev/null || fail "9 invalid JSON"
+                [ "$(mode "$S")" = 600 ] || fail "9 mode"
+                # A conflict refusal ("changed during activation") is the merger working as
+                # designed, so only failures WITHOUT that message count.
+                other=$(grep -v 'changed during activation' cc.err | grep -c ERROR || true)
+                [ "$other" = 0 ] || fail "9 unexpected errors: $(cat cc.err)"
+                echo "ok 9 concurrency ($f conflict refusals of 50)"
+
+                touch "$out"
+              '';
+
           # ---- bootstrap.sh is the highest-stakes unwrapped script, not the ONLY one -
           #
           # Two tracked `.sh` files are `builtins.readFile`d into a
