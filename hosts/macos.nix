@@ -425,7 +425,10 @@ in
   # android-phone and scrcpy (via ADB — scrcpy's documented override beats its wrapper's
   # android-tools PATH prefix), android-chrome (PATH), Escrcpy (its config's adbDir +
   # scrcpyDir, merged by modules/home/default.nix's escrcpyToolDirs), the emulator itself. Two adb binaries of
-  # different versions kill each other's server, so there is exactly one. The SDK root
+  # different versions kill each other's server — MEASURED 2026-11-28: the androidenv
+  # spike's adb 37.0.1, run with ANDROID_ADB_SERVER_PORT=5039, still took down the live
+  # 37.0.3 server on 5037 and dropped the phone — so there is exactly one, and any SDK
+  # change switches every consumer in ONE activation, then `adb kill-server` once. The SDK root
   # is read from Home Manager's ANDROID_HOME, its one declaration. launchd.user.envVariables
   # carries ANDROID_HOME and ADB to Dock-launched apps; environment.systemPath puts
   # platform-tools on PATH for shells AND the GUI PATH (modules/darwin/core.nix) at once.
