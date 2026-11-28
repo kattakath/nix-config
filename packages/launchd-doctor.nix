@@ -117,12 +117,20 @@ writeShellApplication {
     # Only units THIS fleet installs. Everything else on the box (Apple, Google,
     # Microsoft, Wireshark) is out of scope and must not be reported as drift.
     ours='^(org\.nixos|org\.nix-community\.home|com\.kattakath)\.'
+    # ...except the units the NIX INSTALLER places and no generation ever declares.
+    # org.nixos.darwin-store unlocks and mounts the encrypted /nix volume at boot
+    # (installer-written since ADR-018; .claude/rules/launchd-naming.md, Known
+    # upstream exceptions). It shares the org.nixos prefix, so without this the
+    # orphan check below reports it and prints `rm` as the remedy — following that
+    # leaves the next boot without /nix. Measured 2026-11-27, right after the reboot.
+    installer_owned='^org\.nixos\.darwin-store$'
 
     plists=()
     for d in "$HOME/Library/LaunchAgents" /Library/LaunchAgents /Library/LaunchDaemons; do
       [ -d "$d" ] || continue
       while IFS= read -r p; do
         base=$(basename "$p" .plist)
+        echo "$base" | grep -Eq "$installer_owned" && continue
         if echo "$base" | grep -Eq "$ours"; then plists+=("$p"); fi
       done < <(find "$d" -maxdepth 1 -name '*.plist' | sort)
     done
