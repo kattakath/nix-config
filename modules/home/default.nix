@@ -937,8 +937,9 @@ in
         # until 2026-11-28; declared here so a rebuild keeps it.
         remoteControlAtStartup = true;
 
-        # 90 = 3x skill-curator's 30-idle-day archive window, which counts usage from these
-        # transcripts; the 30-day default sweep was not running here anyway (2026-11-28).
+        # 90 is a judgement call (operator, 2026-11-28): 3x skill-curator's 30-idle-day
+        # archive window, which counts usage from these transcripts. The 30-day default was
+        # not sweeping here: 158 ~/.claude/projects transcripts were older than 90 days.
         cleanupPeriodDays = 90;
 
         # ONE owner per stdio MCP server (2026-11-01). Claude Code never dedups stdio servers,
