@@ -41,6 +41,9 @@
   agent-skills-vercel-agent,
   # Source-only nixpkgs checkout read for ONE package recipe (claudeCode below).
   nixpkgs-claude-code,
+  # github:kattakath/skills, read for ONE file: plugins/markup-lsp/servers.nix (the
+  # language-server list below). Plugins themselves still arrive via the marketplace.
+  kattakath-skills,
   # The reviewed commit of each third-party marketplace (flake.lock's `marketplace-*`
   # inputs, via compose.nix — the only caller, so it is always supplied). Indexed
   # directly below, never `or null`: a key that drifts from compose.nix's map fails
@@ -756,6 +759,13 @@ in
       mermaidAscii # render Mermaid graphs as ASCII in the terminal (packages/mermaid-ascii.nix)
       gitTidy # `git-tidy` — switch to the default branch, fast-forward, delete branches whose GitHub PR merged (gh-poi, so squash merges count) (packages/git-tidy.nix)
     ]
+    # The markup-lsp plugin's language servers (yaml/toml/json/html/css/xml/md). Its
+    # servers.nix is the ONE list behind the plugin's `.lsp.json`, evaluated against
+    # OUR nixpkgs so every server substitutes from cache.nixos.org (marksman's
+    # dotnet-runtime included). Same darwin gate as the servers above.
+    ++ lib.optionals stdenv.hostPlatform.isDarwin (
+      import "${kattakath-skills}/plugins/markup-lsp/servers.nix" { inherit pkgs; }
+    )
     ++ lib.optionals isMacosHost [
       # `inngest` — CLI + local dev server for Inngest durable workflows (not in Homebrew;
       # nixpkgs has it). On Go 1.26: the same cockroachdb/swiss `!go1.27` pin as

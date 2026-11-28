@@ -327,7 +327,9 @@
       # redirects the old name). Claude Code plugins in plugins/, published as the
       # `kattakath` marketplace.
       #
-      # PINNED FOR ONE THING: `checks.<system>.mcp-launcher-parity` reads the plugin
+      # PINNED FOR TWO THINGS. (1) modules/home/default.nix imports
+      # plugins/markup-lsp/servers.nix — the plugin's language-server list, built
+      # against OUR nixpkgs (since 2026-11-28). (2) `checks.<system>.mcp-launcher-parity` reads the plugin
       # behind each `local.pluginMcp.servers` entry macos declares, to check that the
       # `nix-mcp-*` launcher this fleet BUILDS is one its pinned plugin runs (what it
       # asserts: that check's header in modules/parts/checks.nix). No secret value

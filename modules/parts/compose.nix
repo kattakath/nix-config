@@ -29,6 +29,7 @@ let
     agent-skills-mac-automation
     agent-skills-vercel-agent
     nixpkgs-claude-code
+    kattakath-skills
     ;
 
   # The fleet store-retention policy (darwin customSettings min-free/max-free).
@@ -107,13 +108,11 @@ let
             agent-skills-mac-automation
             agent-skills-vercel-agent
             nixpkgs-claude-code
-            # kattakath-skills is DELIBERATELY ABSENT from this seam (removed
-            # 2026-10-02, when its last home-manager consumer died). The pin is still
-            # load-bearing — modules/parts/checks.nix (grep `inputs.kattakath-skills`) — but it
-            # reads `inputs.kattakath-skills` directly in the FLAKE ENGINE, where
-            # `inputs` is already in scope. It is not a home-manager module, so nothing reached
-            # through here; an extraSpecialArg no module declares is dead weight that
-            # deadnix structurally cannot see (it was `inherit`ed, hence "used").
+            # kattakath-skills is back on this seam (2026-11-28): modules/home/default.nix
+            # imports plugins/markup-lsp/servers.nix from it. It was absent 2026-10-02 →
+            # 2026-11-28, when it had no home-manager consumer; checks.nix still reads
+            # `inputs.kattakath-skills` directly in the flake engine as well.
+            kattakath-skills
             # jsonResumeUrl: the raw resume.json URL (or null), consumed by modules/home/default.nix
             # to bake into the jsonresume package as its default --url (darwin
             # home.packages; inert on the NixOS hosts).
