@@ -5,7 +5,10 @@
 #   sudo scripts/nix-impl-switch.sh to-upstream    --flake <ref#host> --yes-really
 #   sudo scripts/nix-impl-switch.sh to-determinate --flake <ref#host> --yes-really
 #
-# <ref#host> must already set `local.nixImplementation` to the TARGET lane.
+# Since ADR-018 retired the Determinate lane (2026-11-27) this flake has only
+# the upstream one, so to-upstream is the path that matters: bootstrap.sh points a
+# Mac that still runs Determinate here. to-determinate needs a <ref#host> from
+# before that retirement (git history) and the backup this script left behind.
 # Without --yes-really it prints the plan and changes nothing (the default is a
 # dry run, because this strips the running Nix daemon off a Mac).
 #

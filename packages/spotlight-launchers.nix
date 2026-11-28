@@ -47,7 +47,7 @@ let
   # LaunchServices starts a bundle's launcher with a minimal PATH, so the
   # launcher sets its own. `$(id -un)` is expanded at RUN time, so no /Users/<name> is
   # hardcoded. The per-user profile is where `android-emu` lives.
-  launcherPath = "/etc/profiles/per-user/$(id -un)/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:${brewPrefix}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+  launcherPath = "/etc/profiles/per-user/$(id -un)/bin:/run/current-system/sw/bin:${brewPrefix}/bin:/usr/bin:/bin:/usr/sbin:/sbin";
 
   # Simplified robot-head glyph on Android's brand green — evocative, not a
   # trace of the copyrighted "bugdroid" mascot artwork.

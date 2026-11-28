@@ -90,8 +90,9 @@ let
   stackLines = lib.concatMapStrings (
     n: "${lib.removeSuffix "-plan" n} ${n} ${plans.${n}.meta.mainProgram or n}\n"
   ) names;
-  # Determinate's system Nix (the daemon's own client): launchd's PATH has no `nix`.
-  nixBin = "/nix/var/nix/profiles/default/bin/nix";
+  # nix-darwin's system Nix (`nix.package`, the daemon's own version): launchd's
+  # PATH has no `nix`. It was Determinate's default-profile binary until ADR-018.
+  nixBin = "/run/current-system/sw/bin/nix";
 
   run = writeShellApplication {
     name = "terranix-drift-run";
