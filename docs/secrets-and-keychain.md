@@ -58,7 +58,7 @@ activation into `/run/agenix/<name>` by the host itself.
 
 | Secret | Consumer | Content |
 |---|---|---|
-| `gh-app-dontsell-ai-key.age` | `local.macosGithubRunner` (`modules/darwin/github-runner.nix`) — the bare-metal runner **daemons**; root-owned, read before the drop to `_github-runner` (`github-runner.nix` § PRIVILEGE SPLIT) | GitHub App RS256 `.pem` |
+| `gh-app-dontsell-ai-key.age` | `local.macosGithubRunner` (`modules/darwin/github-runner.nix`) — the bare-metal runner **daemons**; root-owned, read before the drop to `_github-runner-NN` (`github-runner.nix` § PRIVILEGE SPLIT) | GitHub App RS256 `.pem` |
 | `gh-app-fleet-key.age` | `local.tart.githubRunners.*` (the `tart-vms` capsule, `hosts/macos.nix`) — the login-user Tart **agents** | the *same* App's RS256 `.pem` |
 | `gitlab-runner-token.age` | `local.tart.gitlabRunner` — renders `config.toml` at agent start | the bare `glrt-` token, one line |
 | `chrome-enrollment-token.age` | `local.chromeEnterprise` (`modules/darwin/chrome-enterprise.nix`) — the only one with a custom `path`: agenix links it to `/Library/Google/Chrome/CloudManagementEnrollmentToken`, where Chrome reads it as the login user | the bare enrollment token, one line |

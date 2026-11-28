@@ -172,7 +172,7 @@ in
   # WHY THERE ARE STILL TWO AGENIX SECRETS FOR ONE APP: an agenix secret has
   # exactly one owner, and these two lanes run as different users —
   # gh-app-dontsell-ai-key is owned by root (these launchd DAEMONS read it as
-  # root, then drop to `_github-runner` — github-runner.nix § PRIVILEGE SPLIT)
+  # root, then drop to `_github-runner-NN` — github-runner.nix § PRIVILEGE SPLIT)
   # and gh-app-fleet-key by the login user (the Tart USER AGENTS, which need a
   # GUI session). Same key material, two files, because of OS ownership rather
   # than credential separation. Consolidating Apps does not consolidate these.

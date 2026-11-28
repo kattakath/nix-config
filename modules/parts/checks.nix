@@ -3245,7 +3245,7 @@ in
           # The fleet's concrete exposure is the pair that must move TOGETHER:
           # gh-app-dontsell-ai-key.age and gh-app-fleet-key.age hold identical key
           # material on purpose (one GitHub App, two owning users — the
-          # `_github-runner` daemons vs. the login-user Tart agents; secrets.nix
+          # `_github-runner-NN` daemons vs. the login-user Tart agents; secrets.nix
           # carries the full why), so rotating the App key means re-encrypting
           # BOTH. Dropping one from the rules is precisely how that becomes a
           # one-sided rotation, and the half that was skipped is the half nobody

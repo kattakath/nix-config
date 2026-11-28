@@ -24,7 +24,7 @@
 # PRIVILEGE SPLIT (since 2026-10-30; before it, every CI job's uid could read the key).
 # The key is root-only and each daemon starts as ROOT (`runDaemon`): it mints
 # JWT → ~1h installation token → ~1h REGISTRATION token, then exec-drops to
-# `_github-runner` (`runAsRunner`) holding only the registration token, which can
+# `_github-runner-NN` (`runAsRunner`) holding only the registration token, which can
 # register a runner and nothing else. Precedent: nixpkgs' NixOS github-runner
 # module makes this exact split for `githubApp` — a root (`+`) ExecStartPre fetches
 # the registration token and the key sits in `InaccessiblePaths`. launchd has
@@ -44,17 +44,18 @@
 # → `configure` → config.sh as ACTIONS_RUNNER_INPUT_TOKEN, which the runner reads in place
 # of `--token` (`configure`'s comment cites the source). Until 2026-11-28 it went on
 # `config.sh --token`, readable by every local user for one ~2 s configure (instance
-# 01's configure log: 03:26:44Z → 03:26:46Z). That is now closed to other uids — but
-# NOT to `_github-runner` itself: `runAsRunner` (from its start through the workDir /
-# RUNNER_ROOT wipe and the configure) and `configure`/config.sh carry the token in their
-# exec-time environment, and with `count = 2` (hosts/macos.nix) the OTHER instance's
-# job runs as that same uid and could read it. What it would get is the ≤1 h
-# REGISTRATION token (register a rogue runner into this org for up to an hour). The
-# Listener and its jobs never inherit it: runAsRunner unsets it before `exec`, and exec
-# takes a fresh snapshot. The App key and the installation token never leave root (the
-# curls take their bearer headers on stdin — `mintRegistrationToken`). Closing the
-# same-uid window needs per-instance users, not a different hand-off. NOT tested: a
-# debugger (task_for_pid) read, which normally needs root or a debugger entitlement.
+# 01's configure log: 03:26:44Z → 03:26:46Z). The environment hop closed that to other
+# uids, but `runAsRunner` (through the workDir / RUNNER_ROOT wipe and the configure) and
+# `configure`/config.sh still carry the token in their exec-time environment, readable
+# by their OWN uid. So since 2026-11-28 every instance runs as its own user,
+# `_github-runner-NN` (`uidBase` below): instance A's job can no longer read instance B's
+# ≤1 h registration token. What remains is instance A's own next registration, which
+# its own job could only race by outliving the job (a leftover process — the same
+# job-to-job boundary the SECURITY note below names). The Listener and its jobs never
+# inherit the token: runAsRunner unsets it before `exec`, and exec takes a fresh
+# snapshot. The App key and the installation token never leave root (the curls take
+# their bearer headers on stdin — `mintRegistrationToken`). NOT tested: a debugger
+# (task_for_pid) read, which normally needs root or a debugger entitlement.
 # OUTBOUND-only — the runner polls GitHub, opens no port.
 #
 # SECURITY: `--ephemeral` (one job per registration; launchd restarts + the script
@@ -62,11 +63,11 @@
 # run just comes back on its own, no manual `svc.sh start`). Only trusted push
 # jobs should target `runs-on: [self-hosted, ...]` — never fork-PR workflows,
 # because a fork-PR job still runs with real credentials: the daemon has no
-# login environment to inherit (the job runs as uid 533 `_github-runner` from
-# /Library/LaunchDaemons with a bare PATH this module sets itself), but it
+# login environment to inherit (the job runs as its instance's `_github-runner-NN`
+# from /Library/LaunchDaemons with a bare PATH this module sets itself), but it
 # DOES still hold its job's GITHUB_TOKEN and repo access for its duration.
-# Jobs also share that one uid with each other and with the next registration,
-# so a malicious job can tamper with later jobs on this host — the privilege
+# Jobs of ONE instance share its uid with each other and with its next registration,
+# so a malicious job can tamper with that instance's later jobs — the privilege
 # split protects the App KEY, not job-to-job isolation (that is the Tart lane).
 {
   config,
@@ -77,7 +78,16 @@
 let
   cfg = config.local.macosGithubRunner;
   host = config.networking.hostName;
-  user = "_github-runner";
+  # ONE macOS user PER INSTANCE (`_github-runner-NN`, uid/gid 540 + NN). The shared
+  # `_github-runner` (533) is retired: a store process's exec-time environment is
+  # readable by its own uid, so with one shared uid instance A's job could read
+  # instance B's registration token mid-re-register (header). nix-darwin's own
+  # services.github-runners says the same and leaves it to us: "Make each runner use
+  # its own user and group … you will have to do the user and group creation
+  # yourself" (nix-darwin modules/services/github-runner/options.nix:14-20).
+  # 540+: 533 is the retired user and 535 is _dnscrypt-proxy on this Mac (dscl).
+  retiredUser = "_github-runner";
+  uidBase = 540;
   # Upstream nixpkgs' `github-runner` bundles only `externals/node24` — Node 20 is EOL,
   # and the pinned pkgs/by-name/gi/github-runner/package.nix's `nodeRuntimes` assert
   # admits nothing else, so no override can bring node20 back. But many
@@ -363,6 +373,8 @@ let
     let
       suffix = lib.fixedWidthNumber 2 idx;
       instanceName = "${host}-${cfg.org}-${suffix}";
+      runUser = "_github-runner-${suffix}";
+      uid = uidBase + idx;
       stateDir = "/var/lib/github-runner-${host}-${cfg.org}-${suffix}";
       workDir = "${stateDir}/_work";
       logDir = "/var/log/github-runner-${host}-${cfg.org}-${suffix}";
@@ -399,7 +411,7 @@ let
             --ephemeral
         '';
       };
-      # THE UNPRIVILEGED HALF — everything from here on runs as `_github-runner`,
+      # THE UNPRIVILEGED HALF — everything from here on runs as `_github-runner-NN`,
       # including every job. The registration token arrives in the environment
       # from `runDaemon` and is UNSET before `exec Runner.Listener`, so the
       # long-lived Listener (and every job it starts) never inherits it: exec takes a
@@ -407,7 +419,7 @@ let
       # it until that exec, readable by the same uid (header).
       #
       # Why env and not a file: a token file would have to be written by ROOT
-      # into RUNNER_ROOT, a directory `_github-runner` owns — and a leftover
+      # into RUNNER_ROOT, a directory `_github-runner-NN` owns — and a leftover
       # process from an earlier job could plant a symlink there for root's
       # write to follow. The environment has no path to race.
       runAsRunner = pkgs.writeShellApplication {
@@ -434,7 +446,7 @@ let
       # ARG0 IS DELIBERATELY /bin/sh HERE (via nix-darwin's `command`) — the
       # boot-ordering exception in .claude/rules/launchd-naming.md, which holds
       # the measurements; read it before changing this back. What is specific to
-      # this unit: it is a root DAEMON dropping to `_github-runner` that only
+      # this unit: it is a root DAEMON dropping to `_github-runner-NN` that only
       # ever touches /var/lib, so it reads no TCC-gated folder. Only BTM
       # legibility is lost, and the exec'd process is still
       # nix-github-runner-<instance>.
@@ -442,7 +454,7 @@ let
       # THE ROOT HALF. It does exactly two things as root: mint the
       # registration token (the only read of the App key), then exec-drop.
       # Directory cleanup is deliberately NOT here — `find -delete` as root in a
-      # tree `_github-runner` can write is a traversal race for nothing.
+      # tree `_github-runner-NN` can write is a traversal race for nothing.
       #
       # `chpst -u` (runit, `platforms = linux ++ darwin` in the pinned
       # nixpkgs) sets gid, supplementary groups and uid, then EXECs in the same
@@ -460,7 +472,7 @@ let
         #
         # INVARIANT: the root half reads NOTHING the job uid can write. The
         # daemon's HOME and WorkingDirectory are both `stateDir`, which
-        # `_github-runner` owns — and curl reads `$HOME/.curlrc`, jq loads
+        # `_github-runner-NN` owns — and curl reads `$HOME/.curlrc`, jq loads
         # `$HOME/.jq`. A job that left a `.curlrc` there could make root POST
         # the key anywhere or write any file. So the mint runs with
         # HOME=/var/empty (root-owned on every macOS) from `/`, and curl also
@@ -468,7 +480,7 @@ let
         text = ''
           reg_token=$(cd / && HOME=/var/empty ${lib.getExe mintRegistrationToken})
           RUNNER_REG_TOKEN="$reg_token" exec ${lib.getExe' pkgs.runit "chpst"} \
-            -u ${user}:${user} ${lib.getExe runAsRunner}
+            -u ${runUser}:${runUser} ${lib.getExe runAsRunner}
         '';
       };
     in
@@ -480,6 +492,8 @@ let
         logDir
         configure
         runDaemon
+        runUser
+        uid
         ;
       daemonKey = "github-runner-${host}-${cfg.org}-${suffix}";
     };
@@ -596,7 +610,7 @@ in
   config = lib.mkIf cfg.enable {
     # The App's private key (agenix), decrypted at activation with this Mac's SSH
     # host key into a ROOT-only file — only `runDaemon`'s root half reads it,
-    # never the `_github-runner` uid that runs jobs (see § PRIVILEGE SPLIT in
+    # never the `_github-runner-NN` uid that runs jobs (see § PRIVILEGE SPLIT in
     # this file's header). Declared HERE (under the enable guard) rather than in
     # hosts/macos.nix, so a disabled runner leaves no secret behind.
     age.secrets."gh-app-${cfg.org}-key" = {
@@ -605,23 +619,37 @@ in
       mode = "0400";
     };
 
-    # Managed service user/group (mirrors nix-darwin's own runner module) — one
-    # user shared by every instance; this is a single-operator machine, not a
-    # multi-tenant fleet, so per-instance OS-user isolation buys nothing here.
-    users.users.${user} = {
-      uid = lib.mkDefault 533;
-      gid = config.users.groups.${user}.gid;
-      description = "GitHub Runner service user";
-      home = "/var/lib/github-runner-${host}";
-      createHome = false;
-      shell = "/bin/bash";
-    };
-    users.knownUsers = [ user ];
-    users.groups.${user} = {
-      gid = lib.mkDefault 533;
-      description = "GitHub Runner service user group";
-    };
-    users.knownGroups = [ user ];
+    # One service user + group PER INSTANCE (see `uidBase`). Jobs of one instance still
+    # share their uid with that instance's NEXT job (job-to-job isolation is the Tart
+    # lane), but no longer with the other instance's jobs or its registrations.
+    users.users = lib.listToAttrs (
+      map (
+        i:
+        lib.nameValuePair i.runUser {
+          inherit (i) uid;
+          gid = i.uid;
+          description = "GitHub Runner ${i.instanceName}";
+          home = i.stateDir;
+          createHome = false;
+          shell = "/bin/bash";
+        }
+      ) instances
+    );
+    users.groups = lib.listToAttrs (
+      map (
+        i:
+        lib.nameValuePair i.runUser {
+          gid = i.uid;
+          description = "GitHub Runner ${i.instanceName}";
+        }
+      ) instances
+    );
+    # `retiredUser` is listed but NOT declared, which makes nix-darwin DELETE the old
+    # shared `_github-runner` (533) at activation (modules/users/default.nix
+    # `deletedUsers`). MIGRATION (2026-11-28): drop it from both lists once the Mac has
+    # activated this — after that it is a no-op entry.
+    users.knownUsers = map (i: i.runUser) instances ++ [ retiredUser ];
+    users.knownGroups = map (i: i.runUser) instances ++ [ retiredUser ];
 
     # Create + own every instance's state/work/log dirs as root, BEFORE launchd
     # loads the daemons (mkBefore on the `launchd` activation script, which runs
@@ -639,7 +667,9 @@ in
       lib.concatMapStringsSep "\n" (i: ''
         ${lib.getExe' pkgs.coreutils "mkdir"} -p ${i.stateDir} ${i.workDir} ${i.logDir}
         ${lib.getExe' pkgs.coreutils "chmod"} 0750 ${i.stateDir} ${i.workDir} ${i.logDir}
-        ${lib.getExe' pkgs.coreutils "chown"} ${user}:${user} ${i.stateDir} ${i.workDir} ${i.logDir}
+        # -R re-owns what the retired shared uid left behind; -P -h because these trees
+        # are job-writable, and root must never follow a planted symlink to chown its target.
+        ${lib.getExe' pkgs.coreutils "chown"} -R -P -h ${i.runUser}:${i.runUser} ${i.stateDir} ${i.logDir}
       '') instances
     );
 
@@ -699,8 +729,8 @@ in
             # Pinned explicitly because the daemon no longer sets `UserName`, so
             # launchd no longer derives them; `chpst` changes the uid, not the
             # environment. Jobs that read $USER keep seeing the job uid.
-            USER = user;
-            LOGNAME = user;
+            USER = i.runUser;
+            LOGNAME = i.runUser;
             # Holds a host wake assertion for the life of each JOB — see the long
             # note at `wakeAssertionHook`. Set in the DAEMON's environment rather
             # than in the runner's `.env` file because that is the half this
@@ -724,7 +754,7 @@ in
             ProcessType = "Interactive";
             ThrottleInterval = 30;
             # NO UserName/GroupName: the daemon starts as ROOT so it can read
-            # the App key, and `runDaemon` drops to `_github-runner` itself.
+            # the App key, and `runDaemon` drops to `_github-runner-NN` itself.
             # Consequence worth knowing before "fixing" it: launchd now opens the
             # two log files below as root. The dropped process still writes them
             # through the inherited fds, so their ownership is not a bug.

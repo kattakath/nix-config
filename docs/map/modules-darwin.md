@@ -207,7 +207,7 @@ Part of the [repo map](../repo-map.md) — the full fleet architecture.
     `gh-app-dontsell-ai-key.age`), used to mint a fresh ~1 h installation token per
     registration rather than holding a long-lived bearer credential. The key is **root-only**:
     each daemon starts as root, mints a registration token, then `chpst` drops to
-    `_github-runner`, so no job uid can read the key (`github-runner.nix` § PRIVILEGE SPLIT). Its permissions are the
+    `_github-runner-NN`, so no job uid can read the key (`github-runner.nix` § PRIVILEGE SPLIT). Its permissions are the
     shared fleet App's, recorded with its id in `hosts/macos.nix` (App-GLOBAL, wider than this lane needs).
   - **Security:** `--ephemeral` (one job per registration; launchd restart + re-register makes
     it self-healing), outbound-only. Only trusted push jobs may target `runs-on: [self-hosted,
