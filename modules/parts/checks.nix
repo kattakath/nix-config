@@ -1193,37 +1193,79 @@ in
               # inside never becomes a build input of this derivation.
               execStart = toString (pi.systemd.services.nix-daemon.serviceConfig.ExecStart or "");
               subs = pi.nix.settings.extra-substituters or [ ];
+              # ADR-018 (DECIDED 2026-11-27): the contract follows the host's lane.
+              # On "upstream" the expensive failure is the same one in a new place:
+              # nixpkgs' Nix must come from cache.nixos.org, which only stays true
+              # while that default substituter is not dropped.
+              upstream = (pi.local.nixImplementation or "determinate") == "upstream";
+              upstreamExpect = [
+                {
+                  name = "determinate.enable is false on the upstream lane";
+                  ok = !(pi.determinate.enable or true);
+                }
+                {
+                  name = "nix.package is nixpkgs' Nix, not Determinate's";
+                  ok = (pi.nix.package.pname or "") == "nix";
+                }
+                {
+                  name = "nix-daemon.service does NOT exec determinate-nixd";
+                  ok = !(lib.hasInfix "determinate-nixd" execStart);
+                }
+                {
+                  name = "nix.enable is true — NixOS owns the daemon";
+                  ok = pi.nix.enable or false;
+                }
+                {
+                  name = "flakes + nix-command are on";
+                  ok = lib.all (f: lib.elem f (pi.nix.settings.experimental-features or [ ])) [
+                    "nix-command"
+                    "flakes"
+                  ];
+                }
+                {
+                  name = "cache.nixos.org is a substituter, or this Pi BUILDS Nix from source";
+                  ok = lib.elem "https://cache.nixos.org/" (pi.nix.settings.substituters or [ ]);
+                }
+              ];
             in
             mkHostContract {
               inherit pkgs;
               name = "determinate-daemon-nixpi";
-              subject = "nixpi: Determinate runs the daemon, nix.settings still applies";
-              expect = [
-                {
-                  name = "determinate.enable is true (the nixosModule is in the module list)";
-                  ok = pi.determinate.enable or false;
-                }
-                {
-                  name = "nix.package is Determinate's Nix, not nixpkgs'";
-                  ok = (pi.nix.package.pname or "") == "determinate-nix";
-                }
-                {
-                  name = "nix-daemon.service execs determinate-nixd";
-                  ok = lib.hasInfix "determinate-nixd" execStart;
-                }
-                {
-                  name = "the generated nix.conf is retargeted to nix/nix.custom.conf";
-                  ok = (pi.environment.etc."nix/nix.conf".target or null) == "nix/nix.custom.conf";
-                }
-                {
-                  name = "nix.enable is still TRUE — unlike darwin, nix.settings must keep rendering";
-                  ok = pi.nix.enable or false;
-                }
-                {
-                  name = "install.determinate.systems is a substituter, or this Pi BUILDS Nix from source";
-                  ok = lib.elem "https://install.determinate.systems" subs;
-                }
-              ];
+              subject =
+                if upstream then
+                  "nixpi: upstream Nix runs the daemon, its Nix substitutes from cache.nixos.org"
+                else
+                  "nixpi: Determinate runs the daemon, nix.settings still applies";
+              expect =
+                if upstream then
+                  upstreamExpect
+                else
+                  [
+                    {
+                      name = "determinate.enable is true (the nixosModule is in the module list)";
+                      ok = pi.determinate.enable or false;
+                    }
+                    {
+                      name = "nix.package is Determinate's Nix, not nixpkgs'";
+                      ok = (pi.nix.package.pname or "") == "determinate-nix";
+                    }
+                    {
+                      name = "nix-daemon.service execs determinate-nixd";
+                      ok = lib.hasInfix "determinate-nixd" execStart;
+                    }
+                    {
+                      name = "the generated nix.conf is retargeted to nix/nix.custom.conf";
+                      ok = (pi.environment.etc."nix/nix.conf".target or null) == "nix/nix.custom.conf";
+                    }
+                    {
+                      name = "nix.enable is still TRUE — unlike darwin, nix.settings must keep rendering";
+                      ok = pi.nix.enable or false;
+                    }
+                    {
+                      name = "install.determinate.systems is a substituter, or this Pi BUILDS Nix from source";
+                      ok = lib.elem "https://install.determinate.systems" subs;
+                    }
+                  ];
               advice = [
                 "modules/parts/compose.nix wires determinate.nixosModules.default into"
                 "every NixOS host, and modules/nixos/nix-cache.nix supplies the ONE"

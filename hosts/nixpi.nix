@@ -130,6 +130,10 @@
   services.journald.settings.Journal.Storage = "persistent";
 
   networking.hostName = "nixpi";
+  # ADR-018 § 3, last step: the live server moves to upstream Nix. Its Nix
+  # (nixpkgs' nix-2.35.6) substitutes from cache.nixos.org — checked 2026-11-27,
+  # HTTP 200 — so the Pi still never builds.
+  local.nixImplementation = "upstream";
 
   # ── BOOT CHAIN (nixos-hardware, since the raspberry-pi-nix exit) ─────────────
   # GPU firmware -> U-Boot (u-boot.bin on FIRMWARE) -> extlinux.conf on the ROOT
