@@ -7,8 +7,8 @@
 |---|---|---|
 | nixvm | **upstream** | 2026-11-27 |
 | nixos | **upstream** | 2026-11-27 |
-| macos | determinate | next, through `scripts/nix-impl-switch.sh` |
-| nixpi | determinate | last |
+| macos | **upstream** | 2026-11-27, through `scripts/nix-impl-switch.sh`; the boot unlock is proven only after the first reboot |
+| nixpi | determinate | next (last) |
 
 ADR-017 still describes the hosts that have not moved yet.
 
