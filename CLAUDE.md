@@ -178,8 +178,8 @@ the `docs/map/` file [`docs/repo-map.md`](docs/repo-map.md) routes each path to.
 
 **Gone on purpose — do not re-add.** No `plugins/` or `skills/` tree: both live in
 `github:kattakath/skills`, installed as an **auto-updating git marketplace** (a green merge
-ships via `stable`, no pin bump here) and pinned as `kattakath-skills` for checks only (grep `inputs.kattakath-skills` in
-`modules/parts/checks.nix`), which DO need this pin bumped; **zero userscripts** (published to Greasy Fork, so an installed
+ships via `stable`, no pin bump here) and pinned as `kattakath-skills` for Nix-side reads only (grep `kattakath-skills` in
+`modules/`), which DO need this pin bumped; **zero userscripts** (published to Greasy Fork, so an installed
 copy self-updates). Why:
 [`docs/agent-resource-externalization.md`](docs/agent-resource-externalization.md).
 
