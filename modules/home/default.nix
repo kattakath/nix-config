@@ -93,6 +93,9 @@ let
   # config.home.sessionVariables.ANDROID_HOME, which the android-phone plugin's
   # mobile-mcp inherits from the session env rather than re-declaring).
   androidSdkRoot = "${brewPrefix}/share/android-commandlinetools";
+  # The SDK's platform-tools: the fleet's ONE adb lives here (hosts/macos.nix
+  # "Android: one adb" reads it back through home.sessionVariables.ADB).
+  androidPlatformTools = "${androidSdkRoot}/platform-tools";
   brewPrefix = import ../_lib/brew-prefix.nix osConfig;
 
   # VS Code Marketplace mirror — provided by the nix-vscode-extensions overlay,
@@ -812,8 +815,9 @@ in
   # ---- Android SDK (macOS only) ------------------------------------------------
   # The `android-commandlinetools` Homebrew cask installs sdkmanager/avdmanager
   # under the Homebrew prefix. Point ANDROID_HOME there so `sdkmanager` downloads
-  # the emulator + system images into it, and put the emulator/platform-tools
-  # bins on PATH. That platform-tools adb is the fleet's ONE adb (`ADB` below; the
+  # the emulator + system images into it, and put the emulator bins on PATH
+  # (platform-tools reaches PATH via hosts/macos.nix). That platform-tools adb is the
+  # fleet's ONE adb (`ADB` below; the
   # android-platform-tools cask is gone — hosts/macos.nix "Android: one adb").
   # After switching, just run `android-emu` (the helper in the let block) — it
   # installs the SDK packages + creates the AVD on first run, then boots it.
@@ -845,7 +849,7 @@ in
     // lib.optionalAttrs isMacosHost {
       ANDROID_HOME = androidSdkRoot;
       # The ONE adb every consumer uses (android-phone and scrcpy read ADB first).
-      ADB = "${androidSdkRoot}/platform-tools/adb";
+      ADB = "${androidPlatformTools}/adb";
 
       # Where buku keeps `bookmarks.db`. Pinned because buku otherwise scatters it into a
       # platform-guessed data dir, and this DB is the single surviving copy of the merged
@@ -858,7 +862,8 @@ in
 
   home.sessionPath = lib.optionals isMacosHost [
     "${androidSdkRoot}/emulator"
-    "${androidSdkRoot}/platform-tools"
+    # No platform-tools here: hosts/macos.nix puts it in environment.systemPath, which
+    # reaches shells AND Dock-launched apps — one PATH entry, one declaration.
     # No `$HOME/.grok/bin`: a self-updated per-user grok must not shadow the store grok-build.
   ];
 
@@ -1830,7 +1835,7 @@ in
           staticSettings = pkgs.writeText "escrcpy-tool-dirs.json" (
             builtins.toJSON {
               common = {
-                adbDir = "${androidSdkRoot}/platform-tools";
+                adbDir = androidPlatformTools;
                 inherit scrcpyDir;
               };
             }

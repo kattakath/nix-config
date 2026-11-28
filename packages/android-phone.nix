@@ -77,19 +77,18 @@ writeShellApplication {
   text = ''
     set -euo pipefail
 
-    # adb: $ADB first (the SDK copy, set fleet-wide), then a brewed copy, then PATH — see the header, the
-    # path is only knowable at runtime. scrcpy keeps the same shape even though it
+    # adb: $ADB first (the SDK copy, set fleet-wide), then PATH — see the header, the
+    # path is only knowable at runtime. scrcpy keeps a brew fallback even though it
     # is a nixpkgs package now: its brew branches simply stop matching once
     # `cleanup = "uninstall"` removes the old formula, and PATH then resolves the
     # Home Manager profile copy. Do not "tidy" the brew branches away — a machine
     # mid-migration still has them, and they cost one `test -x`.
     ADB="''${ADB:-}"
     SCRCPY="''${SCRCPY:-}"
+    # adb has NO brew branch any more (2026-11-28): the cask is gone, and preferring a
+    # leftover brewed adb over $ADB/PATH (the SDK copy) would bring back the two-adb clash.
     if [ -z "$ADB" ]; then
-      if [ -x ${brewPrefix}/bin/adb ]; then ADB=${brewPrefix}/bin/adb
-      elif [ -x /usr/local/bin/adb ]; then ADB=/usr/local/bin/adb
-      else ADB=$(command -v adb 2>/dev/null || true)
-      fi
+      ADB=$(command -v adb 2>/dev/null || true)
     fi
     if [ -z "$SCRCPY" ]; then
       if [ -x ${brewPrefix}/bin/scrcpy ]; then SCRCPY=${brewPrefix}/bin/scrcpy

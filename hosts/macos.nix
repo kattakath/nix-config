@@ -34,8 +34,11 @@ let
   fleetAppId = 4849830;
   dontsellOrg = "dontsell-ai";
   dontsellInstallationId = 159496676;
-  # The Android SDK root, declared once as Home Manager's ANDROID_HOME (modules/home/default.nix).
-  androidHome = config.home-manager.users.${loginName}.home.sessionVariables.ANDROID_HOME;
+  # The Android SDK root and its ONE adb, each declared once as a Home Manager session
+  # variable (modules/home/default.nix) and read back here, never re-spelled.
+  hmSessionVars = config.home-manager.users.${loginName}.home.sessionVariables;
+  androidHome = hmSessionVars.ANDROID_HOME;
+  androidAdb = hmSessionVars.ADB;
 in
 {
   imports = [
@@ -424,11 +427,11 @@ in
   # scrcpyDir, merged by modules/home/default.nix's escrcpyToolDirs), the emulator itself. Two adb binaries of
   # different versions kill each other's server, so there is exactly one. The SDK root
   # is read from Home Manager's ANDROID_HOME, its one declaration. launchd.user.envVariables
-  # and environment.systemPath (which feeds the GUI PATH, modules/darwin/core.nix) carry it
-  # to Dock-launched apps too — shells already get it from home.sessionPath.
-  environment.systemPath = [ "${androidHome}/platform-tools" ];
+  # carries ANDROID_HOME and ADB to Dock-launched apps; environment.systemPath puts
+  # platform-tools on PATH for shells AND the GUI PATH (modules/darwin/core.nix) at once.
+  environment.systemPath = [ (dirOf androidAdb) ];
   launchd.user.envVariables.ANDROID_HOME = androidHome;
-  launchd.user.envVariables.ADB = "${androidHome}/platform-tools/adb";
+  launchd.user.envVariables.ADB = androidAdb;
 
   # ---- Google Drive for desktop (cask below) ----------------------------------
   # Keys are Google's documented admin keys for the com.google.drivefs.settings
@@ -549,7 +552,7 @@ in
       # `scrcpy` is NOT brewed any more (2026-09-29): nixpkgs carries it (4.1,
       # builds and substitutes on aarch64-darwin), so it moved to
       # modules/home/default.nix for flake.lock pinning. `adb` is the SDK's own
-      # platform-tools copy since 2026-11-28 (ONE adb — see "Android: one adb" below).
+      # platform-tools copy since 2026-11-28 (ONE adb — see "Android: one adb" above).
       # `shellcheck` is NOT brewed any more (2026-11-07): nixpkgs carries it, so it
       # moved to modules/home/default.nix beside bash-language-server, which uses it.
       # `starship` is NOT brewed either, for the same reason as `git` above:
