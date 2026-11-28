@@ -81,11 +81,18 @@ let
   #   page-tools  the two agent browser rails (Playwright on the real Chrome, chrome-devtools
   #             on a headless CfT); its launchers come from ./pinned-chrome.nix, which is
   #             operator-only too (2026-11-18).
+  #   markup-lsp, nixd, bash-language-server  the operator's language servers (2026-11-28;
+  #             enabled only imperatively before). Each plugin's .lsp.json names a bare
+  #             command, and those binaries come from default.nix's darwin-gated
+  #             "Language servers" block, so the plugins belong where the binaries are.
   operatorIds = lib.optionals isMacosHost [
     "ci-watch@kattakath"
     "slack-etiquette@kattakath"
     "page-tools@kattakath"
     "project-sessions@kattakath"
+    "markup-lsp@kattakath"
+    "nixd@kattakath"
+    "bash-language-server@kattakath"
   ];
 
   # ONE predicate for "this marketplace is a store path", shared by the three
