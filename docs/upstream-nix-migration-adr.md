@@ -49,7 +49,7 @@ Found by `git grep -l determinate` on 2026-11-27:
 
 | Gate | Evidence that passes it |
 |---|---|
-| **G1: a Mac can leave Determinate in place** | **PASSED 2026-11-27**, with manual steps both ways (§ 4a). Next: turn those steps into a script before any real Mac uses them |
+| **G1: a Mac can leave Determinate in place** | **PASSED 2026-11-27**: by hand on a minimal flake (§ 4a), then scripted on the real engine (§ 4b) |
 | G2: the builder holds up | n ≥ 5 per cell for ADR-017 § 3a, plus the nixpi toplevel, `nixvm`, and the x86_64 devcontainer image |
 | G3: FlakeHub inputs resolve | `nix flake lock` and `nix flake check --no-build` on upstream Nix in the nixvm |
 | G4: CI matches | `nix-ci-impl.yml` on `cachix/install-nix-action` is green, and the loss of `eval-cores` is timed |
@@ -92,17 +92,53 @@ the socket, and `determinate-nixd` was not running at all. Removing that plist a
 **Not covered by G1:** the fleet's full macos configuration, `linux-builder-vz` under upstream
 nix-darwin (a macOS guest cannot nest a Linux VM), and Determinate's own upgrade hook coming back.
 
+### 4b. Scripted rehearsal on the real engine, 2026-11-27
+
+The repo now carries both halves, and neither changes any host by itself:
+
+- **`local.nixImplementation`** (`modules/darwin/nix-implementation.nix`): `"determinate"` (the
+  default) or `"upstream"`. With the default, every output is derivation-identical to `main`
+  (`scripts/drv-snapshot.sh --compare`: ACCEPTED, run twice).
+- **`scripts/nix-impl-switch.sh`**, the § 4a procedure as code:
+  - It is a dry run unless given `--yes-really`, and it reads the store volume's UUID live.
+  - It backs up Determinate's daemons, binary and `/etc/nix` files.
+  - An EXIT/INT/TERM trap restores Determinate if anything fails after the daemons stop.
+  - `to-determinate` removes the `org.nixos.nix-daemon` plist that nix-darwin leaves behind.
+  - Both directions sweep the other lane's launchd units.
+
+The guest was a fresh runner-image clone that took one VM slot (released afterwards). It ran the
+engine copied from the branch, through its published template path: `lib.mkDarwin` +
+`hosts/generic-darwin.nix`, with the full Home Manager profile, Homebrew and every launchd unit.
+`local.upstreamLinuxBuilder = false`, because a macOS guest cannot nest a Linux VM.
+
+| Test | Result |
+|---|---|
+| Dry run | plans the switch, builds the target, changes nothing |
+| Injected failure right after the daemons stop (`NIX_IMPL_SWITCH_INJECT_FAILURE=after-stop`) | the trap restored Determinate. It also exposed a **bug**: the empty backup tree blocked the next run. Fixed by deleting only empty directories |
+| `to-upstream`, then reboot | `/nix` mounted, upstream 2.35.6, marker intact. **Bug 1:** `nix-command`/`flakes` were off, because Determinate enables them and upstream does not. Fixed in `compose.nix`, on the upstream lane only. **Bug 2:** `nix-store-clean` stayed loaded next to `nh-clean`. nix-darwin removes only what `/run/current-system` lists, and the guest's earlier half-failed activations had left that link stale. The script now sweeps it |
+| `to-determinate`, then reboot | `determinate-nixd` serving, no leftover `org.nixos.nix-daemon`, backup cleared |
+| Clean `to-upstream` with every fix, then reboot | one command. 7,712 paths kept, marker runs, a new build works, `nix-store --verify` clean |
+
+**Still not covered:**
+- `hosts/macos.nix`: agenix, the CI runner lanes, `masApps`.
+- `linux-builder-vz` running as a nix-darwin service.
+- A Mac with months of state.
+
+G2 and G3 remain open.
+
 ## 5. Rollback
 
 - **NixOS:** re-add the module and redeploy. On nixpi, magic rollback reverts a failed activation
   on its own.
-- **macos:** the darwin generation before the switch, through `darwin-rebuild --rollback`. G1 must
-  also prove that this path works, because the Nix daemon itself changes owner.
+- **macos:** `sudo scripts/nix-impl-switch.sh to-determinate --flake <ref#host> --yes-really`, with
+  the host's flag set back to `"determinate"`. Rehearsed in § 4b. A bare `darwin-rebuild --rollback`
+  is **not** enough: it was never tested, and it cannot restore Determinate's daemons, which live
+  outside any generation.
 
 ## 6. Weakest assumption
 
-G1 has an answer: the move works without a reinstall, but only by hand, in four steps, plus one
-extra step to roll back. The weakest assumption now is that **the full fleet configuration behaves
-like the minimal test flake** — Homebrew, the launchd units, the Keychain loader and the Tart
-runners all sit on top of the Nix daemon. A script for § 4a, rehearsed in a guest that bootstraps
-the real flake (`tart-vm bootstrap --flake`), would settle it.
+The move works without a reinstall, and it is now scripted and rehearsed on the real engine (§ 4b).
+The weakest assumption is that **`hosts/macos.nix` and months of real state behave like the
+rehearsal guest**. The agenix activation, the two CI runner lanes and a store that has run for
+months were not in the guest. The closest settling evidence is a dry run of the script on the real
+Mac, which changes nothing.
