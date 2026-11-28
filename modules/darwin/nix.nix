@@ -23,6 +23,11 @@ in
   };
 
   config = {
+    # Flakes only: no `nix-channel` command or channel state (nix-darwin
+    # modules/nix/default.nix `nix.channel.enable`, default true). Every host
+    # resolves `nixpkgs` through the flake registry instead.
+    nix.channel.enable = false;
+
     # The fleet retention policy (../_lib/store-retention.nix), the same
     # `nh clean all` NixOS hosts run through nixpkgs' programs.nh.clean.
     programs.nh = {

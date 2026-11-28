@@ -188,6 +188,10 @@ in
     # activatable) instead of fetching it. Determinate's nix.conf set it; the
     # darwin side sets the same in modules/parts/compose.nix.
     nix.settings.always-allow-substitutes = true;
+    # Flakes only, the same as darwin (modules/darwin/nix.nix): no `nix-channel`
+    # and no channel entries in NIX_PATH (nixpkgs nixos/modules/config/
+    # nix-channel.nix); `nixpkgs` resolves through the flake registry.
+    nix.channel.enable = false;
 
     # Periodic TRIM, not online `discard` (Determinate best-practices § "Don't mount
     # your Nix store with online discard"). Nothing to set: `services.fstrim.enable`
