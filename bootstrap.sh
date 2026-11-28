@@ -3,7 +3,7 @@
 # bootstrap.sh — the ONE part of Mac setup/recovery that cannot live behind Nix.
 #
 # Run this as the FIRST thing on a clean (new OR freshly-reset) Mac, straight
-# from the repo over TLS — exactly like Determinate's installer:
+# from the repo over TLS — exactly like the Nix installer it runs:
 #
 #     curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash -s -- --check
 #     curl -fsSL https://raw.githubusercontent.com/kattakath/nix-config/main/bootstrap.sh | bash
@@ -20,8 +20,8 @@
 # dependencies. It does the irreducible minimum:
 #
 #   0. clear a leftover "Nix Store" APFS volume + stale /etc entries
-#   1. install Determinate Nix (curl CLI installer — NOT the .pkg)
-#   2. move the installer's /etc/nix/nix.custom.conf aside (nix-darwin owns it)
+#   1. install upstream Nix (the NixOS project's nix-installer, flakes on)
+#   2. refuse a leftover Determinate install (it needs scripts/nix-impl-switch.sh)
 #   3. clone the repo and activate it
 #
 # It does NOT manage your SSH keys. That is deliberate: key custody is a
@@ -373,37 +373,40 @@ To delete it anyway (DESTRUCTIVE): --force-clean-nix-volume"
     [ "$NEED_REBOOT" -eq 1 ] && offer_reboot
   fi
 
-  # 1. Determinate Nix — curl CLI installer, deliberately NOT the .pkg.
+  # 1. Upstream Nix (ADR-018, 2026-11-27): the NixOS project's own installer,
+  # NixOS/experimental-nix-installer, served from channels.nixos.org. It is the
+  # Rust installer Determinate's was forked into, so it keeps the uninstaller
+  # (/nix/nix-installer uninstall) and the encrypted "Nix Store" volume, and it
+  # installs upstream Nix with upstream's launchd labels (org.nixos.nix-daemon,
+  # org.nixos.darwin-store). Rehearsed in a fresh Tart guest the same day: the
+  # first `nix run nix-darwin -- switch` needed NO manual /etc moves (nix-darwin
+  # recognised the installer's /etc/nix/nix.conf, nix.custom.conf, bashrc, zshrc,
+  # zshenv and zprofile and renamed each to *.before-nix-darwin itself), and /nix
+  # mounted and served after a reboot. Unpinned on purpose (ADR-012 § 5): it runs
+  # once, on a fresh Mac, where an old pinned installer is the bigger risk; after
+  # that nix-darwin owns the Nix version through `nix.package`.
   if [ ! -e /nix/var/nix/profiles/default/bin/nix ]; then
-    # Unpinned on purpose (ADR-012 § 5): it runs once, on a fresh Mac, where an old
-    # pinned installer is the bigger risk on a new macOS; determinate-nixd owns upgrades
-    # after that. Not silent: the line below names the release the URL resolves to.
-    say "Installing Determinate Nix (curl CLI installer, $(curl -fsS -o /dev/null -w '%{redirect_url}' https://install.determinate.systems/nix 2>/dev/null | sed -n 's#.*/tag/\([^?]*\).*#\1#p'))"
-    curl -fsSL https://install.determinate.systems/nix | sh -s -- install --no-confirm
+    say "Installing upstream Nix (NixOS nix-installer, channels.nixos.org/nix-latest)"
+    curl -sSfL https://channels.nixos.org/nix-latest/nix-installer | sh -s -- install --no-confirm --enable-flakes
   fi
   # shellcheck disable=SC1091
   . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true
   export PATH="/nix/var/nix/profiles/default/bin:$PATH"
   command -v nix >/dev/null || die "nix not on PATH after install — open a new terminal and re-run."
 
-  # 2. Pre-empt the one /etc collision this setup hits EVERY time.
-  # The Determinate installer writes /etc/nix/nix.custom.conf (a comment-only
-  # stub). This flake sets determinateNix.customSettings (the Cachix substituters),
-  # which makes nix-darwin own that exact path — and nix-darwin refuses to
-  # overwrite /etc content it did not write ("Unexpected files in /etc, aborting
-  # activation"). Deterministic, so clear it up front instead of reacting to a
-  # failed switch. A file already managed by nix-darwin is a /nix/store symlink
-  # and is left alone, which keeps this idempotent.
-  if [ -e /etc/nix/nix.custom.conf ] && [ ! -L /etc/nix/nix.custom.conf ]; then
-    say "Moving the installer's /etc/nix/nix.custom.conf aside (nix-darwin will own that path)"
-    NCC_BAK="/etc/nix/nix.custom.conf.before-nix-darwin.$(date +%Y%m%d-%H%M%S)"
-    sudo mv /etc/nix/nix.custom.conf "$NCC_BAK"
-    echo "    moved -> $NCC_BAK  (original content preserved)"
+  # 2. A Mac that still runs Determinate Nix (an older bootstrap, or a manual
+  # install) cannot take this flake's first switch: nix-darwin aborts with
+  # "Determinate detected" while /usr/local/bin/determinate-nixd exists. Moving
+  # it over without reinstalling /nix is scripts/nix-impl-switch.sh's job.
+  if [ -e /usr/local/bin/determinate-nixd ]; then
+    die "Determinate Nix is installed here. This flake runs upstream Nix (ADR-018).
+Clone the repo, then run:
+    sudo scripts/nix-impl-switch.sh to-upstream --flake <checkout>#macos --yes-really"
   fi
 
   # 3. Clone, then activate. The repo is PUBLIC, so this needs no key — which is
   # the whole point: nothing about getting a Mac running depends on recovering a
-  # secret. `git` is Xcode's command line tools; the Determinate installer above
+  # secret. `git` is Xcode's command line tools; the Nix installer above
   # has already triggered that install if it was missing.
   if [ ! -d "$REPO_DIR/.git" ]; then
     say "Cloning $REPO_HTTPS -> $REPO_DIR"

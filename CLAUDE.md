@@ -99,8 +99,8 @@ nix develop -c deploy --targets .#nixpi      # Same, via deploy-rs w/ magicRollb
 nix run .#nixvm                              # Build + boot the HEADLESS nixvm build-vm (console in a QEMU window; root disk PERSISTS)
 nix eval .#nixosConfigurations.nixpi.config.system.build.toplevel   # Fast single-target eval
 
-# Bootstrap a clean/reset Mac (no Nix yet): install Determinate Nix, clone, then scripts/nix-impl-switch.sh
-# to-upstream (ADR-018 — bootstrap.sh still installs Determinate, so a bare first activate aborts).
+# Bootstrap a clean/reset Mac (no Nix yet): install upstream Nix (NixOS nix-installer), clone, activate #macos.
+# A Mac still on Determinate is refused; it moves with scripts/nix-impl-switch.sh (ADR-018).
 # On a RESET Mac run `| bash -s -- --check` FIRST — it names the leftover "Nix Store" volume
 # that forces a reboot + a manual re-run mid-bootstrap. It does NOT manage SSH keys — a lost
 # keypair stays lost, every agenix secret is vendor-re-issuable. See docs/new-mac-runbook.md
