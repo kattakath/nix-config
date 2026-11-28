@@ -77,6 +77,13 @@ is checkable rather than an excuse.
 Corollary: `pbcopy` is for the handover case and for values he must paste (secrets, OTPs,
 long strings — see § Redact). It is not a substitute for doing the work.
 
+## Project sessions — one named background session per repo
+
+When the interactive main session starts work on a git repo, load the
+**`project-sessions`** skill and follow it (the procedure lives there, not here). It hands
+the work to that repo's background session, named `<host>:<owner>/<repo>`.
+Design and measurements: nix-config's `docs/project-sessions-adr.md` (ADR-019).
+
 ## Assume good faith about the user's own work — verify, never accuse
 
 Ismail is a software architect with 16 years of built systems, describing his own

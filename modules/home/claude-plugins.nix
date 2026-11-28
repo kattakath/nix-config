@@ -73,7 +73,11 @@ let
   #             the operator's, so it is not part of the floor a consumer inherits.
   #   slack-etiquette  the operator's sessions message his colleagues on Slack; the skill
   #             carries when to post, group vs DM, one fact once and preview-free links
-  #             (2026-11-09). Workspace IDs stay in the hand-placed folder CLAUDE.md.
+  #             (2026-11-09). Since 1.1.0 it reads the signed-in profile and looks people
+  #             and channels up live, so no workspace data is hand-placed anywhere.
+  #   project-sessions  one named background session per git repo, created or resumed
+  #             by `<host>:<owner>/<repo>` (ADR-019, 2026-11-28). The delegation policy is
+  #             the operator's, so it is not part of the floor.
   #   page-tools  the two agent browser rails (Playwright on the real Chrome, chrome-devtools
   #             on a headless CfT); its launchers come from ./pinned-chrome.nix, which is
   #             operator-only too (2026-11-18).
@@ -81,6 +85,7 @@ let
     "ci-watch@kattakath"
     "slack-etiquette@kattakath"
     "page-tools@kattakath"
+    "project-sessions@kattakath"
   ];
 
   # ONE predicate for "this marketplace is a store path", shared by the three

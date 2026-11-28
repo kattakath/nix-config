@@ -949,6 +949,11 @@ in
       # NOTE: editing any of these in the Claude UI won't persist — a rebuild
       # reverts them; change them HERE instead.
       settings = {
+        # Every session, background ones included, joins Remote Control, so each repo's
+        # project session (ADR-019) is reachable from the phone. Was set by hand in /config
+        # until 2026-11-28; declared here so a rebuild keeps it.
+        remoteControlAtStartup = true;
+
         # ONE owner per stdio MCP server (2026-11-01). Claude Code never dedups stdio servers,
         # so two plugins naming the same server both spawn it. A NAME deny drops just that
         # server: the plugin's skills and hooks still load, and the name survives the plugin's
