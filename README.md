@@ -118,7 +118,7 @@ lives and how to reset it: [`docs/map/hosts.md`](docs/map/hosts.md).
 ## How CI works
 
 - **Changes land by a direct push to `main`.** `nix-ci` runs the full linux suite on that push,
-  behind one aggregate `gate` job, and the `ci-watch` plugin reports only failures.
+  behind one aggregate `gate` job, and the `ci-watch` plugin reports green in one line and failures in full.
 - **Bot and fork PRs** run the same suite and merge through a merge queue.
 - **The darwin leg** runs only on PRs and is advisory; `activate` is the darwin check.
 - **Each leg builds the flake's `checks`.** The linux leg also evaluates every host toplevel,

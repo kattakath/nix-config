@@ -1,4 +1,4 @@
-# Landing a change — push to `main`, `ci-watch` reports failures
+# Landing a change — push to `main`, `ci-watch` reports back (green in one line)
 
 Unscoped on purpose, like `pr-title.md`: it governs the END of every session, whatever the
 session touched. **The procedure lives in the global `claude/CLAUDE.md` § Landing on the

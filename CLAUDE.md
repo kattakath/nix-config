@@ -196,7 +196,7 @@ Claude in Chrome first, else `page-tools` (Playwright: real Chrome; chrome-devto
 [`pr-title`](.claude/rules/pr-title.md) (commit subject = comma-separated touched components;
 one commit per change; a PR only where global § Landing lists it),
 [`landing-changes`](.claude/rules/landing-changes.md) (direct push to `main` after the leak
-gates; the `ci-watch` plugin reports only failures; this repo's local checks and traps),
+gates; the `ci-watch` plugin reports green in one line, failures in full; this repo's local checks and traps),
 [`launchd-naming`](.claude/rules/launchd-naming.md) (every launchd unit exposes a `nix-<kebab>`
 `arg0` — never a bare `sh`/`python3`),
 [`upstream-first`](.claude/rules/upstream-first.md) (grep the **pinned** input's option surface

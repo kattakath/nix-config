@@ -135,7 +135,7 @@ for drift against the block between the markers, so keep handle names byte-stabl
 | **as-code** | A manual step becomes code; a doc is generated from its source. | Everything-as-Code; Docs-as-Code; OpenGitOps | What can't be code gets a **CI drift check** (read-only, it reports). Lean: near-zero redundancy. | this row |
 | **receipts** | Every non-trivial claim or choice carries math, data or precedent, checked at the source now. | ADR / MADR; evidence-based SE | Name the **rejected option** and the **weakest assumption**. Verify before telling anyone. Absence of evidence is **never** an accusation. | bullets below; § Assume good faith |
 | **staff work** | Hand over finished work: run it yourself; the human only authenticates or decides. | Completed Staff Work (US Army, 1942) | Decisions are click-to-select, recommended first, full context (ID, purpose, cost). Never end a turn on an open decision. An **unrequested next step** is one FYI `Next:` line — unless a decision question is already open, then it rides along as an option. **Anything that seeks his reply is options, never prose.** Re-check the trail before re-asking. **Hand over** only when a deny rule, a managed setting or a blocking hook forbids it, and **name which one and where**. | § Decisions; § Run it yourself |
-| **exceptions only** | Every open loop has a watcher; green is silence; speak only when someone must act. | Management by exception; SRE actionable alerting | Covers asks to people too (reply-watch). **Never poll in the foreground.** Bundle; progress goes on the PR. | § CI waits; § Landing |
+| **exceptions only** | Every open loop has a watcher; green is a one-line FYI that needs no action; speak at length only when someone must act. | Management by exception; SRE actionable alerting | Covers asks to people too (reply-watch). **Never poll in the foreground.** Bundle; progress goes on the PR. | § CI waits; § Landing |
 | **gates** | Irreversible or outward steps need a live yes. | Two-person rule / change approval | A **timeout is NO**. An owner's rules (secrets, customer files, off-limits systems) are final. Never destroy what a teammate confirmed works. **Never reword or swap tools to get past a guard**: run the real command so the block or prompt reaches him. | this row; § Decisions |
 | **plain shape** | Verdict first, bullets, tables, re-entry headings, active voice. | BLUF; plain language; W3C COGA Obj. 3 | **Mandatory, not style.** Diagrams only when they carry data, ≤80 cols, measured. | § Answer shape; § Diagrams |
 | **no data** | Repos hold code and procedures, never facts about people or the business. | (12-Factor Config is too narrow) | Test: "would this line read the same for a different person?" Paths to data stay out too. **Home is split by reader:** personal → Google; work → the employer's own stores. | § No data |
@@ -381,7 +381,7 @@ I OWN THE REPO — MINE IS THE BIGGEST STAKE.
   this is about skipping *process* (PR/CI gatekeeping) on his own repos, not about skipping
   *confirmation* for actions that are hard to undo regardless of who owns the repo.
 
-## Landing on the fleet — push to main, hear about CI only when it fails (DEFAULT)
+## Landing on the fleet — push to main, CI reports back in one line (DEFAULT)
 
 **The fleet** is the repo list in nix-config's `.claude/skills/fleet-doctor/fleet-repos.txt`.
 There, a change lands by a **direct push to the default branch**, with **no PR**. Ismail is
@@ -398,9 +398,10 @@ agentic-jobseek's career evidence store.
    Bash tool call. Workflow files go over SSH, because the gh token has no `workflow` scope.
    **Never force-push the default branch:** the ruleset's `non_fast_forward` stays.
 5. **Don't wait — carry on with the next task.** The always-on **`ci-watch`** plugin's hook
-   watches every run the pushed sha triggered. **Green is silence.** The session wakes only
-   on `RED`, `NO_RUNS`, `STILL_RUNNING` or `WATCH_FAILED`, labelled "Stop hook blocking
-   error". Act on it with the plugin's skill and fix forward.
+   watches every run the pushed sha triggered, and the session wakes on every outcome,
+   labelled "Stop hook blocking error". **`GREEN` is a one-line FYI: note it and carry
+   on.** `RED`, `NO_RUNS`, `STILL_RUNNING` or `WATCH_FAILED` need action: act on it with
+   the plugin's skill and fix forward.
 6. **Follow-ups don't wait either.** `activate` runs straight away. A nixpi deploy is the one
    exception: it waits for `warm-nixpi-cache`, so the Pi never builds.
 
@@ -421,8 +422,8 @@ agentic-jobseek's career evidence store.
   `--sha`), then keep working or end the turn. Where the repo arms auto-merge, the armed
   merge IS the wait.
 - **Report only failures and follow-ups:** **RED** (the check name and its run URL), or
-  **landed, needs a follow-up** (activate, deploy). A green landing that needs nothing
-  earns one line, not a report.
+  **landed, needs a follow-up** (activate, deploy). A `GREEN` wake-up that needs nothing
+  gets at most one line in the reply, or none.
 - **Evidence:** nix-config's `docs/pr-wait-research.md`, October 2026. In-turn polling cost
   **6.4–8.4 min of keyboard per day**, and only **1.5%** of 32,201 Bash calls ran in the
   background. That census covers one repo. It is global anyway, because the cost comes from
