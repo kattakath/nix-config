@@ -1785,7 +1785,7 @@ in
     # common.scrcpyDir, common.gnirehtetDir — and resolves each tool with which() over
     # [that dir, its bundled extra/mac-arm64/… dirs, $PATH] (app.asar, electron/configs/
     # which). There is no `adbPath` setting (its only "adbPath" strings are `yadbPath`);
-    # the key cdc2946f wrote was dead and is deleted here.
+    # the key cdc2946f wrote was dead (5f327b93's activation deleted it).
     #
     # scrcpyDir MUST hold both `scrcpy` and the MATCHING `scrcpy-server`: Escrcpy sets
     # SCRCPY_SERVER_PATH to `<scrcpyDir>/scrcpy-server` and falls back to its BUNDLED 4.1
@@ -1835,7 +1835,7 @@ in
               };
             }
           );
-          jqOperation = "$dynamic * $static | del(.common.adbPath)";
+          jqOperation = "$dynamic * $static";
         };
       in
       lib.mkIf isMacosHost (
@@ -1845,10 +1845,20 @@ in
             :
           elif ! ${lib.getExe pkgs.jaq} -se 'length == 1 and (.[0] | type == "object")' "$escrcpy_cfg" > /dev/null 2>&1; then
             warnEcho "escrcpy: $escrcpy_cfg is not one JSON object — tool dirs left unset."
-          elif ! (
-            ${merger}
-          ); then
-            warnEcho "escrcpy: could not merge tool dirs into $escrcpy_cfg (the app may have written it during activation) — the next activation retries."
+          else
+            # NOT `if ! ( … )`: bash ignores errexit inside an `if` condition, so a failed
+            # step in the merger would carry on to its `mv`. Run it with errexit live,
+            # catch only its exit status.
+            set +e
+            (
+              set -e
+              ${merger}
+            )
+            escrcpy_rc=$?
+            set -e
+            if [ "$escrcpy_rc" -ne 0 ]; then
+              warnEcho "escrcpy: could not merge tool dirs into $escrcpy_cfg (the app may have written it during activation) — the next activation retries."
+            fi
           fi
         ''
       );
