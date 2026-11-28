@@ -318,8 +318,9 @@ object merge with the right operand winning**, and it **replaces arrays wholesal
 
 - `enabledPlugins` is an **object** → Nix's declared ids win per id, the operator's other ids
   survive untouched. **That is already exactly the §6 `declared` lane.**
-- The `install -m 600 /dev/null` race at `:132` is a **pre-existing two-concurrent-activations
-  hazard** documented in place. Widening the attrset Nix emits adds **no new writer** and no
+- The `install -m 600 /dev/null` race was a **pre-existing two-concurrent-activations
+  hazard** (gone since 2026-11-28: the merge now writes through home-manager's
+  mkImpureConfigMerger, a rename). Widening the attrset Nix emits adds **no new writer** and no
   new collision surface.
 
 **This is the finding that shrinks §6.** The `declared` lane needs no mechanism at all — only
@@ -406,7 +407,7 @@ lane or about moving existing floor members into it:
 | 2 | Can `claude-plugins-official` drop its explicit `source`? | **Irrelevant** — orthogonal (§4d, incidental find). Still unmeasured. |
 | 3 | Does a managed `false` read as policy or bug in `/plugin`? | **Irrelevant.** Only `assured` can emit a managed value. |
 | 4 | Should the always-on three move into `assured`? | **Answered: no, not now.** They stay derived in `claude-plugins.nix`, keeping the drift assertion at its `:186`. The two lanes are asserted **disjoint** instead. |
-| 5 | Round-trip risk — "a second writer to the same key needs that path re-read" | **Re-read, and there is no second writer.** `programs.claude-code.settings.enabledPlugins` is one Nix option; both activation entries (`claudeCodeSettingsMerge`, `claudeCodeSettingsReassert`) run the **same** `mergeScript` over the **same** `nixSettings` derivation. Widening that option's VALUE adds no writer and changes no activation ordering. The `install -m 600` race named at `claude-code-settings.nix:113` is a **concurrent-`activate`** hazard that predates this and is unaffected. |
+| 5 | Round-trip risk — "a second writer to the same key needs that path re-read" | **Re-read, and there is no second writer.** `programs.claude-code.settings.enabledPlugins` is one Nix option; both activation entries (`claudeCodeSettingsMerge`, `claudeCodeSettingsReassert`) run the **same** `mergeScript` over the **same** `nixSettings` derivation. Widening that option's VALUE adds no writer and changes no activation ordering. The `install -m 600` race this table once cited was a **concurrent-`activate`** hazard that predated this and was unaffected (removed 2026-11-28 with the move to mkImpureConfigMerger). |
 
 So the lane that needed nothing measured is the lane that shipped.
 

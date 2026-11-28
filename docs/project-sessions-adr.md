@@ -19,7 +19,7 @@ The design must use Claude Code's own features and stay invisible to other devel
 | Resume the same session | `claude --bg --resume <full lowercase sessionId>`, **no other flag** | Same id, name kept |
 | Resume by name, short id, or with any flag | same command | **Starts a copy.** By name, the copy also loses the name (it gets an auto name) |
 | Remote Control | `remoteControlAtStartup: true` | Background sessions connect on their own |
-| Task list | `CLAUDE_CODE_TASK_LIST_ID` set when the session is created | The list is shown, and it survives a bare resume without the variable. Its folder replaces every character outside `[A-Za-z0-9_-]` with `-`, which loses information: `a/b-c` and `a-b/c` share one list |
+| Task list | Claude Code's default per-session list (plugin 1.4.5; `CLAUDE_CODE_TASK_LIST_ID` is never set) | Each session keeps its own list, swept by `cleanupPeriodDays`. Until 1.4.0 `ensure` set the variable to the name; a set variable is frozen into the `--bg` daemon, so `ensure` now also strips an inherited one (`env -u`). Task tools need `CLAUDE_CODE_ENABLE_TODO_TOOLS=1` on most models, set user-wide |
 | Root context | user `CLAUDE.md`, settings, plugins, hooks | All load in a background session |
 | Address it | `SendMessage` by name | Delivered, and the reply comes back. A session in a different permission mode holds the message for approval instead |
 | Workspace trust | — | `--bg` **refuses an untrusted folder**, and a trusted parent does not cover it. Each new repo needs one trust click from the operator |
@@ -37,11 +37,12 @@ The design must use Claude Code's own features and stay invisible to other devel
   `git rev-parse --git-common-dir` realpath, so worktrees and symlinks map to one repo. Then:
   - a live match: the main session talks to it with `SendMessage`;
   - a stopped match: it resumes with the bare full session id;
-  - no match: it creates the session with the task-list variable set to the name.
+  - no match: it creates the session, with no task-list variable (the default per-session list).
   It reports duplicates and never kills one. **No id is stored or shown.** Each call reads the
   id again.
 - **When.** On sight: the first time the main session works in a repo.
-- **Project scaffold.** The doctor validates the Claude files a repo already has. Where the repo has
+- **Project scaffold — NOT BUILT** (plugin 1.4.5's `project-session` has only `name`, `ensure`
+  and `status`; there is no doctor). As designed: a doctor validates the Claude files a repo already has. Where the repo has
   none, it scaffolds the standard committed shape: `CLAUDE.md` via `/init` and `.claude/settings.json`
   carrying `$schema`. Both files contain only content any developer could have written. **Nothing in
   them names this setup, its plugins or its marketplace.** Those come from user scope. A commit to a
@@ -80,7 +81,8 @@ The design must use Claude Code's own features and stay invisible to other devel
 - **Known gaps:**
   - Pinning stays manual.
   - Each new repo needs a trust click.
-  - Two lossy names can share one task list; the doctor reports it.
+  - Progress is invisible from outside: `claude agents --json` has no task field, so the
+    delegating session asks for one `✓ n/N <subject>` SendMessage line per finished step.
   - On-sight creation leaves an idle process for each repo.
 
 ## 6. Outcome (measured 2026-11-28, plugin 1.0 → 1.3)
