@@ -1,8 +1,16 @@
 # ADR-018 — Migrate the fleet from Determinate Nix to upstream Nix
 
-**Status:** **PROPOSED 2026-11-27. Not decided, nothing changed on any host.** G1 **passed** the same day in a
-disposable guest (§ 4a). This is a plan with gates. ADR-017
-stays in force until every gate in § 4 passes and the operator chooses to proceed.
+**Status:** **DECIDED 2026-11-27** (the operator chose "migrate, nixvm first" after all four gates in
+§ 4 passed). The rollout follows § 3, least live host first, with a live yes before each step:
+
+| Host | Lane | Since |
+|---|---|---|
+| nixvm | **upstream** | 2026-11-27 |
+| nixos | determinate | next |
+| macos | determinate | after nixos, through `scripts/nix-impl-switch.sh` |
+| nixpi | determinate | last |
+
+ADR-017 still describes the hosts that have not moved yet.
 
 **Question.** ADR-017 § 3/3a found that upstream now has near-parity: `darwin.linux-builder-vz` and
 lazy source copying (Nix 2.35). What would moving every host to upstream Nix take, what would we

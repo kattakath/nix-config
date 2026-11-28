@@ -164,9 +164,9 @@ the ten docs CLAUDE.md alone used to name. Add a new `docs/*.md` row HERE.
   [`ADR-017`](../nix-implementation-adr.md) (**DECIDED 2026-11-27**: stay on Determinate Nix for its native
   Linux builder; one retention policy on every host — `nh clean all` daily, keep 3 generations, 3-day
   window, `auto-optimise-store`; determinate-nixd's collector `disabled`. § 3a: the `linux-builder-vz` spike.)
-  [`ADR-018`](../upstream-nix-migration-adr.md) (**PROPOSED 2026-11-27**, nothing changed: moving every host to
-  upstream Nix + nix-darwin's `nix.linux-builder` (`-vz`), least live host first, behind four gates. G1
-  all four passed 2026-11-27: the switch is scripted and rehearsed (§ 4b), and the cost is evaluation speed (§ 4c).)
+  [`ADR-018`](../upstream-nix-migration-adr.md) (**DECIDED 2026-11-27**: move every host to upstream Nix +
+  nix-darwin's `nix.linux-builder` (`-vz`), least live host first; nixvm moved first. All four gates passed:
+  the switch is scripted and rehearsed (§ 4b), and the cost is evaluation speed (§ 4c).)
 - [`docs/workspace-runbook.md`](../workspace-runbook.md) — Workspace by hand (the provider is
   archived, ADR-005 §3.3): inventory, verify, and the delegation table no CLI can read.
 - [`docs/identity-and-offboarding.md`](../identity-and-offboarding.md) — the single lever:
