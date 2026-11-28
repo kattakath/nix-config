@@ -17,5 +17,12 @@
     description = "Which Nix implementation runs this NixOS host (ADR-017 / ADR-018).";
   };
 
-  config.determinate.enable = config.local.nixImplementation == "determinate";
+  config = {
+    determinate.enable = config.local.nixImplementation == "determinate";
+    # Determinate's nix.conf set this; upstream defaults to false (see the same
+    # line in modules/parts/compose.nix for the darwin lane and why it matters).
+    nix.settings.always-allow-substitutes = lib.mkIf (
+      config.local.nixImplementation == "upstream"
+    ) true;
+  };
 }

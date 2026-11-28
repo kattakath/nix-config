@@ -417,6 +417,11 @@ let
                   "nix-command"
                   "flakes"
                 ];
+                # Determinate's nix.conf set this; upstream defaults to false and
+                # then BUILDS every allowSubstitutes = false wrapper (boot.json, the
+                # system toplevel, deploy-rs's activatable) instead of fetching it —
+                # seen on the 2026-11-27 nixpi deploy.
+                always-allow-substitutes = true;
               };
             };
             # ONE collector, as on NixOS (2026-11-27): the scheduled `nh clean all`
