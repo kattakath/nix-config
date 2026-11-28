@@ -51,6 +51,8 @@ in
   # The operator's own Mac: opens every operator-only gate
   # (modules/darwin/operator-host.nix says why this is a flag, not the hostname).
   local.operatorHost = true;
+  # ADR-018 § 3, step 3: this Mac moves to upstream Nix (scripts/nix-impl-switch.sh).
+  local.nixImplementation = "upstream";
 
   # Root-owned Claude Code policy at /Library/Application Support/ClaudeCode/
   # managed-settings.json — the tier that outranks user, project and `--settings`

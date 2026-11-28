@@ -847,37 +847,89 @@ in
             let
               mac = config.flake.darwinConfigurations.macos.config;
               custom = mac.determinateNix.customSettings or { };
+              # ADR-018 (DECIDED 2026-11-27): the contract follows the host's lane.
+              # On "upstream" it asserts the mirror image — nix-darwin owns the
+              # daemon, and every setting the Determinate lane routes through
+              # customSettings arrives through nix.settings instead.
+              upstream = (mac.local.nixImplementation or "determinate") == "upstream";
+              ns = mac.nix.settings or { };
+              daemons = mac.launchd.daemons or { };
+              upstreamExpect = [
+                {
+                  name = "determinateNix.enable is false on the upstream lane";
+                  ok = !(mac.determinateNix.enable or false);
+                }
+                {
+                  name = "nix.enable is true — nix-darwin owns the daemon and /etc/nix/nix.conf";
+                  ok = mac.nix.enable or false;
+                }
+                {
+                  name = "the Cachix substituter is in nix.settings";
+                  ok = (ns.extra-substituters or [ ]) != [ ];
+                }
+                {
+                  name = "its trusted public key rides the same path";
+                  ok = (ns.extra-trusted-public-keys or [ ]) != [ ];
+                }
+                {
+                  name = "the operator is in extra-trusted-users";
+                  ok = (ns.extra-trusted-users or [ ]) != [ ];
+                }
+                {
+                  name = "flakes + nix-command are on (Determinate enables them; upstream does not)";
+                  ok = lib.all (f: lib.elem f (ns.experimental-features or [ ])) [
+                    "nix-command"
+                    "flakes"
+                  ];
+                }
+                {
+                  name = "nix-darwin's programs.nh.clean replaces the Determinate lane's nix-store-clean";
+                  ok = daemons ? nh-clean && !(daemons ? nix-store-clean);
+                }
+                {
+                  name = "the Linux builder is nix-darwin's nix.linux-builder (darwin.linux-builder-vz)";
+                  ok = mac.nix.linux-builder.enable or false;
+                }
+              ];
             in
             mkHostContract {
               inherit pkgs;
               name = "determinate-daemon-macos";
-              subject = "macos: Determinate owns /etc/nix/nix.conf";
-              expect = [
-                {
-                  name = "determinateNix.enable is true (the darwin module is in the module list)";
-                  ok = mac.determinateNix.enable or false;
-                }
-                {
-                  name = "nix.enable is false — nix-darwin must NOT render a second nix.conf";
-                  ok = !(mac.nix.enable or true);
-                }
-                {
-                  name = "the Cachix substituter is routed through customSettings, where it is not silently dropped";
-                  ok = (custom.extra-substituters or [ ]) != [ ];
-                }
-                {
-                  name = "its trusted public key rides the same path";
-                  ok = (custom.extra-trusted-public-keys or [ ]) != [ ];
-                }
-                {
-                  name = "the operator is in extra-trusted-users, or the daemon discards their client settings";
-                  ok = (custom.extra-trusted-users or [ ]) != [ ];
-                }
-                {
-                  name = "external-builders is NOT hand-set (reserved; Determinate renders it)";
-                  ok = !(custom ? external-builders);
-                }
-              ];
+              subject =
+                if upstream then
+                  "macos: upstream Nix (nix-darwin) owns /etc/nix/nix.conf"
+                else
+                  "macos: Determinate owns /etc/nix/nix.conf";
+              expect =
+                if upstream then
+                  upstreamExpect
+                else
+                  [
+                    {
+                      name = "determinateNix.enable is true (the darwin module is in the module list)";
+                      ok = mac.determinateNix.enable or false;
+                    }
+                    {
+                      name = "nix.enable is false — nix-darwin must NOT render a second nix.conf";
+                      ok = !(mac.nix.enable or true);
+                    }
+                    {
+                      name = "the Cachix substituter is routed through customSettings, where it is not silently dropped";
+                      ok = (custom.extra-substituters or [ ]) != [ ];
+                    }
+                    {
+                      name = "its trusted public key rides the same path";
+                      ok = (custom.extra-trusted-public-keys or [ ]) != [ ];
+                    }
+                    {
+                      name = "the operator is in extra-trusted-users, or the daemon discards their client settings";
+                      ok = (custom.extra-trusted-users or [ ]) != [ ];
+                    }
+                    {
+                      name = "external-builders is NOT hand-set (reserved; Determinate renders it)";
+                      ok = !(custom ? external-builders);
+                    }
+                  ];
               advice = [
                 "modules/parts/compose.nix sets determinateNix.enable, which implies"
                 "nix.enable = false. With it off, nix-darwin renders NO /etc/nix/nix.conf,"
