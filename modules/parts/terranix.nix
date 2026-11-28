@@ -17,11 +17,13 @@
 #     so a bare `nix run .#<stack>` would apply with no saved, reviewed plan;
 #   · it ships a `destroy` script per stack (terranix/flake-module.nix:166) the bash
 #     guard would have to block;
-#   · `workdir` is CWD-relative (terranix/flake-module.nix:125, `cd ${workdir}`) — tofu
-#     running in whatever the CWD happened to be is how state was lost TWICE.
+#   · `workdir` DEFAULTS to the bare stack name (terranix/flake-module.nix:95,
+#     `default = name`), used as `cd ${workdir}` (:126) — CWD-relative unless every stack
+#     overrides it with an absolute path, and tofu running in whatever the CWD happened
+#     to be is how state was lost TWICE.
 # It would remove ~15 lines of preamble per wrapper; every guard below would still have
 # to live in its `prefixText`. Revisit if upstream gains a plan-first default app and an
-# absolute state dir.
+# absolute default state dir.
 { config, inputs, ... }:
 let
   inherit (inputs) nixpkgs terranix;
