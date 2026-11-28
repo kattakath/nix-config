@@ -68,6 +68,8 @@ in
     # ======== EVERY variant — what the seed needs to boot and be reached ========
     {
       networking.hostName = "nixos";
+      # ADR-018 § 3, step 2: the second least live host moves to upstream Nix.
+      local.nixImplementation = "upstream";
       system.stateVersion = "26.11";
       time.timeZone = "America/Toronto";
 

@@ -6,8 +6,8 @@
 | Host | Lane | Since |
 |---|---|---|
 | nixvm | **upstream** | 2026-11-27 |
-| nixos | determinate | next |
-| macos | determinate | after nixos, through `scripts/nix-impl-switch.sh` |
+| nixos | **upstream** | 2026-11-27 |
+| macos | determinate | next, through `scripts/nix-impl-switch.sh` |
 | nixpi | determinate | last |
 
 ADR-017 still describes the hosts that have not moved yet.
