@@ -64,20 +64,18 @@ in
   # kill switch is real. Every key's justification lives in that module's header.
   local.claudeManagedSettings.enable = true;
 
-  # The native Linux builder's /build is the VM's RAM tmpfs (measured: `/` and
-  # /tmp are tmpfs, no block device; tmpfs gets half the RAM). The default
-  # 8 GiB VM leaves ~3.9 GiB, and building the `nixos` guest's seed disk image
-  # (hosts/nixos.nix) stages its closure, the ext4 filesystem and the raw
-  # image there at once — "No space left on device" at every size tried.
-  # 16 GiB is the upstream knob for exactly this (docs/map/hosts.md § Building
-  # aarch64-linux on the Mac names memoryBytes as the OOM lever). Apple
-  # Virtualization backs guest RAM lazily, so an idle or small build costs
-  # little; cpuCount is left at upstream's default, as its option text asks.
-  # Activation rewrites /etc/determinate/config.json but the RUNNING daemon keeps
-  # the old size until restarted (measured: `nix config show external-builders`
-  # still said 8 GiB) — `sudo launchctl kickstart -k
-  # system/systems.determinate.nix-daemon` applies it.
-  determinateNix.determinateNixd.builder.memoryBytes = 16 * 1024 * 1024 * 1024;
+  # The Linux builder's build space is the VM's RAM tmpfs. Measured 2026-11-27 on
+  # nixpkgs' darwin.linux-builder-vz (the builder since ADR-018): `/` and /tmp
+  # are one tmpfs of 1.5 GiB on the default 2.9 GiB VM. Building the `nixos`
+  # guest's seed disk image (hosts/nixos.nix) stages its closure, the ext4
+  # filesystem and the raw image there at once — "No space left on device" on
+  # Determinate's 8 GiB VM already. 16 GiB is the size that worked there (tmpfs
+  # gets half). upstream option nix-darwin `nix.linux-builder.config` →
+  # nixpkgs `virtualisation.darwin-builder.memorySize` exists (pinned
+  # nixos/modules/profiles/nix-builder.nix, default 3 GiB) → using it. Apple
+  # Virtualization backs guest RAM lazily, and the vz guest stops after 10 idle
+  # minutes, so a small build costs little. Cores stay at the default, as before.
+  nix.linux-builder.config.virtualisation.darwin-builder.memorySize = 16 * 1024;
 
   # ONE ollama for the whole machine. The per-user agent could not be shared:
   # it lives in a single login session and keeps its models in that user's home,
